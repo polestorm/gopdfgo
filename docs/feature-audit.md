@@ -118,6 +118,17 @@ niezaliczonych: `column-height` i `column-wrap` (31, propozycja CSS Multicol 2),
 (nieobsługiwane: pudełko kolumny ma wysokość `auto`). Wiele testów zakłada medium ciągłe, w którym nadmiarowe
 kolumny wychodzą w bok; w medium stronicowanym przechodzą na następną stronę, więc tych zaliczeń nie będzie.
 
+**Co zostaje po odjęciu artefaktów pomiaru (2026-11-13).** Z 3271 testów niezaliczonych po odjęciu różnic
+krawędziowych, testów z fontem Ahem (brak w `testdata/fonts`), testów wymagających nagłówków HTTP (`@charset`)
+oraz funkcji nieobsługiwanych (`subgrid`, `grid-lanes`, pionowy tryb pisma, `column-height`, `column-wrap`)
+zostaje 1490: flexbox 299, grid 248, kolumny 168, listy CSS 3 92 (głównie liczniki `reversed`), przepływ
+normalny 74, pozycjonowanie 62, tło 57, tabele CSS 2 54, tabele CSS 3 53, elementy pływające 50 i 44.
+Trzy sprawdzone grupy z tej reszty też okazały się artefaktami: `background-position` (obwódka z interpolacji
+obrazu w rasteryzatorze), `table-anonymous-objects` (czerwony tekst pod zielonym, test sam zastrzega różnice
+wygładzania), `absolute-replaced-width` (SVG z przedrostkiem przestrzeni nazw `svg:` w XHTML). Wniosek: sondaż
+ekranowy w obecnej postaci przestaje wskazywać błędy silnika; żeby dalej był użyteczny, potrzebna jest decyzja
+o foncie Ahem (pytanie 12) i o regule porównania obrazów.
+
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,
 większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza podanych fontów) i grid (18%).
