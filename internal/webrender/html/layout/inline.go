@@ -1540,7 +1540,32 @@ func isPhantomLinebox(linebox *bo.BoxFields) bool {
 					return false
 				}
 			}
+		} else if isCollapsibleSpace(child_) {
+			// gopdfgo: wiersz z samymi zwijalnymi odstępami nie ma tekstu (odstępy na początku i końcu
+			// wiersza znikają, CSS Text 3 § 4.1.2), więc też ma zerową wysokość (CSS 2.1 § 9.4.2).
+			// W źródle taki wiersz, np. między dwoma blokami wewnątrz elementów liniowych, zajmował
+			// pełną wysokość.
+			continue
 		} else if child.IsInNormalFlow() {
+			return false
+		}
+	}
+	return true
+}
+
+// isCollapsibleSpace mówi, czy pudełko jest tekstem złożonym wyłącznie ze zwijalnych odstępów.
+func isCollapsibleSpace(box Box) bool {
+	textBox, ok := box.(*bo.TextBox)
+	if !ok {
+		return false
+	}
+	switch textBox.Style.GetWhiteSpace() {
+	case pr.Normal, pr.Nowrap, pr.PreLine:
+	default:
+		return false
+	}
+	for _, r := range textBox.TextS() {
+		if r != ' ' && r != '\t' {
 			return false
 		}
 	}

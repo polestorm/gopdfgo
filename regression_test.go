@@ -184,3 +184,19 @@ func TestInlineBackgroundFillsLine(t *testing.T) {
 		t.Errorf("%d pikseli różni tło elementu liniowego od tła bloku o tej samej treści", n)
 	}
 }
+
+// Wiersz zawierający tylko zwijalne odstępy ma zerową wysokość (CSS 2.1 § 9.4.2): dwa bloki wewnątrz
+// elementów liniowych, rozdzielone w źródle znakiem nowego wiersza, leżą tak samo jak dwa zwykłe bloki.
+func TestWhitespaceOnlyLineHasNoHeight(t *testing.T) {
+	const style = "<style>@page { size: 200px 200px; margin: 0 } body { margin: 0; font-size: 16px } " +
+		".a { height: 10px; margin-bottom: 30px; background: #00f } .b { height: 10px; background: #080 }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+"<div><span><div class=\"a\"></div></span>\n<span><div class=\"b\"></div></span></div>").PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<div><div class="a"></div><div class="b"></div></div>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}
