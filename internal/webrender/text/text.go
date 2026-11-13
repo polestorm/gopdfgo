@@ -134,14 +134,26 @@ type StrutLayoutKey struct {
 // The baseline is given from the top edge of line height.
 // [context] is mandatory for the text layout.
 func StrutLayout(style_ pr.StyleAccessor, context TextLayoutContext) (lineHeight, baseline pr.Float) {
+	return strutLayout(style_, context, style_.GetLineHeight())
+}
+
+// ContentAreaHeight zwraca wysokość obszaru treści pudełka liniowego: sumę wydłużenia górnego i dolnego
+// pierwszego dostępnego fontu (CSS Inline 3 § 4.1), niezależną od line-height.
+//
+// gopdfgo: w źródle pudełko liniowe miało wysokość równą rozmiarowi fontu, więc tło i obramowanie
+// elementów liniowych były niższe niż w przeglądarkach.
+func ContentAreaHeight(style_ pr.StyleAccessor, context TextLayoutContext) pr.Float {
+	height, _ := strutLayout(style_, context, pr.TaggedDim{Tag: pr.Normal})
+	return height
+}
+
+func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV pr.TaggedDim) (lineHeight, baseline pr.Float) {
 	style := NewTextStyle(style_, false)
 
 	fontSize := style.Size
 	if fontSize == 0 {
 		return 0, 0
 	}
-
-	lineHeightV := style_.GetLineHeight()
 
 	key := StrutLayoutKey{
 		lang:                 style.Lang,

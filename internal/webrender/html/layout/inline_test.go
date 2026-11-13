@@ -758,9 +758,11 @@ func TestEmptyInlineAutoMargins(t *testing.T) {
 	body := unpack1(html)
 	block := unpack1(body)
 	span := unpack1(block)
-	tu.AssertEqual(t, span.Box().MarginTop != Fl(0), true)
+	// gopdfgo: pudełko liniowe ma wysokość obszaru treści fontu (CSS Inline 3 § 4.1), więc przy
+	// line-height: normal połowa interlinii wynosi zero (w źródle wysokość była rozmiarem fontu).
+	tu.AssertEqual(t, span.Box().MarginTop, Fl(0))
 	tu.AssertEqual(t, span.Box().MarginRight, Fl(0))
-	tu.AssertEqual(t, span.Box().MarginBottom != Fl(0), true)
+	tu.AssertEqual(t, span.Box().MarginBottom, Fl(0))
 	tu.AssertEqual(t, span.Box().MarginLeft, Fl(0))
 }
 
@@ -974,8 +976,9 @@ func TestVerticalAlign7(t *testing.T) {
 	tu.AssertEqual(t, img1.Box().Height, Fl(4))
 	tu.AssertEqual(t, img2.Box().Height, Fl(4))
 	tu.AssertEqual(t, img1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, img2.Box().PositionY, Fl(12))
-	tu.AssertEqual(t, line.Box().Height, Fl(16))
+	// gopdfgo: text-bottom liczony od dołu obszaru treści fontu (17 px), w źródle od pola em (16 px)
+	tu.AssertEqual(t, img2.Box().PositionY, Fl(13))
+	tu.AssertEqual(t, line.Box().Height, Fl(17))
 	tu.AssertEqual(t, body.Box().Height, line.Box().Height)
 }
 
@@ -992,8 +995,9 @@ func TestVerticalAlign8(t *testing.T) {
 	line := unpack1(body)
 	span1 := unpack1(line)
 	span2 := unpack1(span1)
-	tu.AssertEqual(t, span1.Box().Height, Fl(16))
-	tu.AssertEqual(t, span2.Box().Height, Fl(16))
+	// gopdfgo: wysokość obszaru treści fontu, w źródle rozmiar fontu (16)
+	tu.AssertEqual(t, span1.Box().Height, Fl(17))
+	tu.AssertEqual(t, span2.Box().Height, Fl(17))
 	// The line’s strut does not has "line-height: normal" but the result should
 	// be smaller than 1.5.
 	tu.AssertEqual(t, span1.Box().MarginHeight(), Fl(24))

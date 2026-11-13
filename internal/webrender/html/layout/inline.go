@@ -1037,7 +1037,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 	}
 	lineHeight, baseline := text.StrutLayout(box.Style, context)
 	newBox.Baseline = baseline
-	newBox.Height = box.Style.GetFontSize().ToMaybeFloat()
+	newBox.Height = text.ContentAreaHeight(box.Style, context)
 	halfLeading := (lineHeight - newBox.Height.V()) / 2.
 	// Set margins to the half leading but also compensate for borders and
 	// paddings. We want marginHeight() == lineHeight
