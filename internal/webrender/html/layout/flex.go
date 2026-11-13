@@ -365,6 +365,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 
 		var flexBasis pr.MaybeFloat // nil means "content"
+		basisIsContent := child.Style.GetFlexBasis().Tag == pr.Content
 		if styleFlexBasis := child.Style.GetFlexBasis(); styleFlexBasis.Tag == pr.Content {
 			flexBasis = nil
 		} else {
@@ -410,6 +411,17 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			newChild_ := child_.Copy()
 			newChild := newChild_.Box()
 			newChild.Style = child.Style.Copy()
+			// gopdfgo: flex-basis: content mierzy treść, pomijając podany rozmiar w osi głównej
+			// (CSS Flexbox 1 § 7.2.1); w źródle podana szerokość nadal obowiązywała.
+			if basisIsContent {
+				if main == pr.PWidth {
+					newChild.Style.SetWidth(pr.TagToV(pr.Auto))
+					newChild.Width = pr.AutoF
+				} else {
+					newChild.Style.SetHeight(pr.TagToV(pr.Auto))
+					newChild.Height = pr.AutoF
+				}
+			}
 			if main == pr.PWidth {
 				// … the item’s min and max main sizes are ignored.
 				newChild.Style.SetMinWidth(pr.ZeroPixels.Tagged())
@@ -512,9 +524,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 
 	// TODO: handle *-reverse using the terminology from the specification
-	if box.Style.GetFlexWrap() == "wrap-reverse" {
-		slices.Reverse(flexLines)
-	}
+	// gopdfgo: wrap-reverse zamienia początek i koniec osi poprzecznej (CSS Flexbox 1 § 5.2), więc
+	// układamy linie jak dla wrap, a na końcu odbijamy pozycje elementów w osi poprzecznej. W źródle
+	// odwracana była tylko kolejność linii, które nadal były pakowane od góry.
 	if strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") {
 		for _, line := range flexLines {
 			line.reverse()
@@ -642,7 +654,6 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 								child.TargetMainSize = child.FlexBaseSize + remainingFreeSpace*ratio
 							}
 						}
-						child.TargetMainSize = minMax(v.box, child.TargetMainSize)
 					}
 				}
 			}
@@ -652,13 +663,22 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child := v.box.Box()
 				child.Adjustment = 0
 				if !child.Frozen {
+					// gopdfgo: rozmiar docelowy przycinamy do minimum i maksimum, a różnicę zapisujemy jako
+					// korektę ze znakiem (CSS Flexbox 1 § 9.7 krok 5d). W źródle rozmiar był przycinany już
+					// przy podziale wolnego miejsca, a tutaj wykrywane było tylko naruszenie minimum, więc
+					// miejsce odebrane elementowi z max-width nie wracało do pozostałych.
 					minSize := getAttr(child, main, "min").V()
 					maxSize := getAttr(child, main, "max").V()
-					minSize = max(minSize, min(child.TargetMainSize, maxSize))
-					if child.TargetMainSize < minSize {
-						child.Adjustment = minSize - child.TargetMainSize
-						child.TargetMainSize = minSize
+					clamped := max(max(minSize, min(child.TargetMainSize, maxSize)), 0)
+					if _, isReplaced := v.box.(bo.ReplacedBoxITF); isReplaced && main == pr.PWidth {
+						// minimum i maksimum wysokości przeniesione przez proporcje obrazu
+						clamped = minMax(v.box, clamped)
 					}
+					// Przy nieskończonym wolnym miejscu różnica dałaby NaN i pętla nie miałaby końca.
+					if clamped != child.TargetMainSize {
+						child.Adjustment = clamped - child.TargetMainSize
+					}
+					child.TargetMainSize = clamped
 				}
 			}
 
@@ -671,6 +691,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				} else if adjustments > 0 && child.Adjustment > 0 {
 					child.Frozen = true
 				} else if adjustments < 0 && child.Adjustment < 0 {
+					child.Frozen = true
+				} else if adjustments != adjustments { // NaN: zamrażamy wszystko, żeby pętla się skończyła
 					child.Frozen = true
 				}
 			}
@@ -1256,7 +1278,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	box_ = bo.CopyWithChildren(box_, newChildren)
 	box = box_.Box()
 	childSkipStack = skipStack
-	for _, line := range flexLines {
+	finalLines := make([][]Box, len(flexLines)) // pudełka po ostatecznym układzie, według linii
+	for lineIndex, line := range flexLines {
 		for _, v := range line.line {
 			i, child := v.index, v.box.Box()
 			if child.IsFlexItem {
@@ -1273,6 +1296,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					resumeAt = tree.ResumeStack{resumeIndex + i: nil}
 				} else {
 					box.Children = append(box.Children, newChild)
+					finalLines[lineIndex] = append(finalLines[lineIndex], newChild)
 					if childResumeAt != nil {
 						firstLevelSkip := 0
 						if originalSkipStack != nil {
@@ -1330,6 +1354,60 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 			}
 		}
+	}
+
+	if box.Style.GetFlexWrap() == "wrap-reverse" && resumeAt == nil {
+		for lineIndex, line := range finalLines {
+			// Elementy wyrównane do linii bazowej odbijamy razem, jako grupę, żeby zachować wspólną
+			// linię bazową; pozostałe każdy z osobna.
+			groupTop, groupBottom := pr.Inf, -pr.Inf
+			isBaseline := make([]bool, len(line))
+			if cross == pr.PHeight {
+				for i, v := range line {
+					child := v.Box()
+					alignSelf := child.Style.GetAlignSelf()
+					if alignSelf.Has(pr.Auto) {
+						alignSelf = box.Style.GetAlignItems()
+					}
+					if alignSelf.Has(pr.Baseline) {
+						isBaseline[i] = true
+						groupTop = min(groupTop, child.PositionY)
+						groupBottom = max(groupBottom, child.PositionY+child.MarginHeight())
+					}
+				}
+			}
+			for i, v := range line {
+				child := v.Box()
+				var delta pr.Float
+				if cross == pr.PHeight && box.Height != pr.AutoF {
+					top := box.ContentBoxY()
+					if isBaseline[i] {
+						delta = top + box.Height.V() - (groupTop - top) - (groupBottom - groupTop) - groupTop
+					} else {
+						delta = top + box.Height.V() - (child.PositionY - top) - child.MarginHeight() - child.PositionY
+					}
+					v.Translate(0, delta, false)
+					if lineIndex == 0 && i == 0 && bo.InlineFlexT.IsInstance(box_) {
+						box.Baseline = box.Baseline.V() + delta
+					}
+				} else if cross == pr.PWidth && box.Width != pr.AutoF {
+					left := box.ContentBoxX()
+					mirrored := left + box.Width.V() - (child.PositionX - left) - child.MarginWidth()
+					v.Translate(mirrored-child.PositionX, 0, false)
+				}
+			}
+		}
+		// Kolejność pudełek jak kolejność linii po odwróceniu: od początku osi poprzecznej.
+		sort.SliceStable(box.Children, func(i, j int) bool {
+			a, b := box.Children[i].Box(), box.Children[j].Box()
+			if !a.IsFlexItem || !b.IsFlexItem {
+				return !a.IsFlexItem && b.IsFlexItem
+			}
+			if cross == pr.PHeight {
+				return a.PositionY < b.PositionY
+			}
+			return a.PositionX < b.PositionX
+		})
 	}
 
 	box_.RemoveDecoration(box, false, resumeAt != nil && !discard)

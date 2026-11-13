@@ -91,6 +91,18 @@ ma prawie sześć razy więcej pikseli. Kilka obszarów straciło na tym zalicze
 listy CSS 3: 78 → 61). Liczby są więc porównywalne między obszarami tylko w przybliżeniu; tolerancję trzeba
 jeszcze dobrać świadomie.
 
+Pomiar pomocniczy z 2026-11-13 (ten sam sondaż, dodatkowa klasa „krawędź”: różnice wyłącznie w pikselach
+leżących na krawędziach kształtów): 5853 zaliczone ściśle, 366 kolejnych różni się tylko na krawędziach, 2910
+niezaliczonych, 6 błędów renderowania. Najwięcej różnic krawędziowych: tło (72), tekst CSS 2 (52), marginesy
+i `clear` (40), pozycjonowanie (39), obramowania (36). To górna granica tego, co da dobranie tolerancji:
+6219 z 9135 (68%); reszta to rzeczywiste różnice układu.
+
+Flexbox po rundzie z 2026-11-13 (min/max w kroku 9.7.5d, `wrap-reverse`, `flex-basis: content`): 559 z 952
+(wcześniej 553). Pięć testów przestało przechodzić i zostaje do poprawy: linia bazowa kontenera i elementów przy
+`wrap-reverse` (`align-baseline`, `flexbox-align-self-baseline-horiz-005`, `flexbox-baseline-multi-line-horiz-002`)
+oraz słowo kluczowe `safe` w `align-content` (`flexbox-safe-overflow-position-002` i `-005`), które przedtem
+przechodziły przypadkiem, bo linie nie były odbijane.
+
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,
 większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza podanych fontów) i grid (18%).
