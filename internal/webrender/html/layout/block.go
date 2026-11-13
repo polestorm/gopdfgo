@@ -119,6 +119,9 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 	} else if bo.GridT.IsInstance(box_) {
 		box_, layout := gridLayout(context, box_, bottomSpace, skipStack, containingBlock,
 			pageIsEmpty, absoluteBoxes, fixedBoxes)
+		if box_ == nil { // gopdfgo: siatka przeniesiona w całości na następną stronę
+			return nil, layout, -1
+		}
 		return box_.(bo.BlockLevelBoxITF), layout, -1 // gridLayout is type stable
 	} else {
 		panic(fmt.Sprintf("Layout for %s not handled yet", box_))

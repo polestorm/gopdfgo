@@ -190,7 +190,7 @@ func getPlacement(start, end pr.GridLine, lines []pr.GridNames) placement {
 			spanIdent = ident
 			if spanIdent != "" {
 				hasBroken := false
-				for index, line := range lines[coord.i+1:] {
+				for index, line := range pySlice(lines, coord.i+1, len(lines)) {
 					size = index + 1
 					if utils.IsIn(line, spanIdent) {
 						spanNumber -= 1
@@ -215,7 +215,7 @@ func getPlacement(start, end pr.GridLine, lines []pr.GridNames) placement {
 					number = 1
 				}
 				if coordEnd.i > 0 {
-					slice := lines[coordEnd.i-1:]
+					slice := pySlice(lines, coordEnd.i-1, len(lines))
 					hasBroken := false
 					for coord.i = range slice {
 						line := slice[len(slice)-1-coord.i] // reverse
@@ -282,7 +282,7 @@ func getColumnPlacement(rowPlacement [2]int, columnStart, columnEnd pr.GridLine,
 			if columnStart.IsAuto() {
 				pl = getPlacement(pr.GridLine{Val: x + 1}, columnEnd, columns)
 			} else {
-				if columnStart.Tag == pr.Span {
+				if columnStart.Tag != pr.Span { // gopdfgo: warunek odwrócony w źródle, jak niżej
 					panic("expected span")
 				}
 				// If the placement contains two spans, remove the one
@@ -313,7 +313,9 @@ func getColumnPlacement(rowPlacement [2]int, columnStart, columnEnd pr.GridLine,
 		if columnStart.IsAuto() {
 			return getPlacement(pr.GridLine{Val: y + 1}, columnEnd, columns)
 		} else {
-			if columnStart.Tag == pr.Span {
+			// gopdfgo: w źródle warunek był odwrócony względem asercji z WeasyPrint
+			// (assert column_start[0] == 'span') i panika padała właśnie dla poprawnego przypadku.
+			if columnStart.Tag != pr.Span {
 				panic("expected span")
 			}
 			// If the placement contains two spans, remove the one contributed
@@ -508,7 +510,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 		if size != 1 {
 			continue
 		}
-		tracksChildren[coord-implicitStart] = append(tracksChildren[coord-implicitStart], child)
+		if i := coord - implicitStart; i >= 0 && i < len(tracksChildren) { // gopdfgo: zakres sprawdzany
+			tracksChildren[i] = append(tracksChildren[i], child)
+		}
 	}
 
 	for i, children := range tracksChildren {
@@ -523,7 +527,7 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			for _, child := range children {
 				pos := childrenPositions[child]
 				x, _, width, _ := pos.unpack()
-				widthF := sum0(orthogonalSizes[x : x+width])
+				widthF := sum0(pySlice(orthogonalSizes, x, x+width))
 				child = bo.Deepcopy(child)
 				child.Box().PositionX = 0
 				child.Box().PositionY = 0
@@ -637,7 +641,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				}
 			}
 			if !hasFr {
-				tracksChildren[coord-implicitStart] = append(tracksChildren[coord-implicitStart], child)
+				if i := coord - implicitStart; i >= 0 && i < len(tracksChildren) { // gopdfgo: zakres sprawdzany
+					tracksChildren[i] = append(tracksChildren[i], child)
+				}
 			}
 		}
 		// 1.2.3.1 For intrinsic minimums.
@@ -674,7 +680,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				}
 			}
 			if !hasFr {
-				tracksChildren[coord-implicitStart] = append(tracksChildren[coord-implicitStart], child)
+				if i := coord - implicitStart; i >= 0 && i < len(tracksChildren) { // gopdfgo: zakres sprawdzany
+					tracksChildren[i] = append(tracksChildren[i], child)
+				}
 			}
 		}
 		// 1.2.3.5 For intrinsic maximums.
@@ -1481,7 +1489,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if resumeRow == -1 {
 			slice = len(rowsSizes)
 		}
-		box.Height = sum0(rowsSizes[skipRow:slice]) + pr.Float(len(rowsSizes[skipRow:slice])-1)*rowGap
+		rows := pySlice(rowsSizes, skipRow, slice)
+		box.Height = sum0(rows) + pr.Float(max(len(rows)-1, 0))*rowGap
 	}
 	// Lay out grid items.
 	justifyItems := box.Style.GetJustifyItems()
@@ -1499,12 +1508,17 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 		child = bo.Deepcopy(child)
 		childB := child.Box()
-		childB.PositionX = columnsPositions[x]
-		childB.PositionY = rowsPositions[y] - skipHeight
+		// gopdfgo: tablice ścieżek zaczynają się od pierwszej ścieżki niejawnej, więc współrzędną siatki
+		// (ujemną dla ścieżek przed siatką jawną) trzeba przesunąć; w źródle indeks ujemny kończył się
+		// paniką, a w Pythonie po cichu brał ścieżkę od końca.
+		xi := min(max(x-implicitX1, 0), len(columnsPositions)-1)
+		yi := min(max(y-implicitY1, 0), len(rowsPositions)-1)
+		childB.PositionX = columnsPositions[xi]
+		childB.PositionY = rowsPositions[yi] - skipHeight
 		cbW, cbH := box.ContainingBlock()
 		resolvePercentages(child, bo.MaybePoint{cbW, cbH})
-		widthF := (sum0(columnsSizes[x:x+width]) + pr.Float(width-1)*columnGap)
-		heightF := (sum0(rowsSizes[y:min(y+height, len(rowsSizes))]) + pr.Float(height-1)*rowGap)
+		widthF := (sum0(pySlice(columnsSizes, xi, xi+width)) + pr.Float(width-1)*columnGap)
+		heightF := (sum0(pySlice(rowsSizes, yi, yi+height)) + pr.Float(height-1)*rowGap)
 		childWidth := widthF - (childB.MarginLeft.V() + childB.BorderLeftWidth + childB.PaddingLeft.V() +
 			childB.MarginRight.V() + childB.BorderRightWidth + childB.PaddingRight.V())
 		childHeight := heightF - (childB.MarginTop.V() + childB.BorderTopWidth + childB.PaddingTop.V() +
@@ -1596,4 +1610,24 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 
 	return box_, blockLayout{resumeAt, nil, tree.PageBreak{Break: "any"}, false}
+}
+
+// pySlice zwraca s[start:end] według reguł wycinków Pythona: indeks ujemny liczy się od końca,
+// a zakres poza tablicą jest przycinany zamiast kończyć się paniką.
+//
+// gopdfgo: dodane; układ siatki przeniesiony z WeasyPrint polega na tych regułach przy liniach
+// i ścieżkach niejawnych (indeksy ujemne i wychodzące poza siatkę jawną).
+func pySlice[T any](s []T, start, end int) []T {
+	n := len(s)
+	if start < 0 {
+		start = max(start+n, 0)
+	}
+	if end < 0 {
+		end = max(end+n, 0)
+	}
+	start, end = min(start, n), min(end, n)
+	if start >= end {
+		return nil
+	}
+	return s[start:end]
 }

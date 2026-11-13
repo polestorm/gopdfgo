@@ -403,9 +403,9 @@ func newFontFile(fontDesc backend.FontDescription, font pdfFont, content []byte)
 // post-process the font used
 func (c *Output) writeFonts() {
 	for bFont, font := range c.cache.fonts {
-		if len(font.Cmap) == 0 {
-			continue
-		}
+		// gopdfgo: font bez żadnego rozpoznanego glifu (sam znak zastępczy, np. litera spoza podanych
+		// fontów) też musi dostać słownik; w źródle był pomijany, a strona nadal się do niego
+		// odwoływała, co kończyło zapis PDF paniką.
 
 		content := c.cache.fontFiles[bFont.Origin()]
 		// PDF readers do not support bitmap fonts

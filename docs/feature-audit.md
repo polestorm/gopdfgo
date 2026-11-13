@@ -112,9 +112,43 @@ grid i dopiero wtedy zdecydować o reszcie na podstawie tego, ile testów napraw
 | przypisy dolne, `leader()` | 22 i 15 testów źródłowych przechodzi; brak danych z WPT | zostawić |
 | słowniki dzielenia wyrazów (42 języki) | działają | zostawić wszystkie; dodać wybór języków przy kompilacji, gdy rozmiar będzie priorytetem |
 
-## 6. Proponowana kolejność
+## 6. Stan po pierwszej rundzie poprawek (2026-11-13)
 
-1. Trzy przyczyny panik z pkt 3 (zapis fontu bez glifów, `inline-grid`, indeksy w grid).
-2. 27 przekroczeń czasu: flex (16), `clear` (8), kolumny (3). Każde to zawieszenie silnika.
+Poprawione: zapis fontu bez rozpoznanych glifów, `inline-grid` w rysowaniu, indeksy i dwie odwrócone asercje
+w układzie grid, rozwijanie `<div/>` w dokumentach XHTML (`xhtml.go`). Sondaż powtórzony tym samym skryptem:
+
+| | Przed | Po |
+|---|---|---|
+| zaliczone | 3042 | 3100 |
+| paniki (test i wzorzec) | 672 | 2 |
+| przekroczenia czasu | 27 | 11 |
+| niezaliczone | 5388 | 6016 |
+
+Jedna regresja (test zaliczony wcześniej, teraz nie); nieprzejrzana. Grid po usunięciu panik: 200 z 1593 (13%),
+flexbox 389 z 952 (41%). Paniki zamieniły się więc głównie w zwykłe niezaliczenia: przyczyną niskich wyników
+grid są braki algorytmu albo kolejna wspólna przyczyna, nie same wyjątki.
+
+### Koszt zagnieżdżenia kontenerów
+
+Pozostałe przekroczenia czasu (kolumny i `clear` w kolumnach) oraz wcześniejsze we flex mają wspólne źródło:
+czas układu rośnie wykładniczo z głębokością zagnieżdżenia. Pomiar na `<div>` zagnieżdżonych n razy, jeden znak
+treści, macOS arm64:
+
+| Kontener | 6 poziomów | 8 | 10 | 12 |
+|---|---|---|---|---|
+| flex | 8 ms | 42 ms | 342 ms | ponad 6 s |
+| kolumny (`column-count: 2`) | 677 ms | ponad 6 s | | |
+| grid | 8 ms | 9 ms | 15 ms | 35 ms |
+| tabela, inline-block | 3 ms | 3 ms | 4 ms | 3 ms |
+
+Flex: ok. 3 razy na poziom, kolumny: ok. 7 razy. Każdy poziom układa swoje dzieci kilkukrotnie (szerokości
+wewnętrzne, próba, układ właściwy). Naprawa to zapamiętywanie wyniku układu pudełka dla danych wymiarów albo
+ograniczenie liczby przejść; praca nad algorytmem, nie poprawka miejscowa. Dla flex to priorytet: 6–8 poziomów
+w szablonach złożonych z komponentów jest realne, a 12 poziomów blokuje silnik (wymaganie D3).
+
+## 7. Proponowana kolejność
+
+1. ~~Trzy przyczyny panik z pkt 3~~ zrobione (pkt 6).
+2. Koszt zagnieżdżenia flex i kolumn (pkt 6); z 27 przekroczeń czasu zostało 11, wszystkie w kolumnach.
 3. Powtórka sondażu i szukanie kolejnych wspólnych przyczyn (jak CDATA), zaczynając od obszarów 0–21%.
 4. Dopiero potem decyzje o dokańczaniu algorytmów (grid, flex, tabele) na podstawie oczyszczonych liczb.

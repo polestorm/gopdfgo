@@ -162,7 +162,8 @@ func dispatch(box Box, page *bo.PageBox, childContexts *[]StackingContext,
 			insertStackingContext(childContexts, index, NewStackingContextFromBox(box, page, childContexts))
 		} else if box.Box().IsFloated() {
 			*floats = append(*floats, NewStackingContextFromBox(box, page, childContexts))
-		} else if bo.InlineBlockT.IsInstance(box) || bo.InlineFlexT.IsInstance(box) {
+		} else if bo.InlineBlockT.IsInstance(box) || bo.InlineFlexT.IsInstance(box) || bo.InlineGridT.IsInstance(box) {
+			// gopdfgo: dodane InlineGridT; rysowanie już je przewidywało, a bez tego kończyło się paniką
 			// Have this fake stacking context be part of the "normal"
 			// box tree, because we need its position in the middle
 			// of a tree of inline boxes.
