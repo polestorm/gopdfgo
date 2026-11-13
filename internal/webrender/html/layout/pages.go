@@ -46,8 +46,11 @@ func (o orientedBox) outer() pr.Float {
 	return o.sugar() + o.inner.V()
 }
 
+// gopdfgo: pole dostaje dokładnie wyliczony rozmiar zewnętrzny. W źródle (jak w WeasyPrint) rozmiar
+// wewnętrzny był przycinany do przedziału od min-content do max-content, więc pole o szerokości auto
+// kurczyło się do własnej treści; CSS Page 3 § 5.3 (Page-Margin Box Layout) takiego przycięcia nie zna.
 func (o *orientedBox) setOuter(newOuterWidth pr.Float) {
-	o.inner = min(max(o.minContentSize(), newOuterWidth-o.sugar()), o.maxContentSize())
+	o.inner = max(newOuterWidth-o.sugar(), 0)
 }
 
 func (o orientedBox) outerMinContentSize() pr.Float {

@@ -625,15 +625,21 @@ func TestGridShorthandAutoFlowColumnsNoneDense(t *testing.T) {
 	body := html.Box().Children[0]
 	article := body.Box().Children[0]
 	div_a, div_b, div_c := unpack3(article)
-	tu.AssertEqual(t, div_a.Box().PositionX, Fl(0))
-	tu.AssertEqual(t, div_b.Box().PositionX, Fl(0))
-	tu.AssertEqual(t, div_c.Box().PositionX, Fl(0))
+	// gopdfgo: "grid: none / auto-flow 1fr dense" ustawia grid-auto-flow: column, więc elementy trafiają
+	// do kolejnych kolumn jednego wiersza (CSS Grid 1 § 8.5). W źródle test oczekiwał trzech wierszy,
+	// bo przepływ kolumnowy był ignorowany.
+	xa, xb, xc := div_a.Box().PositionX, div_b.Box().PositionX, div_c.Box().PositionX
+	if !(xa == 0 && xa < xb && xb < xc && xc < 10) {
+		t.Fatalf("pozycje x: %v %v %v, oczekiwane trzy kolejne kolumny", xa, xb, xc)
+	}
 	tu.AssertEqual(t, div_a.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, div_b.Box().PositionY, Fl(2))
-	tu.AssertEqual(t, div_c.Box().PositionY, Fl(4))
-	tu.AssertEqual(t, div_a.Box().Width, Fl(10))
-	tu.AssertEqual(t, div_b.Box().Width, Fl(10))
-	tu.AssertEqual(t, div_c.Box().Width, Fl(10))
+	tu.AssertEqual(t, div_b.Box().PositionY, Fl(0))
+	tu.AssertEqual(t, div_c.Box().PositionY, Fl(0))
+	for _, child := range article.Box().Children {
+		if w := child.Box().Width.V(); w < 3.3 || w > 3.4 {
+			t.Fatalf("szerokość kolumny %v, oczekiwana jedna trzecia z 10", w)
+		}
+	}
 
 	for _, child := range article.Box().Children {
 		tu.AssertEqual(t, child.Box().Height, Fl(2))

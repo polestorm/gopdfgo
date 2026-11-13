@@ -141,7 +141,22 @@ strony bez końca; błąd istniał wcześniej, tylko był zasłonięty przez ign
 Najsłabsze tematy w stanie bazowym: pola marginesowe 1 z 36 (wzorce nadal się nie renderują jak trzeba),
 fragmentacja tabel 13 z 55, flex 3 z 14, float 3 z 11.
 
-## 7. Do zrobienia
+## 7. Pola marginesowe (2026-11-13)
+
+Reftesty `css-page/margin-boxes`: 3 z 36 po poprawce (było 1). Oględziny pięciu niezaliczonych par pokazały dwie
+różne rzeczy:
+
+- **błąd silnika, poprawiony:** pola o szerokości `auto` kurczyły się do własnej treści zamiast zająć wyliczoną
+  część krawędzi (CSS Page 3 § 5.3.2.2: szerokości sumują się do dostępnej). Po poprawce testy `dimensions-001`,
+  `content-001`, `alignment-001` i dokument 06 korpusu renderują się zgodnie z opisem testu;
+- **wzorce, których silnik nie renderuje poprawnie:** pliki wzorcowe odtwarzają wygląd pól zwykłym układem:
+  elementami `position: fixed` z licznikami stron, wysokościami procentowymi we flex, siatką z `inset`. To braki
+  poza polami marginesowymi (np. `content-004`: nagłówek ze wzorca nakłada się na treść).
+
+Niski wynik tej grupy mierzy więc dziś głównie `position: fixed` w druku i procentowe wysokości we flex, a nie
+same pola marginesowe.
+
+## 8. Do zrobienia
 
 - Przejrzeć 69 różnic bez ostrzeżeń; powtórzyć reftesty przez `gopdfgo.Render` zamiast programu w `bench/`.
 - Dodać `vh`/`vw` i właściwości logiczne, powtórzyć przebieg, żeby oddzielić braki składni od błędów fragmentacji.

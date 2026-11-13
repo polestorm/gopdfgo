@@ -438,15 +438,23 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 					letterBox := bo.NewInlineBox(firstLetterStyle, textBox.Element, "first-letter", nil)
 					textBox = bo.NewTextBox(letterStyle, textBox.Element, "first-letter", []rune(firstLetter))
 					letterBox.Children = []Box{textBox}
-					textBox.Children = append([]Box{letterBox}, textBox.Children...)
+					// gopdfgo: pudełko litery trafia przed dzieci pudełka nadrzędnego (w WeasyPrint:
+					// box.children = (letter_box,) + box.children). W źródle dopisywano je do nowego
+					// pudełka tekstu, więc pierwsza litera znikała z dokumentu.
+					box.Box().Children = append([]Box{letterBox}, box.Box().Children...)
 				} else {
 					letterBox := bo.NewBlockBox(firstLetterStyle, textBox.Element, "first-letter", nil)
 					letterBox.FirstLetterStyle = nil
-					lineBox := bo.NewLineBox(firstLetterStyle, textBox.Element, "first-letter", nil)
+					// gopdfgo: wiersz wewnątrz pudełka litery dostaje styl anonimowy (jak w WeasyPrint), nie styl
+					// ::first-letter; z float na wierszu układ kończył się paniką.
+					lineBox := bo.NewLineBox(letterStyle, textBox.Element, "first-letter", nil)
 					letterBox.Children = []Box{&lineBox}
 					textBox = bo.NewTextBox(letterStyle, textBox.Element, "first-letter", []rune(firstLetter))
 					lineBox.Children = []Box{textBox}
-					textBox.Children = append([]Box{letterBox}, textBox.Children...)
+					// gopdfgo: pudełko litery trafia przed dzieci pudełka nadrzędnego (w WeasyPrint:
+					// box.children = (letter_box,) + box.children). W źródle dopisywano je do nowego
+					// pudełka tekstu, więc pierwsza litera znikała z dokumentu.
+					box.Box().Children = append([]Box{letterBox}, box.Box().Children...)
 				}
 				bo.ProcessTextTransform(textBox)
 				if skipStack != nil && childSkipStack != nil {

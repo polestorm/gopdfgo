@@ -33,7 +33,77 @@ func intersectWithChildren(x, y, width, height int, positions map[Box]rect) bool
 	return false
 }
 
-func getTemplateTracks(tracks pr.GridTemplate) []pr.GridSpec {
+// definiteTrackSize zwraca rozmiar ścieżki znany przed układem: funkcję maksymalną, jeśli jest
+// długością albo procentem, w przeciwnym razie minimalną; ok=false, gdy żadna nie jest określona.
+func definiteTrackSize(track pr.GridSpec, available pr.Float) (pr.Float, bool) {
+	dims, isDims := track.(pr.GridDims)
+	if !isDims {
+		return 0, false
+	}
+	functions := dims.SizingFunctions()
+	for _, f := range [2]pr.TaggedDim{functions[1], functions[0]} {
+		switch {
+		case f.Tag != 0:
+		case f.Unit == pr.Px:
+			return f.Value + f.Offset, true
+		case f.Unit == pr.Perc:
+			return available*f.Value/100 + f.Offset, true
+		}
+	}
+	return 0, false
+}
+
+// autoRepeatCount liczy powtórzenia dla repeat(auto-fill | auto-fit, ...): największą liczbę, przy której
+// ścieżki z odstępami mieszczą się w kontenerze (CSS Grid 1 § 7.2.3.2); jedno powtórzenie, gdy rozmiar
+// kontenera albo którejś powtarzanej ścieżki nie jest określony.
+func autoRepeatCount(tracks pr.GridTemplate, repeat pr.GridRepeat, available pr.MaybeFloat, gap pr.Float) int {
+	if available == nil || available == pr.AutoF {
+		return 1
+	}
+	var fixed, unit pr.Float
+	others, perRepeat := 0, 0
+	for j, track := range repeat.Names {
+		if j%2 == 0 {
+			continue
+		}
+		size, ok := definiteTrackSize(track, available.V())
+		if !ok {
+			return 1
+		}
+		unit += size
+		perRepeat++
+	}
+	for i, track := range tracks.Names {
+		if i%2 == 0 {
+			continue
+		}
+		if r, isRepeat := track.(pr.GridRepeat); isRepeat {
+			if r.Repeat > 0 {
+				for j, inner := range r.Names {
+					if j%2 != 0 {
+						size, _ := definiteTrackSize(inner, available.V())
+						fixed += size * pr.Float(r.Repeat)
+						others += r.Repeat
+					}
+				}
+			}
+			continue
+		}
+		size, _ := definiteTrackSize(track, available.V())
+		fixed += size
+		others++
+	}
+	if perRepeat == 0 || unit+gap*pr.Float(perRepeat) <= 0 {
+		return 1
+	}
+	// fixed + n*unit + (others + n*perRepeat - 1)*gap <= available
+	n := int((available.V() - fixed - pr.Float(others-1)*gap + 1e-6) / (unit + pr.Float(perRepeat)*gap))
+	return max(n, 1)
+}
+
+// gopdfgo: available i gap służą tylko do repeat(auto-fill | auto-fit); w źródle oba dawały jedno
+// powtórzenie z ostrzeżeniem. auto-fit jest liczone jak auto-fill: puste ścieżki nie są zwijane.
+func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float) []pr.GridSpec {
 	if tracks.Tag == pr.None {
 		tracks.Names = []pr.GridSpec{pr.GridNames{}}
 	}
@@ -49,9 +119,10 @@ func getTemplateTracks(tracks pr.GridTemplate) []pr.GridSpec {
 			if trackR, isRepeat := track.(pr.GridRepeat); isRepeat {
 				repeatNumber := trackR.Repeat
 				if repeatNumber == pr.RepeatAutoFill || repeatNumber == pr.RepeatAutoFit {
-					// TODO: Respect auto-fit && auto-fill.
-					logger.WarningLogger.Println(`"auto-fit" and "auto-fill" are unsupported in repeat()`)
-					repeatNumber = 1
+					if repeatNumber == pr.RepeatAutoFit {
+						logger.WarningLogger.Println(`"auto-fit" in repeat() is laid out as "auto-fill": empty tracks are not collapsed`)
+					}
+					repeatNumber = autoRepeatCount(tracks, trackR, available, gap)
 				}
 				for _c := 0; _c < repeatNumber; _c++ {
 					for j, repeatTrack := range trackR.Names {
@@ -110,7 +181,13 @@ func getLine(line pr.GridLine, lines []pr.GridNames, side string) (isSpan bool, 
 	if number != 0 && !isSpan {
 		coord.valid = true
 		if ident == "" {
-			coord.i = number - 1
+			// gopdfgo: liczba ujemna liczy linie od końca siatki jawnej (CSS Grid 1 § 8.3): -1 to
+			// ostatnia linia. W źródle każda liczba dawała number - 1, czyli -1 stawało się linią -2.
+			if number > 0 {
+				coord.i = number - 1
+			} else {
+				coord.i = len(lines) + number
+			}
 		} else {
 			step := -1
 			if number > 0 {
@@ -707,14 +784,34 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 		}
 
 		freeSpaceF := boxSize.V() - sum - pr.Float(len(tracksSizes)-1)*gap
-		if freeSpaceF > 0 {
-			distributedFreeSpace := freeSpaceF / pr.Float(len(tracksSizes))
+		// gopdfgo: wolne miejsce dzielimy po równo między ścieżki, które mogą jeszcze rosnąć, a ścieżka,
+		// która osiągnęła swój limit, wypada z podziału i reszta jest dzielona ponownie (CSS Grid 1
+		// § 12.6). W źródle był jeden podział między wszystkie ścieżki, więc miejsce przypadające na
+		// ścieżki o stałym rozmiarze przepadało.
+		frozen := make([]bool, len(tracksSizes))
+		for freeSpaceF > 1e-6 {
+			growing := 0
 			for i := range tracksSizes {
+				if !frozen[i] && tracksSizes[i][0].V() < tracksSizes[i][1].V() {
+					growing++
+				} else {
+					frozen[i] = true
+				}
+			}
+			if growing == 0 {
+				break
+			}
+			distributedFreeSpace := freeSpaceF / pr.Float(growing)
+			for i := range tracksSizes {
+				if frozen[i] {
+					continue
+				}
 				sizes := &tracksSizes[i]
 				baseSize, growthLimit := sizes[0].V(), sizes[1].V()
-				if baseSize+distributedFreeSpace > growthLimit {
+				if baseSize+distributedFreeSpace >= growthLimit {
 					sizes[0] = growthLimit
 					freeSpaceF -= growthLimit - baseSize
+					frozen[i] = true
 				} else {
 					sizes[0] = baseSize + distributedFreeSpace
 					freeSpaceF -= distributedFreeSpace
@@ -882,17 +979,12 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		rowGap = v.Value
 	}
 
-	// TODO: Support "column" value in grid-auto-flow.
-	if utils.IsIn(flow, "column") {
-		logger.WarningLogger.Println(`"column" is not supported in grid-auto-flow`)
-	}
-
 	if gridAreas.IsNone() {
 		gridAreas = pr.GridTemplateAreas{{""}}
 	}
 
-	rows := getTemplateTracks(style.GetGridTemplateRows())
-	columns := getTemplateTracks(style.GetGridTemplateColumns())
+	rows := getTemplateTracks(style.GetGridTemplateRows(), box.Height, rowGap)
+	columns := getTemplateTracks(style.GetGridTemplateColumns(), box.Width, columnGap)
 
 	// Adjust rows number
 	gridAreasColumns := 0
@@ -971,15 +1063,55 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
+	// gopdfgo: grid-auto-flow: column. Algorytm rozmieszczania poniżej jest napisany dla przepływu
+	// wierszowego; dla kolumnowego zamieniamy osie przed nim i przywracamy po nim (CSS Grid 1 § 8.5
+	// opisuje oba przepływy symetrycznie). W źródle wartość column była ignorowana z ostrzeżeniem.
+	columnFlow := utils.IsIn(flow, "column")
+	transposeAreas := func(areas pr.GridTemplateAreas) pr.GridTemplateAreas {
+		if len(areas) == 0 {
+			return areas
+		}
+		out := make(pr.GridTemplateAreas, len(areas[0]))
+		for x := range out {
+			out[x] = make([]string, len(areas))
+			for y := range areas {
+				out[x][y] = areas[y][x]
+			}
+		}
+		return out
+	}
+	gridLineOf := func(child Box, column, start bool) pr.GridLine {
+		style := child.Box().Style
+		if columnFlow {
+			column = !column
+		}
+		switch {
+		case column && start:
+			return style.GetGridColumnStart()
+		case column:
+			return style.GetGridColumnEnd()
+		case start:
+			return style.GetGridRowStart()
+		default:
+			return style.GetGridRowEnd()
+		}
+	}
+	if columnFlow {
+		rows, columns = columns, rows
+		autoRows, autoColumns = autoColumns, autoRows
+		autoRowsBack, autoColumnsBack = autoColumnsBack, autoRowsBack
+		gridAreas = transposeAreas(gridAreas)
+	}
+
 	// 1. Run the grid placement algorithm.
 
 	// 1.1 Position anything that’s not auto-positioned.
 	childrenPositions := map[Box]rect{}
 	for _, child := range box.Children {
-		columnStart := child.Box().Style.GetGridColumnStart()
-		columnEnd := child.Box().Style.GetGridColumnEnd()
-		rowStart := child.Box().Style.GetGridRowStart()
-		rowEnd := child.Box().Style.GetGridRowEnd()
+		columnStart := gridLineOf(child, true, true)
+		columnEnd := gridLineOf(child, true, false)
+		rowStart := gridLineOf(child, false, true)
+		rowEnd := gridLineOf(child, false, false)
 
 		columnPlacement := getPlacement(columnStart, columnEnd, extractNames(columns))
 		rowPlacement := getPlacement(rowStart, rowEnd, extractNames(rows))
@@ -998,15 +1130,15 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if _, has := childrenPositions[child]; has {
 			continue
 		}
-		rowStart := child.Box().Style.GetGridRowStart()
-		rowEnd := child.Box().Style.GetGridRowEnd()
+		rowStart := gridLineOf(child, false, true)
+		rowEnd := gridLineOf(child, false, false)
 		rowPlacement := getPlacement(rowStart, rowEnd, extractNames(rows))
 		if !rowPlacement.isNotNone() {
 			continue
 		}
 		y, height := rowPlacement[0], rowPlacement[1]
-		columnStart := child.Box().Style.GetGridColumnStart()
-		columnEnd := child.Box().Style.GetGridColumnEnd()
+		columnStart := gridLineOf(child, true, true)
+		columnEnd := gridLineOf(child, true, false)
 		x, width := getColumnPlacement(rowPlacement, columnStart, columnEnd, extractNames(columns),
 			childrenPositions, utils.IsIn(flow, "dense")).unpack()
 		childrenPositions[child] = [4]int{x, y, width, height}
@@ -1026,8 +1158,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if r, has := childrenPositions[child]; has {
 			x, _, width, _ = r.unpack()
 		} else {
-			columnStart := child.Box().Style.GetGridColumnStart()
-			columnEnd := child.Box().Style.GetGridColumnEnd()
+			columnStart := gridLineOf(child, true, true)
+			columnEnd := gridLineOf(child, true, false)
 			columnPlacement := getPlacement(columnStart, columnEnd, extractNames(columns))
 			remainingGridItems = append(remainingGridItems, child)
 			if columnPlacement.isNotNone() {
@@ -1041,8 +1173,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 	// 1.3.3 Add columns to accommodate max column span.
 	for _, child := range remainingGridItems {
-		columnStart := child.Box().Style.GetGridColumnStart()
-		columnEnd := child.Box().Style.GetGridColumnEnd()
+		columnStart := gridLineOf(child, true, true)
+		columnEnd := gridLineOf(child, true, false)
 		span := 1
 		if columnStart.IsSpan() {
 			span = columnStart.Val
@@ -1066,8 +1198,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	cursorX, cursorY := implicitX1, implicitY1
 	if utils.IsIn(flow, "dense") {
 		for _, child := range remainingGridItems {
-			columnStart := child.Box().Style.GetGridColumnStart()
-			columnEnd := child.Box().Style.GetGridColumnEnd()
+			columnStart := gridLineOf(child, true, true)
+			columnEnd := gridLineOf(child, true, false)
 			columnPlacement := getPlacement(columnStart, columnEnd, extractNames(columns))
 			if columnPlacement.isNotNone() {
 				// 1. Set the row position of the cursor.
@@ -1075,8 +1207,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				x, width := columnPlacement[0], columnPlacement[1]
 				cursorX = x
 				// 2. Increment the cursor’s row position.
-				rowStart := child.Box().Style.GetGridRowStart()
-				rowEnd := child.Box().Style.GetGridRowEnd()
+				rowStart := gridLineOf(child, false, true)
+				rowEnd := gridLineOf(child, false, false)
 				var y, height int
 				for y = cursorY; ; y++ {
 					if rowStart.IsAuto() {
@@ -1121,10 +1253,10 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				for {
 					// 2. Increment the column position of the cursor.
 					y := cursorY
-					rowStart := child.Box().Style.GetGridRowStart()
-					rowEnd := child.Box().Style.GetGridRowEnd()
-					columnStart = child.Box().Style.GetGridColumnStart()
-					columnEnd = child.Box().Style.GetGridColumnEnd()
+					rowStart := gridLineOf(child, false, true)
+					rowEnd := gridLineOf(child, false, false)
+					columnStart = gridLineOf(child, true, true)
+					columnEnd = gridLineOf(child, true, false)
 					hasBroken := false
 					for x := cursorX; x < implicitX2; x++ {
 						var width, height int
@@ -1179,8 +1311,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	} else {
 		for _, child := range remainingGridItems {
-			columnStart := child.Box().Style.GetGridColumnStart()
-			columnEnd := child.Box().Style.GetGridColumnEnd()
+			columnStart := gridLineOf(child, true, true)
+			columnEnd := gridLineOf(child, true, false)
 			columnPlacement := getPlacement(columnStart, columnEnd, extractNames(columns))
 			if columnPlacement.isNotNone() {
 				// 1. Set the column position of the cursor.
@@ -1190,8 +1322,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 				cursorX = x
 				// 2. Increment the cursor’s row position.
-				rowStart := child.Box().Style.GetGridRowStart()
-				rowEnd := child.Box().Style.GetGridRowEnd()
+				rowStart := gridLineOf(child, false, true)
+				rowEnd := gridLineOf(child, false, false)
 				var y, height int
 				for ; ; cursorY++ {
 					if rowStart.IsAuto() {
@@ -1233,10 +1365,10 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				for {
 					// 1. Increment the column position of the cursor.
 					y := cursorY
-					rowStart := child.Box().Style.GetGridRowStart()
-					rowEnd := child.Box().Style.GetGridRowEnd()
-					columnStart = child.Box().Style.GetGridColumnStart()
-					columnEnd = child.Box().Style.GetGridColumnEnd()
+					rowStart := gridLineOf(child, false, true)
+					rowEnd := gridLineOf(child, false, false)
+					columnStart = gridLineOf(child, true, true)
+					columnEnd = gridLineOf(child, true, false)
 					hasBroken := false
 					for x := cursorX; x < implicitX2; x++ {
 						var width, height int
@@ -1305,6 +1437,16 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 	for c := len(gridAreas); c < implicitY2; c++ {
 		rows = append(rows, autoRows.Next(), pr.GridNames{})
+	}
+
+	if columnFlow {
+		rows, columns = columns, rows
+		gridAreas = transposeAreas(gridAreas)
+		implicitX1, implicitY1 = implicitY1, implicitX1
+		implicitX2, implicitY2 = implicitY2, implicitX2
+		for child, r := range childrenPositions {
+			childrenPositions[child] = rect{r[1], r[0], r[3], r[2]}
+		}
 	}
 
 	// 2. Find the size of the grid container.
@@ -1528,7 +1670,14 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if justifySelf.Has(pr.Auto) {
 			justifySelf = justifyItems
 		}
-		if justifySelf.Intersects(pr.Normal, pr.Stretch) {
+		// gopdfgo: marginesy auto elementu siatki pochłaniają wolne miejsce w swojej osi przed
+		// wyrównaniem i wyłączają rozciąganie (CSS Grid 1 § 6.4). W źródle: "TODO: Apply auto margins".
+		marginLeftAuto := childB.Style.GetMarginLeft().Tag == pr.Auto
+		marginRightAuto := childB.Style.GetMarginRight().Tag == pr.Auto
+		marginTopAuto := childB.Style.GetMarginTop().Tag == pr.Auto
+		marginBottomAuto := childB.Style.GetMarginBottom().Tag == pr.Auto
+		inlineAuto, blockAuto := marginLeftAuto || marginRightAuto, marginTopAuto || marginBottomAuto
+		if !inlineAuto && justifySelf.Intersects(pr.Normal, pr.Stretch) {
 			if childB.Style.GetWidth().Tag == pr.Auto {
 				childB.Style.SetWidth(pr.FToPx(childWidth))
 			}
@@ -1537,7 +1686,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if alignSelf.Has(pr.Auto) {
 			alignSelf = alignItems
 		}
-		if alignSelf.Intersects(pr.Normal, pr.Stretch) {
+		if !blockAuto && alignSelf.Intersects(pr.Normal, pr.Stretch) {
 			if childB.Style.GetHeight().Tag == pr.Auto {
 				childB.Style.SetHeight(pr.FToPx(childHeight))
 			}
@@ -1561,11 +1710,28 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			continue
 		}
 
-		// TODO: Apply auto margins.
-		if justifySelf.Intersects(pr.Normal, pr.Stretch) {
+		if inlineAuto {
+			// Przy podanej szerokości marginesy auto w poziomie rozkłada już układ blokowy;
+			// tutaj zostaje tylko element o szerokości auto, który kurczy się do treści.
+			if childB.Style.GetWidth().Tag == pr.Auto {
+				newChild.Box().Width = maxContentWidth(context, newChild, true)
+				// marginesy auto pochłaniają tylko dodatnie wolne miejsce
+				diff := max(childWidth-newChild.Box().Width.V(), 0)
+				switch {
+				case marginLeftAuto && marginRightAuto:
+					newChild.Translate(diff/2, 0, false)
+				case marginLeftAuto:
+					newChild.Translate(diff, 0, false)
+				}
+			}
+		} else if justifySelf.Intersects(pr.Normal, pr.Stretch) {
 			newChild.Box().Width = max(childWidth, newChild.Box().Width.V())
 		} else {
-			newChild.Box().Width = maxContentWidth(context, newChild, true)
+			// gopdfgo: do treści kurczy się tylko element o szerokości auto; w źródle podana szerokość
+			// była nadpisywana szerokością treści.
+			if childB.Style.GetWidth().Tag == pr.Auto {
+				newChild.Box().Width = maxContentWidth(context, newChild, true)
+			}
 			diff := childWidth - newChild.Box().Width.V()
 			if justifySelf.Has(pr.Center) {
 				newChild.Translate(diff/2, 0, false)
@@ -1574,8 +1740,15 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 		}
 
-		// TODO: Apply auto margins.
-		if alignSelf.Intersects(pr.Normal, pr.Stretch) {
+		if blockAuto {
+			diff := max(childHeight-newChild.Box().Height.V(), 0)
+			switch {
+			case marginTopAuto && marginBottomAuto:
+				newChild.Translate(0, diff/2, false)
+			case marginTopAuto:
+				newChild.Translate(0, diff, false)
+			}
+		} else if alignSelf.Intersects(pr.Normal, pr.Stretch) {
 			newChild.Box().Height = max(childHeight, newChild.Box().Height.V())
 		} else {
 			diff := childHeight - newChild.Box().Height.V()

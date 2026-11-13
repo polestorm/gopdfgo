@@ -1370,7 +1370,9 @@ func _expandGridArea(_ string, _ pr.Shortand, tokens []Token) (out []namedTokens
 	if err != nil {
 		return nil, err
 	}
-	sides := [4]string{"row-start", "row-end", "column-start", "column-end"}
+	// gopdfgo: kolejność wg CSS Grid 1 § 8.4: row-start / column-start / row-end / column-end.
+	// W źródle druga i trzecia wartość były zamienione.
+	sides := [4]string{"row-start", "column-start", "row-end", "column-end"}
 	for index, tokens := range tokens_list {
 		out = append(out, namedTokens{name: pr.PropsFromNames["grid-"+sides[index]], tokens: tokens})
 	}

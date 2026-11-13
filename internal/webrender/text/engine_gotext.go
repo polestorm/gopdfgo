@@ -332,8 +332,8 @@ func (fc *FontConfigurationGotext) width0(style *TextStyle) pr.Fl {
 func (fc *FontConfigurationGotext) spaceHeight(style *TextStyle) (height, baseline pr.Float) {
 	_, bounds, sizeFactor := fc.shapeRune(' ', style.FontDescription, style.FontFeatures)
 
-	height = fixedToFloat(bounds.Ascent-bounds.Descent) / sizeFactor
-	baseline = fixedToFloat(bounds.Ascent) / sizeFactor
+	baseline = roundMetric(fixedToFloat(bounds.Ascent) / sizeFactor)
+	height = baseline - roundMetric(fixedToFloat(bounds.Descent)/sizeFactor)
 
 	return height, baseline
 }
@@ -607,8 +607,8 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		width += run.Advance
 
 		extents, _ := run.Face.FontHExtents()
-		ascent := pr.Float(extents.Ascender) * pr.Float(style.FontDescription.Size) / pr.Float(run.Face.Upem())
-		descent := pr.Float(extents.Descender) * pr.Float(style.FontDescription.Size) / pr.Float(run.Face.Upem())
+		ascent := roundMetric(pr.Float(extents.Ascender) * pr.Float(style.FontDescription.Size) / pr.Float(run.Face.Upem()))
+		descent := roundMetric(pr.Float(extents.Descender) * pr.Float(style.FontDescription.Size) / pr.Float(run.Face.Upem()))
 
 		bottom := top - height
 
@@ -976,4 +976,13 @@ func AlignTabs(l shaping.Line, text []rune, columnWidth, lineOffset fixed.Int26_
 		applyTabs(&l[i], text, columnWidth, runsAdvance)
 		runsAdvance += l[i].Advance
 	}
+}
+
+// roundMetric zaokrągla wysokość nad i pod linią bazową do całych pikseli CSS.
+//
+// gopdfgo: dodane. Specyfikacja nie określa dokładności metryk fontu, a przeglądarki zaokrąglają je
+// do pikseli, dzięki czemu wiersze i wszystko pod nimi leżą na siatce pikseli. Z metrykami ułamkowymi
+// każdy blok pod akapitem tekstu zaczynał się w ułamku piksela.
+func roundMetric(v pr.Float) pr.Float {
+	return pr.Float(math.Round(float64(v)))
 }

@@ -660,7 +660,9 @@ func TestGridArea(t *testing.T) {
 
 	for _, test := range []struct {
 		css                                      string
-		rowStart, rowEnd, columnStart, columnEnd pr.GridLine
+		// gopdfgo: wartości w tabeli są w kolejności ze specyfikacji (CSS Grid 1 § 8.4); w źródle pola
+		// miały nazwy rowStart, rowEnd, columnStart, columnEnd, zgodnie z błędną kolejnością w ekspanderze.
+		rowStart, columnStart, rowEnd, columnEnd pr.GridLine
 	}{
 		{"auto", pr.GridLine{Tag: pr.Auto}, pr.GridLine{Tag: pr.Auto}, pr.GridLine{Tag: pr.Auto}, pr.GridLine{Tag: pr.Auto}},
 		{"auto / auto", pr.GridLine{Tag: pr.Auto}, pr.GridLine{Tag: pr.Auto}, pr.GridLine{Tag: pr.Auto}, pr.GridLine{Tag: pr.Auto}},

@@ -78,6 +78,8 @@ Rozdziały z mniej niż 20 testami pominięte w tabeli.
 | po zdejmowaniu `<![CDATA[` z arkuszy XHTML | 3042 |
 | po usunięciu panik i rozwijaniu `<div/>` w XHTML | 3100 |
 | po zmianie rasteryzacji z 40 na 96 dpi | 4295 |
+| po zaokrągleniu metryk fontu do całych pikseli | 4829 |
+| po naprawie `::first-letter` (zmierzone tylko selektory: 78 → 434 z 468) | ok. 5185 (szacunek: 4829 + 356) |
 
 Ostatni skok to błąd metody, nie silnika: w 40 dpi piksel CSS zajmuje niecałe pół piksela obrazu, więc kształty
 o tej samej geometrii różniły się wygładzaniem krawędzi (marginesy: 9% → 86%, `z-index`: 0% → 86%). Wniosek na
@@ -91,6 +93,36 @@ jeszcze dobrać świadomie.
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,
 większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza podanych fontów) i grid (18%).
+
+**Uwaga do tabeli obszarów:** pochodzi sprzed zaokrąglenia metryk fontu. Po nim największe zmiany to: przepływ
+normalny 52% → 78%, obramowania 72% → 83%, `linebox` 10% → 30%, `css1` 41% → 57%, tło 28% → 38%, pozycjonowanie
+42% → 49%, flexbox 54% → 58%, `clear` 30% → 38%, grid 18% → 20%; 12 testów przestało przechodzić (nieprzejrzane).
+
+### Ranking konstrukcji w testach niezaliczonych
+
+Dla 9475 reftestów (sondaż i testy druku) policzono, które konstrukcje CSS w teście albo we wzorcu występują
+w niezaliczonych częściej, niż wynika ze średniej (53% niezaliczonych). Największe nadwyżki w chwili pomiaru:
+wzorce z elementem `img` (1240 z 1345 niezaliczonych), grid (ok. 700 testów, 91–96%), `::first-letter`
+(362 z 364). Pierwsza okazała się skutkiem ułamkowych metryk fontu (poprawione), trzecia błędem przeniesienia
+z Pythona (pierwsza litera znikała z dokumentu; poprawione). Grid pozostaje.
+
+### Grid po rozdzieleniu testów (2026-11-13)
+
+Z 1593 testów katalogu `css-grid` 865 dotyczy `grid-lanes` (układ murarski, osobna eksperymentalna specyfikacja),
+88 `subgrid`, a część pisma pionowego. Grid właściwy w piśmie poziomym to 562 testy:
+
+| Stan | Zaliczone z 562 |
+|---|---|
+| przed pracą nad grid | 201 (36%) |
+| po poprawkach z tej rundy | 230 (41%) |
+
+Poprawione: kolejność `grid-area`, ujemne numery linii, marginesy `auto`, `justify-self` z podaną szerokością,
+rozdział wolnego miejsca między ścieżki (`minmax()`), `auto-fill`/`auto-fit`, `grid-auto-flow: column`. Każda
+była sprawdzona parą dokumentów o tym samym oczekiwanym obrazie. Trzy testy przestały przechodzić (nieprzejrzane).
+Wg katalogów po poprawkach: elementy siatki 66 z 147, wyrównanie 42 z 136, pozycjonowanie absolutne w siatce
+26 z 106, model 29 z 49, algorytm układu 19 z 38, definicja 12 z 35. Największe pozostałe grupy według
+konstrukcji: wyrównanie do linii bazowej (nieobsługiwane), elementy pozycjonowane absolutnie względem obszaru
+siatki, `inline-grid`.
 
 ## 3. Paniki: 658 plików, kilka przyczyn
 
