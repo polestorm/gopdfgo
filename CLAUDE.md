@@ -24,4 +24,5 @@ Zasady:
   trzymamy poza gitem w `bench/`;
 - renderowanie w testach i pomiarach czyta zasoby wyłącznie spod `testdata/`, fonty wyłącznie z `testdata/fonts`;
 - zależności tylko na licencjach MIT, BSD, Apache-2.0, OFL (fonty); LGPL/GPL wykluczone, bo binarka jest statyczna;
-- commit i push tylko na polecenie użytkownika.
+- commit i push po każdej zakończonej rundzie pracy, bez pytania (decyzja użytkownika z 2026-11-13); przed commitem
+  muszą przechodzić testy własne (`go test .`), a wynik testów przejętego kodu nie może się pogorszyć.

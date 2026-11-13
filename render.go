@@ -187,7 +187,10 @@ func render(html []byte, opts Options) (result Result, err error) {
 		sheets = append(sheets, sheet)
 	}
 
-	laidOut := document.Render(parsed, sheets, false, fontConfig)
+	// Atrybuty prezentacyjne HTML (width i height na img, bgcolor, align, border na table itd.) są
+	// stosowane: standard HTML definiuje je jako wskazówki prezentacyjne, które renderer ma uwzględniać
+	// (WHATWG HTML, sekcja Rendering). W silniku źródłowym to opcja domyślnie wyłączona.
+	laidOut := document.Render(parsed, sheets, true, fontConfig)
 	output := pdf.NewOutput()
 	laidOut.Write(output, 1, nil)
 	file := output.Finalize()

@@ -118,6 +118,12 @@ zależnością modułu):
 - nowy plik `pdf/tounicode.go`: własny zapis CMap ToUnicode (posortowany, bloki po 100 wpisów) i kompresja
   strumieni fontów i CMap; zastępuje `cmaps.WriteAdobeIdentityUnicodeCMap`, które iteruje po mapie.
 
+## Ustawienia silnika w `render.go`
+
+- atrybuty prezentacyjne HTML (`width` i `height` na `img`, `bgcolor`, `align`, `border` i inne) są stosowane:
+  `document.Render` jest wołane z `presentationalHints = true`. W WeasyPrint i w porcie to opcja domyślnie
+  wyłączona; standard HTML (WHATWG, sekcja Rendering) każe je uwzględniać.
+
 ## Zależności modułu
 
 Z `go.mod`, licencje z plików `LICENSE` w pamięci modułów; do potwierdzenia przed publikacją:

@@ -79,7 +79,8 @@ Rozdziały z mniej niż 20 testami pominięte w tabeli.
 | po usunięciu panik i rozwijaniu `<div/>` w XHTML | 3100 |
 | po zmianie rasteryzacji z 40 na 96 dpi | 4295 |
 | po zaokrągleniu metryk fontu do całych pikseli | 4829 |
-| po naprawie `::first-letter` (zmierzone tylko selektory: 78 → 434 z 468) | ok. 5185 (szacunek: 4829 + 356) |
+| po naprawie `::first-letter`, poprawkach grid i kolumn | 5221 |
+| po włączeniu atrybutów prezentacyjnych HTML (`width`/`height` na `img` i inne) | 5853 |
 
 Ostatni skok to błąd metody, nie silnika: w 40 dpi piksel CSS zajmuje niecałe pół piksela obrazu, więc kształty
 o tej samej geometrii różniły się wygładzaniem krawędzi (marginesy: 9% → 86%, `z-index`: 0% → 86%). Wniosek na
@@ -97,6 +98,11 @@ większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza 
 **Uwaga do tabeli obszarów:** pochodzi sprzed zaokrąglenia metryk fontu. Po nim największe zmiany to: przepływ
 normalny 52% → 78%, obramowania 72% → 83%, `linebox` 10% → 30%, `css1` 41% → 57%, tło 28% → 38%, pozycjonowanie
 42% → 49%, flexbox 54% → 58%, `clear` 30% → 38%, grid 18% → 20%; 12 testów przestało przechodzić (nieprzejrzane).
+
+Stan obszarów po wszystkich poprawkach do 2026-11-13 (5853 z 9135, 64%; bez panik i zawieszeń, 6 błędów
+renderowania): pozycjonowanie 78%, `linebox` 87%, tło 61%, `clear` 74%, przepływ normalny 86%, obramowania 91%,
+marginesy 90%, selektory 92%, tekst 80%, tekst dwukierunkowy 57%, flexbox 58%, kolumny 35%, grid właściwy 41%.
+Po ostatniej zmianie 18 testów przestało przechodzić (nieprzejrzane).
 
 ### Ranking konstrukcji w testach niezaliczonych
 
