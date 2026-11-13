@@ -319,7 +319,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child.MinWidth = contentSize
 			}
 		}
-		if child.Style.GetMinHeight().Tag == pr.Auto {
+		// gopdfgo: automatyczna wysokość minimalna wymaga pełnego układu dziecka. W osi poprzecznej
+		// (kontener wierszowy) według CSS Flexbox 1 § 4.5 wynosi zero, więc liczymy ją tam tylko dla
+		// elementów zastępowanych, gdzie układ jest tani, a testy źródłowe na niej polegają. W źródle
+		// liczono ją zawsze: trzeci pełny układ na poziom zagnieżdżenia, koszt 3^n zamiast 2^n.
+		_, childIsReplaced := child_.(bo.ReplacedBoxITF)
+		if (main == pr.PHeight || childIsReplaced) && child.Style.GetMinHeight().Tag == pr.Auto {
 			specifiedSize := child.Height
 			newChild := child_.Copy()
 			newChild.Box().Style = child.Style.Copy()

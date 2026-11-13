@@ -920,7 +920,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 
 	if traceMode {
 		traceLogger.DumpTree(page, "end makePage")
-		traceLogger.Dump(fmt.Sprintf("end makePage: resume at %s, nextPage %s", resumeAt, tmp.nextPage))
+		traceLogger.Dump(fmt.Sprintf("end makePage: resume at %s, nextPage %v", resumeAt, tmp.nextPage))
 	}
 
 	return page, resumeAt, tmp.nextPage

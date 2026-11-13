@@ -226,7 +226,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				nextPage = tmp.nextPage
 
 				if traceMode {
-					traceLogger.Dump(fmt.Sprintf("column %d -> %s %s", i, resumeAt, nextPage))
+					traceLogger.Dump(fmt.Sprintf("column %d -> %s %v", i, resumeAt, nextPage))
 				}
 
 				if newBox == nil {
@@ -381,7 +381,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			columnNextPage := tmp.nextPage
 
 			if traceMode {
-				traceLogger.Dump(fmt.Sprintf("column %d -> %s %s", i, columnSkipStack, tmp.nextPage))
+				traceLogger.Dump(fmt.Sprintf("column %d -> %s %v", i, columnSkipStack, tmp.nextPage))
 			}
 
 			if newChild == nil {
@@ -484,7 +484,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	context.inColumn = false
 
 	if traceMode {
-		traceLogger.Dump(fmt.Sprintf("columnsLayout -> %s, %s", skipStack, nextPage))
+		traceLogger.Dump(fmt.Sprintf("columnsLayout -> %s, %v", skipStack, nextPage))
 	}
 
 	return box_, blockLayout{resumeAt: skipStack, nextPage: nextPage}

@@ -37,6 +37,23 @@ func TestDeepNesting(t *testing.T) {
 	}
 }
 
+// TestNestedFlex pilnuje kosztu zagnieżdżonych kontenerów flex. Układ nadal rośnie wykładniczo
+// (ok. 2 razy na poziom), ale przed ograniczeniem liczby przejść 12 poziomów trwało ponad 6 s.
+func TestNestedFlex(t *testing.T) {
+	html := strings.Repeat(`<div style="display:flex">`, 12) + "x" + strings.Repeat("</div>", 12)
+	file := filepath.Join(t.TempDir(), "nested-flex.html")
+	if err := os.WriteFile(file, []byte(html), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if _, err := renderFile(file, t.TempDir(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("12 poziomów flex: %v, oczekiwane poniżej 2 s", elapsed)
+	}
+}
+
 // TestWPTNoPanic renderuje testy druku WPT i ich wzorce dwukrotnie; żaden nie może wywołać paniki
 // silnika ani dać różnych bajtów. Nie porównuje wyglądu (to robi benchmark).
 func TestWPTNoPanic(t *testing.T) {

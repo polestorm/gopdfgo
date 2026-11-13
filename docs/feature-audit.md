@@ -146,6 +146,21 @@ wewnętrzne, próba, układ właściwy). Naprawa to zapamiętywanie wyniku ukła
 ograniczenie liczby przejść; praca nad algorytmem, nie poprawka miejscowa. Dla flex to priorytet: 6–8 poziomów
 w szablonach złożonych z komponentów jest realne, a 12 poziomów blokuje silnik (wymaganie D3).
 
+### Flex: pierwsze ograniczenie (2026-11-13)
+
+Układ flex układał każde dziecko trzy razy: dla automatycznej wysokości minimalnej, dla wysokości hipotetycznej
+i ostatecznie. Pierwsze przejście w kontenerze wierszowym dotyczy osi poprzecznej, gdzie według CSS Flexbox 1
+§ 4.5 automatyczne minimum wynosi zero; zostało ograniczone do osi głównej i do elementów zastępowanych.
+
+| Poziomy flex | 8 | 10 | 12 | 14 | 16 |
+|---|---|---|---|---|---|
+| przed | 42 ms | 342 ms | ponad 6 s | | |
+| po | 14 ms | 16 ms | 35 ms | 119 ms | 457 ms |
+
+Koszt nadal rośnie ok. 2 razy na poziom (dwa pozostałe przejścia), więc problem jest odsunięty, nie usunięty.
+Bez regresji: 90 testów źródłowych flex i 952 reftesty flexbox (390 zaliczonych, o jeden więcej). Pilnuje tego
+`TestNestedFlex`. Kolumny nie były ruszane (6 poziomów: 677 ms).
+
 ## 7. Proponowana kolejność
 
 1. ~~Trzy przyczyny panik z pkt 3~~ zrobione (pkt 6).
