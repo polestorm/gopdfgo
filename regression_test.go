@@ -122,3 +122,27 @@ func TestIntrinsicSizingKeywords(t *testing.T) {
 		}
 	}
 }
+
+// Element z column-span: all ma szerokość kontenera kolumn, nie bloku nadrzędnego; tabela też może
+// rozpinać kolumny (CSS Multicol 1 § 6.1).
+func TestColumnSpannerWidth(t *testing.T) {
+	const style = "<style>@page { size: 500px 300px; margin: 10px } body { margin: 0; font-size: 16px } " +
+		".columns { column-count: 3; column-gap: 0; width: 240px } .box { background: #9cf } table { border-spacing: 0 } td { padding: 0 }</style>"
+	const expected = `<div style="width: 240px"><div>jeden</div><div class="box">rozpięty</div><div>dwa</div></div>`
+	cases := []struct{ name, tested string }{
+		{"block", `<div class="columns"><div>jeden</div><div class="box" style="column-span: all">rozpięty</div><div>dwa</div></div>`},
+		{"flex", `<div class="columns"><div>jeden</div><div class="box" style="column-span: all; display: flex">rozpięty</div><div>dwa</div></div>`},
+		{"table", `<div class="columns"><div>jeden</div><table class="box" style="column-span: all; width: 100%"><tr><td>rozpięty</td></tr></table><div>dwa</div></div>`},
+	}
+	dir := t.TempDir()
+	want := rasterize(t, renderString(t, style+expected).PDF, dir, "expected")
+	for _, c := range cases {
+		got := rasterize(t, renderString(t, style+c.tested).PDF, dir, "tested")
+		if len(got) != 1 || len(want) != 1 {
+			t.Fatalf("%s: strony %d i %d", c.name, len(got), len(want))
+		}
+		if n := differentPixels(got[0], want[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
+		}
+	}
+}

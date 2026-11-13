@@ -108,7 +108,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 	for i_, child := range box.Children[skip:] {
 		index := i_ + skip
-		if child.Box().Style.GetColumnSpan() == "all" {
+		if bo.IsColumnSpanner(child) {
 			if len(columnChildren) != 0 {
 				columnsAndBlocks = append(columnsAndBlocks, ibl{index - len(columnChildren), boxOrList{list: columnChildren}})
 			}
@@ -165,11 +165,13 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		columnChildrenOrBlock := pair.bl
 		if block := columnChildrenOrBlock.box; block != nil {
 			// We have a spanning block, we display it like other blocks.
-			resolvePercentagesBox(block, containingBlock)
+			// gopdfgo: blokiem zawierającym element rozpinający jest kontener kolumn (CSS Multicol 1
+			// § 6.1), nie blok zawierający kontenera; w źródle element miał szerokość bloku nadrzędnego.
+			resolveSizesBox(context, block, box)
 			block.Box().PositionX = box.ContentBoxX()
 			block.Box().PositionY = currentPositionY
 			newChild, tmp, _ := blockLevelLayout(context, block, originalBottomSpace, skipStack,
-				containingBlock, pageIsEmpty, absoluteBoxes, fixedBoxes, &adjoiningMargins, false, -1)
+				box, pageIsEmpty, absoluteBoxes, fixedBoxes, &adjoiningMargins, false, -1)
 			nextPage, adjoiningMargins = tmp.nextPage, tmp.adjoiningMargins
 			skipStack = nil
 			if newChild == nil {

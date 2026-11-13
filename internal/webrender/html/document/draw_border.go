@@ -45,7 +45,7 @@ func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 	borderWidths := pr.Rectangle{0, 0, 0, ruleWidth}
 	skipNext := true
 	for _, child := range box.Children {
-		if child.Box().Style.GetColumnSpan() == "all" {
+		if bo.IsColumnSpanner(child) {
 			skipNext = true
 			continue
 		} else if skipNext {

@@ -109,7 +109,14 @@ przechodziło. Pełny sondaż po zmianie (razem z poprawką automatycznego minim
 5853); 31 testów zyskanych (flexbox 21, grid 8, listy 2), 20 straconych (grid 12, flexbox 7, kolumny 1).
 Stracone testy grid to `subgrid` i `standalone-axis-size`; `subgrid` nie jest obsługiwany, więc wcześniejsze
 zaliczenia były najpewniej przypadkowe (nie sprawdzone pojedynczo). Zysk w grid jest mały, bo większość ze 168
-niezaliczonych testów grid z tymi słowami zależy od rozmiaru elementów siatki w obu osiach; to następny krok.
+niezaliczonych testów grid z tymi słowami dotyczy `subgrid`, układu `grid-lanes` (propozycja, nie norma)
+i pionowego trybu pisma, których silnik nie obsługuje; 12 straconych testów to też `subgrid` z pionowym tekstem.
+
+Kolumny po poprawce `column-span: all` z 2026-11-13: 143 z 400 (wcześniej 139), bez regresji. Podział
+niezaliczonych: `column-height` i `column-wrap` (31, propozycja CSS Multicol 2), kolumny zagnieżdżone (35),
+`column-span` (ok. 95), z czego 14 to wysokości procentowe dzieci liczone od wysokości kontenera kolumn
+(nieobsługiwane: pudełko kolumny ma wysokość `auto`). Wiele testów zakłada medium ciągłe, w którym nadmiarowe
+kolumny wychodzą w bok; w medium stronicowanym przechodzą na następną stronę, więc tych zaliczeń nie będzie.
 
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,

@@ -70,3 +70,7 @@ konkretnego odbiorcy.
     listy wyświetlania po wymianie backendu? Propozycja: nie instalować; przepisać razem z nowym backendem.
 12. **Fonty w testach WPT.** 1306 testów z manifestu wymaga fontu Ahem; jego licencja nie jest opisana osobno
     w WPT. Propozycja: używać w testach, nie osadzać w binarce, potwierdzić licencję przed publikacją repozytorium.
+    Pomiar 2026-11-13: w sondażu ekranowym Ahem występuje w 1703 z 9135 testów; 1088 z nich przechodzi mimo
+    braku fontu, 610 nie przechodzi (5 błędów). Dopóki fontu nie ma w `testdata/fonts`, nie da się odróżnić w tej
+    grupie błędu silnika od braku fontu. Decyzja czeka na użytkownika, bo lista dopuszczonych licencji
+    w `CLAUDE.md` nie obejmuje domeny publicznej ani CC0.
