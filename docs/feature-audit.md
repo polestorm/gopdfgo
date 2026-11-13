@@ -119,7 +119,7 @@ niezaliczonych: `column-height` i `column-wrap` (31, propozycja CSS Multicol 2),
 kolumny wychodzą w bok; w medium stronicowanym przechodzą na następną stronę, więc tych zaliczeń nie będzie.
 
 **Co zostaje po odjęciu artefaktów pomiaru (2026-11-13).** Z 3271 testów niezaliczonych po odjęciu różnic
-krawędziowych, testów z fontem Ahem (brak w `testdata/fonts`), testów wymagających nagłówków HTTP (`@charset`)
+krawędziowych, testów z fontem Ahem (błędnie uznanych za pozbawione fontu, zob. niżej), testów wymagających nagłówków HTTP (`@charset`)
 oraz funkcji nieobsługiwanych (`subgrid`, `grid-lanes`, pionowy tryb pisma, `column-height`, `column-wrap`)
 zostaje 1490: flexbox 299, grid 248, kolumny 168, listy CSS 3 92 (głównie liczniki `reversed`), przepływ
 normalny 74, pozycjonowanie 62, tło 57, tabele CSS 2 54, tabele CSS 3 53, elementy pływające 50 i 44.
@@ -128,6 +128,16 @@ obrazu w rasteryzatorze), `table-anonymous-objects` (czerwony tekst pod zielonym
 wygładzania), `absolute-replaced-width` (SVG z przedrostkiem przestrzeni nazw `svg:` w XHTML). Wniosek: sondaż
 ekranowy w obecnej postaci przestaje wskazywać błędy silnika; żeby dalej był użyteczny, potrzebna jest decyzja
 o foncie Ahem (pytanie 12) i o regule porównania obrazów.
+
+Sprostowanie z 2026-11-14: testy z fontem Ahem nie były pozbawione fontu, bo ładują go przez `@font-face`
+z `testdata/wpt/fonts`. Odjęcie ich powyżej było błędem: 610 niezaliczonych testów z Ahem należy do reszty do
+przejrzenia, więc zostaje ok. 2100, nie 1490. Reguła porównania została rozstrzygnięta w ADR 0003.
+
+**Stan według reguły z ADR 0003 (pomiar 2026-11-14, sondaż ekranowy, 9135 testów):** zaliczone 6231 (68%), w tym
+5868 ściśle i 363 z dokładnością do krawędzi; niezaliczone 2898; błędy renderowania 6. Najwięcej zaliczeń
+krawędziowych: tło 72 (205 ściśle z 336), tekst CSS 2 52 (309 z 382), marginesy i `clear` 40 (619 z 683),
+pozycjonowanie 39 (405 z 513), obramowania 36 (461 z 504), `css1` 18, treść generowana CSS 3 15. Reftesty druku
+(`testdata/wpt`, 340): 163 ściśle, 0 krawędziowych; tam reguła niczego nie zmienia.
 
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,

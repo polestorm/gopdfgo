@@ -29,6 +29,52 @@ const (
 	maxDifferentPixel = 20
 )
 
+// Reguła porównania obrazów (docs/adr/0003-reftest-comparison.md). Strona testu zgadza się ze stroną
+// wzorca, gdy różni się najwyżej maxDifferentPixel pikselami ("pass") albo gdy różniące się piksele
+// nigdzie nie tworzą bloku 2x2, czyli leżą wyłącznie na liniach grubości jednego piksela wzdłuż
+// krawędzi kształtów ("pass-edge"). Wynik "pass-edge" jest zapisywany osobno, żeby zawsze było widać,
+// które testy przechodzą dzięki temu założeniu.
+const (
+	resultPass     = "pass"
+	resultPassEdge = "pass-edge"
+)
+
+func passed(result string) bool { return result == resultPass || result == resultPassEdge }
+
+// onlyEdgeDifferences mówi, czy różnice między stronami nigdzie nie tworzą bloku 2x2 piksele.
+func onlyEdgeDifferences(a, b []byte) bool {
+	headerA, dataA := splitPPM(a)
+	headerB, dataB := splitPPM(b)
+	if headerA != headerB || len(dataA) != len(dataB) {
+		return false
+	}
+	fields := strings.Fields(headerA)
+	if len(fields) < 2 {
+		return false
+	}
+	width, err := strconv.Atoi(fields[1])
+	if err != nil || width <= 0 {
+		return false
+	}
+	pixels := len(dataA) / 3
+	differs := make([]bool, pixels)
+	for p := 0; p < pixels; p++ {
+		for c := 0; c < 3; c++ {
+			d := int(dataA[3*p+c]) - int(dataB[3*p+c])
+			if d > channelTolerance || d < -channelTolerance {
+				differs[p] = true
+				break
+			}
+		}
+	}
+	for p := 0; p+width+1 < pixels; p++ {
+		if differs[p] && p%width != width-1 && differs[p+1] && differs[p+width] && differs[p+width+1] {
+			return false
+		}
+	}
+	return true
+}
+
 type rendered struct {
 	pages [][]byte // strony jako PPM
 	err   error
@@ -148,7 +194,7 @@ func TestWPTReftests(t *testing.T) {
 			results[name] = outcome{"error", topic, firstLine(test.err)}
 			continue
 		}
-		result, detail := "pass", ""
+		result, detail := resultPass, ""
 		for _, reference := range strings.Split(references, ";") {
 			ref := render(reference)
 			if ref.err != nil {
@@ -161,6 +207,11 @@ func TestWPTReftests(t *testing.T) {
 			} else {
 				for i := range test.pages {
 					if n := differentPixels(test.pages[i], ref.pages[i]); n < 0 || n > maxDifferentPixel {
+						// Dla testów "mismatch" obowiązuje tylko miara ścisła: różnica musi być wyraźna.
+						if kind == "match" && n > 0 && onlyEdgeDifferences(test.pages[i], ref.pages[i]) {
+							result = resultPassEdge
+							continue
+						}
 						equal, detail = false, fmt.Sprintf("strona %d: różne piksele %d", i+1, n)
 						break
 					}
@@ -192,14 +243,15 @@ func TestWPTReftests(t *testing.T) {
 		got := results[name].result
 		totals[got]++
 		switch was := baseline[name]; {
-		case was == "pass" && got != "pass":
+		case passed(was) && !passed(got):
 			regressions = append(regressions, name+" ("+results[name].detail+")")
-		case was != "" && was != "pass" && got == "pass":
+		case was != "" && !passed(was) && passed(got):
 			improvements = append(improvements, name)
 		}
 	}
-	t.Logf("zaliczone %d, niezaliczone %d, błąd %d, błąd wzorca %d, razem %d",
-		totals["pass"], totals["fail"], totals["error"], totals["ref-error"], len(names))
+	t.Logf("zaliczone %d (ściśle %d, z dokładnością do krawędzi %d), niezaliczone %d, błąd %d, błąd wzorca %d, razem %d",
+		totals[resultPass]+totals[resultPassEdge], totals[resultPass], totals[resultPassEdge],
+		totals["fail"], totals["error"], totals["ref-error"], len(names))
 
 	if os.Getenv("GOPDFGO_UPDATE_BASELINE") != "" {
 		var out bytes.Buffer
