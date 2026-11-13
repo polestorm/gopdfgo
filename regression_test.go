@@ -173,10 +173,10 @@ func TestListNumbering(t *testing.T) {
 // to wydłużenie górne i dolne fontu (CSS Inline 3 § 4.1), nie pole em.
 func TestInlineBackgroundFillsLine(t *testing.T) {
 	const style = "<style>@page { size: 200px 100px; margin: 0 } body { margin: 0; font-size: 16px } " +
-		"div { background: #f00; width: 200px } .fill { background: #0f0; color: #0f0 }</style>"
+		".line { background: #f00; width: 200px } .fill { background: #0f0; color: #0f0 }</style>"
 	dir := t.TempDir()
-	inline := rasterize(t, renderString(t, style+`<div><span class="fill">Wiersz</span></div>`).PDF, dir, "inline")
-	block := rasterize(t, renderString(t, style+`<div><div class="fill" style="float: left">Wiersz</div></div>`).PDF, dir, "block")
+	inline := rasterize(t, renderString(t, style+`<div class="line"><span class="fill">Wiersz</span></div>`).PDF, dir, "inline")
+	block := rasterize(t, renderString(t, style+`<div class="line" style="overflow: hidden"><div class="fill" style="float: left">Wiersz</div></div>`).PDF, dir, "block")
 	if len(inline) != 1 || len(block) != 1 {
 		t.Fatalf("strony %d i %d", len(inline), len(block))
 	}
