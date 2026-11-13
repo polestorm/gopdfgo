@@ -174,7 +174,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		}, nil
 	}
 
-	parsed, err := tree.NewHTML(utils.InputString(expandSelfClosing(html)), opts.BaseURL, fetch, "print")
+	parsed, err := tree.NewHTML(utils.InputString(expandSelfClosing(decodeByteOrderMark(html))), opts.BaseURL, fetch, "print")
 	if err != nil {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}

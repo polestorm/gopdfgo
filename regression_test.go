@@ -146,3 +146,25 @@ func TestColumnSpannerWidth(t *testing.T) {
 		}
 	}
 }
+
+// Numeracja list według HTML i CSS Lists 3: atrybuty start, reversed, value oraz zasięg licznika
+// utworzonego przez element, którego rodzic ma już licznik o tej nazwie.
+func TestListNumbering(t *testing.T) {
+	const style = "<style>@page { size: 400px 400px; margin: 10px } body { margin: 0; font-size: 14px }</style>"
+	cases := []struct{ name, html, want string }{
+		{"start", `<ol start="5"><li>a<li>b</ol>`, "5. a 6. b"},
+		{"value", `<ol><li>a<li value="7">b<li>c</ol>`, "1. a 7. b 8. c"},
+		{"reversed", `<ol reversed><li>a<li>b<li>c</ol>`, "3. a 2. b 1. c"},
+		{"reversed start", `<ol reversed start="10"><li>a<li>b</ol>`, "10. a 9. b"},
+		{"reversed value", `<ol reversed><li>a<li value="6">b<li>c</ol>`, "7. a 6. b 5. c"},
+		{"nested", `<ol><li>a<ol><li>x<li>y</ol><li>b</ol>`, "1. a 1. x 2. y 2. b"},
+		{"sibling scope", `<style>#t { counter-reset: c } #t span { counter-increment: c } #t span::before { content: counter(c) }</style>` +
+			`<div id="t"><span></span> <span></span> <span style="counter-reset: c 98"></span> <span></span></div>`, "1 2 99 3"},
+		{"set after increment", `<style>p { counter-increment: c; counter-set: c 5 } p::before { content: counter(c) }</style><p></p>`, "5"},
+	}
+	for _, c := range cases {
+		if got := string(extractText(t, renderString(t, style+c.html).PDF)); got != c.want {
+			t.Errorf("%s: %q, oczekiwane %q", c.name, got, c.want)
+		}
+	}
+}

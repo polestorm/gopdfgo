@@ -139,6 +139,16 @@ krawędziowych: tło 72 (205 ściśle z 336), tekst CSS 2 52 (309 z 382), margin
 pozycjonowanie 39 (405 z 513), obramowania 36 (461 z 504), `css1` 18, treść generowana CSS 3 15. Reftesty druku
 (`testdata/wpt`, 340): 163 ściśle, 0 krawędziowych; tam reguła niczego nie zmienia.
 
+Runda z 2026-11-14 (liczniki według CSS Lists 3, atrybuty `ol start`, `ol reversed`, `li value`, znacznik BOM
+w HTML): 6325 z 9135 (5959 ściśle, 366 krawędziowo), wcześniej 6231. Zyskane 99 testów: interfejs CSS 2 (27)
+i składnia CSS 2 (25) głównie dzięki BOM, flexbox 21, listy 18, fonty 6. Stracone 5: dwa testy wymagające
+zasięgu liczników z CSS 2.1 (sprzeczne z nowszymi testami, zob. `THIRD_PARTY.md`) i trzy z funkcją CSS
+`reversed()` w `counter-reset`, które przechodziły tylko dlatego, że wzorzec z `ol reversed` był renderowany
+tak samo błędnie. Funkcja `reversed()` w `counter-reset` nie jest obsługiwana (ok. 30 testów).
+
+Od 2026-11-14 kontrole w trakcie rundy robimy na ćwiartce testów (`SURVEY_PART=k/4`, co czwarty plik
+posortowanej listy); pełny sondaż tylko jako pomiar zamykający etap.
+
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,
 większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza podanych fontów) i grid (18%).

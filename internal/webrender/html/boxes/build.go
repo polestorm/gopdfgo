@@ -235,7 +235,7 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 
 	counterValues := state.CounterValues
 
-	UpdateCounters(state, style)
+	nestedCounters := UpdateCounters(state, style)
 	// If this element’s direct children create new scopes, the counter
 	// names will be in this new list
 	state.CounterScopes = append(state.CounterScopes, utils.Set{})
@@ -313,6 +313,7 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 			delete(counterValues, name)
 		}
 	}
+	PopNestedCounters(state, nestedCounters)
 
 	box.Box().Children = children
 	if style.GetAppearance() != "none" {
@@ -380,7 +381,8 @@ func beforeAfterToBox(element *utils.HTMLNode, pseudoType string, state *tree.Pa
 		return nil
 	}
 
-	UpdateCounters(state, style)
+	nestedCounters := UpdateCounters(state, style)
+	defer PopNestedCounters(state, nestedCounters)
 
 	var children []Box
 	if display.Has(pr.ListItem) {
@@ -888,31 +890,28 @@ func setContentLists(element *utils.HTMLNode, box Box, style pr.ElementStyle, co
 }
 
 // Handle the “counter-*“ properties.
-func UpdateCounters(state *tree.PageState, style pr.ElementStyle) {
-	_, counterValues, counterScopes := state.QuoteDepth, state.CounterValues, state.CounterScopes
+// UpdateCounters stosuje counter-reset, counter-increment i counter-set elementu, w tej kolejności
+// (CSS Lists 3 § 4.5). Zwraca nazwy liczników zagnieżdżonych, które trzeba zdjąć wywołaniem
+// [PopNestedCounters], gdy element się kończy.
+//
+// gopdfgo: w źródle counter-set działał przed counter-increment, a licznik utworzony przez element,
+// którego przodek ma już licznik o tej nazwie, był widoczny także dla następnego rodzeństwa. Według
+// CSS Lists 3 § 4.3 rodzeństwo dziedziczy od poprzednika tylko liczniki, których nie ma u rodzica.
+func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []string) {
+	counterValues, counterScopes := state.CounterValues, state.CounterScopes
 	siblingScopes := counterScopes[len(counterScopes)-1]
 
 	for _, nv := range style.GetCounterReset().Values {
 		slice := counterValues[nv.String]
-		if siblingScopes.Has(nv.String) {
+		switch {
+		case siblingScopes.Has(nv.String): // licznik utworzony przez rodzeństwo: zastępujemy go
 			slice = slice[:len(slice)-1]
-		} else {
+		case len(slice) == 0: // nowy licznik, widoczny dla następnego rodzeństwa
 			siblingScopes.Add(nv.String)
+		default: // licznik przodka: nowy, zagnieżdżony, tylko dla tego elementu i jego potomków
+			nested = append(nested, nv.String)
 		}
 		counterValues[nv.String] = append(slice, nv.Int)
-	}
-
-	for _, nv := range style.GetCounterSet().Values {
-		values := counterValues[nv.String]
-		if len(values) == 0 {
-			if siblingScopes.Has(nv.String) {
-				logger.WarningLogger.Println("ci.String shoud'nt be in siblingScopes")
-			}
-			siblingScopes.Add(nv.String)
-			values = append(values, 0)
-		}
-		values[len(values)-1] = nv.Int
-		counterValues[nv.String] = values
 	}
 
 	counterIncrement := style.GetCounterIncrement()
@@ -930,14 +929,31 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) {
 	for _, ci := range counterIncrement.Values {
 		values := counterValues[ci.String]
 		if len(values) == 0 {
-			if siblingScopes.Has(ci.String) {
-				logger.WarningLogger.Println("ci.String shoud'nt be in siblingScopes")
-			}
 			siblingScopes.Add(ci.String)
 			values = append(values, 0)
 		}
 		values[len(values)-1] += ci.Int
 		counterValues[ci.String] = values
+	}
+
+	for _, nv := range style.GetCounterSet().Values {
+		values := counterValues[nv.String]
+		if len(values) == 0 {
+			siblingScopes.Add(nv.String)
+			values = append(values, 0)
+		}
+		values[len(values)-1] = nv.Int
+		counterValues[nv.String] = values
+	}
+	return nested
+}
+
+// PopNestedCounters zdejmuje liczniki zagnieżdżone zwrócone przez [UpdateCounters].
+func PopNestedCounters(state *tree.PageState, nested []string) {
+	for _, name := range nested {
+		if values := state.CounterValues[name]; len(values) > 1 {
+			state.CounterValues[name] = values[:len(values)-1]
+		}
 	}
 }
 

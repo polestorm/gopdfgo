@@ -100,13 +100,15 @@ func TestTargetCounters(t *testing.T) {
 	body := unpack1(html)
 	div1, div2, div3, div4 := unpack4(body)
 	before := unpack1(div1.Box().Children[1].Box().Children[0].Box().Children[0])
-	assertText(t, before, "4.2")
+	// gopdfgo: oczekiwania według CSS Lists 3 § 4.3 (w źródle 4.2, 3, b.a, 12): licznik utworzony przez
+	// pierwsze dziecko nie przechodzi na rodzeństwo, gdy rodzic ma już licznik o tej nazwie.
+	assertText(t, before, "7")
 	before = unpack1(div2.Box().Children[0].Box().Children[0].Box().Children[0])
-	assertText(t, before, "3")
+	assertText(t, before, "5")
 	before = unpack1(div3.Box().Children[0].Box().Children[0])
-	assertText(t, before, "b.a")
+	assertText(t, before, "c.a")
 	before = unpack1(div4.Box().Children[1].Box().Children[0].Box().Children[0])
-	assertText(t, before, "12")
+	assertText(t, before, "2")
 }
 
 func TestTargetText(t *testing.T) {

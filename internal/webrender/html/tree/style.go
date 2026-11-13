@@ -1098,16 +1098,33 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 				}
 			}
 		case atom.Ol:
-			// From https://www.w3.org/TR/css-lists-3/
-			if element.Get("start") != "" {
+			// gopdfgo: atrybuty list według HTML (§ 4.4.5, § 4.4.8) i CSS Lists 3. W źródle `start`
+			// obniżał licznik przez counter-increment na samej liście, `reversed` nie był obsługiwany,
+			// a `value` sprawdzany był na `ul` zamiast na `li`.
+			start, hasStart := parseListInteger(element.Get("start"))
+			if element.HasAttr("reversed") {
+				initial := start + 1
+				if !hasStart {
+					initial = reversedListInitial(element)
+				}
 				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element,
-					fmt.Sprintf("counter-reset:list-item %s;counter-increment:list-item -1", element.Get("start")))})
+					fmt.Sprintf("counter-reset:list-item %d", initial))})
+			} else if hasStart {
+				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element,
+					fmt.Sprintf("counter-reset:list-item %d", start-1))})
 			}
-		case atom.Ul:
-			// From https://www.w3.org/TR/css-lists-3/
-			if element.Get("value") != "" {
+		case atom.Li:
+			var declarations []string
+			if parent := element.Parent; parent != nil && parent.DataAtom == atom.Ol && (*utils.HTMLNode)(parent).HasAttr("reversed") {
+				declarations = append(declarations, "counter-increment:list-item -1")
+			}
+			if value, ok := parseListInteger(element.Get("value")); ok {
+				// licznik ustawiany po zwiększeniu, więc element dostaje dokładnie tę wartość
+				declarations = append(declarations, fmt.Sprintf("counter-set:list-item %d", value))
+			}
+			if len(declarations) != 0 {
 				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element,
-					fmt.Sprintf("counter-reset:list-item %s;counter-increment:none", element.Get("value")))})
+					strings.Join(declarations, ";"))})
 			}
 		}
 	}
@@ -1640,4 +1657,30 @@ func resolveVar(computed map[string]pr.RawTokens, token Token, knownVariables ut
 		}
 	}
 	return computedValue
+}
+
+// parseListInteger czyta atrybut całkowitoliczbowy listy (start, value); pusty lub błędny daje false.
+func parseListInteger(attribute string) (int, bool) {
+	value, err := strconv.Atoi(strings.TrimSpace(attribute))
+	return value, err == nil
+}
+
+// reversedListInitial liczy wartość początkową licznika listy odwróconej bez atrybutu start według
+// CSS Lists 3 § 4.4.2: tak, żeby ostatni element dostał 1, a gdy któryś element ma atrybut value, żeby
+// elementy przed nim odliczały do tej wartości.
+func reversedListInitial(list *utils.HTMLNode) int {
+	initial, first := 0, true
+	for child := list.FirstChild; child != nil; child = child.NextSibling {
+		if child.DataAtom != atom.Li {
+			continue
+		}
+		if first {
+			initial, first = 1, false
+		}
+		if value, ok := parseListInteger((*utils.HTMLNode)(child).Get("value")); ok {
+			return initial + value
+		}
+		initial++
+	}
+	return initial
 }

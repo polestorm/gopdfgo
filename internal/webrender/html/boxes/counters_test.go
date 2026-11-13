@@ -121,6 +121,8 @@ func TestCounters3(t *testing.T) {
 	})
 }
 
+// gopdfgo: oczekiwania według CSS Lists 3 § 4.3: licznik utworzony przez ::before wewnętrznej sekcji nie
+// przechodzi na jej rodzeństwo, bo rodzic ma już licznik o tej nazwie (w źródle 1, 2, 2.1, 2.2, 3).
 func TestCounters4(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
@@ -149,14 +151,14 @@ func TestCounters4(t *testing.T) {
 			{"section", BlockT, BC{C: []SerBox{
 				{"section", BlockT, BC{C: []SerBox{{"section", LineT, BC{C: []SerBox{{"section::before", InlineT, BC{C: []SerBox{}}}}}}}}},
 				{"h1", BlockT, BC{C: []SerBox{
-					{"h1", LineT, BC{C: []SerBox{{"h1::before", InlineT, BC{C: []SerBox{{"h1::before", TextT, BC{Text: "2.1"}}}}}}}},
+					{"h1", LineT, BC{C: []SerBox{{"h1::before", InlineT, BC{C: []SerBox{{"h1::before", TextT, BC{Text: "3"}}}}}}}},
 				}}},
 				{"h1", BlockT, BC{C: []SerBox{
-					{"h1", LineT, BC{C: []SerBox{{"h1::before", InlineT, BC{C: []SerBox{{"h1::before", TextT, BC{Text: "2.2"}}}}}}}},
+					{"h1", LineT, BC{C: []SerBox{{"h1::before", InlineT, BC{C: []SerBox{{"h1::before", TextT, BC{Text: "4"}}}}}}}},
 				}}},
 			}}},
 			{"h1", BlockT, BC{C: []SerBox{
-				{"h1", LineT, BC{C: []SerBox{{"h1::before", InlineT, BC{C: []SerBox{{"h1::before", TextT, BC{Text: "3"}}}}}}}},
+				{"h1", LineT, BC{C: []SerBox{{"h1::before", InlineT, BC{C: []SerBox{{"h1::before", TextT, BC{Text: "5"}}}}}}}},
 			}}},
 		}}},
 	})
