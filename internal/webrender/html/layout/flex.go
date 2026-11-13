@@ -198,7 +198,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	// 3 Determine the flex base size and hypothetical main size of each item.
 	parentBox_ := box_.Copy()
 	parentBox := parentBox_.Box()
-	resolvePercentagesBox(parentBox_, containingBlock)
+	resolveSizesBox(context, parentBox_, containingBlock)
 	blockLevelWidth(parentBox_, nil, containingBlock)
 	children := append([]Box{}, box.Children...)
 	sort.Slice(children, func(i, j int) bool { return children[i].Box().Style.GetOrder() < children[j].Box().Style.GetOrder() })
@@ -284,13 +284,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		} else {
 			childContainingBlock = bo.MaybePoint{parentBox.Width, availableMainSpace}
 		}
-		resolvePercentages(child_, childContainingBlock)
+		resolveSizes(context, child_, childContainingBlock)
 		if child.IsTableWrapper {
 			tableWrapperWidth(context, child_, childContainingBlock)
 		}
 		child.PositionX = positionX
 		child.PositionY = positionY
-		if child.Style.GetMinWidth().Tag == pr.Auto {
+		if minWidth := child.Style.GetMinWidth(); minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone {
 			specifiedSize := child.Width
 			newChild := child_.Copy()
 			if bo.ParentT.IsInstance(child_) {
@@ -317,6 +317,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child.MinWidth = min(transferredSize.V(), contentSize)
 			} else {
 				child.MinWidth = contentSize
+			}
+			// gopdfgo: minimum automatyczne nie przekracza określonego maksimum (CSS Flexbox 1 § 4.5).
+			child.MinWidth = min(child.MinWidth.V(), child.MaxWidth.V())
+			// Minimum automatyczne dotyczy tylko elementów, które nie są kontenerami przewijania.
+			if _, isReplaced := child_.(bo.ReplacedBoxITF); !isReplaced && child.Style.GetOverflow() != "visible" {
+				child.MinWidth = pr.Float(0)
 			}
 		}
 		// gopdfgo: automatyczna wysokość minimalna wymaga pełnego układu dziecka. W osi poprzecznej
@@ -361,6 +367,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child.MinHeight = min(transferredSize.V(), contentSize)
 			} else {
 				child.MinHeight = contentSize
+			}
+			child.MinHeight = min(child.MinHeight.V(), child.MaxHeight.V())
+			if !childIsReplaced && child.Style.GetOverflow() != "visible" {
+				child.MinHeight = pr.Float(0)
 			}
 		}
 

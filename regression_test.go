@@ -94,3 +94,31 @@ func TestTallGridItem(t *testing.T) {
 func TestInlineGridRenders(t *testing.T) {
 	renderString(t, `<p>przed <span style="display:inline-grid; grid-template-columns:20px 20px"><b>a</b><b>b</b></span> po</p>`)
 }
+
+// Słowa kluczowe rozmiaru wewnętrznego (CSS Sizing 3 § 2.1): pudełko o szerokości max-content albo
+// fit-content wygląda jak pudełko pływające z tą samą treścią, a min-content jak pudełko, w którym
+// każdy wyraz stoi w osobnym wierszu.
+func TestIntrinsicSizingKeywords(t *testing.T) {
+	const style = "<style>@page { size: 400px 200px; margin: 10px } body { margin: 0; font-size: 16px; width: 300px } " +
+		".box { background: #9cf } .narrow { width: 60px }</style>"
+	cases := []struct{ name, tested, expected string }{
+		{"max-content", `<div class="box" style="width: max-content">raz dwa trzy</div>`, `<div class="box" style="float: left">raz dwa trzy</div>`},
+		{"fit-content", `<div class="box" style="width: fit-content">raz dwa trzy</div>`, `<div class="box" style="float: left">raz dwa trzy</div>`},
+		{"min-content", `<div class="box" style="width: min-content">raz dwa trzy</div>`, `<div class="box" style="float: left">raz<br>dwa<br>trzy</div>`},
+		{"min-width", `<div class="box" style="width: 10px; min-width: max-content">raz dwa trzy</div>`, `<div class="box" style="float: left">raz dwa trzy</div>`},
+		{"max-width", `<div class="box" style="max-width: min-content">raz dwa trzy</div>`, `<div class="box" style="float: left">raz<br>dwa<br>trzy</div>`},
+		{"overflow", `<div class="narrow"><div class="box" style="width: max-content">raz dwa trzy</div></div>`, `<div class="box" style="float: left">raz dwa trzy</div>`},
+	}
+	for _, c := range cases {
+		tested := renderString(t, style+c.tested)
+		expected := renderString(t, style+c.expected)
+		dir := t.TempDir()
+		a, b := rasterize(t, tested.PDF, dir, "tested"), rasterize(t, expected.PDF, dir, "expected")
+		if len(a) != 1 || len(b) != 1 {
+			t.Fatalf("%s: strony %d i %d", c.name, len(a), len(b))
+		}
+		if n := differentPixels(a[0], b[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
+		}
+	}
+}

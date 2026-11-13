@@ -28,7 +28,7 @@ func floatLayout(context *layoutContext, box_ Box, containingBlock *bo.BoxFields
 	fixedBoxes *[]*AbsolutePlaceholder, bottomSpace pr.Float, skipStack tree.ResumeStack,
 ) (Box, tree.ResumeStack) {
 	cbWidth, cbHeight := containingBlock.Width, containingBlock.Height
-	resolvePercentages(box_, bo.MaybePoint{cbWidth, cbHeight})
+	resolveSizes(context, box_, bo.MaybePoint{cbWidth, cbHeight})
 
 	// TODO: This is only handled later in blocks.blockContainerLayout
 	// https://www.w3.org/TR/CSS21/visudet.html#normal-block

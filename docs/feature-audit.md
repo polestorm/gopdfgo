@@ -103,6 +103,14 @@ Flexbox po rundzie z 2026-11-13 (min/max w kroku 9.7.5d, `wrap-reverse`, `flex-b
 oraz słowo kluczowe `safe` w `align-content` (`flexbox-safe-overflow-position-002` i `-005`), które przedtem
 przechodziły przypadkiem, bo linie nie były odbijane.
 
+Słowa kluczowe rozmiaru wewnętrznego (`min-content`, `max-content`, `fit-content` w `width`, `min-width`,
+`max-width`; CSS Sizing 3) dodane 2026-11-13. Przed zmianą używało ich 261 testów sondażu, z czego 218 nie
+przechodziło. Pełny sondaż po zmianie (razem z poprawką automatycznego minimum flex): 5864 z 9135 (wcześniej
+5853); 31 testów zyskanych (flexbox 21, grid 8, listy 2), 20 straconych (grid 12, flexbox 7, kolumny 1).
+Stracone testy grid to `subgrid` i `standalone-axis-size`; `subgrid` nie jest obsługiwany, więc wcześniejsze
+zaliczenia były najpewniej przypadkowe (nie sprawdzone pojedynczo). Zysk w grid jest mały, bo większość ze 168
+niezaliczonych testów grid z tymi słowami zależy od rozmiaru elementów siatki w obu osiach; to następny krok.
+
 **Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
 błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,
 większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza podanych fontów) i grid (18%).

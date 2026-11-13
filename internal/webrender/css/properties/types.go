@@ -433,6 +433,35 @@ func (d Dimension) Tagged() TaggedDim { return TaggedDim{Dimension: d} }
 type TaggedDim struct {
 	Dimension
 	Tag Keyword
+
+	// gopdfgo: rozmiar wewnętrzny (CSS Sizing 3 § 2.1) podany słowem kluczowym. Wartość niesie wtedy
+	// zachowanie zastępcze (auto albo brak ograniczenia), a układ podstawia rozmiar treści tam, gdzie
+	// umie go policzyć.
+	Intrinsic IntrinsicSize
+}
+
+// IntrinsicSize to słowo kluczowe rozmiaru wewnętrznego w width, min-width, max-width i odpowiednikach
+// dla wysokości.
+type IntrinsicSize uint8
+
+const (
+	IntrinsicNone IntrinsicSize = iota
+	IntrinsicMinContent
+	IntrinsicMaxContent
+	IntrinsicFitContent
+)
+
+// IntrinsicSizeFromKeyword zwraca IntrinsicNone dla słów innych niż min-content, max-content, fit-content.
+func IntrinsicSizeFromKeyword(keyword string) IntrinsicSize {
+	switch keyword {
+	case "min-content":
+		return IntrinsicMinContent
+	case "max-content":
+		return IntrinsicMaxContent
+	case "fit-content":
+		return IntrinsicFitContent
+	}
+	return IntrinsicNone
 }
 
 type BoolString struct {

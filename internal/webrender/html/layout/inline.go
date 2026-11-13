@@ -522,7 +522,7 @@ func atomicBox(context *layoutContext, box_ Box, positionX pr.Float, skipStack t
 func inlineBlockBoxLayout(context *layoutContext, box_ Box, positionX pr.Float, skipStack tree.ResumeStack,
 	containingBlock *bo.BoxFields, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
 ) Box {
-	resolvePercentagesBox(box_, containingBlock)
+	resolveSizesBox(context, box_, containingBlock)
 	box := box_.Box()
 	// https://www.w3.org/TR/CSS21/visudet.html#inlineblock-width
 	if box.MarginLeft == pr.AutoF {

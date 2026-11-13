@@ -1658,7 +1658,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		childB.PositionX = columnsPositions[xi]
 		childB.PositionY = rowsPositions[yi] - skipHeight
 		cbW, cbH := box.ContainingBlock()
-		resolvePercentages(child, bo.MaybePoint{cbW, cbH})
+		resolveSizes(context, child, bo.MaybePoint{cbW, cbH})
 		widthF := (sum0(pySlice(columnsSizes, xi, xi+width)) + pr.Float(width-1)*columnGap)
 		heightF := (sum0(pySlice(rowsSizes, yi, yi+height)) + pr.Float(height-1)*rowGap)
 		childWidth := widthF - (childB.MarginLeft.V() + childB.BorderLeftWidth + childB.PaddingLeft.V() +

@@ -1713,6 +1713,10 @@ func widthHeight(tokens []Token, _ string) pr.CssProperty {
 	if getKeyword(token) == "auto" {
 		return pr.TagToV(pr.Auto)
 	}
+	// gopdfgo: min-content, max-content, fit-content (CSS Sizing 3 § 2.1)
+	if intrinsic := pr.IntrinsicSizeFromKeyword(getKeyword(token)); intrinsic != pr.IntrinsicNone {
+		return pr.TaggedDim{Tag: pr.Auto, Intrinsic: intrinsic}
+	}
 	return nil
 }
 
@@ -2355,6 +2359,9 @@ func minWidthHeight(tokens []Token, _ string) pr.CssProperty {
 	if keyword == "auto" {
 		return pr.TaggedDim{Tag: pr.Auto}
 	}
+	if intrinsic := pr.IntrinsicSizeFromKeyword(keyword); intrinsic != pr.IntrinsicNone {
+		return pr.TaggedDim{Tag: pr.Auto, Intrinsic: intrinsic}
+	}
 
 	dim, ok := dimension(tokens)
 	if ok {
@@ -2405,6 +2412,11 @@ func maxWidthHeight(tokens []Token, _ string) pr.CssProperty {
 	}
 	if getKeyword(token) == "none" {
 		return pr.NewDim(pr.Inf, pr.Px).Tagged()
+	}
+	if intrinsic := pr.IntrinsicSizeFromKeyword(getKeyword(token)); intrinsic != pr.IntrinsicNone {
+		out := pr.NewDim(pr.Inf, pr.Px).Tagged()
+		out.Intrinsic = intrinsic
+		return out
 	}
 	return nil
 }

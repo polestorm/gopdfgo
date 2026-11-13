@@ -223,6 +223,10 @@ func adjust(box Box, outer bool, width pr.Float, left, right bool) pr.Float {
 // Return the min-content width for a “BlockBox“.
 // outer=true
 func blockMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
+	// gopdfgo: width: max-content daje tę samą szerokość w obu pomiarach
+	if box.Box().Style.GetWidth().Intrinsic == pr.IntrinsicMaxContent {
+		return blockContentWidth(context, box, maxContentWidth, outer)
+	}
 	v := blockContentWidth(context, box, minContentWidth, outer)
 	return v
 }
@@ -230,6 +234,9 @@ func blockMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float 
 // Return the max-content width for a “BlockBox“.
 // outer=true
 func blockMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
+	if box.Box().Style.GetWidth().Intrinsic == pr.IntrinsicMinContent {
+		return blockContentWidth(context, box, minContentWidth, outer)
+	}
 	return blockContentWidth(context, box, maxContentWidth, outer)
 }
 
