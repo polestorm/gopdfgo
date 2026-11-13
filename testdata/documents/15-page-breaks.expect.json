@@ -1,0 +1,41 @@
+{
+  "title": "Podziały stron",
+  "level": "must",
+  "covers": [
+    "U4 strony nazwane, zmiana orientacji",
+    "U7",
+    "scope: break-*, page-break-*, orphans, widows, box-decoration-break: slice"
+  ],
+  "pages": 13,
+  "checks": [
+    "Etykieta „SN” każdego znacznika podaje numer strony, na której musi się znaleźć (S1 … S10).",
+    "Strona 5 jest pozioma (A5 landscape) z napisem „pozioma” u góry po prawej; pozostałe pionowe z napisem „pionowa”.",
+    "S7: zielony blok nie mieści się pod szarym wypełniaczem na stronie 6, więc w całości przechodzi na stronę 7.",
+    "S8–S9: czerwone obramowanie jest przecięte między stronami: na stronie 8 brak dolnej krawędzi, na stronie 9 brak górnej (box-decoration-break: slice).",
+    "S10: pod wypełniaczem zostaje miejsce na 2 wiersze (12 mm), ale orphans: 4 nie pozwala zacząć akapitu; wszystkie 7 wierszy jest na stronie 11.",
+    "S12: pod wypełniaczem mieści się 5 z 6 wierszy (30 mm), ale widows: 3 przenosi dwa dodatkowe: na stronie 12 wiersze 1–3, na stronie 13 wiersze 4–6.",
+    "Stopka „N / 13”; dokładnie 13 stron."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 13,
+    "pageStarts": [
+      "S1: początek dokumentu",
+      "S2: break-before: page",
+      "S3: po break-after",
+      "S4: page-break-before: always",
+      "S5: strona nazwana „wide”, pozioma",
+      "S6: powrót do strony domyślnej, pionowej",
+      "S7: blok break-inside: avoid",
+      "S8: obramowanie przecięte (slice)",
+      "zgodnie z harmonogramem, a przekroczenie terminu blokuje jego",
+      "S10: orphans 4",
+      "wiersz 1 akapitu z orphans: 4 (cały na S11)",
+      "S12: widows 3",
+      "wiersz 4 akapitu z widows: 3 (S13)"
+    ],
+    "deviations": []
+  }
+}

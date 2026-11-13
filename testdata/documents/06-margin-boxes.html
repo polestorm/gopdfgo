@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Pola marginesowe strony</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A5; margin: 20mm;
+  @top-left-corner { content: "TLC"; background: #fde0dc; border: 0.5pt solid #333; font-size: 7pt; }
+  @top-left { content: "top-left"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @top-center { content: "top-center"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @top-right { content: "top-right"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @top-right-corner { content: "TRC"; background: #fde0dc; border: 0.5pt solid #333; font-size: 7pt; }
+  @left-top { content: "LT"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @left-middle { content: "LM"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @left-bottom { content: "LB"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @right-top { content: "RT"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @right-middle { content: "RM"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @right-bottom { content: "RB"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @bottom-left-corner { content: "BLC"; background: #fde0dc; border: 0.5pt solid #333; font-size: 7pt; }
+  @bottom-left { content: "bottom-left"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @bottom-center { content: "bottom-center"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @bottom-right { content: "bottom-right"; background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; }
+  @bottom-right-corner { content: "BRC"; background: #fde0dc; border: 0.5pt solid #333; font-size: 7pt; } }
+@page :first { @top-center { content: "PIERWSZA"; background: #c8e6c9; } }
+@page :blank { @top-center { content: "celowo pusta"; background: #fff9c4; } @bottom-center { content: none; } }
+@page { @bottom-center { content: "strona " counter(page) " z " counter(pages); background: #e3f2fd; border: 0.5pt solid #333; font-size: 7pt; } }
+.part { border: 1pt dashed #999; padding: 3mm; }
+.right-start { break-before: right; }
+</style>
+</head>
+<body>
+<div class="part"><h1>Strona 1</h1><p>Wokół obszaru treści widać 16 pól marginesowych z etykietami. Pole górne środkowe na pierwszej stronie ma treść „PIERWSZA”.</p></div>
+<div class="part right-start"><h1>Strona 3</h1><p>Ten blok ma <code>break-before: right</code>, więc strona 2 jest pusta i dostaje treść z <code>@page :blank</code>.</p></div>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Selektory i kaskada (samosprawdzający)</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.t { background: #ef9a9a; margin: 0 0 1mm; padding: 0.5mm 2mm; }
+.row { display: flex; align-items: center; break-inside: avoid; }
+.row > .name { width: 85mm; flex: none; font-size: 8.5pt; }
+.row > .cell { flex: 1; }
+p.t#c1 { background: #a5d6a7; }
+[title][data-k~='y'][lang|='pl'] { background: #a5d6a7; }
+[data-code^='QP'][data-code$='F01'][data-code*='-04-'] { background: #a5d6a7; }
+.c4 p { background: #a5d6a7; } .c4 > p { background: #ef9a9a; }
+.c5 + p { background: #a5d6a7; } .c5 ~ .c5b { background: #a5d6a7; }
+.c6 .a:first-child, .c6 .b:last-child { background: #a5d6a7; } .c6 .a:last-child, .c6 .b:first-child { background: #ef9a9a; }
+.c7 p:nth-child(2n+1) { background: #a5d6a7; } .c7 p:nth-of-type(3) { background: #a5d6a7; }
+p.c8:not(.absent) { background: #a5d6a7; } p.c8:not(.t) { background: #ef9a9a; }
+:root .c9 { background: #a5d6a7; } .c9 .e:empty::after { content: ' (empty)'; }
+.c10 { background: #a5d6a7; } .c10::before { content: 'O'; } .c10::after { content: 'K'; }
+#c11 { background: #a5d6a7; } .c11 { background: #ef9a9a; } p { }
+.c12 { background: #ef9a9a; } .c12 { background: #a5d6a7; }
+.c13 { background: #a5d6a7 !important; } #c13 { background: #ef9a9a; }
+.c14 { background: #a5d6a7; border: 0 solid; } .c14 p { background: inherit; }
+.c15 { background: #a5d6a7; color: initial; }
+:root { --ok: #a5d6a7; } .c16 { background: var(--ok); color: var(--undefined, #1a1a1a); }
+.c17 { background: var(--bg); }
+.c18 { background: #a5d6a7; width: calc(50% - 10mm + 2em); }
+.c19 { background: none; }
+@media print { .c20 { background: #a5d6a7; } } @media screen { .c20 { background: #ef9a9a; } }
+.c21 { background: #ef9a9a; background-color: #a5d6a7; margin: 0 0 1mm; }
+.c22 { background: #a5d6a7; background: 12px nonsense(); colour: red; } .c22 { color: #1a1a1a }
+:is(.c23, .zzz) { background: #a5d6a7; } :where(.c23) { background: #ef9a9a; }
+.c24 { background: #a5d6a7; width: clamp(20mm, 50%, 120mm); }</style>
+</head>
+<body>
+<h1>Selektory i kaskada</h1><p>Każdy pasek po prawej musi być <strong>zielony</strong> i zawierać „OK”. Czerwony pasek oznacza błąd.</p>
+<div class='row'><div class='name'>1. typ, klasa, id</div><div class='cell'><p class='t' id='c1'>OK</p></div></div>
+<div class='row'><div class='name'>2. atrybut [a], [a=v], [a~=v], [a|=v]</div><div class='cell'><p class='t' data-k='x y' lang='pl-PL' title='t'>OK</p></div></div>
+<div class='row'><div class='name'>3. atrybut ^=, $=, *=</div><div class='cell'><p class='t' data-code='QP-04-F01'>OK</p></div></div>
+<div class='row'><div class='name'>4. potomek i dziecko</div><div class='cell'><div class='c4'><section><p class='t'>OK</p></section></div></div></div>
+<div class='row'><div class='name'>5. sąsiad + i rodzeństwo ~</div><div class='cell'><i class='c5'></i><p class='t'>OK</p><p class='t c5b'>OK</p></div></div>
+<div class='row'><div class='name'>6. :first-child, :last-child</div><div class='cell'><div class='c6'><p class='t a'>OK</p><p class='t b'>OK</p></div></div></div>
+<div class='row'><div class='name'>7. :nth-child(2n+1), :nth-of-type</div><div class='cell'><div class='c7'><p class='t'>OK</p><span></span><p class='t'>OK</p><p class='t'>OK</p></div></div></div>
+<div class='row'><div class='name'>8. :not()</div><div class='cell'><p class='t c8'>OK</p></div></div>
+<div class='row'><div class='name'>9. :empty, :root</div><div class='cell'><p class='t c9'>OK<span class='e'></span></p></div></div>
+<div class='row'><div class='name'>10. ::before, ::after</div><div class='cell'><p class='t c10'></p></div></div>
+<div class='row'><div class='name'>11. specyficzność: id > klasa > typ</div><div class='cell'><p class='t c11' id='c11'>OK</p></div></div>
+<div class='row'><div class='name'>12. kolejność źródła przy równej specyficzności</div><div class='cell'><p class='t c12'>OK</p></div></div>
+<div class='row'><div class='name'>13. !important wygrywa z id i ze stylem inline</div><div class='cell'><p class='t c13' id='c13' style='background:#ef9a9a'>OK</p></div></div>
+<div class='row'><div class='name'>14. dziedziczenie i inherit</div><div class='cell'><div class='c14'><p class='t'>OK</p></div></div></div>
+<div class='row'><div class='name'>15. initial i unset</div><div class='cell'><div style='color:#ef9a9a'><p class='t c15'>OK</p></div></div></div>
+<div class='row'><div class='name'>16. var() z wartością i z domyślną</div><div class='cell'><p class='t c16'>OK</p></div></div>
+<div class='row'><div class='name'>17. var() dziedziczona i nadpisana</div><div class='cell'><div style='--bg:#ef9a9a'><p class='t c17' style='--bg:#a5d6a7'>OK</p></div></div></div>
+<div class='row'><div class='name'>18. calc() z mieszanymi jednostkami</div><div class='cell'><p class='t c18'>OK</p></div></div>
+<div class='row'><div class='name'>19. jednostki: px pt mm cm in em rem % ch</div><div class='cell'><p class='t c19'><span style='display:inline-block;width:96px;background:#a5d6a7'>96px</span><span style='display:inline-block;width:72pt;background:#81c784'>72pt</span><span style='display:inline-block;width:25.4mm;background:#a5d6a7'>25.4mm</span><span style='display:inline-block;width:2.54cm;background:#81c784'>2.54cm</span><span style='display:inline-block;width:1in;background:#a5d6a7'>1in</span></p></div></div>
+<div class='row'><div class='name'>20. @media print stosowane, @media screen ignorowane</div><div class='cell'><p class='t c20'>OK</p></div></div>
+<div class='row'><div class='name'>21. skrót vs właściwość szczegółowa</div><div class='cell'><p class='t c21'>OK</p></div></div>
+<div class='row'><div class='name'>22. błędna deklaracja pomijana, reszta reguły działa</div><div class='cell'><p class='t c22'>OK</p></div></div>
+<div class='row'><div class='name'>23. (powinien) :is(), :where()</div><div class='cell'><p class='t c23'>OK</p></div></div>
+<div class='row'><div class='name'>24. (powinien) min(), max(), clamp()</div><div class='cell'><p class='t c24'>OK</p></div></div>
+</body>
+</html>

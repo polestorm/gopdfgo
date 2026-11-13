@@ -1,0 +1,24 @@
+{
+  "title": "Selektory i kaskada (samosprawdzający)",
+  "level": "must",
+  "covers": [
+    "scope: selektory poziomu 3, specyficzność, !important, dziedziczenie, var(), calc(), jednostki, @media"
+  ],
+  "pages": null,
+  "checks": [
+    "Żaden pasek nie jest czerwony (#ef9a9a). Wiersze 1–22 to „musi”, 23–24 „powinien”.",
+    "Wiersz 9: po „OK” dopisek „ (empty)”. Wiersz 10: treść „OK” pochodzi z ::before i ::after.",
+    "Wiersz 19: pięć odcinków identycznej szerokości (1 cal każdy).",
+    "Wiersz 18: pasek krótszy niż sąsiednie (połowa szerokości komórki minus 10 mm plus 2 em)."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 1,
+    "pageStarts": [
+      "Selektory i kaskada"
+    ],
+    "deviations": []
+  }
+}

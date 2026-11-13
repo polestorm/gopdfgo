@@ -1,0 +1,41 @@
+{
+  "title": "Procedura QP-04 Nadzór nad dokumentacją",
+  "level": "must",
+  "covers": [
+    "U4 :first, :left/:right, strony nazwane",
+    "U5",
+    "U6 string-set",
+    "U7",
+    "U9 liczniki nagłówków"
+  ],
+  "pages": null,
+  "checks": [
+    "Strona 1 to okładka: tło granatowe do krawędzi papieru (margines 0), bez pól marginesowych.",
+    "Każdy z 6 rozdziałów zaczyna się na nowej stronie; nagłówki numerowane „1.” … „6.”, podrozdziały „N.M”.",
+    "W polu górnym środkowym tytuł bieżącego rozdziału bez numeru (string-set z content(text)); na stronie rozpoczynającej rozdział jest to tytuł tego rozdziału.",
+    "Marginesy lustrzane: na stronach parzystych (lewych) szerszy margines prawy i sygnatura „QP-04 wydanie 7” u dołu po lewej; na nieparzystych odwrotnie.",
+    "Numer strony u dołu pośrodku; okładka liczy się jako strona 1.",
+    "Żaden akapit nie zostawia mniej niż 3 wierszy na końcu ani na początku strony; nagłówek h3 nie zostaje ostatni na stronie."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 10,
+    "pageStarts": [
+      "Nadzór nad dokumentacją",
+      "1. Cel i zakres",
+      "2. Definicje i skróty",
+      "Szkolenie stanowiskowe kończy się sprawdzeniem wiedzy, a jego wynik odnotowuje s",
+      "3. Odpowiedzialność",
+      "4. Tryb postępowania",
+      "audytorom na każde żądanie. Właściciel procesu odpowiada za aktualność procedury",
+      "5. Zapisy i archiwizacja",
+      "6. Dokumenty związane",
+      "Każde odchylenie od ustalonego sposobu postępowania wymaga udokumentowania w zap"
+    ],
+    "deviations": [
+      "Chromium nie obsługuje string-set/string(): pole górne środkowe jest puste (zostaje sama linia)."
+    ]
+  }
+}

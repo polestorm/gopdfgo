@@ -1,0 +1,35 @@
+{
+  "title": "Spis treści i elementy bieżące",
+  "level": "should",
+  "covers": [
+    "U6 running()/element()",
+    "U14 target-counter",
+    "Y4 zakładki",
+    "scope: target-counter, target-text, bookmark-level/label"
+  ],
+  "pages": 6,
+  "checks": [
+    "Na każdej stronie u góry pasek z elementu bieżącego: po lewej „Raport z walidacji RW-2026-03”, po prawej nazwa laboratorium, linia pod spodem; element nie występuje w treści strony 1.",
+    "Spis treści: pięć pozycji z numerami stron 2, 3, 4, 5, 6 dosuniętymi do prawej.",
+    "Odsyłacz: „rozdział 4 („Wyniki”, s. 5)”.",
+    "Zakładki PDF: pięć pozycji poziomu 1 (tytuły rozdziałów) i pod każdą „Szczegóły” na poziomie 2.",
+    "Pozycje spisu i odsyłacz są klikalne i prowadzą do właściwych stron."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 6,
+    "pageStarts": [
+      "Raport z walidacji RW-2026-03",
+      "Wprowadzenie",
+      "Wymagania",
+      "Metody badań",
+      "Wyniki",
+      "Wnioski"
+    ],
+    "deviations": [
+      "Chromium nie obsługuje running()/element(), target-counter(), target-text() ani bookmark-*: pasek zostaje w treści strony 1, numery stron w spisie są puste."
+    ]
+  }
+}

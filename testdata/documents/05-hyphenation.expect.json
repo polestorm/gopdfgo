@@ -1,0 +1,28 @@
+{
+  "title": "Dzielenie wyrazów",
+  "level": "should",
+  "covers": [
+    "U12",
+    "scope: hyphens, lang, text-align: justify, &shy;"
+  ],
+  "pages": null,
+  "checks": [
+    "Kolumna „auto” (pl): długie wyrazy są dzielone zgodnie z polskimi regułami (np. „od-po-wie-dzial-ność”, nie „odp-owiedzialność”), z łącznikiem na końcu wiersza; odstępy między wyrazami wyraźnie mniejsze niż w kolumnie „none”.",
+    "Kolumna „manual”: podziały wyłącznie w miejscach miękkich łączników; wyrazy bez &shy; nie są dzielone.",
+    "Kolumna „none”: żaden wyraz nie jest dzielony; wyrazy dłuższe niż kolumna wystają poza ramkę.",
+    "Kolumny en i de dzielone według wzorców swoich języków.",
+    "Łącznik z dzielenia nie trafia do tekstu wyodrębnianego z PDF jako osobny znak w środku wyrazu (kopiowanie daje całe słowo) — pożądane, nieobowiązkowe."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 1,
+    "pageStarts": [
+      "Dzielenie wyrazów"
+    ],
+    "deviations": [
+      "Chromium na macOS dzieli wyrazy słownikami systemowymi; pokrycie dla pl bywa inne niż wzorce TeX (hyph-pl)."
+    ]
+  }
+}

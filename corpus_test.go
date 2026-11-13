@@ -1,0 +1,176 @@
+package gopdfgo
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+	"time"
+)
+
+// knownHangs to dokumenty, na których silnik się zawiesza (docs/benchmark.md); pomijane do czasu poprawki.
+var knownHangs = map[string]string{}
+
+// knownNondeterminism wyłącza błąd przy różnych bajtach z dwóch przebiegów. Przyczyny (iteracje po mapach
+// w zapisie PDF i w kolejności rysowania) są poprawione; flaga zostaje na wypadek regresji w trakcie prac.
+const knownNondeterminism = false
+
+// knownPageCounts to dokumenty, w których liczba stron różni się od Chromium, z powodem.
+var knownPageCounts = map[string]string{
+	"11-edge-cases":          "blok niepodzielny wyższy niż strona dostaje własną stronę, Chromium go kroi; oba dopuszczalne",
+	"13-forms-html-elements": "pola formularza renderowane jako bloki",
+}
+
+type expectation struct {
+	Pages    *int `json:"pages"`
+	Chromium struct {
+		Pages int `json:"pages"`
+	} `json:"chromium"`
+}
+
+var pageObject = regexp.MustCompile(`/Type\s*/Page[^s]`)
+
+// renderDocument renderuje plik HTML z korpusu. Fonty wyłącznie z testdata/fonts,
+// zasoby wyłącznie spod testdata/.
+func renderDocument(t *testing.T, path string) []byte {
+	t.Helper()
+	out, err := renderFile(path, "testdata", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// renderFile renderuje plik HTML przez interfejs publiczny; zasoby wolno czytać tylko spod resourceRoot,
+// a ścieżki bezwzględne (jak /fonts/ahem.css w testach WPT) liczą się od tego katalogu.
+func renderFile(path, resourceRoot, userCSS string) ([]byte, error) {
+	result, err := renderFileResult(path, resourceRoot, userCSS)
+	return result.PDF, err
+}
+
+func renderFileResult(path, resourceRoot, userCSS string) (Result, error) {
+	root, err := filepath.Abs(resourceRoot)
+	if err != nil {
+		return Result{}, err
+	}
+	resolver := func(target string) (Resource, error) {
+		u, err := url.Parse(target)
+		if err != nil || u.Scheme != "file" {
+			return DenyAll(target)
+		}
+		file := filepath.Clean(u.Path)
+		if !strings.HasPrefix(file, root+string(filepath.Separator)) {
+			file = filepath.Join(root, file)
+		}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return DenyAll(target)
+		}
+		return Resource{Data: data}, nil
+	}
+
+	var fonts []Font
+	files, _ := filepath.Glob(filepath.Join("testdata", "fonts", "*.ttf"))
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return Result{}, err
+		}
+		fonts = append(fonts, Font{Name: filepath.Base(file), Data: data})
+	}
+
+	html, err := os.ReadFile(path)
+	if err != nil {
+		return Result{}, err
+	}
+	absolute, _ := filepath.Abs(path)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return Render(ctx, html, Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS})
+}
+
+func TestCorpusDocuments(t *testing.T) {
+	documents, _ := filepath.Glob("testdata/documents/*.html")
+	if len(documents) == 0 {
+		t.Fatal("brak dokumentów w testdata/documents")
+	}
+	_, pdftotextErr := exec.LookPath("pdftotext")
+
+	for _, path := range documents {
+		name := strings.TrimSuffix(filepath.Base(path), ".html")
+		t.Run(name, func(t *testing.T) {
+			if reason, ok := knownHangs[name]; ok {
+				t.Skip("znane zawieszenie: " + reason)
+			}
+			var expect expectation
+			raw, err := os.ReadFile(strings.TrimSuffix(path, ".html") + ".expect.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(raw, &expect); err != nil {
+				t.Fatal(err)
+			}
+
+			start := time.Now()
+			first := renderDocument(t, path)
+			elapsed := time.Since(start)
+			second := renderDocument(t, path)
+
+			// Y2: te same wejścia dają te same bajty.
+			if !bytes.Equal(first, second) {
+				if knownNondeterminism {
+					t.Logf("znany błąd: dwa przebiegi dały różne bajty (%d i %d)", len(first), len(second))
+				} else {
+					// oba pliki zostają w katalogu tymczasowym do porównania
+					dir, _ := os.MkdirTemp("", "gopdfgo-"+name+"-")
+					os.WriteFile(filepath.Join(dir, "first.pdf"), first, 0o644)
+					os.WriteFile(filepath.Join(dir, "second.pdf"), second, 0o644)
+					t.Errorf("dwa przebiegi dały różne bajty (%d i %d); pliki w %s", len(first), len(second), dir)
+				}
+			}
+
+			// Liczba stron: z konstrukcji dokumentu, a gdy nie jest określona, z Chromium jako punkt odniesienia.
+			want, source := expect.Chromium.Pages, "Chromium"
+			if expect.Pages != nil {
+				want, source = *expect.Pages, "specyfikacja"
+			}
+			if got := len(pageObject.FindAll(first, -1)); got != want {
+				if reason, ok := knownPageCounts[name]; ok {
+					t.Logf("strony: %d, oczekiwane %d (%s); znany błąd: %s", got, want, source, reason)
+				} else {
+					t.Errorf("strony: %d, oczekiwane %d (%s)", got, want, source)
+				}
+			}
+
+			// Y1: tekst daje się wyodrębnić jako słowa, nie pojedyncze litery.
+			if pdftotextErr == nil {
+				file := filepath.Join(t.TempDir(), name+".pdf")
+				if err := os.WriteFile(file, first, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				extracted, err := exec.Command("pdftotext", file, "-").Output()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Contains(extracted, []byte("Strona")) && !bytes.Contains(extracted, []byte("strona")) &&
+					!bytes.Contains(extracted, []byte("Rejestr")) && !bytes.Contains(extracted, []byte("Procedura")) &&
+					!bytes.Contains(extracted, []byte("Raport")) && !bytes.Contains(extracted, []byte("pionowa")) {
+					t.Errorf("w wyodrębnionym tekście nie ma żadnego oczekiwanego słowa; początek: %.80q", extracted)
+				}
+			}
+			// GOPDFGO_OUT=katalog zachowuje wyniki do obejrzenia
+			if dir := os.Getenv("GOPDFGO_OUT"); dir != "" {
+				if err := os.WriteFile(filepath.Join(dir, name+".pdf"), first, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Logf("%d B, %d ms", len(first), elapsed.Milliseconds())
+		})
+	}
+}

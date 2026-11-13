@@ -1,0 +1,225 @@
+package gopdfgo
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"mime"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+
+	"github.com/go-text/typesetting/fontscan"
+	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
+	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
+	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
+	"github.com/polestorm/gopdfgo/internal/webrender/logger"
+	"github.com/polestorm/gopdfgo/internal/webrender/text"
+	"github.com/polestorm/gopdfgo/internal/webrender/utils"
+)
+
+// EngineName i EngineVersion identyfikują silnik w wyniku; odbiorca zapisuje je przy kopii dokumentu.
+// Wersję podnosimy przy każdej zmianie, która zmienia bajty wyniku na korpusie.
+const (
+	EngineName    = "gopdfgo/webrender"
+	EngineVersion = "0.1.0-dev"
+)
+
+// Błędy zwracane przez Render; sprawdzać przez errors.Is.
+var (
+	// ErrNoFonts: w Options.Fonts nie ma żadnego fontu. Silnik nie sięga po fonty systemowe.
+	ErrNoFonts = errors.New("gopdfgo: no fonts provided")
+	// ErrEngine: silnik zakończył pracę paniką; komunikat zawiera ślad stosu.
+	ErrEngine = errors.New("gopdfgo: engine failure")
+	// ErrResourceDenied: zwracany przez DenyAll dla każdego zasobu poza data:.
+	ErrResourceDenied = errors.New("gopdfgo: resource denied")
+)
+
+// Font to jeden plik fontu (TTF lub OTF) dostępny dla dokumentu.
+type Font struct {
+	Name string // nazwa do komunikatów, np. nazwa pliku
+	Data []byte
+}
+
+// Resource to zasób zwrócony przez Resolver.
+type Resource struct {
+	Data      []byte
+	MediaType string // np. "text/css"; pusty oznacza rozpoznanie po rozszerzeniu adresu
+}
+
+// Resolver dostarcza zasoby wskazane w dokumencie przez url(...), src i href. Dostaje adres bezwzględny,
+// rozwiązany względem Options.BaseURL. Adresów data: silnik nie przekazuje, obsługuje je sam.
+type Resolver func(url string) (Resource, error)
+
+// DenyAll odmawia każdego zasobu; to domyślny Resolver.
+func DenyAll(url string) (Resource, error) {
+	return Resource{}, fmt.Errorf("%w: %s", ErrResourceDenied, url)
+}
+
+// Options ustawia renderowanie. Wartość zerowa nie wystarcza: wymagane są fonty.
+type Options struct {
+	// Fonts to jedyne fonty, jakich silnik użyje, także dla rodzin generycznych i znaków zastępczych.
+	Fonts []Font
+	// Resolver dostarcza zasoby zewnętrzne; nil oznacza DenyAll.
+	Resolver Resolver
+	// BaseURL to adres, względem którego rozwiązywane są adresy względne w dokumencie.
+	BaseURL string
+	// UserCSS to arkusz użytkownika (niższy priorytet niż arkusze dokumentu), np. domyślny @page.
+	UserCSS string
+}
+
+// Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
+// zasób, którego nie udało się wczytać, nieznany selektor.
+type Warning struct {
+	Message string
+}
+
+// Result to wynik renderowania.
+type Result struct {
+	PDF           []byte
+	Pages         int
+	Warnings      []Warning
+	EngineName    string
+	EngineVersion string
+}
+
+// engineSlot dopuszcza jedno renderowanie naraz: przejęty silnik zgłasza ostrzeżenia przez zmienną
+// globalną (logger.WarningLogger) i nie jest sprawdzony pod kątem współbieżności.
+var engineSlot = make(chan struct{}, 1)
+
+// Render zamienia dokument HTML na PDF.
+//
+// Renderowania są wykonywane po kolei. Silnik nie ma punktów przerwania, więc gdy ctx wygaśnie w trakcie
+// pracy, Render wraca z ctx.Err(), a praca trwa w tle do końca i do tego czasu kolejne wywołania czekają
+// (albo wracają z własnym ctx.Err()).
+func Render(ctx context.Context, html []byte, opts Options) (Result, error) {
+	if len(opts.Fonts) == 0 {
+		return Result{}, ErrNoFonts
+	}
+	select {
+	case engineSlot <- struct{}{}:
+	case <-ctx.Done():
+		return Result{}, ctx.Err()
+	}
+
+	type outcome struct {
+		result Result
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		defer func() { <-engineSlot }()
+		result, err := render(html, opts)
+		done <- outcome{result, err}
+	}()
+
+	select {
+	case out := <-done:
+		return out.result, out.err
+	case <-ctx.Done():
+		return Result{}, ctx.Err()
+	}
+}
+
+func render(html []byte, opts Options) (result Result, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v\n%s", ErrEngine, r, debug.Stack())
+		}
+	}()
+
+	var warnings bytes.Buffer
+	previousWarnings, previousProgress := logger.WarningLogger.Writer(), logger.ProgressLogger.Writer()
+	logger.WarningLogger.SetOutput(&warnings)
+	logger.ProgressLogger.SetOutput(io.Discard)
+	defer func() {
+		logger.WarningLogger.SetOutput(previousWarnings)
+		logger.ProgressLogger.SetOutput(previousProgress)
+	}()
+
+	fontMap := fontscan.NewFontMap(log.New(io.Discard, "", 0))
+	contents := map[string][]byte{}
+	for i, font := range opts.Fonts {
+		id := fmt.Sprintf("gopdfgo-font-%d:%s", i, font.Name)
+		if err := fontMap.AddFont(bytes.NewReader(font.Data), id, ""); err != nil {
+			return Result{}, fmt.Errorf("gopdfgo: font %q: %w", font.Name, err)
+		}
+		contents[id] = font.Data
+	}
+	fontConfig := text.NewFontConfigurationGotext(fontMap)
+	for id, data := range contents {
+		fontConfig.RegisterFontContent(id, data)
+	}
+
+	resolver := opts.Resolver
+	if resolver == nil {
+		resolver = DenyAll
+	}
+	fetch := func(target string) (utils.RemoteRessource, error) {
+		if strings.HasPrefix(strings.ToLower(target), "data:") {
+			return utils.DefaultUrlFetcher(target)
+		}
+		resource, err := resolver(target)
+		if err != nil {
+			return utils.RemoteRessource{}, err
+		}
+		return utils.RemoteRessource{
+			Content:       bytes.NewReader(resource.Data),
+			MimeType:      mediaType(resource.MediaType, target),
+			RedirectedUrl: target, // adres bazowy dla url(...) wewnątrz arkusza
+		}, nil
+	}
+
+	parsed, err := tree.NewHTML(utils.InputString(html), opts.BaseURL, fetch, "print")
+	if err != nil {
+		return Result{}, fmt.Errorf("gopdfgo: %w", err)
+	}
+	var sheets []tree.CSS
+	if opts.UserCSS != "" {
+		sheet, err := tree.NewCSSExt(utils.InputString(opts.UserCSS), opts.BaseURL, fontConfig)
+		if err != nil {
+			return Result{}, fmt.Errorf("gopdfgo: user stylesheet: %w", err)
+		}
+		sheets = append(sheets, sheet)
+	}
+
+	laidOut := document.Render(parsed, sheets, false, fontConfig)
+	output := pdf.NewOutput()
+	laidOut.Write(output, 1, nil)
+	file := output.Finalize()
+	var out bytes.Buffer
+	if err := file.Write(&out, nil); err != nil {
+		return Result{}, fmt.Errorf("gopdfgo: %w", err)
+	}
+
+	result = Result{PDF: out.Bytes(), Pages: len(laidOut.Pages), EngineName: EngineName, EngineVersion: EngineVersion}
+	scanner := bufio.NewScanner(&warnings)
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for scanner.Scan() {
+		message := strings.TrimSpace(strings.TrimPrefix(scanner.Text(), "webrender.warning: "))
+		if message != "" {
+			result.Warnings = append(result.Warnings, Warning{Message: message})
+		}
+	}
+	return result, nil
+}
+
+// mediaType zwraca typ bez parametrów (silnik porównuje go dosłownie, "text/css; charset=utf-8" odrzuca),
+// a gdy Resolver go nie podał, zgaduje po rozszerzeniu adresu.
+func mediaType(declared, target string) string {
+	if declared == "" {
+		path := target
+		if i := strings.IndexAny(path, "?#"); i >= 0 {
+			path = path[:i]
+		}
+		declared = mime.TypeByExtension(filepath.Ext(path))
+	}
+	if i := strings.IndexByte(declared, ';'); i >= 0 {
+		declared = declared[:i]
+	}
+	return strings.TrimSpace(declared)
+}

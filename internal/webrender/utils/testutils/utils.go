@@ -1,0 +1,32 @@
+package testutils
+
+import (
+	"reflect"
+	"testing"
+)
+
+func Assert(t *testing.T, b bool) {
+	t.Helper()
+	if !b {
+		t.Fatal("assertion failed")
+	}
+}
+
+func AssertEqual(t *testing.T, got, exp any) {
+	t.Helper()
+	if !reflect.DeepEqual(exp, got) {
+		t.Fatalf("expected\n%v\n got \n%v", exp, got)
+	}
+}
+
+func AssertEqualG[T any](t *testing.T, got, exp T) {
+	t.Helper()
+	AssertEqual(t, got, exp)
+}
+
+func AssertNoErr(t testing.TB, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("unexpected error %s", err)
+	}
+}

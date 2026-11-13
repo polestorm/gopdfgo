@@ -1,0 +1,5 @@
+.mypy_cache/**
+.idea/**
+macros/__pycache__/**
+text/testdata/cache.fc
+text/testdata/font_index_*

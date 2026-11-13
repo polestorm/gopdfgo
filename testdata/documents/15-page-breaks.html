@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Podziały stron</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A5; margin: 15mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8pt; } @top-right { content: "pionowa"; font-size: 8pt; } }
+@page wide { size: A5 landscape; @top-right { content: "pozioma"; font-size: 8pt; } }
+.marker { font-weight: 700; background: #e3f2fd; padding: 1mm; }
+.before { break-before: page; } .after { break-after: page; } .legacy-before { page-break-before: always; } .legacy-after { page-break-after: always; }
+.wide { page: wide; }
+.keep { break-inside: avoid; border: 1pt solid #2e7d32; padding: 2mm; }
+.sliced { border: 2pt solid #c62828; padding: 3mm; margin-top: 150mm; }
+.spacer { height: 120mm; background: repeating-linear-gradient(#f5f5f5 0 5mm, #e0e0e0 5mm 10mm); }
+.lines p { margin: 0; line-height: 6mm; } .lines .marker { padding: 0 1mm; } .orphans { orphans: 4; widows: 1; } .widows { orphans: 2; widows: 3; }
+</style>
+</head>
+<body>
+<p class="marker">S1: początek dokumentu</p>
+<p class="marker before">S2: break-before: page</p>
+<p class="marker after">S2: break-after: page (następny element na S3)</p>
+<p class="marker">S3: po break-after</p>
+<p class="marker legacy-before">S4: page-break-before: always</p>
+<p class="marker legacy-after">S4: page-break-after: always</p>
+<div class="wide"><p class="marker">S5: strona nazwana „wide”, pozioma</p></div>
+<p class="marker">S6: powrót do strony domyślnej, pionowej</p>
+<div class="spacer"></div>
+<div class="keep"><p class="marker">S7: blok break-inside: avoid</p><p>Dział zapewnienia jakości prowadzi rejestr zmian i udostępnia go audytorom na każde żądanie. Szkolenie stanowiskowe kończy się sprawdzeniem wiedzy, a jego wynik odnotowuje się w karcie kwalifikacji pracownika. Szkolenie stanowiskowe kończy się sprawdzeniem wiedzy, a jego wynik odnotowuje się w karcie kwalifikacji pracownika.</p><p>Kopia nadzorowana różni się od kopii informacyjnej oznaczeniem w stopce i wpisem w rejestrze wydań. Dokumenty wycofane przechowuje się w archiwum przez piętnaście lat, licząc od końca roku, w którym utraciły ważność. Kopia nadzorowana różni się od kopii informacyjnej oznaczeniem w stopce i wpisem w rejestrze wydań.</p></div>
+<p class="marker before">S8: obramowanie przecięte (slice)</p>
+<div class="sliced"><p>Każde odchylenie od ustalonego sposobu postępowania wymaga udokumentowania w zapisie niezgodności w ciągu jednego dnia roboczego. Wyposażenie pomiarowe poddaje się wzorcowaniu zgodnie z harmonogramem, a przekroczenie terminu blokuje jego użycie. Przegląd skuteczności działań korygujących przeprowadza się nie wcześniej niż po trzydziestu dniach od ich wdrożenia. Właściciel procesu odpowiada za aktualność procedury oraz za przeszkolenie personelu przed dniem jej wejścia w życie.</p><p>Wyposażenie pomiarowe poddaje się wzorcowaniu zgodnie z harmonogramem, a przekroczenie terminu blokuje jego użycie. Ocena ryzyka obejmuje prawdopodobieństwo wystąpienia, wykrywalność oraz skutek dla bezpieczeństwa pacjenta. Dostawców krytycznych ocenia się raz w roku na podstawie terminowości, liczby reklamacji i wyników audytów. Wyposażenie pomiarowe poddaje się wzorcowaniu zgodnie z harmonogramem, a przekroczenie terminu blokuje jego użycie.</p><p class="marker">S9: koniec przeciętego bloku</p></div>
+<div class="lines before"><p class="marker">S10: orphans 4</p><div style="height:160mm" class="spacer"></div>
+<p class="orphans">wiersz 1 akapitu z orphans: 4 (cały na S11)<br>wiersz 2 akapitu z orphans: 4 (cały na S11)<br>wiersz 3 akapitu z orphans: 4 (cały na S11)<br>wiersz 4 akapitu z orphans: 4 (cały na S11)<br>wiersz 5 akapitu z orphans: 4 (cały na S11)<br>wiersz 6 akapitu z orphans: 4 (cały na S11)<br>wiersz 7 akapitu z orphans: 4 (cały na S11)</p></div>
+<div class="lines before"><p class="marker">S12: widows 3</p><div style="height:140mm" class="spacer"></div>
+<p class="widows">wiersz 1 akapitu z widows: 3 (S12)<br>wiersz 2 akapitu z widows: 3 (S12)<br>wiersz 3 akapitu z widows: 3 (S12)<br>wiersz 4 akapitu z widows: 3 (S13)<br>wiersz 5 akapitu z widows: 3 (S13)<br>wiersz 6 akapitu z widows: 3 (S13)</p></div>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Dzielenie wyrazów</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.columns { display: flex; gap: 6mm; align-items: flex-start; }
+.narrow { width: 42mm; flex: none; border: 0.5pt solid #999; padding: 2mm; text-align: justify; }
+.auto { hyphens: auto; } .manual { hyphens: manual; } .none { hyphens: none; }
+</style>
+</head>
+<body>
+<h1>Dzielenie wyrazów</h1>
+<h2>Polski: auto, manual, none</h2>
+<div class="columns"><p class="narrow auto">Odpowiedzialność przedstawicielstwa najwyższego kierownictwa obejmuje nieprzerwane zagwarantowanie niezaprzeczalności elektronicznych poświadczeń oraz przeciwdziałanie nieuprawnionemu rozpowszechnianiu dokumentacji wewnątrzzakładowej, szczególnie międzywydziałowych sprawozdań kwartalnych.</p><p class="narrow manual">Odpowie&shy;dzial&shy;ność przed&shy;sta&shy;wi&shy;ciel&shy;stwa naj&shy;wyż&shy;sze&shy;go kie&shy;row&shy;nic&shy;twa obejmuje nieprzerwane zagwarantowanie niezaprzeczalności.</p><p class="narrow none">Odpowiedzialność przedstawicielstwa najwyższego kierownictwa obejmuje nieprzerwane zagwarantowanie niezaprzeczalności elektronicznych poświadczeń oraz przeciwdziałanie nieuprawnionemu rozpowszechnianiu dokumentacji wewnątrzzakładowej, szczególnie międzywydziałowych sprawozdań kwartalnych.</p></div>
+<h2>Angielski i niemiecki (atrybut lang)</h2>
+<div class="columns"><p class="narrow auto" lang="en">Organizational responsibilities notwithstanding, comprehensive documentation requirements necessitate straightforward acknowledgement procedures and uncompromising traceability characteristics.</p><p class="narrow auto" lang="de">Die Qualitätsmanagementbeauftragte überwacht die Dokumentenlenkungsverfahren sowie die Rückverfolgbarkeitsanforderungen der Arzneimittelherstellungsverordnung.</p></div>
+</body>
+</html>

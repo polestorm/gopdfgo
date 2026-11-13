@@ -1,0 +1,28 @@
+{
+  "title": "Raport miesięczny wskaźników jakości",
+  "level": "must",
+  "covers": [
+    "W3",
+    "scope SVG: rect, line, path, polyline, circle, ellipse, polygon, text/tspan, use, defs, symbol, clipPath, gradienty, viewBox, transform, stroke-dasharray, opacity"
+  ],
+  "pages": null,
+  "checks": [
+    "Trzy wykresy SVG są wektorowe w PDF (nie rastrowe), tekst w wykresach zaznaczalny, krojem Noto Sans.",
+    "Rysunek 1: 12 słupków z gradientem od ciemnego u góry do jasnego u dołu, przerywane linie siatki, etykiety wartości nad słupkami.",
+    "Rysunek 2: czerwona polilinia z 12 znacznikami (use/symbol), półprzezroczyste wypełnienie pod nią, poświata eliptyczna przycięta do obszaru wykresu, obrócony napis osi.",
+    "Rysunek 3: koło z czterech wycinków po lewej, legenda po prawej.",
+    "Żaden rysunek nie jest rozdzielony między strony (break-inside: avoid na figure).",
+    "Ikona ostrzeżenia (img z data:image/svg+xml) ma 8 mm i stoi w wierszu flex obok tekstu."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 2,
+    "pageStarts": [
+      "Raport miesięczny wskaźników jakości",
+      "człowiek 30%"
+    ],
+    "deviations": []
+  }
+}

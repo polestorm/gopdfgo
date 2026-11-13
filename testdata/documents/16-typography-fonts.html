@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Typografia i fonty</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.sample { margin: 0 0 1.5mm; }
+.label { font-size: 8pt; color: #555; }
+.tnum td { font-feature-settings: "tnum"; text-align: right; border: 0.5pt solid #999; padding: 0.5mm 2mm; }
+</style>
+</head>
+<body>
+<h1>Typografia i fonty</h1>
+<p class="sample">Zażółć gęślą jaźń. ZAŻÓŁĆ GĘŚLĄ JAŹŃ. Pchnąć w tę łódź jeża lub ośm skrzyń fig. 0123456789</p>
+<p class="sample" style="font-weight:700">Pogrubienie 700: Zażółć gęślą jaźń</p>
+<p class="sample" style="font-style:italic">Kursywa: Zażółć gęślą jaźń</p>
+<p class="sample" style="font-weight:700;font-style:italic">Pogrubiona kursywa: Zażółć gęślą jaźń</p>
+<p class="sample" style="font-weight:600">Waga 600 bez własnej odmiany: dobierana odmiana 700</p>
+<p class="sample" style="font-weight:300">Waga 300 bez własnej odmiany: dobierana odmiana 400</p>
+<p class="sample" style="font-family:'Noto Serif',serif">Noto Serif przez @font-face: Zażółć gęślą jaźń</p>
+<p class="sample" style="font-family:'Noto Sans Mono',monospace">Noto Sans Mono: Zażółć gęślą jaźń 0O1lI</p>
+<p class="sample" style="font-family:'Font Nieistniejący','Noto Serif',serif">Lista zastępcza: pierwszy krój nie istnieje, użyty Noto Serif</p>
+<p class="sample" style="font-family:serif">Rodzina generyczna serif</p><p class="sample" style="font-family:sans-serif">Rodzina generyczna sans-serif</p><p class="sample" style="font-family:monospace">Rodzina generyczna monospace</p>
+<p class="sample">Glify spoza Noto Sans z fontu awaryjnego: ✓ → ≤ ≥ Ω 中 🙂</p>
+<p class="sample">Rozmiary: <span style="font-size:6pt">6pt</span> <span style="font-size:8pt">8pt</span> <span style="font-size:12pt">12pt</span> <span style="font-size:1.5em">1.5em</span> <span style="font-size:24px">24px</span> <span style="font-size:200%">200%</span></p>
+<p class="sample" style="text-transform:uppercase">text-transform uppercase: zażółć gęślą jaźń, straße</p>
+<p class="sample" style="text-transform:capitalize">text-transform capitalize: zażółć gęślą jaźń</p>
+<p class="sample" style="letter-spacing:1.5pt">letter-spacing 1.5pt: odstępy między literami</p>
+<p class="sample" style="word-spacing:3mm">word-spacing 3 mm między wyrazami</p>
+<p class="sample"><span style="text-decoration:underline">podkreślenie</span> <span style="text-decoration:line-through">przekreślenie</span> <span style="text-decoration:overline">nadkreślenie</span> <span style="text-decoration:underline dotted #c62828">kropkowane czerwone</span></p>
+<p class="sample" style="text-indent:10mm;text-align:justify">text-indent 10 mm i justowanie: Dział zapewnienia jakości prowadzi rejestr zmian i udostępnia go audytorom na każde żądanie. Reklamację rejestruje się niezwłocznie, niezależnie od tego, czy została zgłoszona pisemnie, telefonicznie czy ustnie. Szkolenie stanowiskowe kończy się sprawdzeniem wiedzy, a jego wynik odnotowuje się w karcie kwalifikacji pracownika.</p>
+<p class="sample" style="text-align:center">wyśrodkowany</p><p class="sample" style="text-align:right">do prawej</p>
+<p class="sample" style="line-height:3;background:#f5f5f5">line-height 3: wiersz wysoki na 30 pt, tekst w środku pionowo</p>
+<p class="sample">Ligatury i kerning: fi fl ffi AVATAR Wąż Tęcza To</p>
+<p class="sample" style="color:#1565c0;opacity:0.5">Kolor z opacity 0.5</p>
+<p class="sample" style="text-shadow:0.5mm 0.5mm 0 #bbb">(powinien) text-shadow</p>
+<div class="label">(powinien) cyfry tabelaryczne: kolumny wyrównane co do cyfry</div>
+<table class="tnum"><tr><td>1 111,11</td></tr><tr><td>9 876,54</td></tr><tr><td>10 000,00</td></tr></table>
+</body>
+</html>

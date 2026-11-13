@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Formularze statyczne i elementy HTML</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+form { display: block; } label { display: block; margin: 1.5mm 0; }
+input, select, textarea, button { font: inherit; }
+fieldset { margin: 3mm 0; }
+</style>
+</head>
+<body>
+<h1>Formularze statyczne i elementy HTML</h1>
+<form><fieldset><legend>Dane zgłoszenia</legend>
+<label>Numer partii <input type="text" value="26/1187"></label>
+<label>Ilość <input type="number" value="1250"> szt.</label>
+<label>Data <input type="date" value="2026-10-03"></label>
+<label>Hasło <input type="password" value="tajne"></label>
+<label>Pole puste z podpowiedzią <input type="text" placeholder="nie dotyczy"></label>
+<label><input type="checkbox" checked> Partia wstrzymana</label>
+<label><input type="checkbox"> Powiadomiono klienta</label>
+<label><input type="radio" name="severity"> mniejsza <input type="radio" name="severity" checked> większa <input type="radio" name="severity"> krytyczna</label>
+<label>Obszar <select><option>Magazyn</option><option selected>Produkcja</option><option>Laboratorium</option></select></label>
+<label>Opis<br><textarea rows="3" cols="60">Nadruk daty ważności nieczytelny
+na co trzecim opakowaniu.</textarea></label>
+<label>Pole wyłączone <input type="text" value="tylko do odczytu" disabled></label>
+<button type="button">Przycisk</button></fieldset></form>
+<details open><summary>Sekcja rozwinięta (details open)</summary><p>Treść widoczna.</p></details>
+<details><summary>Sekcja zwinięta</summary><p>Tej treści nie widać w przeglądarce; w wydruku nadzorowanym szablon zawsze ustawia open.</p></details>
+<hr>
+<p>Encje: &lt;tag&gt; &amp; &copy; &reg; &euro; &plusmn; &micro; &deg; &frac12; &hellip; &ndash; &mdash; &bdquo;cudzysłów&rdquo; &#x2713; &#8594;</p>
+<p>Elementy wierszowe: <strong>strong</strong>, <em>em</em>, <b>b</b>, <i>i</i>, <u>u</u>, <s>s</s>, <del>del</del>, <ins>ins</ins>, <mark>mark</mark>, <small>small</small>, <code>code</code>, <kbd>Ctrl</kbd>, <abbr title="System Zarządzania Jakością">SZJ</abbr>, <cite>cite</cite>, <var>x</var>, H<sub>2</sub>O, m<sup>2</sup>, <a href="https://example.org/">odnośnik zewnętrzny</a>, <a href="#top">wewnętrzny</a>.</p>
+<blockquote>Cytat blokowy z wcięciem po obu stronach.</blockquote>
+<dl><dt>Termin</dt><dd>Definicja z wcięciem.</dd></dl>
+<address>Adres: ul. Przykładowa 1, 00-001 Warszawa</address>
+<p dir="rtl">Akapit z dir="rtl" wyrównany do prawej.</p>
+<p lang="de">Deutscher Absatz mit „Anführungszeichen“ und ß, ä, ö, ü.</p>
+</body>
+</html>

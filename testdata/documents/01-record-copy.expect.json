@@ -1,0 +1,34 @@
+{
+  "title": "Kopia zapisu NC-2026-0142",
+  "level": "must",
+  "covers": [
+    "U2",
+    "U5",
+    "U6 string-set",
+    "U8",
+    "Y3",
+    "scope: flex, tabele, pola marginesowe, svg inline"
+  ],
+  "pages": null,
+  "checks": [
+    "Nagłówek zapisu jest jednym wierszem flex: logo po lewej, tytuł w środku, znaczek „ZAMKNIĘTY” po prawej, wyrównane w pionie do środka.",
+    "Na każdej stronie: u góry po lewej „QP-07-F03 wersja 4”, u góry po prawej pogrubione „NC-2026-0142” (z string-set), u dołu po lewej data wygenerowania, u dołu po prawej „Strona N z M”.",
+    "Tabela ścieżki audytu łamie się między stronami, wiersz nagłówka powtarza się na każdej stronie, żaden wiersz nie jest przecięty.",
+    "Tabela podpisów nie jest dzielona między strony.",
+    "Tekst w PDF daje się zaznaczyć i wyszukać, polskie znaki poprawne."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 3,
+    "pageStarts": [
+      "NC-2026-0142",
+      "Czas",
+      "Czas"
+    ],
+    "deviations": [
+      "Chromium nie obsługuje string-set/string(): pole u góry po prawej jest puste."
+    ]
+  }
+}

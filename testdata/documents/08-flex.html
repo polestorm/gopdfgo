@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Układ flex</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.case { margin-bottom: 4mm; break-inside: avoid; }
+.label { font-size: 8pt; color: #555; }
+.flex { display: flex; border: 0.5pt solid #333; background: #f5f5f5; }
+.flex > div { background: #bbdefb; border: 0.5pt solid #1565c0; padding: 1mm 2mm; }
+.w30 { width: 30mm; } .w50 { width: 50mm; } .w80 { width: 80mm; }
+</style>
+</head>
+<body>
+<h1>Układ flex</h1>
+<div class="case"><div class="label">1. Wiersz, elementy o szerokości treści</div><div class="flex"><div>A</div><div>BB</div><div>CCC</div></div></div>
+<div class="case"><div class="label">2. flex: 1 dzieli szerokość na trzy równe części</div><div class="flex"><div style="flex:1">A</div><div style="flex:1">B</div><div style="flex:1">C</div></div></div>
+<div class="case"><div class="label">3. flex-grow 1 : 2 : 1 przy flex-basis 0</div><div class="flex"><div style="flex:1 1 0">25%</div><div style="flex:2 1 0">50%</div><div style="flex:1 1 0">25%</div></div></div>
+<div class="case"><div class="label">4. Etykieta stała 40 mm, wartość wypełnia resztę i zawija tekst</div><div class="flex"><div style="flex:none;width:40mm">Opis</div><div style="flex:1">Właściciel procesu odpowiada za aktualność procedury oraz za przeszkolenie personelu przed dniem jej wejścia w życie. Każde odchylenie od ustalonego sposobu postępowania wymaga udokumentowania w zapisie niezgodności w ciągu jednego dnia roboczego.</div></div></div>
+<div class="case"><div class="label">5. justify-content: space-between</div><div class="flex" style="justify-content:space-between"><div>lewy</div><div>środek</div><div>prawy</div></div></div>
+<div class="case"><div class="label">6. justify-content: center i flex-end</div><div class="flex" style="justify-content:center"><div>środek</div></div><div class="flex" style="justify-content:flex-end"><div>koniec</div></div></div>
+<div class="case"><div class="label">7. align-items: stretch (domyślnie), center, flex-end, baseline</div>
+<div class="flex" style="height:14mm"><div>stretch</div><div style="align-self:center">center</div><div style="align-self:flex-end">end</div><div style="align-self:flex-start;font-size:16pt">start</div></div>
+<div class="flex" style="align-items:baseline"><div style="font-size:16pt">Duży</div><div>mały na tej samej linii bazowej</div></div></div>
+<div class="case"><div class="label">8. flex-shrink: trzy elementy po 80 mm kurczą się równo do szerokości kontenera</div><div class="flex"><div class="w80">A</div><div class="w80">B</div><div class="w80">C</div></div></div>
+<div class="case"><div class="label">9. flex-direction: column</div><div class="flex" style="flex-direction:column;width:60mm"><div>pierwszy</div><div>drugi</div><div>trzeci</div></div></div>
+<div class="case"><div class="label">10. (powinien) flex-wrap: wrap z gap 2 mm: pięć elementów po 50 mm w dwóch wierszach (3 + 2)</div><div class="flex" style="flex-wrap:wrap;gap:2mm"><div class="w50">1</div><div class="w50">2</div><div class="w50">3</div><div class="w50">4</div><div class="w50">5</div></div></div>
+<div class="case"><div class="label">11. (powinien) order: kolejność wizualna C, A, B</div><div class="flex"><div style="order:2">A</div><div style="order:3">B</div><div style="order:1">C</div></div></div>
+<div class="case"><div class="label">12. Zagnieżdżony flex i margin-left: auto</div><div class="flex"><div class="flex" style="flex:1"><div>wewn. 1</div><div>wewn. 2</div></div><div style="margin-left:auto">dosunięty w prawo</div></div></div>
+</body>
+</html>

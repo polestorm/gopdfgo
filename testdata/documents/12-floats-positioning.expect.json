@@ -1,0 +1,29 @@
+{
+  "title": "Float, pozycjonowanie, marginesy",
+  "level": "must",
+  "covers": [
+    "U1",
+    "scope: float/clear, position relative/absolute, z-index, overflow hidden, zapadanie marginesów, inline-block, vertical-align, box-sizing"
+  ],
+  "pages": null,
+  "checks": [
+    "1: tekst opływa niebieski prostokąt z lewej i zielony z prawej; akapit z clear zaczyna się poniżej niższej krawędzi obu.",
+    "2: ramka kontenera obejmuje oba floaty (ma wysokość 18 mm + margines), nie jest płaską linią.",
+    "3: kolejność nakładania od spodu: czerwony, zielony, niebieski; żółty w prawym dolnym rogu 2 mm od krawędzi; fioletowy rozciągnięty od połowy szerokości do 40 mm przed prawą krawędzią.",
+    "5: odstęp między paskami 5 mm; marginesy pierwszego i ostatniego paska nie zapadają się przez obramowanie kontenera.",
+    "7: tekst obcięty do ramki 50 × 8 mm.",
+    "8: oba niebieskie pudełka mają identyczną szerokość zewnętrzną 60 mm.",
+    "9: szerokości 50% obszaru, 40 mm, 70 mm; ostatnie pudełko wyśrodkowane."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 2,
+    "pageStarts": [
+      "Float, pozycjonowanie, marginesy",
+      "8. box-sizing: oba pudełka mają 60 mm szerokości zewnętrznej"
+    ],
+    "deviations": []
+  }
+}

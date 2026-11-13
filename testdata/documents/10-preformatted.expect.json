@@ -1,0 +1,27 @@
+{
+  "title": "Białe znaki i łamanie tekstu",
+  "level": "must",
+  "covers": [
+    "scope: white-space (wszystkie wartości), word-break, overflow-wrap, pre, br, wbr; (powinien) tab-size"
+  ],
+  "pages": null,
+  "checks": [
+    "normal: ciągi spacji i znak nowego wiersza zwinięte do jednej spacji, tekst zawinięty w ramce.",
+    "nowrap: jeden wiersz wystający poza ramkę. pre: dwa wiersze, spacje zachowane, drugi wystaje.",
+    "pre-wrap: spacje i podział wiersza zachowane, długi wiersz zawinięty. pre-line: spacje zwinięte, podział wiersza zachowany.",
+    "overflow-wrap normal: skrót wystaje z ramki; break-word i anywhere: łamany w dowolnym miejscu, mieści się w ramce.",
+    "break-all łamie wyrazy w dowolnym miejscu; ścieżka z wbr łamie się tylko po ukośnikach.",
+    "pre: tabulatory wyrównują kolumny co 8 znaków (domyślnie) i co 4 przy tab-size: 4.",
+    "Skrót SHA256 i tekst pre krojem o stałej szerokości tylko w elementach pre/code."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 1,
+    "pageStarts": [
+      "Białe znaki i łamanie tekstu"
+    ],
+    "deviations": []
+  }
+}

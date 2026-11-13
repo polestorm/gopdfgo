@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Listy i liczniki</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+ol.legal { counter-reset: item; list-style: none; padding-left: 0; }
+ol.legal > li { counter-increment: item; }
+ol.legal > li::before { content: counters(item, ".") ". "; font-weight: 700; }
+ol.legal ol.legal { padding-left: 8mm; }
+.term::after { content: " [" attr(data-ref) "]"; color: #1565c0; }
+q { quotes: "„" "”" "«" "»"; }
+.steps { counter-reset: step 4; } .steps p { counter-increment: step 2; } .steps p::before { content: "Krok " counter(step, upper-roman) ": "; }
+.inside { list-style-position: inside; } .square { list-style-type: square; } .alpha { list-style-type: lower-alpha; } .roman { list-style-type: lower-roman; } .zero { list-style-type: decimal-leading-zero; }
+.columns { display: flex; gap: 8mm; }
+</style>
+</head>
+<body>
+<h1>Listy i liczniki</h1>
+<div class="columns"><div><h3>ul zagnieżdżone (disc, circle, square)</h3><ul><li>poziom 1<ul><li>poziom 2<ul><li>poziom 3</li></ul></li><li>poziom 2</li></ul></li><li>poziom 1</li></ul></div>
+<div><h3>ol z atrybutami</h3><ol start="5"><li>pięć</li><li value="10">dziesięć</li><li>jedenaście</li></ol><ol reversed><li>trzy</li><li>dwa</li><li>jeden</li></ol><ol type="A"><li>A</li><li>B</li></ol></div>
+<div><h3>list-style-type</h3><ul class="square"><li>square</li></ul><ol class="alpha"><li>a</li><li>b</li></ol><ol class="roman"><li>i</li><li>ii</li><li>iii</li></ol><ol class="zero"><li>01</li><li>02</li></ol></div></div>
+<h3>Numeracja prawnicza licznikiem counters()</h3>
+<ol class="legal"><li>Postanowienia ogólne<ol class="legal"><li>Zakres<ol class="legal"><li>Wyłączenia</li><li>Odstępstwa</li></ol></li><li>Definicje</li></ol></li><li>Odpowiedzialność<ol class="legal"><li>Kierownictwo</li></ol></li></ol>
+<h3>list-style-position: inside i długi tekst</h3>
+<ul class="inside"><li>Zapis uznaje się za kompletny dopiero po złożeniu podpisów przez osobę wykonującą, sprawdzającą i zatwierdzającą. Przegląd skuteczności działań korygujących przeprowadza się nie wcześniej niż po trzydziestu dniach od ich wdrożenia.</li></ul><ul><li>Zapis uznaje się za kompletny dopiero po złożeniu podpisów przez osobę wykonującą, sprawdzającą i zatwierdzającą. Przegląd skuteczności działań korygujących przeprowadza się nie wcześniej niż po trzydziestu dniach od ich wdrożenia.</li></ul>
+<h3>content: attr(), quotes, counter ze stylem i krokiem</h3>
+<p><span class="term" data-ref="ISO 9001:2015 p. 7.5">Udokumentowana informacja</span> oraz cytat: <q>zewnętrzny <q>wewnętrzny</q> koniec</q>.</p>
+<div class="steps"><p>pierwszy (VI)</p><p>drugi (VIII)</p><p>trzeci (X)</p></div>
+</body>
+</html>

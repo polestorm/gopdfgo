@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Białe znaki i łamanie tekstu</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.box { width: 70mm; border: 0.5pt solid #333; margin-bottom: 3mm; padding: 1mm; }
+.label { font-size: 8pt; color: #555; }
+pre { margin: 0; font-size: 8pt; }
+.grid { display: flex; flex-wrap: wrap; gap: 4mm; }
+</style>
+</head>
+<body>
+<h1>Białe znaki i łamanie tekstu</h1>
+<div class="grid">
+<div><div class="label">white-space: normal</div><div class="box" style="white-space:normal">raz   dwa
+trzy     cztery pięć sześć siedem osiem dziewięć dziesięć</div></div>
+<div><div class="label">white-space: nowrap (wystaje)</div><div class="box" style="white-space:nowrap">raz   dwa
+trzy     cztery pięć sześć siedem osiem dziewięć dziesięć</div></div>
+<div><div class="label">white-space: pre (wystaje)</div><div class="box" style="white-space:pre">raz   dwa
+trzy     cztery pięć sześć siedem osiem dziewięć dziesięć</div></div>
+<div><div class="label">white-space: pre-wrap</div><div class="box" style="white-space:pre-wrap">raz   dwa
+trzy     cztery pięć sześć siedem osiem dziewięć dziesięć</div></div>
+<div><div class="label">white-space: pre-line</div><div class="box" style="white-space:pre-line">raz   dwa
+trzy     cztery pięć sześć siedem osiem dziewięć dziesięć</div></div>
+<div><div class="label">overflow-wrap: normal (wystaje)</div><div class="box">SHA256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</div></div>
+<div><div class="label">overflow-wrap: break-word</div><div class="box" style="overflow-wrap:break-word">suma kontrolna SHA256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</div></div>
+<div><div class="label">overflow-wrap: anywhere</div><div class="box" style="overflow-wrap:anywhere">suma kontrolna SHA256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</div></div>
+<div><div class="label">word-break: break-all</div><div class="box" style="word-break:break-all">Niezaprzeczalność elektronicznych poświadczeń międzywydziałowych</div></div>
+<div><div class="label">word-break: keep-all i &lt;wbr&gt;</div><div class="box" style="word-break:keep-all">/archiwum/<wbr>dokumenty/<wbr>nadzorowane/<wbr>2026/<wbr>QP-04/<wbr>wydanie-7.pdf</div></div>
+</div>
+<h2>pre z tabulatorami</h2>
+<pre>kolumna1	kolumna2	kolumna3
+a	bb	ccc
+dłuższa	x	y</pre>
+<pre style="tab-size:4">tab-size 4:
+a	b	c</pre>
+<h2>br i spacje niełamliwe</h2>
+<p>Wiersz pierwszy<br>wiersz drugi po br; 15&nbsp;000&nbsp;zł nie dzieli się między wiersze; twarda spacja przed jednostką: 25&nbsp;°C.</p>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Float, pozycjonowanie, marginesy</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.case { margin-bottom: 5mm; break-inside: avoid; }
+.float-left { float: left; width: 30mm; height: 18mm; background: #bbdefb; margin: 0 3mm 1mm 0; }
+.float-right { float: right; width: 30mm; height: 12mm; background: #c8e6c9; margin: 0 0 1mm 3mm; }
+.clear { clear: both; }
+.stage { position: relative; height: 30mm; border: 0.5pt solid #333; background: #fafafa; }
+.abs { position: absolute; width: 25mm; height: 12mm; padding: 1mm; box-sizing: border-box; }
+.collapse > div { margin: 5mm 0; background: #ffe0b2; }
+.ib { display: inline-block; width: 22mm; background: #d1c4e9; padding: 1mm; }
+</style>
+</head>
+<body>
+<h1>Float, pozycjonowanie, marginesy</h1>
+<div class="case"><h3>1. Tekst opływa float lewy i prawy</h3><div class="float-left">lewy 30 × 18 mm</div><div class="float-right">prawy 30 × 12 mm</div><p>Dokumenty wycofane przechowuje się w archiwum przez piętnaście lat, licząc od końca roku, w którym utraciły ważność. Przegląd skuteczności działań korygujących przeprowadza się nie wcześniej niż po trzydziestu dniach od ich wdrożenia. Dział zapewnienia jakości prowadzi rejestr zmian i udostępnia go audytorom na każde żądanie. Właściciel procesu odpowiada za aktualność procedury oraz za przeszkolenie personelu przed dniem jej wejścia w życie.</p><p class="clear">Akapit z clear: both zaczyna się pod oboma floatami.</p></div>
+<div class="case"><h3>2. Kontener z overflow: hidden obejmuje floaty</h3><div style="overflow:hidden;border:0.5pt solid #333"><div class="float-left">float</div><div class="float-left">float</div></div></div>
+<div class="case"><h3>3. position: absolute w kontenerze relative; z-index</h3><div class="stage">
+<div class="abs" style="top:2mm;left:2mm;background:#ef9a9a;z-index:1">z-index 1 (pod spodem)</div>
+<div class="abs" style="top:6mm;left:12mm;background:#90caf9;z-index:3">z-index 3 (na wierzchu)</div>
+<div class="abs" style="top:10mm;left:22mm;background:#a5d6a7;z-index:2">z-index 2</div>
+<div class="abs" style="right:2mm;bottom:2mm;background:#fff59d">right/bottom 2 mm</div>
+<div class="abs" style="top:0;left:50%;width:auto;right:40mm;background:#ce93d8">left 50%, right 40 mm</div></div></div>
+<div class="case"><h3>4. position: relative przesuwa bez zmiany układu</h3><p>Tekst <span style="position:relative;top:2mm;background:#ffcc80">przesunięty o 2 mm w dół</span> i dalszy ciąg w tym samym wierszu.</p></div>
+<div class="case"><h3>5. Zapadanie marginesów: odstępy między paskami po 5 mm, nie 10 mm</h3><div class="collapse" style="border:0.5pt solid #333"><div>pasek 1</div><div>pasek 2</div><div>pasek 3</div></div></div>
+<div class="case"><h3>6. inline-block i vertical-align</h3><p>linia bazowa <span class="ib">baseline</span> <span class="ib" style="vertical-align:top;height:12mm">top, 12 mm</span> <span class="ib" style="vertical-align:middle">middle</span> <span class="ib" style="vertical-align:bottom">bottom</span> <sub>indeks dolny</sub> <sup>górny</sup></p></div>
+<div class="case"><h3>7. overflow: hidden przycina treść</h3><div style="width:50mm;height:8mm;overflow:hidden;border:0.5pt solid #333">Wyposażenie pomiarowe poddaje się wzorcowaniu zgodnie z harmonogramem, a przekroczenie terminu blokuje jego użycie. Dokumenty wycofane przechowuje się w archiwum przez piętnaście lat, licząc od końca roku, w którym utraciły ważność. Ocena ryzyka obejmuje prawdopodobieństwo wystąpienia, wykrywalność oraz skutek dla bezpieczeństwa pacjenta.</div></div>
+<div class="case"><h3>8. box-sizing: oba pudełka mają 60 mm szerokości zewnętrznej</h3><div style="width:60mm;box-sizing:border-box;padding:5mm;border:1mm solid #1565c0;background:#e3f2fd">border-box</div><div style="width:48mm;padding:5mm;border:1mm solid #1565c0;background:#e3f2fd">content-box 48 + 2 × 5 + 2 × 1</div></div>
+<div class="case"><h3>9. width w procentach, min/max</h3><div style="width:50%;background:#cfd8dc">50%</div><div style="width:10%;min-width:40mm;background:#b0bec5">min-width 40 mm</div><div style="width:90%;max-width:70mm;background:#90a4ae">max-width 70 mm</div><div style="margin:0 auto;width:40mm;background:#78909c;color:#fff">margin auto</div></div>
+</body>
+</html>

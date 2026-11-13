@@ -1,0 +1,8 @@
+# klony obcych silników i programy pomiarowe trzymamy poza repozytorium
+/bench/
+/repos/
+*.pdf
+!testdata/**/*.pdf
+.DS_Store
+# pamięć podręczna skanowania fontów systemowych, tworzona przez testy forka
+font_index_*.cache

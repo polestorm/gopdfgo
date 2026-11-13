@@ -1,0 +1,27 @@
+{
+  "title": "Listy i liczniki",
+  "level": "must",
+  "covers": [
+    "U9",
+    "scope: list-style-*, counter-reset/increment, counters(), content attr(), quotes"
+  ],
+  "pages": null,
+  "checks": [
+    "Znaczniki ul na trzech poziomach: koło pełne, okrąg, kwadrat.",
+    "ol start=5 numeruje 5, 10, 11; ol reversed numeruje 3, 2, 1; type=A daje A, B.",
+    "Numeracja prawnicza: 1., 1.1., 1.1.1., 1.1.2., 1.2., 2., 2.1.",
+    "Przy position: inside drugi wiersz tekstu zaczyna się pod znacznikiem; przy outside pod pierwszą literą tekstu.",
+    "Po terminie dopisek „[ISO 9001:2015 p. 7.5]”; cudzysłowy „zewnętrzny «wewnętrzny» koniec”.",
+    "Kroki oznaczone „Krok VI:”, „Krok VIII:”, „Krok X:”."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 1,
+    "pageStarts": [
+      "Listy i liczniki"
+    ],
+    "deviations": []
+  }
+}

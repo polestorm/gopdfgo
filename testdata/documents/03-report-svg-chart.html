@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Raport miesięczny wskaźników jakości</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+figure { margin: 4mm 0; break-inside: avoid; }
+figure svg { width: 100%; height: auto; border: 0.5pt solid #ccc; }
+figcaption { font-size: 8.5pt; color: #555; text-align: center; }
+svg text { font-family: "Noto Sans", sans-serif; fill: #333; }
+.note { display: flex; align-items: center; background: #fff8e1; padding: 2mm; }
+.note img { width: 8mm; height: 8mm; margin-right: 3mm; }
+.kpi td, .kpi th { border: 0.5pt solid #888; padding: 1mm 2mm; text-align: right; }
+</style>
+</head>
+<body>
+<h1>Raport miesięczny wskaźników jakości</h1>
+<p>Zestawienie liczby zgłoszeń niezgodności w roku 2026 oraz udziału poszczególnych kategorii przyczyn.</p>
+<figure><svg viewBox="0 -12 540 242" xmlns="http://www.w3.org/2000/svg">
+<defs><linearGradient id="bar-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f6fb4"/><stop offset="1" stop-color="#8ec1ec"/></linearGradient></defs>
+<line x1="40" y1="200" x2="530" y2="200" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="203" text-anchor="end" font-size="9">0</text><line x1="40" y1="150" x2="530" y2="150" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="153" text-anchor="end" font-size="9">25</text><line x1="40" y1="100" x2="530" y2="100" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="103" text-anchor="end" font-size="9">50</text><line x1="40" y1="50" x2="530" y2="50" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="53" text-anchor="end" font-size="9">75</text><line x1="40" y1="0" x2="530" y2="0" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="3" text-anchor="end" font-size="9">100</text><line x1="40" y1="200" x2="530" y2="200" stroke="#333"/><line x1="40" y1="-6" x2="40" y2="200" stroke="#333"/><rect x="50" y="116" width="28" height="84" fill="url(#bar-fill)"/><text x="64" y="111" text-anchor="middle" font-size="9">42</text><text x="64" y="218" text-anchor="middle" font-size="9">sty</text><rect x="90" y="86" width="28" height="114" fill="url(#bar-fill)"/><text x="104" y="81" text-anchor="middle" font-size="9">57</text><text x="104" y="218" text-anchor="middle" font-size="9">lut</text><rect x="130" y="124" width="28" height="76" fill="url(#bar-fill)"/><text x="144" y="119" text-anchor="middle" font-size="9">38</text><text x="144" y="218" text-anchor="middle" font-size="9">mar</text><rect x="170" y="58" width="28" height="142" fill="url(#bar-fill)"/><text x="184" y="53" text-anchor="middle" font-size="9">71</text><text x="184" y="218" text-anchor="middle" font-size="9">kwi</text><rect x="210" y="72" width="28" height="128" fill="url(#bar-fill)"/><text x="224" y="67" text-anchor="middle" font-size="9">64</text><text x="224" y="218" text-anchor="middle" font-size="9">maj</text><rect x="250" y="102" width="28" height="98" fill="url(#bar-fill)"/><text x="264" y="97" text-anchor="middle" font-size="9">49</text><text x="264" y="218" text-anchor="middle" font-size="9">cze</text><rect x="290" y="34" width="28" height="166" fill="url(#bar-fill)"/><text x="304" y="29" text-anchor="middle" font-size="9">83</text><text x="304" y="218" text-anchor="middle" font-size="9">lip</text><rect x="330" y="46" width="28" height="154" fill="url(#bar-fill)"/><text x="344" y="41" text-anchor="middle" font-size="9">77</text><text x="344" y="218" text-anchor="middle" font-size="9">sie</text><rect x="370" y="84" width="28" height="116" fill="url(#bar-fill)"/><text x="384" y="79" text-anchor="middle" font-size="9">58</text><text x="384" y="218" text-anchor="middle" font-size="9">wrz</text><rect x="410" y="18" width="28" height="182" fill="url(#bar-fill)"/><text x="424" y="13" text-anchor="middle" font-size="9">91</text><text x="424" y="218" text-anchor="middle" font-size="9">paź</text><rect x="450" y="62" width="28" height="138" fill="url(#bar-fill)"/><text x="464" y="57" text-anchor="middle" font-size="9">69</text><text x="464" y="218" text-anchor="middle" font-size="9">lis</text><rect x="490" y="52" width="28" height="148" fill="url(#bar-fill)"/><text x="504" y="47" text-anchor="middle" font-size="9">74</text><text x="504" y="218" text-anchor="middle" font-size="9">gru</text></svg>
+<figcaption>Rysunek 1. Liczba zgłoszeń w miesiącach (wykres słupkowy z gradientem liniowym)</figcaption></figure>
+<figure><svg viewBox="0 -12 540 242" xmlns="http://www.w3.org/2000/svg">
+<defs><symbol id="marker" overflow="visible"><circle r="3.5" fill="#fff" stroke="#c62828" stroke-width="1.5"/></symbol>
+<clipPath id="plot-area"><rect x="40" y="0" width="490" height="200"/></clipPath>
+<radialGradient id="glow"><stop offset="0" stop-color="#ffcdd2"/><stop offset="1" stop-color="#ffcdd2" stop-opacity="0"/></radialGradient></defs>
+<line x1="40" y1="200" x2="530" y2="200" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="203" text-anchor="end" font-size="9">0</text><line x1="40" y1="150" x2="530" y2="150" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="153" text-anchor="end" font-size="9">25</text><line x1="40" y1="100" x2="530" y2="100" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="103" text-anchor="end" font-size="9">50</text><line x1="40" y1="50" x2="530" y2="50" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="53" text-anchor="end" font-size="9">75</text><line x1="40" y1="0" x2="530" y2="0" stroke="#bbb" stroke-width="0.5" stroke-dasharray="3 3"/><text x="34" y="3" text-anchor="end" font-size="9">100</text><g clip-path="url(#plot-area)"><ellipse cx="424" cy="38" rx="60" ry="40" fill="url(#glow)"/>
+<path d="M40 200 L64,136 104,106 144,144 184,78 224,92 264,122 304,54 344,66 384,104 424,38 464,82 504,72 L504 200 Z" fill="#c62828" fill-opacity="0.12"/>
+<polyline points="64,136 104,106 144,144 184,78 224,92 264,122 304,54 344,66 384,104 424,38 464,82 504,72" fill="none" stroke="#c62828" stroke-width="2" stroke-linejoin="round"/></g><use href="#marker" x="64" y="136"/><use href="#marker" x="104" y="106"/><use href="#marker" x="144" y="144"/><use href="#marker" x="184" y="78"/><use href="#marker" x="224" y="92"/><use href="#marker" x="264" y="122"/><use href="#marker" x="304" y="54"/><use href="#marker" x="344" y="66"/><use href="#marker" x="384" y="104"/><use href="#marker" x="424" y="38"/><use href="#marker" x="464" y="82"/><use href="#marker" x="504" y="72"/>
+<g transform="translate(60 22)"><rect width="150" height="18" fill="#fff" stroke="#999" opacity="0.9"/><line x1="6" y1="9" x2="26" y2="9" stroke="#c62828" stroke-width="2"/><text x="32" y="13" font-size="9">zgłoszenia <tspan font-weight="700">zamknięte</tspan></text></g>
+<text x="12" y="110" font-size="9" transform="rotate(-90 12 110)" text-anchor="middle">liczba</text></svg>
+<figcaption>Rysunek 2. Zgłoszenia zamknięte (polilinia, obszar z przezroczystością, przycięcie, symbol użyty 12 razy)</figcaption></figure>
+<figure><svg viewBox="-110 -110 440 220" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+<path d="M0 0 L0 -100 A100 100 0 0 1 95.1 30.9 Z" fill="#1f6fb4"/><path d="M0 0 L95.1 30.9 A100 100 0 0 1 -58.8 80.9 Z" fill="#2e7d32"/>
+<path d="M0 0 L-58.8 80.9 A100 100 0 0 1 -95.1 -30.9 Z" fill="#f9a825"/><path d="M0 0 L-95.1 -30.9 A100 100 0 0 1 0 -100 Z" fill="#c62828"/>
+<g font-size="11"><rect x="140" y="-60" width="12" height="12" fill="#1f6fb4"/><text x="158" y="-50">człowiek 30%</text><rect x="140" y="-38" width="12" height="12" fill="#2e7d32"/><text x="158" y="-28">metoda 30%</text>
+<rect x="140" y="-16" width="12" height="12" fill="#f9a825"/><text x="158" y="-6">maszyna 20%</text><rect x="140" y="6" width="12" height="12" fill="#c62828"/><text x="158" y="16">materiał 20%</text></g></svg>
+<figcaption>Rysunek 3. Kategorie przyczyn (łuki ścieżek, ujemny początek viewBox)</figcaption></figure>
+<div class="note"><img alt="Uwaga" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBvbHlnb24gcG9pbnRzPSIxMiwyIDIyLDIyIDIsMjIiIGZpbGw9IiNmOWE4MjUiIHN0cm9rZT0iIzMzMyIvPjxyZWN0IHg9IjExIiB5PSI5IiB3aWR0aD0iMiIgaGVpZ2h0PSI3Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxOSIgcj0iMS4yIi8+PC9zdmc+"><div>Ikona obok jest obrazem SVG wstawionym przez <code>img</code> z adresem <code>data:</code>.</div></div>
+<h2>Dane źródłowe</h2>
+<table class="kpi"><tr><th>Miesiąc</th><th>sty</th><th>lut</th><th>mar</th><th>kwi</th><th>maj</th><th>cze</th><th>lip</th><th>sie</th><th>wrz</th><th>paź</th><th>lis</th><th>gru</th></tr><tr><th>Zgłoszenia</th><td>42</td><td>57</td><td>38</td><td>71</td><td>64</td><td>49</td><td>83</td><td>77</td><td>58</td><td>91</td><td>69</td><td>74</td></tr></table>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "title": "Przypadki brzegowe",
+  "level": "must",
+  "covers": [
+    "D3",
+    "scope: pusta tabela, bardzo długie słowo, blok niepodzielny wyższy niż strona, tabela szersza niż strona, puste elementy"
+  ],
+  "pages": null,
+  "checks": [
+    "Renderer kończy pracę bez błędu i bez przekroczenia limitu czasu; żadna panika.",
+    "1–2: puste tabele nie zajmują miejsca albo rysują same nagłówki; puste komórki mają obramowanie.",
+    "3: długie słowo wystaje poza prawy margines w jednym wierszu (brak overflow-wrap), nie znika i nie zapętla układu.",
+    "5: tabela wystaje poza prawy margines i jest obcięta krawędzią papieru; nie jest zwężana kosztem zawijania (nowrap).",
+    "7: akapit zielony; raport renderowania zawiera ostrzeżenia o „frobnicate”, o wartości „quantum” i o elemencie „blink”.",
+    "8: drzewo naprawione jak w przeglądarce (algorytm WHATWG): „pogrubiony” pogrubione, „i pochylony” pogrubione i pochylone, „tekst” pochylony; tabela po akapicie.",
+    "9: blok 300 mm zaczyna się na nowej stronie i wystaje poza jej dół (albo jest kontynuowany na następnej); „Akapit po bloku” pojawia się po nim; raport zawiera ostrzeżenie."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 2,
+    "pageStarts": [
+      "Przypadki brzegowe",
+      "Blok 300 mm z break-inside: avoid."
+    ],
+    "deviations": [
+      "Chromium nie zgłasza ostrzeżeń o nieznanych właściwościach; wymaganie Y8 dotyczy tylko naszego interfejsu."
+    ]
+  }
+}

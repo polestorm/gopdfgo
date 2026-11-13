@@ -1,0 +1,30 @@
+{
+  "title": "Typografia i fonty",
+  "level": "must",
+  "covers": [
+    "W5",
+    "scope fonty: @font-face, font-weight numeryczny, font-style, rodziny generyczne, glif zastępczy; text-*, letter-spacing, line-height, text-indent; (powinien) font-feature-settings, text-shadow"
+  ],
+  "pages": null,
+  "checks": [
+    "Wszystkie polskie znaki diakrytyczne poprawne w czterech odmianach Noto Sans; w PDF osadzone podzbiory fontów (nie całe pliki).",
+    "Kursywa i pogrubienie z plików odmian, nie syntetyczne (pochylenie lub pogrubienie obrysem).",
+    "Waga 600 renderowana odmianą 700, waga 300 odmianą 400 (algorytm dopasowania wag CSS Fonts).",
+    "Rodziny generyczne dają trzy różne kroje: szeryfowy, bezszeryfowy, o stałej szerokości — z fontów osadzonych w silniku, nie systemowych.",
+    "Glify awaryjne: żaden znak nie jest pustym prostokątem, o ile font awaryjny go zawiera; brakujące trafiają do raportu ostrzeżeń.",
+    "uppercase zamienia „ß” na „SS”, a polskie litery na wielkie odpowiedniki.",
+    "Tekst z PDF kopiuje się z poprawnymi znakami (ToUnicode), także ligatury „fi”, „fl” jako dwie litery."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 1,
+    "pageStarts": [
+      "Typografia i fonty"
+    ],
+    "deviations": [
+      "Chromium dobiera rodziny generyczne i glify awaryjne z fontów systemowych, więc te wiersze różnią się między maszynami."
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "title": "Tabele",
+  "level": "must",
+  "covers": [
+    "U1 tabele auto i fixed",
+    "scope: colspan/rowspan, border-collapse, border-spacing, table-layout, empty-cells, caption-side, vertical-align, display: table-*"
+  ],
+  "pages": null,
+  "checks": [
+    "1: komórka „Obszar” i „Razem” obejmują dwa wiersze nagłówka; „Niezgodności” dwie kolumny; „Magazyn” dwa wiersze; „brak danych” dwie kolumny.",
+    "1: podpis „Zestawienie” nad tabelą. 2: odstępy między komórkami 2 mm w poziomie i 1 mm w pionie; „podpis” pod tabelą; pusta komórka bez obramowania.",
+    "3: kolumny dokładnie 20 mm, 40 mm i 60 mm niezależnie od treści. 4: środkowa kolumna najszersza.",
+    "5: tabela nie szersza niż jej treść z dopełnieniem.",
+    "7: obramowania wspólne nie dublują się (grubość 2 pt, nie 4 pt); wg CSS 2.1 § 17.6.2.1 przy równej szerokości i stylu wygrywa komórka z lewej: krawędź A|B niebieska, B|C czerwona, góra i dół B czerwone.",
+    "8: div-y z display: table-* układają się w siatkę 2 × 2 o szerokości 100 mm."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 2,
+    "pageStarts": [
+      "Tabele",
+      "25%"
+    ],
+    "deviations": []
+  }
+}

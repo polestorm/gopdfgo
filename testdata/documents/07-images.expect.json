@@ -1,0 +1,32 @@
+{
+  "title": "Załączniki graficzne",
+  "level": "must",
+  "covers": [
+    "W4 PNG, JPEG",
+    "scope: img, width/height, max-width, background-image data:, figure, obraz większy niż strona"
+  ],
+  "pages": null,
+  "checks": [
+    "PNG i JPEG osadzone bez ponownej kompresji stratnej PNG; rozmiary zgodne z podpisami.",
+    "Obraz z max-width: 100% ma szerokość obszaru treści (180 mm) i wysokość 270 mm, mieści się na jednej stronie w całości (obszar treści ma 255 mm wysokości, więc obraz jako element niepodzielny trafia na własną stronę i jest przycięty u dołu albo wystaje na margines — nie jest dzielony między strony).",
+    "Obraz bez ograniczeń (317,5 × 476 mm) zaczyna się pod akapitem na nowej stronie, wystaje poza prawy margines i jest obcięty krawędzią papieru; renderer kończy pracę (brak pętli), a akapit „Akapit po dużym obrazie” pojawia się po nim.",
+    "Raport renderowania powinien zawierać ostrzeżenie o elemencie niepodzielnym wyższym niż strona."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 6,
+    "pageStarts": [
+      "Załączniki graficzne",
+      "",
+      "PNG 1200 × 1800 px z max-width: 100% — pomniejszony do szerokości obszaru treści",
+      "Poniżej ten sam obraz bez ograniczeń: szerszy i wyższy niż strona.",
+      "",
+      "Akapit po dużym obrazie."
+    ],
+    "deviations": [
+      "Chromium kroi element niepodzielny wyższy niż strona na kolejne strony (dozwolone przez CSS Fragmentation jako zachowanie awaryjne); liczba stron z Chromium nie jest tu wzorcem."
+    ]
+  }
+}

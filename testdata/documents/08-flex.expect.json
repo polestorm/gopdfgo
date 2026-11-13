@@ -1,0 +1,27 @@
+{
+  "title": "Układ flex",
+  "level": "must",
+  "covers": [
+    "U2",
+    "scope: display flex; (powinien) flex-wrap, align-*, order, gap"
+  ],
+  "pages": null,
+  "checks": [
+    "Przypadki 1–9 i 12 („musi”) wyglądają jak opisano w etykietach; elementy niebieskie leżą wewnątrz szarego kontenera.",
+    "Przypadek 2: trzy elementy równej szerokości. Przypadek 3: szerokości w stosunku 1 : 2 : 1.",
+    "Przypadek 4: lewa kolumna 40 mm, prawa zawija tekst, obie tej samej wysokości (stretch).",
+    "Przypadek 8: trzy elementy tej samej szerokości, razem równe szerokości kontenera (bez wystawania).",
+    "Przypadki 10–11 („powinien”): zawijanie 3 + 2 z odstępem 2 mm w obu osiach; kolejność C, A, B."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 2,
+    "pageStarts": [
+      "Układ flex",
+      "12. Zagnieżdżony flex i margin-left: auto"
+    ],
+    "deviations": []
+  }
+}

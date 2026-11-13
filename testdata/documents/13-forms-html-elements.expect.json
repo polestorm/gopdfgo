@@ -1,0 +1,27 @@
+{
+  "title": "Formularze statyczne i elementy HTML",
+  "level": "must",
+  "covers": [
+    "scope HTML: formularze statyczne, details, hr, figure, encje, dir, lang, title, alt"
+  ],
+  "pages": null,
+  "checks": [
+    "Pola tekstowe pokazują wartości: „26/1187”, „1250”, datę, a hasło jako kropki; pole puste pokazuje szary tekst podpowiedzi albo nic.",
+    "Pola wyboru: pierwsze zaznaczone, drugie puste; z trzech przycisków radio zaznaczony środkowy; lista pokazuje „Produkcja”.",
+    "Obszar tekstowy pokazuje dwa wiersze tekstu z zachowanym podziałem.",
+    "details z open pokazuje treść; details bez open pokazuje tylko summary.",
+    "Wszystkie encje jako właściwe znaki; brak „tofu” (pustych prostokątów) — znaki spoza Noto Sans z fontu awaryjnego.",
+    "Elementy wierszowe mają domyślne style przeglądarki (pogrubienie, kursywa, podkreślenie, przekreślenie, żółte tło mark, indeksy).",
+    "Odnośniki są klikalne w PDF (zewnętrzny jako URI); akapit rtl wyrównany do prawej."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 1,
+    "pageStarts": [
+      "Formularze statyczne i elementy HTML"
+    ],
+    "deviations": []
+  }
+}

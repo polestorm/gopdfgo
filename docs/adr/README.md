@@ -1,0 +1,9 @@
+# Rejestr decyzji (ADR)
+
+Jedna decyzja = jeden plik `NNNN-temat.md`: kontekst, decyzja, konsekwencje, status. Zmiana decyzji = nowy ADR, stary
+oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
+
+| # | Decyzja | Status |
+|---|---|---|
+| 0002 | Układ na bazie forka webrender bez Pango; PDF/A, tagowanie i `calc()` uzupełniane z folio | przyjęta, do potwierdzenia benchmarkiem |
+| 0001 | Lista wyświetlania jako warstwa niezależna od formatu wyjścia; backendy PDF, SVG, PNG czytają tylko ją | przyjęta |

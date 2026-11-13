@@ -1,0 +1,30 @@
+{
+  "title": "Pola marginesowe strony",
+  "level": "must",
+  "covers": [
+    "U4 :first, :blank",
+    "U5 16 pól, counter(page), counter(pages)",
+    "U7 break-before: right"
+  ],
+  "pages": 3,
+  "checks": [
+    "Dokładnie 3 strony A5: treść na 1 i 3, strona 2 pusta.",
+    "Na stronach 1 i 3 widać wszystkie 16 pól: cztery narożne (TLC, TRC, BLC, BRC) z tłem różowym, po trzy na każdej krawędzi z tłem niebieskim; pola górne i dolne ułożone w poziomie, lewe i prawe w pionie.",
+    "Pole górne środkowe: strona 1 „PIERWSZA” na zielonym tle, strona 2 „celowo pusta” na żółtym, strona 3 „top-center”.",
+    "Pole dolne środkowe: „strona 1 z 3” i „strona 3 z 3”; na stronie 2 puste.",
+    "Pola top-left, top-center, top-right dzielą szerokość obszaru między marginesami narożnymi zgodnie z CSS Page 3 § 5.3 (środkowe wyśrodkowane na stronie)."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 2,
+    "pageStarts": [
+      "LT",
+      "LT"
+    ],
+    "deviations": [
+      "Chromium traktuje break-before: right jak page: nie wstawia pustej strony, daje 2 strony i „strona 1 z 2”; reguła :blank nie jest sprawdzana."
+    ]
+  }
+}

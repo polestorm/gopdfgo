@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Tabele</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+table { margin-bottom: 4mm; } caption, .label { font-size: 8.5pt; color: #555; text-align: left; }
+td, th { border: 0.5pt solid #333; padding: 1mm 2mm; }
+.separate { border-collapse: separate; border-spacing: 2mm 1mm; border: 0.5pt solid #333; }
+.fixed { table-layout: fixed; width: 120mm; } .auto { table-layout: auto; width: 120mm; }
+.css-table { display: table; width: 100mm; border: 0.5pt solid #333; } .css-row { display: table-row; } .css-cell { display: table-cell; border: 0.5pt solid #999; padding: 1mm; }
+.thick td { border: 2pt solid #1565c0; } .thick td.red { border: 2pt solid #c62828; }
+</style>
+</head>
+<body>
+<h1>Tabele</h1>
+<div class="label">1. colspan i rowspan; caption u góry</div><table><caption>Zestawienie</caption><tr><th rowspan="2">Obszar</th><th colspan="2">Niezgodności</th><th rowspan="2">Razem</th></tr><tr><th>większe</th><th>mniejsze</th></tr>
+<tr><td>Produkcja</td><td>2</td><td>7</td><td>9</td></tr><tr><td rowspan="2">Magazyn<br>(dwa wiersze)</td><td>0</td><td>3</td><td>3</td></tr><tr><td colspan="2">brak danych</td><td>–</td></tr></table>
+<div class="label">2. border-collapse: separate, border-spacing 2 mm / 1 mm, empty-cells: hide w ostatniej komórce, caption-side: bottom</div><table class="separate"><caption style="caption-side:bottom">podpis</caption><tr><td>A</td><td>B</td></tr><tr><td>C</td><td style="empty-cells:hide"></td></tr></table>
+<div class="label">3. table-layout: fixed 120 mm, kolumny 20 / 40 / reszta; długa treść zawija się</div><table class="fixed"><colgroup><col style="width:20mm"><col style="width:40mm"><col></colgroup><tr><td>1</td><td>Dział zapewnienia jakości prowadzi rejestr zmian i udostępnia go audytorom na każde żądanie.</td><td>krótki</td></tr></table>
+<div class="label">4. table-layout: auto 120 mm: szerokości wynikają z treści</div><table class="auto"><tr><td>1</td><td>Dział zapewnienia jakości prowadzi rejestr zmian i udostępnia go audytorom na każde żądanie.</td><td>krótki</td></tr></table>
+<div class="label">5. Szerokość dopasowana do treści (shrink-to-fit)</div><table><tr><td>a</td><td>bb</td><td>ccc</td></tr></table>
+<div class="label">6. vertical-align w komórkach i wyrównanie tekstu</div><table style="width:100%"><tr style="height:14mm"><td style="vertical-align:top">top</td><td style="vertical-align:middle">middle</td><td style="vertical-align:bottom">bottom</td><td style="text-align:right">prawa</td><td style="text-align:center">środek</td></tr></table>
+<div class="label">7. Konflikt obramowań w modelu collapse: komórki A i C niebieskie, B czerwona, wszystkie 2 pt</div><table class="thick"><tr><td>A</td><td class="red">B</td><td>C</td></tr></table>
+<div class="css-table"><div class="css-row"><div class="css-cell">8. display: table-cell</div><div class="css-cell">druga komórka</div></div><div class="css-row"><div class="css-cell">wiersz 2</div><div class="css-cell">x</div></div></div>
+<div class="label">9. Tabela zagnieżdżona</div><table style="margin-top:4mm"><tr><td>zewnętrzna</td><td><table><tr><td>wewn. 1</td><td>wewn. 2</td></tr></table></td></tr></table>
+<div class="label">10. Szerokości kolumn w procentach 25 / 75</div><table style="width:60%"><tr><td style="width:25%">25%</td><td>75%</td></tr></table>
+</body>
+</html>

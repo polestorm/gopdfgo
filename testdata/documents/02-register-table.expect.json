@@ -1,0 +1,37 @@
+{
+  "title": "Rejestr dokumentów nadzorowanych",
+  "level": "must",
+  "covers": [
+    "U4 landscape",
+    "U5",
+    "U8",
+    "U9",
+    "scope: thead/tfoot, colgroup, colspan, nth-child, liczniki"
+  ],
+  "pages": null,
+  "checks": [
+    "Strony w orientacji poziomej A4.",
+    "Wiersz nagłówka (thead) i wiersz stopki (tfoot) tabeli powtarzają się na każdej stronie.",
+    "Żaden wiersz danych nie jest przecięty między stronami; wiersz grupy (nazwa miesiąca) nie zostaje jako ostatni na stronie.",
+    "Kolumna „Lp.” numeruje wiersze danych od 1 do 180 licznikiem CSS; wiersze grup nie są numerowane.",
+    "Co drugi wiersz w tbody ma tło; kwoty wyrównane do prawej.",
+    "Stopka strony „N / M” wyśrodkowana, M równe liczbie stron."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-12",
+    "pages": 8,
+    "pageStarts": [
+      "Lp.",
+      "Lp.",
+      "Lp.",
+      "Lp.",
+      "Lp.",
+      "Lp.",
+      "Lp.",
+      "Lp."
+    ],
+    "deviations": []
+  }
+}
