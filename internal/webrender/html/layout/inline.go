@@ -866,11 +866,14 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		child := child_.Box()
 		child.PositionY = box.PositionY
 		if !child.IsInNormalFlow() {
-			inlineOutOfFlowLayout(context, box_, containingBlock, index, child_, children, lineChildren,
+			positionX = inlineOutOfFlowLayout(context, box_, containingBlock, index, child_, children, lineChildren,
 				&waitingChildren, waitingFloats, absoluteBoxes, fixedBoxes, linePlaceholders, &floatWidths, maxX, positionX, bottomSpace)
 			if child.IsFloated() {
 				floatResumeAt = index + 1
-				if !isInBoxes(child_, *waitingFloats) {
+				// gopdfgo: float lewy w wierszu przesunął już pozycję startową; odejmowanie jego
+				// szerokości także od prawej krawędzi zwężało wiersz dwukrotnie.
+				leftInLine := child.Style.GetFloat() == "left" && bo.LineT.IsInstance(box_)
+				if !isInBoxes(child_, *waitingFloats) && !leftInLine {
 					maxX -= child.MarginWidth()
 				}
 			}
@@ -1085,11 +1088,14 @@ type indexedBoxC struct {
 	child Box
 }
 
+// gopdfgo: zwraca bieżącą pozycję x po uwzględnieniu floata lewego umieszczonego w wierszu. W źródle
+// funkcja nic nie zwracała, a przesunięcie pozycji (w WeasyPrint zmienna pętli) ginęło, więc tekst
+// pierwszego wiersza nachodził na float, np. na pływającą literę ::first-letter.
 func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box, index int, child_ Box, children []indexedBoxC,
 	lineChildren []indexedBox, waitingChildren *[]indexedBoxC, waitingFloats *[]Box,
 	absoluteBoxes, fixedBoxes, linePlaceholders *[]*AbsolutePlaceholder, floatWidths *widths,
 	maxX, positionX, bottomSpace pr.Float,
-) {
+) pr.Float {
 	if traceMode {
 		traceLogger.DumpTree(box, "inlineOutOfFlowLayout")
 		traceLogger.Dump(fmt.Sprintf("is absolute: %v", child_.Box().IsAbsolutelyPositioned()))
@@ -1166,6 +1172,7 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 	} else if child.IsRunning() {
 		context.addRunning(child_)
 	}
+	return positionX
 }
 
 // See https://unicode.org/reports/tr14/

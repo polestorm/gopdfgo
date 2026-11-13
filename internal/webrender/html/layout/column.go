@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
@@ -257,13 +258,19 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 						nextBox, _ := blockBoxLayout(context, columnBox, pr.Inf,
 							columnSkipStack, containingBlock, true, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
 							false, -1)
-						for _, child := range nextBox.Box().Children {
+						var nextChildren []Box
+						if nextBox != nil { // gopdfgo: układ może nie zwrócić pudełka; w źródle panika
+							nextChildren = nextBox.Box().Children
+						}
+						for _, child := range nextChildren {
 							if child.Box().IsInNormalFlow() {
 								nextBoxHeight = child.Box().MarginHeight()
 								break
 							}
 						}
-						removePlaceholders(context, []bo.Box{nextBox}, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder))
+						if nextBox != nil {
+							removePlaceholders(context, []bo.Box{nextBox}, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder))
+						}
 					}
 				}
 				// else
@@ -374,11 +381,22 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			} else {
 				columnBox.Box().PositionX += i_ * (width + gap)
 			}
+			// gopdfgo: każda kolejna kolumna jest pustym fragmentem, więc treść, która się w niej nie
+			// mieści (np. float wyższy niż kolumna), musi zostać w niej umieszczona; w źródle wszystkie
+			// kolumny dziedziczyły stan pierwszej i taka treść była przenosiła dalej bez końca.
 			newChild, tmp := blockBoxLayout(context, columnBox, bottomSpace, skipStack,
-				containingBlock, originalPageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float),
+				containingBlock, originalPageIsEmpty || i > 0, absoluteBoxes, fixedBoxes, new([]pr.Float),
 				false, -1)
 			columnSkipStack = tmp.resumeAt
 			columnNextPage := tmp.nextPage
+			// Bezpiecznik: kolumna, która nie posunęła treści naprzód, kończy tworzenie kolumn.
+			if newChild != nil && columnSkipStack != nil && reflect.DeepEqual(columnSkipStack, skipStack) {
+				columns = append(columns, newChild)
+				maxColumnHeight = max(maxColumnHeight, newChild.Box().MarginHeight())
+				skipStack = nil
+				bottomSpace = originalBottomSpace
+				break
+			}
 
 			if traceMode {
 				traceLogger.Dump(fmt.Sprintf("column %d -> %s %v", i, columnSkipStack, tmp.nextPage))

@@ -54,7 +54,7 @@ fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-3-pri
 fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-4-print.html	strona 2: różne piksele 27678
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-5-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-6-print.html	
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-7-print.html	strona 1: różne piksele 97
+pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-7-print.html	
 fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-8-print.html	strony 1 vs 2
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-9-print.html	
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-001-print.html	strony 1 vs 2

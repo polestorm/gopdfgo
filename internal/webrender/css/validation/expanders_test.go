@@ -659,7 +659,7 @@ func TestGridArea(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
 	for _, test := range []struct {
-		css                                      string
+		css string
 		// gopdfgo: wartości w tabeli są w kolejności ze specyfikacji (CSS Grid 1 § 8.4); w źródle pola
 		// miały nazwy rowStart, rowEnd, columnStart, columnEnd, zgodnie z błędną kolejnością w ekspanderze.
 		rowStart, columnStart, rowEnd, columnEnd pr.GridLine
