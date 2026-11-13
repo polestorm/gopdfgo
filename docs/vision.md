@@ -26,6 +26,14 @@ sieci. Wzorcami tej klasy są WeasyPrint i Prince.
    faktury, dokumenty tekstowe z osadzonymi obrazami, raporty z tabelami, grafikę wektorową, nagłówki i stopki
    stron. Kto potrzebuje stu procent CSS, używa Chromium.
 
+## Wzorzec zgodności: normy, nie biblioteki
+
+Punktem odniesienia są normy i specyfikacje: W3C dla HTML, CSS i SVG, ISO 32000 dla PDF, ISO 19005 dla PDF/A.
+Gdy przejęty kod (WeasyPrint i jego port) albo inna biblioteka zachowuje się inaczej niż specyfikacja, poprawiamy
+zachowanie i testy według specyfikacji; zgodność z normą jest ważniejsza niż kompatybilność z biblioteką źródłową.
+Miarą są testy organizacji normalizacyjnych (web-platform-tests), nie testy odziedziczone po bibliotece.
+Przeglądarka jest wzorcem tylko tam, gdzie specyfikacja zostawia swobodę.
+
 ## Jak rozstrzygamy spory
 
 Gdy pełniejsze pokrycie kłóci się z innymi wartościami, wygrywają w tej kolejności: **rozmiar, przewidywalność,

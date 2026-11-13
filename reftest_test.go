@@ -21,8 +21,10 @@ import (
 //	GOPDFGO_UPDATE_BASELINE=1 go test -run TestWPTReftests .
 const (
 	baselinePath = "testdata/wpt/baseline.tsv"
-	// rozdzielczość rasteryzacji i tolerancja jak w pierwszym benchmarku (docs/benchmark.md)
-	reftestDPI        = "48"
+	// 96 dpi: jeden piksel CSS to jeden piksel obrazu. Przy niższej rozdzielczości (pierwsze pomiary
+	// robiono w 48 dpi) kształty o tej samej geometrii różnią się wygładzaniem krawędzi i testy
+	// zgodne wizualnie nie przechodziły (docs/feature-audit.md).
+	reftestDPI        = "96"
 	channelTolerance  = 40
 	maxDifferentPixel = 20
 )

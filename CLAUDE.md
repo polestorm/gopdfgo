@@ -13,6 +13,8 @@ stan przejętego kodu i testów w `THIRD_PARTY.md`.
 
 Zasady:
 - nazwy plików, katalogów, pakietów i identyfikatorów po angielsku; treść dokumentów po polsku;
+- wzorcem są normy (W3C, ISO), nie biblioteki: gdy przejęty kod albo jego testy różnią się od specyfikacji,
+  poprawiamy według specyfikacji i odnotowujemy to w `THIRD_PARTY.md`;
 - każda decyzja = plik w `docs/adr/`; pytania bez decyzji w `docs/adr/open-questions.md`;
 - kod to moduł `github.com/polestorm/gopdfgo` (jak moduły w `../controls/*`); układ pochodzi z forka webrender
   w `internal/` (ADR 0002), każda zmiana w przejętym kodzie trafia do `THIRD_PARTY.md`;

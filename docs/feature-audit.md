@@ -27,45 +27,70 @@ zasobów, którego `gopdfgo.Render` nie używa. Te trzy pozycje warto zmierzyć 
 
 9135 statycznych reftestów (bez JavaScriptu) z katalogów `css-grid`, `css-flexbox`, `css-multicol`, `css-tables`,
 `css-lists`, `css-content`, `CSS2` klonu WPT `ab97c017`. Każdy plik renderowany osobnym procesem `gopdfgo`
-(limit 15 s), strona 800 × 600 px bez marginesów, `pdftoppm -r 40`, tolerancja jak w `reftest_test.go`. Skrypt
-i wyniki poza repozytorium (katalog roboczy sesji).
+(limit 15 s), strona 800 × 600 px bez marginesów, `pdftoppm -r 96`, tolerancja jak w `reftest_test.go`. Skrypt
+i wyniki poza repozytorium (katalog roboczy sesji). Stan po poprawkach z pkt 6, pomiar 2026-11-13.
 
-Ogółem: **3042 zaliczone (33%)**, 5388 niezaliczonych, 672 paniki silnika (225 w teście, 447 we wzorcu),
-27 przekroczeń czasu, 6 innych błędów.
+Ogółem: **4295 zaliczonych (47%)**, 4821 niezaliczonych, 11 przekroczeń czasu, 2 paniki, 6 innych błędów.
 
-| Obszar | Zaliczone | Paniki i przekroczenia czasu |
+| Obszar | Zaliczone | Inne |
 |---|---|---|
-| CSS 2.1: listy | 149 / 153 (97%) | |
-| CSS 2.1: efekty wizualne (`visufx`) | 47 / 49 (95%) | |
-| CSS 2.1: treść generowana | 175 / 202 (86%) | 4 paniki |
-| CSS 2.1: fonty | 129 / 159 (81%) | |
-| CSS 2.1: tekst | 272 / 382 (71%) | 7 panik |
-| CSS 2.1: składnia | 160 / 264 (60%) | |
-| CSS 2.1: przepływ normalny | 361 / 697 (51%) | 1 panika |
-| CSS 2.1: obramowania | 243 / 504 (48%) | |
-| CSS 2.1: tabele | 95 / 249 (38%) | |
-| CSS 2.1: float | 44 / 113 (38%) | |
-| flexbox | 370 / 952 (38%) | 5 panik, 16 przekroczeń czasu |
-| tabele (CSS 3) | 47 / 141 (33%) | |
-| CSS 2.1: pozycjonowanie | 110 / 513 (21%) | |
-| CSS 2.1: `clear` | 40 / 211 (18%) | 8 przekroczeń czasu |
-| CSS 2.1: selektory | 78 / 468 (16%) | 224 paniki we wzorcu |
-| CSS 2.1: tło | 52 / 336 (15%) | |
-| kolumny | 51 / 400 (12%) | 3 paniki, 3 przekroczenia czasu |
-| grid | 185 / 1593 (11%) | 383 paniki |
-| CSS 2.1: marginesy i dopełnienia | 66 / 683 (9%) | |
-| CSS 2.1: `z-index` | 0 / 29 (0%) | |
+| CSS 2.1: lists | 148 / 153 (97%) |  |
+| CSS 2.1: visufx | 47 / 49 (96%) |  |
+| CSS 2.1: sec5 | 22 / 23 (96%) |  |
+| CSS 2.1: margin-padding-clear | 589 / 683 (86%) |  |
+| CSS 2.1: zindex | 25 / 29 (86%) |  |
+| CSS 2.1: generated-content | 167 / 202 (83%) |  |
+| CSS 2.1: fonts | 127 / 159 (80%) | 1 błąd |
+| CSS 2.1: borders | 364 / 504 (72%) |  |
+| CSS 2.1: text | 273 / 382 (71%) |  |
+| CSS 2.1: visudet | 20 / 28 (71%) |  |
+| CSS 2.1: tables | 177 / 249 (71%) |  |
+| CSS 2.1: syntax | 163 / 264 (62%) |  |
+| CSS 2.1: cascade | 19 / 31 (61%) |  |
+| flexbox | 517 / 952 (54%) |  |
+| tabele (CSS 3) | 76 / 141 (54%) |  |
+| CSS 2.1: normal-flow | 369 / 697 (53%) |  |
+| CSS 2.1: floats | 55 / 113 (49%) |  |
+| CSS 2.1: abspos | 12 / 25 (48%) |  |
+| CSS 2.1: positioning | 219 / 513 (43%) |  |
+| CSS 2.1: visuren | 11 / 26 (42%) |  |
+| CSS 2.1: css1 | 68 / 164 (41%) | 1 błąd |
+| listy (CSS 3) | 61 / 155 (39%) | 1 błąd |
+| CSS 2.1: box-display | 32 / 86 (37%) |  |
+| CSS 2.1: ui | 19 / 52 (37%) |  |
+| CSS 2.1: values | 9 / 25 (36%) | 1 błąd |
+| CSS 2.1: floats-clear | 64 / 211 (30%) | 8 przekroczeń czasu |
+| treść generowana (CSS 3) | 15 / 51 (29%) |  |
+| CSS 2.1: backgrounds | 95 / 336 (28%) | 2 błąd |
+| kolumny | 87 / 400 (22%) | 1 panika, 1 panika we wzorcu, 3 przekroczeń czasu |
+| CSS 2.1: bidi-text | 21 / 105 (20%) |  |
+| grid | 296 / 1593 (19%) |  |
+| CSS 2.1: selectors | 78 / 468 (17%) |  |
+| CSS 2.1: linebox | 20 / 191 (10%) |  |
 
-**Jak to czytać.** To dolna granica mocno zaniżona przez kilka wspólnych przyczyn, nie miara jakości układu:
+Rozdziały z mniej niż 20 testami pominięte w tabeli.
 
-- pierwsza wersja sondażu dała 2490 zaliczeń; jedna poprawka (zdejmowanie `<![CDATA[` z arkuszy w XHTML)
-  podniosła wynik do 3042. Takich wspólnych przyczyn jest zapewne więcej: proste testy marginesów (9%)
-  i `z-index` (0%) nie mogą zawodzić z powodu samego układu, skoro dokumenty korpusu z tymi funkcjami wychodzą
-  poprawnie;
-- reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec; jeden błąd we wspólnym
-  wzorcu odbiera setki zaliczeń (224 testy selektorów mają ten sam wzorzec, który kończy się paniką).
+**Historia pomiaru, czyli ile ważyły wspólne przyczyny.** Ta sama miara dawała kolejno:
 
-Wartość sondażu: pokazuje, gdzie jedna poprawka daje najwięcej.
+| Stan | Zaliczone z 9135 |
+|---|---|
+| pierwszy przebieg | 2490 |
+| po zdejmowaniu `<![CDATA[` z arkuszy XHTML | 3042 |
+| po usunięciu panik i rozwijaniu `<div/>` w XHTML | 3100 |
+| po zmianie rasteryzacji z 40 na 96 dpi | 4295 |
+
+Ostatni skok to błąd metody, nie silnika: w 40 dpi piksel CSS zajmuje niecałe pół piksela obrazu, więc kształty
+o tej samej geometrii różniły się wygładzaniem krawędzi (marginesy: 9% → 86%, `z-index`: 0% → 86%). Wniosek na
+przyszłość: zanim niski wynik obszaru uznamy za brak w silniku, obejrzeć kilka niezaliczonych testów.
+
+Zastrzeżenie: przy zmianie rozdzielczości tolerancja (20 różnych pikseli na stronę) została ta sama, choć obraz
+ma prawie sześć razy więcej pikseli. Kilka obszarów straciło na tym zaliczenia (treść generowana CSS 3: 31 → 15,
+listy CSS 3: 78 → 61). Liczby są więc porównywalne między obszarami tylko w przybliżeniu; tolerancję trzeba
+jeszcze dobrać świadomie.
+
+**Jak to czytać.** Reftest przechodzi tylko wtedy, gdy silnik poprawnie renderuje i test, i wzorzec, więc jeden
+błąd we wspólnym wzorcu odbiera wiele zaliczeń. Nadal podejrzanie niskie są `linebox` (10%), selektory (16%,
+większość testów dotyczy `::first-letter` i `::first-line` ze znakami spoza podanych fontów) i grid (18%).
 
 ## 3. Paniki: 658 plików, kilka przyczyn
 
@@ -103,12 +128,13 @@ grid i dopiero wtedy zdecydować o reszcie na podstawie tego, ile testów napraw
 
 | Obszar | Stan | Rekomendacja |
 |---|---|---|
-| flexbox | 38% reftestów, 16 przekroczeń czasu, 17 oznaczonych braków, 90 testów źródłowych przechodzi; korpus (12 przypadków) poprawny | poprawić: najpierw przekroczenia czasu (zawieszenia), potem przegląd niezaliczonych |
+| flexbox | 54% reftestów (pomiar w 96 dpi), przekroczenia czasu usunięte, 17 oznaczonych braków, 90 testów źródłowych przechodzi; korpus (12 przypadków) poprawny | poprawić: najpierw przekroczenia czasu (zawieszenia), potem przegląd niezaliczonych |
 | `clear` i float | 18% i 38%, 8 przekroczeń czasu | poprawić: zawieszenia najpierw |
 | kolumny | 12%, 3 przekroczenia czasu | zostawić, po usunięciu zawieszeń; ocenić po znalezieniu wspólnych przyczyn |
-| tabele | 33–38% | poprawić: druga po polach marginesowych luka w reftestach druku |
+| tabele | 71% (CSS 2.1) i 53% (CSS 3) | poprawić: druga po polach marginesowych luka w reftestach druku |
 | selektory | 16%, ale 224 testy blokuje jedna panika | poprawić panikę zapisu fontu; potem ocenić |
-| marginesy, pozycjonowanie, `z-index`, tło | 0–21% przy poprawnym korpusie | szukać wspólnej przyczyny (wzorce, obrazy, font Ahem); to najpewniej artefakty, nie błędy układu |
+| marginesy, `z-index` | 86% po poprawce metody pomiaru | zostawić |
+| pozycjonowanie, tło, `linebox` | 42%, 28%, 10% | obejrzeć niezaliczone; możliwe kolejne wspólne przyczyny |
 | przypisy dolne, `leader()` | 22 i 15 testów źródłowych przechodzi; brak danych z WPT | zostawić |
 | słowniki dzielenia wyrazów (42 języki) | działają | zostawić wszystkie; dodać wybór języków przy kompilacji, gdy rozmiar będzie priorytetem |
 

@@ -27,7 +27,8 @@ konkretnego odbiorcy.
    (nie nazywamy niczego „Folio”). BSD-3 zabrania użycia nazwisk autorów do promocji. Obie licencje dają jawną
    zgodę na użycie komercyjne; Apache-2.0 także licencję patentową. Pliki przejęte z różnych źródeł trzymamy
    w osobnych pakietach z własnym `LICENSE`, a rejestr pochodzenia w `THIRD_PARTY.md`. Wykluczone pozostaje LGPL.
-4. **Wzorzec zgodności: Chromium czy specyfikacja?** Przy sporze między tym, co robi Chrome, a tym, co mówi CSS,
+4. ~~**Wzorzec zgodności: Chromium czy specyfikacja?**~~ Rozstrzygnięte 2026-11-13 przez użytkownika: specyfikacja
+   (`../vision.md`, „Wzorzec zgodności”); dotyczy też rozbieżności z WeasyPrint. Zapis rozważań: Przy sporze między tym, co robi Chrome, a tym, co mówi CSS,
    co wygrywa? Propozycja: podział stron i liczniki wg specyfikacji Paged Media (Chrome ma tu luki), reszta wg Chrome,
    bo ekran renderuje Chrome i autor szablonu patrzy na ekran.
 5. **Fonty osadzone w binarce.** Który krój i ile odmian: Noto Sans (OFL, pełny polski, tabular numbers, 4 odmiany ≈ 2 MB)
