@@ -172,7 +172,16 @@ input:is([type=checkbox i], [type=radio i]) { height: .7em; vertical-align: -.2e
 input:is([type=checkbox i], [type=radio i])[checked]::before { background: black; content: ""; display: block; height: 100% }
 input[type=radio i], input[type=radio][checked]:before { border-radius: 50% }
 input[value]:not([type=checkbox i], [type=radio i])::before { content: attr(value); display: block; overflow: hidden }
-:is(input, input[value=""], input[type=checkbox i], input[type=radio i]) { content: ""; display: block }
+/* gopdfgo: w przejętym arkuszu reguła niżej nie miała ::before, więc każde pole input było blokiem na całą szerokość */
+:is(input, input[value=""], input[type=checkbox i], input[type=radio i])::before { content: ""; display: block }
+/* gopdfgo: tekst zastępczy pustego pola, hasło zasłonięte (stała liczba znaków, nie zdradza długości) */
+input[placeholder]:not([value], [type=checkbox i], [type=radio i])::before, input[placeholder][value=""]:not([type=checkbox i], [type=radio i])::before { content: attr(placeholder); color: darkgray; overflow: hidden }
+textarea[placeholder]:empty::before { content: attr(placeholder); color: darkgray }
+input[type=password i][value]:not([value=""])::before { content: "••••••••" }
+/* gopdfgo: details zwinięte pokazuje tylko summary (HTML § 15.5.5) */
+summary { display: list-item; list-style: disclosure-closed inside }
+details[open] > summary { list-style-type: disclosure-open }
+details:not([open]) > :not(summary) { display: none }
 select { background: lightgrey; border-radius: .25em .25em; position: relative; white-space: normal }
 select[multiple] { height: 3.6em }
 select:not([multiple])::before { content: "˅"; position: absolute; right: 0; text-align: center; width: 1.5em }

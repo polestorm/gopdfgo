@@ -468,3 +468,23 @@ func TestGridTracksInEm(t *testing.T) {
 		t.Errorf("%d pikseli różni się", n)
 	}
 }
+
+// Pola formularza: input stoi w wierszu z etykietą, hasło jest zasłonięte, puste pole pokazuje tekst
+// zastępczy, a zwinięte details tylko summary.
+func TestFormControlsAndDetails(t *testing.T) {
+	const html = `<p>Etykieta <input value="wartosc"> koniec</p>` +
+		`<p><input type="password" value="tajnehaslo"><input placeholder="podpowiedz"><input type="hidden" value="ukryte"></p>` +
+		`<details><summary>Zwinieta</summary><p>niewidoczne</p></details>` +
+		`<details open><summary>Rozwinieta</summary><p>widoczne</p></details>`
+	text := string(extractText(t, renderString(t, html).PDF))
+	for _, want := range []string{"Etykieta wartosc", "koniec", "podpowiedz", "Zwinieta", "Rozwinieta", "widoczne"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("brak %q w tekście %q", want, text)
+		}
+	}
+	for _, unwanted := range []string{"tajnehaslo", "ukryte", "niewidoczne"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("tekst zawiera %q: %q", unwanted, text)
+		}
+	}
+}

@@ -23,8 +23,7 @@ const knownNondeterminism = false
 
 // knownPageCounts to dokumenty, w których liczba stron różni się od Chromium, z powodem.
 var knownPageCounts = map[string]string{
-	"11-edge-cases":          "blok niepodzielny wyższy niż strona dostaje własną stronę, Chromium go kroi; oba dopuszczalne",
-	"13-forms-html-elements": "pola formularza renderowane jako bloki",
+	"11-edge-cases": "blok z break-inside: avoid wyższy niż strona przechodzi na nową stronę i tam jest dzielony (ADR 0004); Chromium zostawia go za nagłówkiem",
 }
 
 type expectation struct {
