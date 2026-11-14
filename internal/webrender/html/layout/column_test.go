@@ -79,7 +79,9 @@ func TestColumnGap(t *testing.T) {
 		{"normal", 16},  // "normal" is 1em = 16px
 		{"unknown", 16}, // default value is normal
 		{"15px", 15},
-		{"40%", 16},  // percentages are not allowed
+		// gopdfgo: odstęp procentowy jest dozwolony (CSS Box Alignment 3 § 8.1)
+		// i liczy się od szerokości kontenera; źródło go odrzucało (oczekiwało 16)
+		{"40%", 120},
 		{"-1em", 16}, // negative values are not allowed
 	} {
 		page := renderOnePage(t, fmt.Sprintf(`

@@ -644,6 +644,17 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 			continue
 		}
 
+		// gopdfgo: dawne nazwy właściwości odstępów siatki są aliasami
+		// (CSS Box Alignment 3 § 8.4); źródło odrzucało je jako nieznane
+		switch name {
+		case "grid-gap":
+			name = "gap"
+		case "grid-row-gap":
+			name = "row-gap"
+		case "grid-column-gap":
+			name = "column-gap"
+		}
+
 		if strings.HasPrefix(name, proprietaryPrefix) {
 			unprefixedName := strings.TrimPrefix(name, proprietaryPrefix)
 			if _, in := proprietary[unprefixedName]; in {
@@ -1740,7 +1751,9 @@ func gap(tokens []Token, _ string) pr.CssProperty {
 		return nil
 	}
 	token := tokens[0]
-	length := getLength(token, false, false)
+	// gopdfgo: odstęp może być procentem (CSS Box Alignment 3 § 8.1);
+	// źródło odrzucało taką deklarację
+	length := getLength(token, false, true)
 	if !length.IsNone() {
 		return length.Tagged()
 	}

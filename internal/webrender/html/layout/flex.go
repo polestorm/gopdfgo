@@ -252,7 +252,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	if rowGap.Tag == pr.Normal {
 		rowGap.Value = 0
 	} else if rowGap.Unit == pr.Perc {
-		if box.Height == pr.AutoF {
+		if box.Height == pr.AutoF || box.IndefiniteHeight {
 			rowGap.Value = 0
 		} else {
 			rowGap.Value = rowGap.Value / 100 * box.Height.V()

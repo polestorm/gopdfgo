@@ -1274,3 +1274,30 @@ func TestGridAutoFitAndItemZIndex(t *testing.T) {
 		}
 	}
 }
+
+// Odstępy w siatce: dawne nazwy grid-gap są aliasami, odstęp procentowy liczy
+// się od rozmiaru kontenera, a odstępy nie są wolnym miejscem dla
+// justify-content (CSS Box Alignment 3 § 8).
+func TestGridGaps(t *testing.T) {
+	const items = `<div style="background: #555; height: 30px"></div><div style="background: #555; height: 30px"></div>`
+	grid := func(style string) string {
+		return `<div style="display: grid; width: 200px; grid-template-columns: 50px 50px; ` + style + `">` + items + `</div>`
+	}
+	cases := []struct{ name, got, want string }{
+		{"grid-gap jako alias", grid(`grid-gap: 20px`), grid(`gap: 20px`)},
+		{"grid-column-gap jako alias", grid(`grid-column-gap: 20px`), grid(`column-gap: 20px`)},
+		{"odstęp procentowy", grid(`column-gap: 10%`), grid(`column-gap: 20px`)},
+		{"space-between z odstępem", grid(`column-gap: 20px; justify-content: space-between`), grid(`column-gap: 100px`)},
+	}
+	dir := t.TempDir()
+	for i, c := range cases {
+		got := rasterize(t, renderString(t, c.got).PDF, dir, fmt.Sprintf("got%d", i))
+		want := rasterize(t, renderString(t, c.want).PDF, dir, fmt.Sprintf("want%d", i))
+		if len(got) != 1 || len(want) != 1 {
+			t.Fatalf("%s: strony %d i %d", c.name, len(got), len(want))
+		}
+		if n := differentPixels(got[0], want[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
+		}
+	}
+}

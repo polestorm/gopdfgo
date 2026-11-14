@@ -397,6 +397,17 @@ Wspólne dla obu katalogów:
     z ostrzeżeniem;
   - `html/document/stacking.go` (`dispatch`): element flex lub grid z `z-index` innym niż `auto` tworzy kontekst
     nakładania bez pozycjonowania (CSS Flexbox 1 § 5.4, CSS Grid 2 § 6.4); źródło wymagało `position`;
+- odstępy `gap` (runda 2026-11-14):
+  - `css/validation/validation.go`: `grid-gap`, `grid-row-gap` i `grid-column-gap` są aliasami `gap`, `row-gap`
+    i `column-gap` (CSS Box Alignment 3 § 8.4), a odstęp może być procentem (§ 8.1); źródło odrzucało jedno
+    i drugie. Test odziedziczony `TestColumnGap` oczekiwał odrzucenia `column-gap: 40%`; zmieniony na 40%
+    szerokości kontenera;
+  - `html/layout/grid.go`: odstęp procentowy liczy się od rozmiaru treści kontenera, a przy rozmiarze
+    nieokreślonym wynosi zero; odstępy między kolumnami nie są wliczane do wolnego miejsca rozdawanego przez
+    `justify-content` (w osi wierszy źródło już to robiło);
+  - `html/layout/flex.go`: procentowy odstęp wierszy wynosi zero także wtedy, gdy wysokość kontenera pochodzi
+    z rozciągania w kontenerze o nieokreślonej wysokości. Strata: `grid-lanes-contain-intrinsic-size-row-002`
+    (układ `grid-lanes` nie jest obsługiwany; test przechodził przypadkiem);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

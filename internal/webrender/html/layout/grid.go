@@ -1032,11 +1032,31 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	autoRowsBack := style.GetGridAutoRows().Reverse().Cycle()
 	autoColumnsBack := style.GetGridAutoColumns().Reverse().Cycle()
 	var rowGap, columnGap pr.Float
+	// gopdfgo: odstęp procentowy odnosi się do rozmiaru treści kontenera
+	// w danej osi, a przy rozmiarze nieokreślonym wynosi zero (CSS Box
+	// Alignment 3 § 8.3); źródło brało liczbę procentów jako piksele.
+	// Szerokość bloku nie jest tu jeszcze wyznaczona, więc liczymy ją na kopii.
 	if v := style.GetColumnGap(); v.Tag != pr.Normal {
 		columnGap = v.Value
+		if v.Unit == pr.Perc {
+			columnGap = 0
+			probe := box_.Copy()
+			if bo.GridT.IsInstance(box_) {
+				blockLevelWidth(probe, context, containingBlock)
+			}
+			if width, ok := probe.Box().Width.(pr.Float); ok {
+				columnGap = v.Value / 100 * width
+			}
+		}
 	}
 	if v := style.GetRowGap(); v.Tag != pr.Normal {
 		rowGap = v.Value
+		if v.Unit == pr.Perc {
+			rowGap = 0
+			if height, ok := box.Height.(pr.Float); ok {
+				rowGap = v.Value / 100 * height
+			}
+		}
 	}
 
 	if gridAreas.IsNone() {
@@ -1555,7 +1575,10 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	justifyContent := box.Style.GetJustifyContent()
 	x := box.ContentBoxX()
 
-	freeWidth := max(0, box.Width.V()-sum0(columnsSizes))
+	// gopdfgo: odstępy między kolumnami nie są wolnym miejscem do rozdania
+	// (tak jak w osi wierszy niżej); źródło je pomijało, więc przy
+	// justify-content innym niż start kolumny rozjeżdżały się o sumę odstępów
+	freeWidth := max(0, box.Width.V()-sum0(columnsSizes)-pr.Float(max(len(columnsSizes)-1, 0))*columnGap)
 	columnsNumber := pr.Float(len(columnsSizes))
 	columnsPositions := make([]pr.Float, len(columnsSizes))
 	if justifyContent.Has(pr.Center) {
