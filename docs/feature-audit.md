@@ -313,3 +313,12 @@ CSS 3 31/51, grid 354/1593.
 
 Reftesty druku (`testdata/wpt`, 340): 173 zaliczone. Binarka `cmd/gopdfgo`: 21,5 MB (macOS arm64, go1.26,
 `CGO_ENABLED=0 -trimpath -ldflags='-s -w'`, pomiar 2026-11-14).
+
+## Treść dłuższa niż strona (2026-11-14)
+
+Stały test `content_loss_test.go` sprawdza 21 rodzajów kontenerów: osiem elementów i akapit końcowy muszą
+leżeć w obrębie którejś strony. Powstał po tym, jak okazało się, że przejęty kod układał treść kontenerów
+flex i grid poniżej dolnej krawędzi strony (ginęła także przy `body { display: flex }`); tabele, kolumny,
+elementy pływające i bloki dzieliły się poprawnie. Znane luki, pilnowane osobnym testem: `inline-block`
+i `inline-flex` wyższe niż strona oraz blok o stałej wysokości mniejszej niż treść, gdy wylewająca się treść
+sięga poza stronę.
