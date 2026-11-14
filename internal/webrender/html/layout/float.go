@@ -212,8 +212,21 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 				maxRightBound = min(pr.Mins(rightBounds...), maxRightBound)
 			}
 
+			// gopdfgo: margines po stronie końca wiersza nie odbiera miejsca pudełku o podanej szerokości:
+			// przy nadokreśleniu jest liczony od nowa (CSS 2.1 § 10.3.3), więc nie może zepchnąć
+			// pudełka pod element pływający. W źródle pudełko 50 px z marginesem 1 px nie mieściło się
+			// w 50 px obok elementu pływającego.
+			var endMargin pr.Float
+			if !outer && box.Style.GetWidth().Tag != pr.Auto {
+				if containingBlock.Style.GetDirection() == pr.Rtl {
+					endMargin = max(box.MarginLeft.V(), 0)
+				} else {
+					endMargin = max(box.MarginRight.V(), 0)
+				}
+			}
+
 			// Points 3, 7 && 8
-			if boxWidth > maxRightBound-maxLeftBound {
+			if boxWidth > maxRightBound-maxLeftBound+endMargin {
 				// The box does not fit here
 				min := pr.Inf
 				for _, shape := range collidingShapes {

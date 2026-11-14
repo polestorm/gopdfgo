@@ -217,3 +217,20 @@ func TestTableHeightStretchesRows(t *testing.T) {
 		t.Errorf("%d pikseli różni się od wzorca", n)
 	}
 }
+
+// Pudełko tworzące nowy kontekst formatowania mieści się obok elementu pływającego mimo marginesu po
+// stronie końca wiersza: przy nadokreśleniu ten margines jest liczony od nowa (CSS 2.1 § 10.3.3).
+func TestFormattingContextBesideFloatIgnoresEndMargin(t *testing.T) {
+	const style = "<style>@page { size: 200px 200px; margin: 0 } body { margin: 0 } " +
+		".box { width: 100px; height: 100px; background: #f00 } .half { width: 50px; height: 100px; background: #080 }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+`<div class="box"><div class="half" style="float: left"></div>`+
+		`<div class="half" style="overflow: hidden; margin-right: 1px"></div></div>`).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<div class="box" style="background: #080"></div>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}
