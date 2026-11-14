@@ -1002,8 +1002,8 @@ func updatePageGroups(pageGroups *[]pageGroup, resumeAt tree.ResumeStack, nextPa
 	)
 	for {
 		var childResumeAt tree.ResumeStack
-		if _, isRemainder := currentResumeAt.Remainder(); isRemainder {
-			break
+		if _, isRemainder := currentResumeAt.Remainder(); isRemainder || len(currentResumeAt) != 1 {
+			break // stan wewnętrzny układu (reszta bloku, linia flex), nie indeks dziecka
 		}
 		childIndex, childResumeAt = currentResumeAt.Unpack()
 		parentElement = currentElement

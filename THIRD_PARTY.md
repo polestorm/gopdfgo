@@ -211,8 +211,12 @@ Wspólne dla obu katalogów:
   układy próbne (`layoutContext.flexMeasuring`) nie dzielą się, żeby pomiar dał pełną wysokość. W źródle
   kontener flex nie sprawdzał, czy elementy wychodzą poza stronę: były układane poniżej jej krawędzi
   i ginęły, także przy `body { display: flex }`. Poprawiony też indeks wznowienia przy drugim podziale
-  (doliczany dwukrotnie, co dawało indeks spoza listy). Ograniczenie: w wierszu flex, gdy jeden element
-  dzieli się między strony, pozostałe elementy tej linii trafiają dopiero na ostatnią stronę;
+  (doliczany dwukrotnie, co dawało indeks spoza listy). W wierszu elementy jednej linii dzielą się równolegle
+  (CSS Flexbox 1 § 12): stan wznowienia linii jest niesiony w stosie wznowienia pod kluczami ujemnymi
+  (`parallelLineState`), a element zakończony na wcześniejszej stronie zastępuje pusta, niewidoczna kopia
+  (`finishedFlexItem`), żeby pozostałe zachowały miejsce i szerokość. W źródle układ linii kończył się na
+  pierwszym podzielonym elemencie, a jego sąsiedzi trafiali dopiero na ostatnią stronę. Nie dotyczy kierunków
+  `-reverse`. Sortowanie według `order` jest stabilne (`sort.SliceStable`; w źródle `sort.Slice`);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

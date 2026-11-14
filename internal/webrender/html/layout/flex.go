@@ -201,7 +201,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	resolveSizesBox(context, parentBox_, containingBlock)
 	blockLevelWidth(parentBox_, nil, containingBlock)
 	children := append([]Box{}, box.Children...)
-	sort.Slice(children, func(i, j int) bool { return children[i].Box().Style.GetOrder() < children[j].Box().Style.GetOrder() })
+	// gopdfgo: sortowanie stabilne; w źródle sort.Slice, które przy równych wartościach order nie gwarantuje
+	// zachowania kolejności dokumentu (dla więcej niż 12 elementów).
+	sort.SliceStable(children, func(i, j int) bool { return children[i].Box().Style.GetOrder() < children[j].Box().Style.GetOrder() })
 
 	var skip int
 	if skipStack != nil {
@@ -213,6 +215,25 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	} else {
 		skipStack = nil
+	}
+
+	// gopdfgo: wznowienie linii, w której elementy dzieliły się między strony równolegle (zob. lineResume
+	// niżej). Elementy, które skończyły się na poprzedniej stronie, zastępujemy pustymi, niewidocznymi
+	// kopiami, żeby pozostałe zachowały swoje miejsce i szerokość.
+	lineSkip := parallelLineState(skipStack)
+	if lineSkip != nil {
+		skipStack = nil
+		for position, child := range children {
+			if resume, inLine := lineSkip[position+skip]; inLine && resume == nil && child.Box().IsFlexItem {
+				children[position] = finishedFlexItem(child)
+			}
+		}
+	}
+	pickSkip := func(index int, first tree.ResumeStack) tree.ResumeStack {
+		if lineSkip != nil {
+			return lineSkip[index]
+		}
+		return first
 	}
 
 	childSkipStack := skipStack
@@ -342,7 +363,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 			context.flexMeasuring++
 			newChild, _, _ = blockLevelLayout(context, newChild.(bo.BlockLevelBoxITF),
-				bottomSpace, childSkipStack, parentBox, pageIsEmpty, nil, nil, nil, false, -1)
+				bottomSpace, pickSkip(index+skip, childSkipStack), parentBox, pageIsEmpty, nil, nil, nil, false, -1)
 			context.flexMeasuring--
 			var contentSize pr.Float
 			if newChild != nil {
@@ -449,7 +470,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				var tmp blockLayout
 				context.flexMeasuring++
 				newChild_, tmp, _ = blockLevelLayout(
-					context, newChild_.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parentBox,
+					context, newChild_.(bo.BlockLevelBoxITF), bottomSpace, pickSkip(index+skip, childSkipStack), parentBox,
 					pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
 				context.flexMeasuring--
 				if newChild_ != nil {
@@ -738,7 +759,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 			// TODO: Find another way than calling block_level_layout_switch.
 			newChild_ := child_.Copy()
-			newChild_, tmp, _ := blockLevelLayoutSwitch(context, newChild_.(bo.BlockLevelBoxITF), -pr.Inf, childSkipStack,
+			newChild_, tmp, _ := blockLevelLayoutSwitch(context, newChild_.(bo.BlockLevelBoxITF), -pr.Inf, pickSkip(v.index, childSkipStack),
 				parentBox, pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
 			adjoiningMargins := tmp.adjoiningMargins
 			child.Baseline = pr.Float(0)
@@ -1292,13 +1313,20 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	box = box_.Box()
 	childSkipStack = skipStack
 	finalLines := make([][]Box, len(flexLines)) // pudełka po ostatecznym układzie, według linii
-	flexItemsBefore := len(box.Children)        // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
+	// gopdfgo: w wierszu elementy jednej linii dzielą się między strony równolegle (CSS Flexbox 1 § 12):
+	// gdy jeden przechodzi na następną stronę, pozostałe z tej linii nadal są układane na bieżącej.
+	// W źródle układ linii kończył się na pierwszym podzielonym elemencie, a jego sąsiedzi trafiali
+	// dopiero na ostatnią stronę.
+	parallel := main == pr.PWidth && !strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") &&
+		context.flexMeasuring == 0 && bottomSpace > -pr.Inf
+	lineResume := map[int]tree.ResumeStack{}
+	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
 	for lineIndex, line := range flexLines {
 		for _, v := range line.line {
 			i, child := v.index, v.box.Box()
 			if child.IsFlexItem {
 				// TODO: Don't use block_level_layout_switch.
-				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, box,
+				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, pickSkip(i, childSkipStack), box,
 					pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
 				childResumeAt := tmp.resumeAt
 				if newChild == nil {
@@ -1343,10 +1371,20 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					box.Children = append(box.Children, newChild)
 					finalLines[lineIndex] = append(finalLines[lineIndex], newChild)
 					if childResumeAt != nil {
-						// gopdfgo: i jest już indeksem w pełnej liście dzieci; w źródle doliczany był do
-						// niego jeszcze raz indeks wznowienia, co przy drugim podziale dawało indeks
-						// spoza listy.
-						resumeAt = tree.ResumeStack{i: childResumeAt}
+						// fragment elementu nie może sięgać poniżej obszaru strony
+						if over := newChild.Box().PositionY + newChild.Box().MarginHeight() - (context.pageBottom - bottomSpace); over > 0 &&
+							bottomSpace > -pr.Inf && context.flexMeasuring == 0 && newChild.Box().Height != pr.AutoF {
+							newChild.Box().Height = max(newChild.Box().Height.V()-over, 0)
+						}
+						if parallel {
+							// reszta linii zostaje na tej stronie; stan wznowienia zbieramy dla całej linii
+							lineResume[i] = childResumeAt
+						} else {
+							// gopdfgo: i jest już indeksem w pełnej liście dzieci; w źródle doliczany był
+							// do niego jeszcze raz indeks wznowienia, co przy drugim podziale dawało
+							// indeks spoza listy.
+							resumeAt = tree.ResumeStack{i: childResumeAt}
+						}
 					}
 				}
 				if resumeAt != nil {
@@ -1356,6 +1394,15 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 			// Skip stack is only for the first child
 			childSkipStack = nil
+		}
+		if resumeAt == nil && len(lineResume) != 0 {
+			state := tree.ResumeStack{}
+			for _, v := range line.line {
+				if v.box.Box().IsFlexItem {
+					state[-1-v.index] = lineResume[v.index] // nil: element skończył się na tej stronie
+				}
+			}
+			resumeAt = tree.ResumeStack{line.line[0].index: state}
 		}
 		if resumeAt != nil {
 			break
@@ -1479,4 +1526,42 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 func isScrollContainer(style pr.ElementStyle) bool {
 	overflow := style.GetOverflow()
 	return overflow != "visible" && overflow != "clip"
+}
+
+// parallelLineState rozpoznaje stan wznowienia linii flex dzielonej równolegle: klucze -(indeks+1) dla
+// wszystkich elementów linii, wartość nil dla elementów zakończonych. Zwraca mapę indeks -> wznowienie
+// albo nil, gdy stos jest zwykłym wznowieniem pierwszego dziecka.
+func parallelLineState(stack tree.ResumeStack) map[int]tree.ResumeStack {
+	if len(stack) == 0 {
+		return nil
+	}
+	anyUnfinished := false
+	for key, value := range stack {
+		if key >= 0 {
+			return nil
+		}
+		anyUnfinished = anyUnfinished || value != nil
+	}
+	if !anyUnfinished {
+		return nil
+	}
+	out := make(map[int]tree.ResumeStack, len(stack))
+	for key, value := range stack {
+		out[-1-key] = value
+	}
+	return out
+}
+
+// finishedFlexItem zwraca pustą, niewidoczną kopię elementu flex, który skończył się na poprzedniej stronie.
+func finishedFlexItem(item Box) Box {
+	empty := item.Copy()
+	if bo.ParentT.IsInstance(item) {
+		empty = bo.CopyWithChildren(item, nil)
+	}
+	style := item.Box().Style.Copy()
+	style.SetVisibility("hidden")
+	style.SetHeight(pr.TagToV(pr.Auto))
+	style.SetMinHeight(pr.ZeroPixels.Tagged())
+	empty.Box().Style = style
+	return empty
 }

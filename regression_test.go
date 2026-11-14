@@ -637,3 +637,48 @@ func TestFlexContainerSplitsAcrossPages(t *testing.T) {
 		t.Errorf("kontener przenoszony w całości: %d stron, oczekiwane 2", moved.Pages)
 	}
 }
+
+// Dwie kolumny obok siebie w wierszu flex, wyższe niż strona, dzielą się między strony równolegle: druga
+// kolumna zaczyna się na pierwszej stronie obok pierwszej, a nie dopiero po jej zakończeniu.
+func TestFlexRowColumnsSplitInParallel(t *testing.T) {
+	const style = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px } p { margin: 0 } " +
+		".i { height: 50px; box-sizing: border-box; border: 1px solid #000 }</style>"
+	var left, right string
+	for i := 1; i <= 5; i++ {
+		left += fmt.Sprintf(`<div class="i">a%d</div>`, i)
+	}
+	for i := 1; i <= 4; i++ {
+		right += fmt.Sprintf(`<div class="i">b%d</div>`, i)
+	}
+	result := renderString(t, style+`<div style="display: flex"><div style="flex: 1">`+left+`</div><div style="flex: 1">`+right+
+		`</div><div style="width: 40px">bok</div></div><p>koniec</p>`)
+	if result.Pages != 2 {
+		t.Fatalf("%d stron, oczekiwane 2", result.Pages)
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "out.pdf")
+	if err := os.WriteFile(file, result.PDF, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	page := func(n string) string {
+		out, err := exec.Command("pdftotext", "-f", n, "-l", n, file, "-").Output()
+		if err != nil {
+			t.Skip("brak pdftotext")
+		}
+		return " " + strings.Join(strings.Fields(string(out)), " ") + " "
+	}
+	first, second := page("1"), page("2")
+	for _, want := range []string{"a1", "a3", "b1", "b3", "bok"} {
+		if !strings.Contains(first, " "+want+" ") {
+			t.Errorf("strona 1 bez %q: %q", want, first)
+		}
+	}
+	for _, want := range []string{"a4", "a5", "b4", "koniec"} {
+		if !strings.Contains(second, " "+want+" ") {
+			t.Errorf("strona 2 bez %q: %q", want, second)
+		}
+	}
+	if strings.Contains(second, " bok ") {
+		t.Errorf("element zakończony na stronie 1 powtórzony na stronie 2: %q", second)
+	}
+}
