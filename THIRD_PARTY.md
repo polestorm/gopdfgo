@@ -368,6 +368,10 @@ Wspólne dla obu katalogów:
   nadana elementowi przez rozciąganie w takim kontenerze nie jest podstawą procentów jego potomków. Źródło
   liczyło procent z nieskończoności i zapisywało w PDF `NaN` albo `Inf` (test `flex-basis-011` przechodził tylko
   dlatego, że tak samo zepsuty był wzorzec);
+- `pdflib/model/writeutils.go` (`FmtFloat`, `NonFiniteNumbers`), `render.go`: wartości `NaN` i nieskończone są
+  zapisywane jako 0 i zliczane, a `Render` zgłasza je ostrzeżeniem; źródło zapisywało napisy `NaN` i `+Inf`,
+  które psują składnię strumienia strony. Licznik jest zmienną globalną, tak jak rejestrator ostrzeżeń
+  (pytanie 15 w `docs/adr/open-questions.md`). Skan 9135 testów sondażu po poprawkach flex: 0 takich dokumentów;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

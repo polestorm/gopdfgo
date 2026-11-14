@@ -6,13 +6,25 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+// NonFiniteNumbers (gopdfgo) liczy wartości NaN i nieskończone, które miały
+// trafić do pliku. PDF nie ma dla nich zapisu, a napisy „NaN” i „+Inf” psują
+// składnię strumienia strony, więc zapisujemy 0 i zostawiamy ślad dla
+// wywołującego (render.go zamienia go na ostrzeżenie). Licznik jest globalny,
+// tak jak rejestrator ostrzeżeń silnika; renderowania są szeregowane.
+var NonFiniteNumbers atomic.Int64
 
 // FmtFloat returns a PDF compatible float representation of `f`.
 func FmtFloat(f Fl) string {
 	// avoid to represent 0 as -0
 	if f == 0 {
+		return "0"
+	}
+	if math.IsNaN(float64(f)) || math.IsInf(float64(f), 0) {
+		NonFiniteNumbers.Add(1)
 		return "0"
 	}
 	// Round rounds f with 12 digits precision

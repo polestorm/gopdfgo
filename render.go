@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-text/typesetting/fontscan"
 	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
+	pdfmodel "github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
@@ -191,6 +192,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	// stosowane: standard HTML definiuje je jako wskazówki prezentacyjne, które renderer ma uwzględniać
 	// (WHATWG HTML, sekcja Rendering). W silniku źródłowym to opcja domyślnie wyłączona.
 	laidOut := document.Render(parsed, sheets, true, fontConfig)
+	pdfmodel.NonFiniteNumbers.Store(0)
 	output := pdf.NewOutput()
 	laidOut.Write(output, 1, nil)
 	file := output.Finalize()
@@ -200,6 +202,12 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 
 	result = Result{PDF: out.Bytes(), Pages: len(laidOut.Pages), EngineName: EngineName, EngineVersion: EngineVersion}
+	// Wartość nieskończona albo NaN w rysunku oznacza błąd układu: zapisujemy ją jako 0, żeby plik
+	// pozostał poprawny składniowo, i zgłaszamy, bo fragment strony może leżeć nie tam, gdzie powinien.
+	if count := pdfmodel.NonFiniteNumbers.Load(); count > 0 {
+		result.Warnings = append(result.Warnings, Warning{Message: fmt.Sprintf(
+			"wartości nieskończone lub nieokreślone w rysunku: %d (zapisane jako 0)", count)})
+	}
 	scanner := bufio.NewScanner(&warnings)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
