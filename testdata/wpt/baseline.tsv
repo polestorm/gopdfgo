@@ -114,7 +114,7 @@ pass	monolithic-overflow	css/css-page/monolithic-overflow-010-print.html
 pass	monolithic-overflow	css/css-page/monolithic-overflow-011-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-012-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-013-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	strona 2: różne piksele 64128
+pass	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	strony 5 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-016-print.html	strony 5 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	strona 2: różne piksele 7606

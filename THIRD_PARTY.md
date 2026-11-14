@@ -251,6 +251,10 @@ Wspólne dla obu katalogów:
   przycinającego treść nic nie jest krojone ani dzielone między strony, a `overflow` inne niż `visible`
   przeniesione z elementu głównego na obszar strony wyłącza kontynuację wylewającej się treści. Podział bloku
   o podanej wysokości obejmuje też elementy pływające;
+- `html/layout/block.go`: pudełko z własnym kontekstem formatowania i wysokością auto, w którym element
+  pływający jest kontynuowany na następnej stronie, też jest dzielone (resztę wysokości bierze z elementu
+  pływającego), więc jego tło i obramowanie sięgają tak daleko jak ten element. W źródle pudełko kończyło się
+  na pierwszej stronie. Reftesty druku 179 → 180;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

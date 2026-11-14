@@ -379,6 +379,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	var (
 		newChildren, brokenOutOfFlow []Box
+		floatRemaining               pr.Float // reszta wysokości elementów pływających kontynuowanych dalej
 		nextPage                     = tree.PageBreak{Break: "any"}
 		resumeAt                     tree.ResumeStack
 		lastInFlowChild              Box
@@ -445,6 +446,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			if outOfFlowResumeAt != nil {
 				context.setBrokenOutOfFlow(newChild, brokenBox{box: child_, containingBlock: box_, resumeAt: outOfFlowResumeAt})
 				brokenOutOfFlow = append(brokenOutOfFlow, newChild)
+				if remaining, ok := outOfFlowResumeAt.Remainder(); ok && child.IsFloated() {
+					floatRemaining = max(floatRemaining, pr.Float(remaining))
+				}
 			}
 			if child.IsOutsideMarker {
 				newChild.Box().PositionX = box.BorderBoxX()
@@ -663,6 +667,19 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	if bo.EstablishesFormattingContext(newBox_) {
 		context.finishBlockFormattingContext(newBox_)
+	}
+
+	// gopdfgo: pudełko, którego wysokość wyznaczają elementy pływające kontynuowane na następnej stronie
+	// (np. display: flow-root z wysokim elementem pływającym), też jest dzielone, żeby jego tło
+	// i obramowanie sięgały tak daleko jak te elementy. W źródle pudełko kończyło się na pierwszej stronie,
+	// a dalszy ciąg elementu pływającego zostawał bez tła.
+	if splitHeight < 0 && resumeAt == nil && isStart && floatRemaining > 0.5 && box.Height == pr.AutoF &&
+		bo.EstablishesFormattingContext(newBox_) && canSplitFixedHeight(context, box_, bottomSpace) {
+		if available := context.pageBottom - bottomSpace - newBox.ContentBoxY(); available > 0 {
+			splitHeight = available
+			resumeAt = tree.RemainderResume(float64(floatRemaining))
+			newBox_.RemoveDecoration(newBox, false, true)
+		}
 	}
 
 	if splitHeight >= 0 {

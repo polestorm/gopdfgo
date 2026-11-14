@@ -707,3 +707,26 @@ func TestGridItemsSplitAcrossPages(t *testing.T) {
 		}
 	}
 }
+
+// Kontener z własnym kontekstem formatowania, którego wysokość wyznacza element pływający wyższy niż
+// strona, ciągnie się przez strony razem z nim: tło kontenera jest na każdej stronie, na której jest
+// element pływający.
+func TestContainerContinuesWithTallFloat(t *testing.T) {
+	const html = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0 }</style>" +
+		`<div style="display: flow-root; background: #ff0"><div style="float: left; width: 50px; height: 400px; background: #f0f"></div></div>`
+	result := renderString(t, html)
+	if result.Pages != 3 {
+		t.Fatalf("%d stron, oczekiwane 3", result.Pages)
+	}
+	pages := rasterize(t, result.PDF, t.TempDir(), "float")
+	for number, ppm := range pages {
+		header, data := splitPPM(ppm)
+		var width int
+		fmt.Sscan(strings.Fields(header)[1], &width)
+		// punkt w kontenerze na prawo od elementu pływającego, 10 px pod górną krawędzią obszaru strony
+		i := (30*width + 200) * 3
+		if !(data[i] > 200 && data[i+1] > 200 && data[i+2] < 80) {
+			t.Errorf("strona %d: brak tła kontenera (kolor %v)", number+1, data[i:i+3])
+		}
+	}
+}
