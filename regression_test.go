@@ -295,6 +295,8 @@ func TestTallFixedHeightBlockIsSplit(t *testing.T) {
 		// blok niższy niż strona, ale pierwszy na stronie (przed nim tylko odstęp przodka): nie da się go
 		// przenieść, więc jest dzielony zamiast wystawać poza stronę
 		{"pierwszy na stronie", `<div style="padding-top: 100px"><div style="height: 120px; background: #9cf"></div></div><p>koniec</p>`, 2},
+		// max-height ogranicza wysokość przed podziałem: blok ma 50 px i mieści się na stronie
+		{"max-height", `<div style="height: 2000px; max-height: 50px; background: #9cf"></div><p>koniec</p>`, 1},
 		// overflow inny niż visible: bloku nie dzielimy
 		{"overflow: hidden", `<div style="height: 400px; overflow: hidden; background: #9cf"></div>`, 1},
 	}

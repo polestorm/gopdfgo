@@ -321,7 +321,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// gopdfgo: minimum automatyczne nie przekracza określonego maksimum (CSS Flexbox 1 § 4.5).
 			child.MinWidth = min(child.MinWidth.V(), child.MaxWidth.V())
 			// Minimum automatyczne dotyczy tylko elementów, które nie są kontenerami przewijania.
-			if _, isReplaced := child_.(bo.ReplacedBoxITF); !isReplaced && child.Style.GetOverflow() != "visible" {
+			if _, isReplaced := child_.(bo.ReplacedBoxITF); !isReplaced && isScrollContainer(child.Style) {
 				child.MinWidth = pr.Float(0)
 			}
 		}
@@ -369,7 +369,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child.MinHeight = contentSize
 			}
 			child.MinHeight = min(child.MinHeight.V(), child.MaxHeight.V())
-			if !childIsReplaced && child.Style.GetOverflow() != "visible" {
+			if !childIsReplaced && isScrollContainer(child.Style) {
 				child.MinHeight = pr.Float(0)
 			}
 		}
@@ -1435,4 +1435,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		adjoiningMargins:  nil,
 		collapsingThrough: false,
 	}
+}
+
+// isScrollContainer mówi, czy pudełko jest kontenerem przewijania: overflow inne niż visible i clip
+// (CSS Overflow 3 § 3.1). Tylko dla takich automatyczne minimum elementu flex wynosi zero.
+func isScrollContainer(style pr.ElementStyle) bool {
+	overflow := style.GetOverflow()
+	return overflow != "visible" && overflow != "clip"
 }

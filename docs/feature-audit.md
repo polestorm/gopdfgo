@@ -298,3 +298,18 @@ pomiar ujawnił dwa błędy, których reftesty W3C nie pokazują, bo test i wzor
 rozmiar fontu zaokrąglany w górę do całych pikseli (tekst 10 pt o 5% za szeroki) i pola formularza jako bloki.
 Po poprawkach np. `03-report-svg-chart` ma 127 słów zgodnych na 141 (wcześniej 64). Pozostałe różnice to
 głównie przesunięcia w pionie o 1–8 pt (do zbadania: metryki wiersza, odstępy tabel) i łamanie wierszy.
+
+## Pomiar zamykający etap, 2026-11-14
+
+Pełny sondaż ekranowy (9135 testów, reguła z ADR 0003): **6460 zaliczonych (70,7%)**, w tym 6050 ściśle
+i 410 z dokładnością do krawędzi; 2675 niezaliczonych; 0 błędów renderowania. Poprzedni pełny pomiar: 6325.
+Od niego 137 testów zyskanych (tło 41, model pudełkowy 23, pozycjonowanie 21, przepływ normalny 13, `css1` 12)
+i 2 stracone, oba naprawione po pomiarze (`max-height` przy podziale bloku, `overflow: clip` w elemencie flex).
+
+Stan obszarów (zaliczone z regułą krawędziową / wszystkie): tło 318/336, pozycjonowanie 466/513, przepływ
+normalny 629/697, wiersz 179/191, tekst CSS 2 362/382, tabele CSS 2 186/249, model pudełkowy 64/86, elementy
+pływające 64/113, flexbox 598/952, tabele CSS 3 84/141, kolumny 151/400, listy CSS 3 74/155, treść generowana
+CSS 3 31/51, grid 354/1593.
+
+Reftesty druku (`testdata/wpt`, 340): 173 zaliczone. Binarka `cmd/gopdfgo`: 21,5 MB (macOS arm64, go1.26,
+`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`, pomiar 2026-11-14).

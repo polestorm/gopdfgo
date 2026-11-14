@@ -527,8 +527,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		splittable = false
 	}
 	if resumeAt == nil && box.Height != pr.AutoF && splittable && canSplitFixedHeight(context, box_, bottomSpace) {
+		// Dzielimy wysokość używaną, czyli po uwzględnieniu min-height i max-height; dla dalszego ciągu
+		// jest nią reszta z poprzedniej strony.
+		usedHeight := box.Height.V()
+		if !resumedRemainder {
+			usedHeight = max(min(usedHeight, box.MaxHeight.V()), box.MinHeight.V())
+		}
 		available := context.pageBottom - bottomSpace - box.ContentBoxY()
-		if remaining := box.Height.V() - available; available > 0 && remaining > 0.5 {
+		if remaining := usedHeight - available; available > 0 && remaining > 0.5 {
 			splitHeight = available
 			resumeAt = tree.RemainderResume(float64(remaining))
 		}
@@ -625,6 +631,8 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	if splitHeight >= 0 {
 		newBox.Height = splitHeight
+	} else if resumedRemainder {
+		// ostatni fragment podzielonego bloku: reszta wysokości, już po uwzględnieniu min i max
 	} else if discard || !boxIsFragmented {
 		// After finishBlockFormattingContext which may increment
 		// newBox.Height

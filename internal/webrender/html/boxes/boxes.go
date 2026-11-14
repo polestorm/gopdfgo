@@ -572,7 +572,7 @@ func EstablishesFormattingContext(box_ Box) bool {
 		box.IsAbsolutelyPositioned() ||
 		box.IsColumn ||
 		(BlockContainerT.IsInstance(box_) && !BlockT.IsInstance(box_)) ||
-		(BlockT.IsInstance(box_) && box.Style.GetOverflow() != "visible") ||
+		(BlockT.IsInstance(box_) && box.Style.GetOverflow() != "visible" && box.Style.GetOverflow() != "clip") ||
 		box.Style.GetDisplay().Has(pr.FlowRoot))
 }
 

@@ -1,6 +1,6 @@
 # Plan etapów
 
-Stan na 2026-11-12. Bez terminów; godziny to miara wielkości. Etap 1 zamknięty tego samego dnia inaczej, niż
+Stan na 2026-11-14. Bez terminów; godziny to miara wielkości. Etap 1 zamknięty tego samego dnia inaczej, niż
 planowano: zamiast dokumentów od odbiorców korpus powstał z testów W3C, próbek WeasyPrint i dokumentów
 syntetycznych (`../testdata/README.md`). Etapy 2–5 przepisane po ocenie statycznej (`engine-fit.md`).
 
@@ -15,6 +15,7 @@ syntetycznych (`../testdata/README.md`). Etapy 2–5 przepisane po ocenie statyc
 | 2f. Odporność i interfejs | Zawieszenie i paniki z korpusu naprawione; `gopdfgo.Render(ctx, html, Options)` z fontami wyłącznie z opcji, `Resolver` domyślnie odmawiającym, ostrzeżeniami w wyniku, `recover` i `ctx` | zrobione 2026-11-12 (`render.go`); ograniczenia: jedno renderowanie naraz, przerwane renderowanie kończy się w tle, bo silnik nie ma punktów przerwania |
 | 2g. `calc()` | `calc()`, `min()`, `max()`, `clamp()` dla długości | zrobione 2026-11-12 (`benchmark.md` pkt 5, `calc_test.go`) |
 | 2h. Jednostki i właściwości | `vw`/`vh`/`vmin`/`vmax`, właściwości logiczne, naprawa stron nazwanych i zawieszenia w grid; reftesty jako stały test ze stanem bazowym | zrobione 2026-11-13: 161 z 340 reftestów (`benchmark.md` pkt 6) |
+| 2i. Zgodność i stronicowanie | Poprawki według wpływu na testy W3C i porównania korpusu z Chromium: flex, rozmiary wewnętrzne, liczniki, kolumny, tabele, formularze, szerokość tekstu; podział między strony bloków, obrazów i treści pozycjonowanej wyższych niż strona; reguła porównania obrazów (ADR 0003) i reguła bloku o stałej wysokości (ADR 0004) | w toku; stan 2026-11-14: sondaż ekranowy 6460 z 9135, reftesty druku 173 z 340, bez panik i zawieszeń (`feature-audit.md`) |
 | 2c. Próba listy wyświetlania | Rejestrator implementujący `webrender/backend` (`Document`, `Page`, `Canvas`), zapis tekstowy listy, odtworzenie do `go-weasyprint/pdf`; sprawdzenie, czy pakiety PDF folio przyjmą glify po identyfikatorach | PDF przez listę identyczny wizualnie z PDF bez niej; notatka o folio jako backendzie | 16–24 h (szacunek) |
 | 3. Decyzja | ADR: własny silnik / adopcja / fork / adapter nad kilkoma; interfejs `gopdfgo` ustalony; polityka licencji. Hipoteza robocza z `engine-fit.md`: fork webrender jako układ, lista wyświetlania jako szew, backend PDF wymienny | ADR 0002 i 0003 | 4 h |
 | 4. Interfejs i adaptery | Moduł `gopdfgo` z `Render`, adapter Chromium (przeniesienie `gohtmlpdf`), adapter wybranego silnika Go, korpus jako testy, test determinizmu, raport ostrzeżeń | odbiorcy renderują przez `gopdfgo`; wybór silnika konfiguracją | 40–60 h |
