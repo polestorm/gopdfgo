@@ -2,6 +2,8 @@ package boxes
 
 import (
 	"fmt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"math"
 	"regexp"
 	"strings"
@@ -1798,10 +1800,12 @@ func ProcessTextTransform(box Box) {
 		textTransform := tb.Style.GetTextTransform()
 		if textTransform != "none" {
 			switch textTransform {
+			// gopdfgo: pełne odwzorowanie wielkości liter z Unicode (CSS Text 3 § 2.1), np. ß -> SS;
+			// w źródle odwzorowanie proste, znak po znaku.
 			case "uppercase":
-				text = strings.ToUpper(text)
+				text = cases.Upper(language.Und).String(text)
 			case "lowercase":
-				text = strings.ToLower(text)
+				text = cases.Lower(language.Und).String(text)
 			// Python’s unicode.captitalize is not the same.
 			case "capitalize":
 				text = capitalize(text)
