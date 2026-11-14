@@ -317,7 +317,12 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 // elememt or a <body> child of the root element.
 //
 // See https://www.w3.org/TR/CSS21/colors.html#background
-func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher) {
+//
+// gopdfgo: canvasOrigin to pudełko elementu głównego z pierwszej strony przesunięte w górę o wysokość
+// poprzednich stron. Tło płótna jest pozycjonowane względem niego, więc biegnie ciągle przez strony:
+// obraz bez powtarzania jest tylko na pierwszej, a powtarzany nie zaczyna się od nowa na każdej. W źródle
+// tło płótna było pozycjonowane osobno na każdej stronie.
+func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvasOrigin *bo.BoxFields) {
 	layoutBoxBackgrounds(page, page, getImageFromUri, true, nil, nil)
 
 	rootBox_ := page.Children[0]
@@ -338,7 +343,10 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher) {
 	if chosenBox.Background != nil {
 		paintingArea := boxRectangle(page.BoxFields, "border-box")
 		originalBackground := page.Background
-		layoutBoxBackgrounds(page, page, getImageFromUri, false, chosenBox.Style, rootBox)
+		if canvasOrigin == nil {
+			canvasOrigin = rootBox
+		}
+		layoutBoxBackgrounds(page, page, getImageFromUri, false, chosenBox.Style, canvasOrigin)
 		canvasBg := *page.Background
 		for i, l := range canvasBg.Layers {
 			l.PaintingArea = paintingArea

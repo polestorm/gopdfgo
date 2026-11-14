@@ -769,6 +769,29 @@ func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 		return (parentFontSize * 0.8).ToValue()
 	} else if value.Unit == pr.Perc {
 		return (value.Value * parentFontSize / 100.).ToValue()
+	} else if value.Calc == nil && (value.Unit == pr.Ex || value.Unit == pr.Ch || value.Unit == pr.Lh) {
+		// gopdfgo: w font-size jednostki zależne od fontu odnoszą się do fontu rodzica (CSS Values 3
+		// § 5.1.1). W źródle liczono je z fontu samego elementu, którego rozmiar właśnie jest
+		// wyznaczany: nieskończona rekurencja i przepełnienie stosu, czyli koniec procesu.
+		if computer.parentStyle == nil {
+			if value.Unit == pr.Lh {
+				return (value.Value * parentFontSize * 1.2).ToValue()
+			}
+			return (value.Value * parentFontSize * 0.5).ToValue()
+		}
+		var fonts text.FontConfiguration
+		if computer.textContext != nil {
+			fonts = computer.textContext.Fonts()
+		}
+		switch value.Unit {
+		case pr.Lh:
+			line, _ := text.StrutLayout(computer.parentStyle, computer.textContext)
+			return (value.Value * line).ToValue()
+		case pr.Ch:
+			return (value.Value * parentFontSize * text.CharacterRatio(computer.parentStyle, computer.cache, true, fonts)).ToValue()
+		default:
+			return (value.Value * parentFontSize * text.CharacterRatio(computer.parentStyle, computer.cache, false, fonts)).ToValue()
+		}
 	} else {
 		return length_(computer, value, parentFontSize, true)
 	}

@@ -5,7 +5,9 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"fmt"
+	"image"
 	"image/color"
+	"image/draw"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
@@ -102,7 +104,7 @@ func ParseImage(r io.Reader, mimeType string) (*model.XObjectImage, Fl, error) {
 		out, err := parseJPG(r)
 		return out, 72, err
 	case "image/png":
-		return parsePNG(r)
+		return parsePNGWithFallback(r)
 	case "image/gif":
 		return parseGIF(r)
 	case "image/tiff":
@@ -151,6 +153,33 @@ func parseGIF(r io.Reader) (*model.XObjectImage, Fl, error) {
 	err = png.Encode(pngBuf, img)
 	if err != nil {
 		return nil, 0, err
+	}
+	return parsePNG(pngBuf)
+}
+
+// parsePNGWithFallback osadza PNG bezpośrednio, a gdy plik używa cech, których parsePNG nie obsługuje
+// (przeplot Adam7, 16 bitów na składową), dekoduje go i koduje ponownie jako 8-bitowy bez przeplotu.
+//
+// gopdfgo: w źródle takie obrazy kończyły się błędem i znikały z dokumentu.
+func parsePNGWithFallback(r io.Reader) (*model.XObjectImage, Fl, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, 0, err
+	}
+	out, dpi, directErr := parsePNG(bytes.NewReader(data))
+	if directErr == nil {
+		return out, dpi, nil
+	}
+	decoded, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, 0, directErr
+	}
+	bounds := decoded.Bounds()
+	flat := image.NewNRGBA(bounds)
+	draw.Draw(flat, bounds, decoded, bounds.Min, draw.Src)
+	pngBuf := new(bytes.Buffer)
+	if err = png.Encode(pngBuf, flat); err != nil {
+		return nil, 0, directErr
 	}
 	return parsePNG(pngBuf)
 }

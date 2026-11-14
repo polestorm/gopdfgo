@@ -242,6 +242,10 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 
 	out := make([]*bo.PageBox, len(pages))
 	// Add margin boxes
+	var (
+		firstRoot    *bo.BoxFields // element główny z pierwszej strony: początek tła płótna
+		canvasOffset pr.Float      // łączna wysokość obszarów poprzednich stron
+	)
 	for i, page := range pages {
 		var rootChildren []Box
 		root, footnoteArea := page.Box().Children[0], page.Box().Children[1]
@@ -258,7 +262,14 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 			page.Children = append(page.Children, footnoteArea)
 		}
 		page.Children = append(page.Children, makeMarginBoxes(context, page, state)...)
-		layoutBackgrounds(page, context.resolver.FetchImage)
+		if firstRoot == nil {
+			copied := *root.Box()
+			firstRoot = &copied
+		}
+		canvasOrigin := *firstRoot
+		canvasOrigin.PositionY -= canvasOffset
+		layoutBackgrounds(page, context.resolver.FetchImage, &canvasOrigin)
+		canvasOffset += page.Height.V()
 		out[i] = page
 
 		if traceMode {

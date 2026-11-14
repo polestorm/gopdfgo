@@ -234,3 +234,42 @@ func TestFormattingContextBesideFloatIgnoresEndMargin(t *testing.T) {
 		t.Errorf("%d pikseli różni się od wzorca", n)
 	}
 }
+
+// Trzy przypadki, które kończyły proces albo gubiły treść: font-size w jednostkach zależnych od fontu
+// (nieskończona rekurencja), licznik poza zakresem 32 bitów (nieskończona rekurencja stylów zastępczych)
+// i PNG z przeplotem (obraz pomijany).
+func TestFontRelativeFontSize(t *testing.T) {
+	result := renderString(t, `<div style="font-size: 20px"><p style="font-size: 3ex">a</p><p style="font-size: 2ch">b</p><p style="font-size: 1lh">c</p></div>`)
+	if got := string(extractText(t, result.PDF)); got != "a b c" {
+		t.Errorf("tekst %q", got)
+	}
+}
+
+func TestCounterRangeIsClamped(t *testing.T) {
+	const html = `<style>div { counter-reset: c 2000000000 } p { counter-increment: c 100000000 } p::before { content: counter(c) }</style>` +
+		`<div><p></p><p></p><p></p></div>`
+	// drugie zwiększenie wyszłoby poza zakres, więc jest pomijane (CSS Lists 3 § 4.2)
+	if got := string(extractText(t, renderString(t, html).PDF)); got != "2100000000 2100000000 2100000000" {
+		t.Errorf("tekst %q", got)
+	}
+}
+
+func TestInterlacedPNG(t *testing.T) {
+	data, err := os.ReadFile("testdata/wpt/css/css-page/support/cat.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, err := Render(ctx, []byte(`<img src="cat.png">`), Options{
+		Fonts:    testFonts(t),
+		BaseURL:  "file:///doc/index.html",
+		Resolver: func(string) (Resource, error) { return Resource{Data: data, MediaType: "image/png"}, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(result.PDF, []byte("/Subtype/Image")) && !bytes.Contains(result.PDF, []byte("/Subtype /Image")) {
+		t.Error("w PDF nie ma obrazu")
+	}
+}

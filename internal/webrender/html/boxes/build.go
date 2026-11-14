@@ -2,6 +2,7 @@ package boxes
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"unicode"
@@ -911,7 +912,7 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 		default: // licznik przodka: nowy, zagnieżdżony, tylko dla tego elementu i jego potomków
 			nested = append(nested, nv.String)
 		}
-		counterValues[nv.String] = append(slice, nv.Int)
+		counterValues[nv.String] = append(slice, clampCounter(nv.Int))
 	}
 
 	counterIncrement := style.GetCounterIncrement()
@@ -932,7 +933,10 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 			siblingScopes.Add(ci.String)
 			values = append(values, 0)
 		}
-		values[len(values)-1] += ci.Int
+		// zwiększenie, które wyszłoby poza zakres, jest pomijane (CSS Lists 3 § 4.2)
+		if sum := int64(values[len(values)-1]) + int64(ci.Int); sum >= math.MinInt32 && sum <= math.MaxInt32 {
+			values[len(values)-1] = int(sum)
+		}
 		counterValues[ci.String] = values
 	}
 
@@ -942,10 +946,16 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 			siblingScopes.Add(nv.String)
 			values = append(values, 0)
 		}
-		values[len(values)-1] = nv.Int
+		values[len(values)-1] = clampCounter(nv.Int)
 		counterValues[nv.String] = values
 	}
 	return nested
+}
+
+// clampCounter ogranicza wartość licznika do zakresu 32 bitów ze znakiem, na którym działają style
+// liczników; wartość spoza zakresu wpędzała je w nieskończoną rekurencję zastępczych stylów.
+func clampCounter(value int) int {
+	return min(max(value, math.MinInt32), math.MaxInt32)
 }
 
 // PopNestedCounters zdejmuje liczniki zagnieżdżone zwrócone przez [UpdateCounters].
