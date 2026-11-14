@@ -1652,11 +1652,54 @@ func counterIncrement(tokens []Token, _ string) (pr.CssProperty, error) {
 // “counter-reset“ property validation.
 // “counter-set“ property validation.
 func counterReset(tokens []Token, _ string) (pr.CssProperty, error) {
+	if ci, ok := reversedCounters(tokens); ok {
+		return pr.SIntStrings{Values: ci}, nil
+	}
 	ci, err := counter(tokens, 0)
 	if err != nil || ci == nil {
 		return nil, err
 	}
 	return pr.SIntStrings{Values: ci}, err
+}
+
+// reversedCounters (gopdfgo) czyta counter-reset zawierające reversed(nazwa)
+// (CSS Lists 3 § 4.1): „[ <nazwa> <liczba>? | reversed(<nazwa>) <liczba>? ]+”.
+// Drugi wynik jest fałszywy, gdy lista nie ma takiego zapisu albo jest błędna;
+// wtedy decyduje zwykła walidacja. Źródło odrzucało całą deklarację.
+func reversedCounters(tokens []Token) ([]pr.IntString, bool) {
+	var results []pr.IntString
+	found := false
+	for i := 0; i < len(tokens); i++ {
+		var entry pr.IntString
+		switch token := tokens[i].(type) {
+		case pa.Ident:
+			if token.Value == "none" || token.Value == "initial" || token.Value == "inherit" {
+				return nil, false
+			}
+			entry.String = token.Value
+		case pa.FunctionBlock:
+			args := pa.RemoveWhitespace(token.Arguments)
+			if utils.AsciiLower(token.Name) != "reversed" || len(args) != 1 {
+				return nil, false
+			}
+			name, ok := args[0].(pa.Ident)
+			if !ok {
+				return nil, false
+			}
+			entry = pr.IntString{String: name.Value, Reversed: true, AutoStart: true}
+			found = true
+		default:
+			return nil, false
+		}
+		if i+1 < len(tokens) {
+			if number, ok := tokens[i+1].(pa.Number); ok && number.IsInt() {
+				entry.Int, entry.AutoStart = number.Int(), false
+				i++
+			}
+		}
+		results = append(results, entry)
+	}
+	return results, found
 }
 
 // “counter-increment“ && “counter-reset“ properties validation.

@@ -123,7 +123,8 @@ dir, menu, ul { list-style-type: disc }
 :is(dir, menu, ol, ul) ul { list-style-type: circle }
 :is(dir, menu, ol, ul) :is(dir, menu, ol, ul) ul { list-style-type: square }
 
-::marker { font-variant-numeric: tabular-nums }
+/* gopdfgo: white-space: pre według CSS Lists 3 § 3.1; bez tego ginęła spacja kończąca content znacznika */
+::marker { font-variant-numeric: tabular-nums; white-space: pre }
 
 [dir=ltr i] { direction: ltr }
 [dir=rtl i] { direction: rtl }

@@ -238,7 +238,9 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 
 	counterValues := state.CounterValues
 
-	nestedCounters := UpdateCounters(state, style)
+	nestedCounters := updateCounters(state, style, func(name string) int {
+		return reversedCounterStart(element, styleFor, name)
+	})
 	// If this element’s direct children create new scopes, the counter
 	// names will be in this new list
 	state.CounterScopes = append(state.CounterScopes, utils.Set{})
@@ -901,10 +903,19 @@ func setContentLists(element *utils.HTMLNode, box Box, style pr.ElementStyle, co
 // którego przodek ma już licznik o tej nazwie, był widoczny także dla następnego rodzeństwa. Według
 // CSS Lists 3 § 4.3 rodzeństwo dziedziczy od poprzednika tylko liczniki, których nie ma u rodzica.
 func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []string) {
+	return updateCounters(state, style, nil)
+}
+
+// updateCounters: reversedStart podaje wartość początkową licznika odwróconego
+// bez podanej wartości (counter-reset: reversed(nazwa)); nil oznacza zero.
+func updateCounters(state *tree.PageState, style pr.ElementStyle, reversedStart func(name string) int) (nested []string) {
 	counterValues, counterScopes := state.CounterValues, state.CounterScopes
 	siblingScopes := counterScopes[len(counterScopes)-1]
 
 	for _, nv := range style.GetCounterReset().Values {
+		if nv.AutoStart && reversedStart != nil {
+			nv.Int = reversedStart(nv.String)
+		}
 		slice := counterValues[nv.String]
 		switch {
 		case siblingScopes.Has(nv.String): // licznik utworzony przez rodzeństwo: zastępujemy go
@@ -915,6 +926,7 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 			nested = append(nested, nv.String)
 		}
 		counterValues[nv.String] = append(slice, clampCounter(nv.Int))
+		state.SetCounterReversed(nv.String, len(slice), nv.Reversed)
 	}
 
 	counterIncrement := style.GetCounterIncrement()
@@ -924,7 +936,13 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 		// (Or the winning value was "initial".)
 		// https://drafts.csswg.org/css-lists-3/#declaring-a-list-item
 		if style.GetDisplay().Has(pr.ListItem) {
-			counterIncrement = pr.SIntStrings{Values: pr.IntStrings{{String: "list-item", Int: 1}}}
+			// gopdfgo: w liczniku odwróconym przyrost domyślny to -1
+			// (CSS Lists 3 § 4.6); źródło zawsze dodawało 1
+			step := 1
+			if state.IsCounterReversed("list-item") {
+				step = -1
+			}
+			counterIncrement = pr.SIntStrings{Values: pr.IntStrings{{String: "list-item", Int: step}}}
 		} else {
 			counterIncrement = pr.SIntStrings{}
 		}
@@ -934,6 +952,7 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 		if len(values) == 0 {
 			siblingScopes.Add(ci.String)
 			values = append(values, 0)
+			state.SetCounterReversed(ci.String, 0, false)
 		}
 		// zwiększenie, które wyszłoby poza zakres, jest pomijane (CSS Lists 3 § 4.2)
 		if sum := int64(values[len(values)-1]) + int64(ci.Int); sum >= math.MinInt32 && sum <= math.MaxInt32 {
@@ -952,6 +971,80 @@ func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []stri
 		counterValues[nv.String] = values
 	}
 	return nested
+}
+
+// reversedCounterStart wyznacza wartość początkową licznika odwróconego bez
+// podanej wartości według CSS Lists 3 § 4.4.2 („Instantiating counters”):
+// przegląda elementy w zasięgu licznika (element, jego potomków, następne
+// rodzeństwo z potomkami), które licznik zwiększają albo ustawiają, i sumuje
+// przyrosty z przeciwnym znakiem. Gdy któryś element ustawia licznik
+// (counter-set), sumowanie kończy się na nim i dolicza ustawianą wartość;
+// inaczej ostatni przyrost liczy się dwukrotnie, tak żeby ostatni element
+// dostał wartość swojego przyrostu (zwykle 1). Tak zachowują się testy WPT
+// li-value-reversed i foo-counter-reversed.
+func reversedCounterStart(origin *utils.HTMLNode, styleFor styleForI, name string) int {
+	num, last, done := 0, 0, false
+	var visit func(element *utils.HTMLNode, isOrigin bool) (resets bool)
+	visit = func(element *utils.HTMLNode, isOrigin bool) bool {
+		style := styleFor.Get(element, "")
+		if style == nil || style.GetDisplay() == (pr.Display{Outside: pr.None}) {
+			return false
+		}
+		if !isOrigin {
+			for _, reset := range style.GetCounterReset().Values {
+				if reset.String == name {
+					return true // nowy licznik: element i jego potomkowie są poza zasięgiem
+				}
+			}
+		}
+		increment, counts := 0, false
+		if increments := style.GetCounterIncrement(); increments.K == pr.Auto {
+			if name == "list-item" && style.GetDisplay().Has(pr.ListItem) {
+				increment, counts = -1, true // przyrost domyślny w liczniku odwróconym
+			}
+		} else {
+			for _, ci := range increments.Values {
+				if ci.String == name {
+					increment, counts = increment+ci.Int, true
+				}
+			}
+		}
+		set, hasSet := 0, false
+		for _, cs := range style.GetCounterSet().Values {
+			if cs.String == name {
+				set, hasSet = cs.Int, true
+			}
+		}
+		if counts || hasSet {
+			num -= increment
+			if increment != 0 { // przyrost zerowy nie wyznacza wartości ostatniego elementu
+				last = -increment
+			}
+			if hasSet {
+				num, done = num+set, true
+				return false
+			}
+		}
+		for child := element.FirstChild; child != nil && !done; child = child.NextSibling {
+			if child.Type == html.ElementNode {
+				visit((*utils.HTMLNode)(child), false)
+			}
+		}
+		return false
+	}
+	visit(origin, true)
+	for sibling := origin.NextSibling; sibling != nil && !done; sibling = sibling.NextSibling {
+		if sibling.Type != html.ElementNode {
+			continue
+		}
+		if visit((*utils.HTMLNode)(sibling), false) {
+			break // rodzeństwo zakłada licznik od nowa: koniec zasięgu
+		}
+	}
+	if !done {
+		num += last
+	}
+	return num
 }
 
 // clampCounter ogranicza wartość licznika do zakresu 32 bitów ze znakiem, na którym działają style

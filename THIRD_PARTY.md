@@ -408,6 +408,18 @@ Wspólne dla obu katalogów:
   - `html/layout/flex.go`: procentowy odstęp wierszy wynosi zero także wtedy, gdy wysokość kontenera pochodzi
     z rozciągania w kontenerze o nieokreślonej wysokości. Strata: `grid-lanes-contain-intrinsic-size-row-002`
     (układ `grid-lanes` nie jest obsługiwany; test przechodził przypadkiem);
+- liczniki odwrócone (runda 2026-11-14):
+  - `css/validation/validation.go` (`reversedCounters`), `css/properties/types.go` (`IntString.Reversed`,
+    `AutoStart`): `counter-reset: reversed(nazwa) [liczba]` (CSS Lists 3 § 4.1); źródło odrzucało deklarację;
+  - `html/boxes/build.go` (`reversedCounterStart`, `updateCounters`), `html/tree/target.go`
+    (`PageState.CounterReversed`): wartość początkowa licznika odwróconego bez podanej liczby wynika z przyrostów
+    i ustawień elementów w jego zasięgu (§ 4.4.2), a elementy listy zmniejszają taki licznik domyślnie o 1.
+    Reguła sumowania (przyrosty z przeciwnym znakiem; koniec na pierwszym `counter-set`, inaczej ostatni
+    niezerowy przyrost liczony dwukrotnie) jest dobrana do testów WPT `li-value-reversed` i `foo-counter-reversed`.
+    Atrybut `reversed` listy `ol` jest teraz tłumaczony na `counter-reset: reversed(list-item)`, a dawna własna
+    funkcja `reversedListInitial` usunięta. Nie zrobione: liczniki odwrócone zakładane przez pseudoelementy;
+  - `html/tree/html5_ua.css`: `::marker { white-space: pre }` (CSS Lists 3 § 3.1), żeby spacja kończąca
+    `content` znacznika nie ginęła;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

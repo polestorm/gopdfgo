@@ -1313,12 +1313,13 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 			// a `value` sprawdzany był na `ul` zamiast na `li`.
 			start, hasStart := parseListInteger(element.Get("start"))
 			if element.HasAttr("reversed") {
-				initial := start + 1
-				if !hasStart {
-					initial = reversedListInitial(element)
+				// bez atrybutu start wartość początkową wyznacza zasięg licznika
+				// (boxes.reversedCounterStart)
+				declaration := "counter-reset:reversed(list-item)"
+				if hasStart {
+					declaration = fmt.Sprintf("counter-reset:reversed(list-item) %d", start+1)
 				}
-				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element,
-					fmt.Sprintf("counter-reset:list-item %d", initial))})
+				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, declaration)})
 			} else if hasStart {
 				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element,
 					fmt.Sprintf("counter-reset:list-item %d", start-1))})
@@ -1963,24 +1964,4 @@ func resolveVar(computed map[string]pr.RawTokens, token Token, knownVariables ut
 func parseListInteger(attribute string) (int, bool) {
 	value, err := strconv.Atoi(strings.TrimSpace(attribute))
 	return value, err == nil
-}
-
-// reversedListInitial liczy wartość początkową licznika listy odwróconej bez atrybutu start według
-// CSS Lists 3 § 4.4.2: tak, żeby ostatni element dostał 1, a gdy któryś element ma atrybut value, żeby
-// elementy przed nim odliczały do tej wartości.
-func reversedListInitial(list *utils.HTMLNode) int {
-	initial, first := 0, true
-	for child := list.FirstChild; child != nil; child = child.NextSibling {
-		if child.DataAtom != atom.Li {
-			continue
-		}
-		if first {
-			initial, first = 1, false
-		}
-		if value, ok := parseListInteger((*utils.HTMLNode)(child).Get("value")); ok {
-			return initial + value
-		}
-		initial++
-	}
-	return initial
 }

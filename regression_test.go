@@ -1301,3 +1301,40 @@ func TestGridGaps(t *testing.T) {
 		}
 	}
 }
+
+// Liczniki odwrócone (CSS Lists 3 § 4.1 i § 4.4.2): counter-reset: reversed(…)
+// wyznacza wartość początkową z przyrostów i ustawień w zasięgu licznika,
+// a elementy listy zmniejszają go domyślnie o 1.
+func TestReversedCounters(t *testing.T) {
+	list := func(open, items string) string { return open + items + `</ol>` }
+	const three = `<li>a</li><li>b</li><li>c</li>`
+	cases := []struct{ name, got, want string }{
+		{"reversed w CSS bez atrybutu", list(`<ol style="counter-reset: reversed(list-item)">`, three),
+			`<ol><li value="3">a</li><li value="2">b</li><li value="1">c</li></ol>`},
+		{"reversed z wartością początkową", list(`<ol style="counter-reset: reversed(list-item) 11">`, three),
+			`<ol><li value="10">a</li><li value="9">b</li><li value="8">c</li></ol>`},
+		{"przyrost -2", list(`<ol reversed>`, `<li style="counter-increment: list-item -2">a</li><li style="counter-increment: list-item -2">b</li>`),
+			`<ol><li value="4">a</li><li value="2">b</li></ol>`}, // ostatni element dostaje wartość swojego przyrostu
+		{"counter-set w środku", list(`<ol reversed>`, `<li>a</li><li>b</li><li style="counter-set: list-item 7">c</li><li>d</li>`),
+			`<ol><li value="9">a</li><li value="8">b</li><li value="7">c</li><li value="6">d</li></ol>`},
+		{"lista zagnieżdżona ma własny licznik", list(`<ol reversed>`, `<li>a<ol><li>x</li><li>y</li></ol></li><li>b</li>`),
+			`<ol><li value="2">a<ol><li>x</li><li>y</li></ol></li><li value="1">b</li></ol>`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(c.got), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(c.want), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: numeracja różni się od wzorcowej", c.name)
+		}
+		for _, warning := range got.Warnings {
+			t.Errorf("%s: ostrzeżenie %q", c.name, warning.Message)
+		}
+	}
+}

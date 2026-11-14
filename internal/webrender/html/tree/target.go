@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 
@@ -141,6 +142,30 @@ type PageState struct {
 	QuoteDepth    []int
 	CounterValues CounterValues
 	CounterScopes []utils.Set
+	// gopdfgo: które liczniki są odwrócone, według nazwy i miejsca na stosie
+	// wartości (indeks w CounterValues[nazwa]). Wpis jest nadpisywany przy
+	// każdym założeniu licznika w danym miejscu, więc zdejmowanie wartości ze
+	// stosu nie wymaga jego czyszczenia.
+	CounterReversed map[string]map[int]bool
+}
+
+// SetCounterReversed zapisuje, czy licznik założony w miejscu index jest odwrócony.
+func (s *PageState) SetCounterReversed(name string, index int, reversed bool) {
+	if !reversed && s.CounterReversed[name] == nil {
+		return
+	}
+	if s.CounterReversed == nil {
+		s.CounterReversed = map[string]map[int]bool{}
+	}
+	if s.CounterReversed[name] == nil {
+		s.CounterReversed[name] = map[int]bool{}
+	}
+	s.CounterReversed[name][index] = reversed
+}
+
+// IsCounterReversed mówi, czy bieżący (najgłębszy) licznik o tej nazwie jest odwrócony.
+func (s *PageState) IsCounterReversed(name string) bool {
+	return s.CounterReversed[name][len(s.CounterValues[name])-1]
 }
 
 // Copy returns a deep copy.
@@ -148,6 +173,12 @@ func (s PageState) Copy() PageState {
 	out := PageState{}
 	out.QuoteDepth = append([]int{}, s.QuoteDepth...)
 	out.CounterValues = s.CounterValues.Copy()
+	if s.CounterReversed != nil {
+		out.CounterReversed = make(map[string]map[int]bool, len(s.CounterReversed))
+		for name, flags := range s.CounterReversed {
+			out.CounterReversed[name] = maps.Clone(flags)
+		}
+	}
 	out.CounterScopes = make([]utils.Set, len(s.CounterScopes))
 	for i, v := range s.CounterScopes {
 		out.CounterScopes[i] = v.Copy()

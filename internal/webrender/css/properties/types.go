@@ -194,6 +194,9 @@ type Marks struct {
 type IntString struct {
 	String string
 	Int    int
+	// gopdfgo: licznik odwrócony z counter-reset: reversed(nazwa); AutoStart,
+	// gdy nie podano wartości początkowej i trzeba ją wyznaczyć z zasięgu
+	Reversed, AutoStart bool
 }
 
 type TaggedInt struct {

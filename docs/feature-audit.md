@@ -490,3 +490,9 @@ Pełny sondaż po rundach elementów pływających, `@layer`, gridu i odstępów
 flexbox 4, kolumny 1), stracony 1 (`grid-lanes-contain-intrinsic-size-row-002`: układ `grid-lanes` nie jest
 obsługiwany, test przechodził przypadkiem), 0 błędów renderowania i przekroczeń limitu czasu.
 Reftesty druku: 192 z 340.
+
+Listy CSS 3 (2026-11-14): po obsłudze liczników odwróconych (`counter-reset: reversed(…)`, wartość początkowa
+z zasięgu licznika, domyślny przyrost −1) podzbiór `css-lists`, `css-content`, `CSS2/generated-content`,
+`CSS2/lists`, `CSS2/css1` i `CSS2/box-display` (811 testów) daje 38 testów zyskanych i 0 straconych; w samym
+`css-lists` zostało ok. 41 niezaliczonych ze 155. Pełnego sondażu po tej zmianie nie było; ostatni pełny
+wynik to 6724 z 9135.
