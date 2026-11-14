@@ -414,3 +414,8 @@ Najważniejsze poprawki z punktu widzenia zwykłych dokumentów (szczegóły w `
 Pozostałe niezaliczone w `CSS2/syntax` (28): 17 wymaga nagłówków HTTP albo kodowania dokumentu, reszta to
 wielkość liter w XHTML, `declarations-009` (różnica między CSS 2.1 a CSS Syntax 3) i niedomknięte konstrukcje
 na końcu arkusza. W `CSS2/selectors` zostaje głównie `::first-line`, którego silnik nie stosuje (13 testów).
+
+Pełny sondaż po rundzie tabel (2026-11-14, `min/max-width`, `min/max-height`, tło grupy wierszy, wcięcie
+w szerokości minimalnej): **6576 z 9135 (72,0%)**, w tym 6165 ściśle i 411 krawędziowo; 39 zyskanych (tło 15,
+przepływ normalny 11, tabele CSS 2: 5, tekst dwukierunkowy 3, `clear` 3, tekst 1, tabele CSS 3: 1),
+0 straconych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
