@@ -1320,6 +1320,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	parallel := main == pr.PWidth && !strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") &&
 		context.flexMeasuring == 0 && bottomSpace > -pr.Inf
 	lineResume := map[int]tree.ResumeStack{}
+	var lineOverflow []Box               // elementy bieżącej linii wystające poza stronę, które same się nie dzielą
 	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
 	for lineIndex, line := range flexLines {
 		for _, v := range line.line {
@@ -1345,7 +1346,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					// elementy były układane poniżej dolnej krawędzi strony i ginęły, bo kontener flex
 					// nie sprawdzał, czy wychodzą poza stronę.
 					bottom := newChild.Box().PositionY + newChild.Box().MarginHeight()
-					if childResumeAt == nil && context.flexMeasuring == 0 && !clipsBlockOverflow(box) && context.overflowsPage(bottomSpace, bottom) {
+					overflowsPage := childResumeAt == nil && context.flexMeasuring == 0 && !clipsBlockOverflow(box) &&
+						context.overflowsPage(bottomSpace, bottom)
+					if overflowsPage && parallel {
+						// w wierszu decyzja zapada po ułożeniu całej linii (niżej): element rozciągnięty
+						// obok dzielonego sąsiada jest przycinany do strony, a nie przenoszony
+						lineOverflow = append(lineOverflow, newChild)
+					} else if overflowsPage {
 						lineStart := len(box.Children) - len(finalLines[lineIndex])
 						placedBefore := lineStart
 						if main == pr.PHeight {
@@ -1398,6 +1405,29 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// Skip stack is only for the first child
 			childSkipStack = nil
 		}
+		if resumeAt == nil && len(lineResume) == 0 && len(lineOverflow) != 0 {
+			// żaden element linii się nie dzieli, a linia wystaje poza stronę: przechodzi na następną
+			lineStart := len(box.Children) - len(finalLines[lineIndex])
+			if lineStart == flexItemsBefore && !pageIsEmpty && skip == 0 {
+				// nic z kontenera nie zmieściło się na tej stronie: przechodzi cały
+				removePlaceholders(context, box.Children, absoluteBoxes, fixedBoxes)
+				context.finishFlexFormattingContext(box_)
+				return nil, blockLayout{nextPage: tree.PageBreak{Break: "any"}}
+			}
+			if lineStart > flexItemsBefore || !pageIsEmpty {
+				removePlaceholders(context, box.Children[lineStart:], absoluteBoxes, fixedBoxes)
+				box.Children = box.Children[:lineStart]
+				finalLines[lineIndex] = nil
+				resumeAt = tree.ResumeStack{line.line[0].index: nil}
+			}
+		} else if len(lineResume) != 0 {
+			for _, child := range lineOverflow {
+				if over := child.Box().PositionY + child.Box().MarginHeight() - (context.pageBottom - bottomSpace); over > 0 && child.Box().Height != pr.AutoF {
+					child.Box().Height = max(child.Box().Height.V()-over, 0)
+				}
+			}
+		}
+		lineOverflow = lineOverflow[:0]
 		if resumeAt == nil && len(lineResume) != 0 {
 			state := tree.ResumeStack{}
 			for _, v := range line.line {

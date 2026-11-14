@@ -255,6 +255,10 @@ Wspólne dla obu katalogów:
   pływający jest kontynuowany na następnej stronie, też jest dzielone (resztę wysokości bierze z elementu
   pływającego), więc jego tło i obramowanie sięgają tak daleko jak ten element. W źródle pudełko kończyło się
   na pierwszej stronie. Reftesty druku 179 → 180;
+- `html/layout/flex.go`: w wierszu flex decyzja o przeniesieniu linii na następną stronę zapada po ułożeniu
+  całej linii; element rozciągnięty (`stretch`) obok sąsiada, który dzieli się między strony, jest przycinany
+  do strony zamiast przenosić cały kontener. Znalezione porównaniem z Chromium na nowym dokumencie korpusu
+  `19-flex-grid-pagination`;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

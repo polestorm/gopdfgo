@@ -1,0 +1,42 @@
+{
+  "title": "Flex i grid na wielu stronach",
+  "level": "must",
+  "covers": [
+    "U2",
+    "scope: display flex i grid dzielone między strony (CSS Flexbox 1 § 12, CSS Grid 1 § 12)"
+  ],
+  "pages": 13,
+  "checks": [
+    "Każda z pięciu sekcji zaczyna się od nowej strony; razem 13 stron.",
+    "Sekcja 1: panel boczny stoi na pierwszej stronie obok treści; treść A1–A22 przechodzi przez trzy strony bez luk; „PO-SEKCJI-1” jest za ostatnim akapitem.",
+    "Sekcja 2: 26 kart K1–K26 w kolumnie, żadna nie jest przecięta (karta, która nie mieści się na stronie, przechodzi w całości na następną, ADR 0004).",
+    "Sekcja 3: 36 kart G1–G36 w trzech kolumnach; wiersz kart, który nie mieści się na stronie, przechodzi w całości.",
+    "Sekcja 4: w siatce dwukolumnowej treść B1–B20 przechodzi na drugą stronę, panel jest na pierwszej.",
+    "Sekcja 5: obie kolumny zaczynają się na tej samej stronie i dzielą się równolegle; „KONIEC-DOKUMENTU” jest ostatni.",
+    "Żaden element nie leży poniżej dolnej krawędzi strony (brak ostrzeżenia o niewidocznej treści)."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-14",
+    "pages": 13,
+    "pageStarts": [
+      "Flex i grid na wielu stronach",
+      "wycofane przechowuje się w archiwum przez piętnaście lat, li",
+      "ryzyka obejmuje prawdopodobieństwo wystąpienia, wykrywalność",
+      "2. Flex w kolumnie: 26 kart",
+      "K10",
+      "K20",
+      "3. Grid 3 kolumny: 36 kart",
+      "G28 G29 G30",
+      "4. Grid 2 kolumny: długa treść i krótki panel",
+      "odchylenie od ustalonego sposobu postępowania wymaga",
+      "5. Dwie długie kolumny we flex",
+      "podpisów przez osobę wykonującą, sprawdzającą i podpisów prz",
+      "KONIEC-DOKUMENTU"
+    ],
+    "deviations": [
+      "Chromium przecina kartę o stałej wysokości na granicy strony (sekcje 2 i 3: K19 i wiersz G25–G27 zaczynają się stronę wcześniej); gopdfgo przenosi je w całości (ADR 0004)."
+    ]
+  }
+}

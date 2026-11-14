@@ -327,3 +327,7 @@ przypadek to pudełko pozycjonowane bezwzględnie w całości poniżej strony.
 Pełny sondaż po rundach stronicowania flex, grid i treści wylewającej się (2026-11-14, wieczór): 6468 z 9135
 (6059 ściśle, 409 krawędziowo), 0 błędów renderowania; poprzedni pełny pomiar 6460. Jedna strata, w układzie
 `grid-lanes`, którego silnik nie obsługuje. Reftesty druku: 179 z 340.
+
+Dokument korpusu `19-flex-grid-pagination` (dodany 2026-11-14): pięć sekcji z flex i grid przechodzącymi przez
+granice stron. Po poprawkach ma 13 stron jak w Chromium i ten sam rozkład treści na stronach; jedyna różnica
+to karty o stałej wysokości na granicy strony, które Chromium przecina, a gopdfgo przenosi w całości (ADR 0004).
