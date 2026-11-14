@@ -336,3 +336,7 @@ Dokumenty `20-invoice` (faktura, 3 strony, tabela 46 pozycji z powtarzanym nagł
 (obrazy opływane tekstem, listy zagnieżdżone, komórki scalone, kolumny; 3 strony) dodane 2026-11-14 zgadzają się
 z Chromium od pierwszego renderowania: ta sama liczba stron i ta sama treść na każdej; w `21-mixed-report`
 wszystkie 28 pasów tuszu pierwszej strony leżą w tych samych miejscach z dokładnością do 2 pikseli (96 dpi).
+
+Pełny sondaż po rundach krojenia wierszy, kontynuacji elementów pływających i flex (2026-11-14, noc): bez
+zmian względem poprzedniego pełnego pomiaru (6468 z 9135; 0 straconych, 0 zyskanych, 0 błędów renderowania).
+Reftesty druku: 180 z 340. Korpus: 21 dokumentów, z czego trzy nowe porównane z Chromium.
