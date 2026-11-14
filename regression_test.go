@@ -200,3 +200,20 @@ func TestWhitespaceOnlyLineHasNoHeight(t *testing.T) {
 		t.Errorf("%d pikseli różni się od wzorca", n)
 	}
 }
+
+// Tabela z podaną wysokością większą niż treść rozdziela nadmiar między wiersze (CSS Tables 3 § 3.10.5),
+// a komórka zachowuje vertical-align.
+func TestTableHeightStretchesRows(t *testing.T) {
+	const style = "<style>@page { size: 200px 200px; margin: 0 } body { margin: 0; font-size: 16px } " +
+		"table { border-spacing: 0 } td { padding: 0; background: #9cf; vertical-align: bottom } " +
+		".mark { width: 50px; height: 10px; background: #036 }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+`<table style="height: 120px"><tr><td><div class="mark"></div></td></tr></table>`).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<table><tr><td style="height: 120px"><div class="mark"></div></td></tr></table>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}

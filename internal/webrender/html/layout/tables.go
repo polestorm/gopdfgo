@@ -738,6 +738,15 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		table.SkippedRows = skippedRows
 	}
 
+	// gopdfgo: gdy tabela ma podaną wysokość większą niż suma wierszy, nadmiar rozdzielamy między wiersze
+	// (CSS Tables 3 § 3.10.5); w źródle zostawał jako puste miejsce pod ostatnim wierszem. Tabeli
+	// podzielonej między strony nie rozciągamy.
+	if resumeAt == nil && table.Height != pr.AutoF {
+		if extra := table.Height.V() - (positionY - table.ContentBoxY()); extra > 0 {
+			positionY += distributeExtraTableHeight(table, extra)
+		}
+	}
+
 	// If the height property has a bigger value, just add blank space
 	// below the last row group.
 	var th pr.Float
@@ -800,6 +809,72 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 }
 
 // Increase the top padding of a box. This also translates the children.
+// distributeExtraTableHeight powiększa wiersze tabeli o łącznie extra pikseli i zwraca rozdzieloną wysokość.
+// Nadmiar dostają wiersze bez podanej wysokości, proporcjonalnie do obecnej; gdy takich nie ma albo
+// wszystkie mają zerową wysokość, wiersze dzielą go po równo. Komórki rosną razem ze swoim pierwszym
+// wierszem, z zachowaniem vertical-align.
+func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
+	var rows, candidates []Box
+	for _, group := range table.Children {
+		for _, row := range group.Box().Children {
+			rows = append(rows, row)
+			if row.Box().Style.GetHeight().Tag == pr.Auto {
+				candidates = append(candidates, row)
+			}
+		}
+	}
+	if len(rows) == 0 {
+		return 0
+	}
+	if len(candidates) == 0 {
+		candidates = rows
+	}
+	var totalHeight pr.Float
+	for _, row := range candidates {
+		totalHeight += row.Box().Height.V()
+	}
+	shares := make(map[Box]pr.Float, len(candidates))
+	for _, row := range candidates {
+		if totalHeight > 0 {
+			shares[row] = extra * row.Box().Height.V() / totalHeight
+		} else {
+			shares[row] = extra / pr.Float(len(candidates))
+		}
+	}
+
+	var offset pr.Float
+	for _, group_ := range table.Children {
+		group := group_.Box()
+		group.PositionY += offset
+		for _, row_ := range group.Children {
+			row := row_.Box()
+			if offset != 0 {
+				row_.Translate(0, offset, false)
+			}
+			share := shares[row_]
+			if share == 0 {
+				continue
+			}
+			row.Height = row.Height.V() + share
+			for _, cell_ := range row.Children {
+				cell := cell_.Box()
+				switch cell.VerticalAlign {
+				case pr.Bottom:
+					addTopPadding(cell, share)
+				case pr.Middle:
+					addTopPadding(cell, share/2)
+					cell.PaddingBottom = cell.PaddingBottom.V() + share/2
+				default:
+					cell.PaddingBottom = cell.PaddingBottom.V() + share
+				}
+			}
+			group.Height = group.Height.V() + share
+			offset += share
+		}
+	}
+	return offset
+}
+
 func addTopPadding(box *bo.BoxFields, extraPadding pr.Float) {
 	box.PaddingTop = box.PaddingTop.V() + extraPadding
 	for _, child := range box.Children {
