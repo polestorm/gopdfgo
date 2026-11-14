@@ -342,3 +342,41 @@ func TestTallAbsoluteBlockContinues(t *testing.T) {
 		}
 	}
 }
+
+// Obraz w przepływie wyższy niż strona jest krojony między strony, a treść za nim trafia za ostatni
+// fragment; break-inside: avoid zostawia obraz w całości. Obraz mieszczący się na stronie jest przenoszony.
+func TestTallImageIsSliced(t *testing.T) {
+	data, err := os.ReadFile("testdata/wpt/css/css-page/support/cat.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	render := func(html string) Result {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result, err := Render(ctx, []byte("<style>@page { size: 200px 200px; margin: 20px } body { margin: 0; font-size: 14px } "+
+			"p { margin: 0 } img { display: block; width: 100px }</style>"+html), Options{
+			Fonts:    testFonts(t),
+			BaseURL:  "file:///doc/index.html",
+			Resolver: func(string) (Resource, error) { return Resource{Data: data, MediaType: "image/png"}, nil },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	// obszar strony ma 160 px; akapit zajmuje pierwszy wiersz
+	sliced := render(`<p>przed</p><img src="cat.png" style="height: 400px"><p>po</p>`)
+	if sliced.Pages != 3 {
+		t.Errorf("obraz 400 px: %d stron, oczekiwane 3", sliced.Pages)
+	}
+	if got := string(extractText(t, sliced.PDF)); got != "przed po" {
+		t.Errorf("tekst %q", got)
+	}
+	// obraz w całości na pierwszej stronie (wystaje poza nią), akapit na drugiej
+	if whole := render(`<img src="cat.png" style="height: 400px; break-inside: avoid"><p>po</p>`); whole.Pages != 2 {
+		t.Errorf("break-inside: avoid: %d stron, oczekiwane 2", whole.Pages)
+	}
+	if moved := render(`<p>przed</p><img src="cat.png" style="height: 150px">`); moved.Pages != 2 {
+		t.Errorf("obraz 150 px: %d stron, oczekiwane 2", moved.Pages)
+	}
+}

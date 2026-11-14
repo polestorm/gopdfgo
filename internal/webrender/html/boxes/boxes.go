@@ -171,6 +171,12 @@ type BoxFields struct {
 
 	ForceFragmentation bool
 
+	// gopdfgo: fragment elementu zastępowanego pokrojonego między strony. SliceFullHeight to wysokość
+	// całego elementu (zero, gdy nie jest pokrojony), SliceOffset to wysokość pokazana na stronach
+	// poprzednich; Height to wysokość części widocznej na tej stronie.
+	SliceFullHeight pr.Float
+	SliceOffset     pr.Float
+
 	properTableChild       bool
 	internalTableOrCaption bool
 	tabularContainer       bool

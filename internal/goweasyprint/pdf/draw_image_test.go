@@ -242,7 +242,8 @@ func TestSvgSizing(t *testing.T) {
       <style>
         @page { size: 8px }
         body { margin: 2px 0 0 2px; background: #fff; font-size: 0 }
-        svg { display: block }
+        /* gopdfgo: break-inside: avoid, bo obraz wyższy niż strona jest krojony między strony */
+        svg { display: block; break-inside: avoid }
       </style>
       <svg %s %s %s>
         <rect width="4px" height="4px" fill="#00f" />
@@ -284,7 +285,8 @@ func TestSvgResizing(t *testing.T) {
       <style>
         @page { size: 12px }
         body { margin: 2px 0 0 2px; background: #fff; font-size: 0 }
-        svg { display: block; width: 8px }
+        /* gopdfgo: break-inside: avoid, bo obraz wyższy niż strona jest krojony między strony */
+        svg { display: block; width: 8px; break-inside: avoid }
       </style>
       <svg %s %s %s>
         <rect width="4" height="4" fill="#00f" />

@@ -32,5 +32,7 @@ Przewidywalność jest ważniejsza niż zgodność z przeglądarką w punkcie, k
 - Liczba stron może różnić się od wydruku z przeglądarki dla dokumentów z wysokimi blokami o stałej wysokości.
 - Od 2026-11-14 dzielone są także bloki pozycjonowane bezwzględnie, a dokument nie kończy się, dopóki
   zostaje ich dalszy ciąg.
+- Ta sama reguła obowiązuje obrazy blokowe w przepływie: wyższy niż strona jest krojony, mieszczący się na
+  stronie przenoszony w całości; `break-inside: avoid` wyłącza krojenie obrazu.
 - Ograniczenia obecnej wersji podziału: nie są dzielone elementy flex i grid, treść kolumn, bloki z `overflow`
   innym niż `visible` ani bloki, których dzieci same zostały podzielone między strony.

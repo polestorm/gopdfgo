@@ -111,6 +111,7 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 		return out1, out2, -1
 	} else if isReplacedBox && bo.BlockReplacedT.IsInstance(box_) {
 		b, v := blockReplacedBoxLayout(context, replacedBox, containingBlock)
+		v = sliceTallReplaced(context, b, v, bottomSpace, skipStack)
 		return b.(bo.BlockLevelBoxITF), v, -1 // blockReplacedBoxLayout is type stable
 	} else if bo.FlexT.IsInstance(box_) {
 		box_, layout := flexLayout(context, box_, bottomSpace, skipStack, containingBlock,

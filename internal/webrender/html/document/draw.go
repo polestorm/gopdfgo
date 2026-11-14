@@ -656,12 +656,25 @@ func (ctx drawContext) drawReplacedbox(box_ bo.ReplacedBoxITF) {
 		return
 	}
 
+	// gopdfgo: fragment obrazu pokrojonego między strony rysujemy jako cały obraz przesunięty w górę
+	// o część pokazaną wcześniej i przycięty do pudełka fragmentu.
+	visibleHeight := box.Height
+	sliced := box.SliceFullHeight > 0
+	if sliced {
+		box.Height = box.SliceFullHeight
+	}
 	drawWidth, drawHeight, drawX, drawY := layout.LayoutReplacedBox(box_)
+	box.Height = visibleHeight
 	if drawWidth <= 0 || drawHeight <= 0 {
 		return
 	}
 
 	ctx.dst.OnNewStack(func() {
+		if sliced {
+			ctx.dst.Rectangle(fl(box.ContentBoxX()), fl(box.ContentBoxY()), fl(box.Width.V()), fl(visibleHeight.V()))
+			ctx.dst.State().Clip(false)
+			drawY -= box.SliceOffset
+		}
 		ctx.dst.State().SetAlpha(1, false)
 		ctx.dst.State().Transform(matrix.Translation(fl(drawX), fl(drawY)))
 		ctx.dst.OnNewStack(func() {

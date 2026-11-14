@@ -322,3 +322,46 @@ func blockReplacedBoxLayout(context *layoutContext, box_ bo.ReplacedBoxITF, cont
 
 	return box_, blockLayout{resumeAt: nil, nextPage: nextPage, adjoiningMargins: nil, collapsingThrough: false}
 }
+
+// sliceTallReplaced kroi między strony element zastępowany w przepływie, który jest wyższy niż obszar
+// strony: na tej stronie zostaje część do dolnej krawędzi, reszta przechodzi na następne. Element, który
+// mieści się na stronie, zostaje nietknięty (zostanie przeniesiony w całości, ADR 0004).
+//
+// gopdfgo: w źródle taki obraz wystawał poza stronę, a jego dalsza część i wysokość ginęły.
+func sliceTallReplaced(context *layoutContext, box_ bo.ReplacedBoxITF, layout blockLayout, bottomSpace pr.Float,
+	skipStack tree.ResumeStack,
+) blockLayout {
+	box := box_.Box()
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || !box.IsInNormalFlow() ||
+		box.IsFlexItem || box.IsGridItem || box.Height == pr.AutoF {
+		return layout
+	}
+	// break-inside: avoid na obrazie wyłącza krojenie: obraz zostaje w całości i wystaje poza stronę
+	if avoidPageBreak(string(box.Style.GetBreakInside()), context) {
+		return layout
+	}
+	fullHeight := box.Height.V()
+	var consumed pr.Float
+	if remaining, isRemainder := skipStack.Remainder(); isRemainder {
+		consumed = max(fullHeight-pr.Float(remaining), 0)
+	} else if box.BorderHeight() <= context.pageHeight {
+		return layout
+	}
+	if consumed > 0 {
+		box_.RemoveDecoration(box, true, false)
+	}
+	available := context.pageBottom - bottomSpace - box.ContentBoxY()
+	remaining := fullHeight - consumed
+	if available <= 0 || (consumed == 0 && remaining <= available) {
+		return layout
+	}
+	visible := min(remaining, available)
+	box.SliceFullHeight = fullHeight
+	box.SliceOffset = consumed
+	box.Height = visible
+	if left := remaining - visible; left > 0.5 {
+		box_.RemoveDecoration(box, false, true)
+		layout.resumeAt = tree.RemainderResume(float64(left))
+	}
+	return layout
+}
