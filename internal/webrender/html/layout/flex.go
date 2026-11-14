@@ -203,7 +203,6 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	children := append([]Box{}, box.Children...)
 	sort.Slice(children, func(i, j int) bool { return children[i].Box().Style.GetOrder() < children[j].Box().Style.GetOrder() })
 
-	originalSkipStack := skipStack
 	var skip int
 	if skipStack != nil {
 		skip, skipStack = skipStack.Unpack()
@@ -341,8 +340,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				newChildWidth := maxContentWidth(context, newChild, true)
 				cs.SetWidth(pr.FToPx(newChildWidth))
 			}
+			context.flexMeasuring++
 			newChild, _, _ = blockLevelLayout(context, newChild.(bo.BlockLevelBoxITF),
 				bottomSpace, childSkipStack, parentBox, pageIsEmpty, nil, nil, nil, false, -1)
+			context.flexMeasuring--
 			var contentSize pr.Float
 			if newChild != nil {
 				contentSize = newChild.Box().Height.V()
@@ -446,9 +447,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 				newChild.Width = pr.Inf
 				var tmp blockLayout
+				context.flexMeasuring++
 				newChild_, tmp, _ = blockLevelLayout(
 					context, newChild_.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parentBox,
 					pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
+				context.flexMeasuring--
 				if newChild_ != nil {
 					// As flex items margins never collapse (with other flex items or
 					// with the flex container), we can add the adjoining margins to the
@@ -1289,6 +1292,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	box = box_.Box()
 	childSkipStack = skipStack
 	finalLines := make([][]Box, len(flexLines)) // pudełka po ostatecznym układzie, według linii
+	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
 	for lineIndex, line := range flexLines {
 		for _, v := range line.line {
 			i, child := v.index, v.box.Box()
@@ -1305,18 +1309,44 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					}
 					resumeAt = tree.ResumeStack{resumeIndex + i: nil}
 				} else {
+					// gopdfgo: element, który nie mieści się na stronie, przechodzi na następną: w kolumnie
+					// dzielimy między elementami, w wierszu między liniami (CSS Flexbox 1 § 12). W źródle
+					// elementy były układane poniżej dolnej krawędzi strony i ginęły, bo kontener flex
+					// nie sprawdzał, czy wychodzą poza stronę.
+					bottom := newChild.Box().PositionY + newChild.Box().MarginHeight()
+					if childResumeAt == nil && context.flexMeasuring == 0 && context.overflowsPage(bottomSpace, bottom) {
+						lineStart := len(box.Children) - len(finalLines[lineIndex])
+						placedBefore := lineStart
+						if main == pr.PHeight {
+							placedBefore = len(box.Children)
+						}
+						if placedBefore == flexItemsBefore && !pageIsEmpty && skip == 0 {
+							// nic z kontenera nie zmieściło się na tej stronie: przechodzi cały, żeby na
+							// starej stronie nie zostało samo jego obramowanie
+							removePlaceholders(context, append(box.Children, newChild), absoluteBoxes, fixedBoxes)
+							context.finishFlexFormattingContext(box_)
+							return nil, blockLayout{nextPage: tree.PageBreak{Break: "any"}}
+						}
+						if placedBefore > flexItemsBefore || !pageIsEmpty {
+							resumeIndex := i
+							if main != pr.PHeight {
+								// cała linia przechodzi na następną stronę
+								resumeIndex = line.line[0].index
+								box.Children = box.Children[:lineStart]
+								finalLines[lineIndex] = nil
+							}
+							removePlaceholders(context, []Box{newChild}, absoluteBoxes, fixedBoxes)
+							resumeAt = tree.ResumeStack{resumeIndex: nil}
+							break
+						}
+					}
 					box.Children = append(box.Children, newChild)
 					finalLines[lineIndex] = append(finalLines[lineIndex], newChild)
 					if childResumeAt != nil {
-						firstLevelSkip := 0
-						if originalSkipStack != nil {
-							firstLevelSkip, _ = originalSkipStack.Unpack()
-						}
-						if resumeAt != nil {
-							resumeIndex, _ := resumeAt.Unpack()
-							firstLevelSkip += resumeIndex
-						}
-						resumeAt = tree.ResumeStack{firstLevelSkip + i: childResumeAt}
+						// gopdfgo: i jest już indeksem w pełnej liście dzieci; w źródle doliczany był do
+						// niego jeszcze raz indeks wznowienia, co przy drugim podziale dawało indeks
+						// spoza listy.
+						resumeAt = tree.ResumeStack{i: childResumeAt}
 					}
 				}
 				if resumeAt != nil {
@@ -1330,6 +1360,18 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if resumeAt != nil {
 			break
 		}
+	}
+
+	// gopdfgo: fragment kontenera podzielonego między strony kończy się za ostatnim elementem, który na
+	// tej stronie został; inaczej zachowałby wysokość całej treści i sam wystawał poza stronę.
+	if resumeAt != nil && box.Height != pr.AutoF && bottomSpace > -pr.Inf {
+		contentBottom := box.ContentBoxY()
+		for _, child := range box.Children {
+			if child.Box().IsFlexItem {
+				contentBottom = max(contentBottom, child.Box().PositionY+child.Box().MarginHeight())
+			}
+		}
+		box.Height = min(box.Height.V(), max(contentBottom-box.ContentBoxY(), 0))
 	}
 
 	if box.Style.GetPosition().String == "relative" {

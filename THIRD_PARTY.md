@@ -205,6 +205,14 @@ Wspólne dla obu katalogów:
   § 9.5 dopuszcza zwężenie albo przeniesienie pod spód; przeglądarki zwężają). W źródle dostawało pełną
   szerokość i lądowało pod elementem pływającym. Szerokość jest dobierana według elementów pływających na
   wysokości górnej krawędzi pudełka;
+- podział kontenera flex między strony, `html/layout/flex.go`: element, który nie mieści się na stronie,
+  przechodzi na następną (w kolumnie podział między elementami, w wierszu między liniami); kontener, z którego
+  nic się nie zmieściło, przechodzi cały; fragment kontenera kończy się za ostatnim elementem na stronie;
+  układy próbne (`layoutContext.flexMeasuring`) nie dzielą się, żeby pomiar dał pełną wysokość. W źródle
+  kontener flex nie sprawdzał, czy elementy wychodzą poza stronę: były układane poniżej jej krawędzi
+  i ginęły, także przy `body { display: flex }`. Poprawiony też indeks wznowienia przy drugim podziale
+  (doliczany dwukrotnie, co dawało indeks spoza listy). Ograniczenie: w wierszu flex, gdy jeden element
+  dzieli się między strony, pozostałe elementy tej linii trafiają dopiero na ostatnią stronę;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

@@ -342,6 +342,9 @@ type layoutContext struct {
 	excludedShapesLists []shapeList
 	brokenOutOfFlow     map[Box]brokenBox
 	brokenSequence      int
+	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się
+	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
+	flexMeasuring int
 
 	footnotes            []Box
 	currentPageFootnotes []Box

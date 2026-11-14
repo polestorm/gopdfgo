@@ -592,3 +592,48 @@ func TestFormattingContextNarrowsBesideFloat(t *testing.T) {
 		t.Errorf("%d pikseli różni się od wzorca", n)
 	}
 }
+
+// Kontener flex wyższy niż strona dzieli się między strony i żaden element nie ginie: w kolumnie podział
+// wypada między elementami, w wierszu z zawijaniem między liniami; działa też dla body i przy zagnieżdżeniu.
+func TestFlexContainerSplitsAcrossPages(t *testing.T) {
+	const style = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px } p { margin: 0 } " +
+		".i { height: 50px; box-sizing: border-box; border: 1px solid #000 }</style>"
+	var items, wide string
+	for i := 1; i <= 7; i++ {
+		items += fmt.Sprintf(`<div class="i">e%d</div>`, i)
+		wide += fmt.Sprintf(`<div class="i" style="width: 50%%">e%d</div>`, i)
+	}
+	cases := []struct {
+		name, html string
+		pages      int
+	}{
+		// obszar strony ma 160 px: trzy elementy po 50 px na stronę
+		{"kolumna", `<div style="display: flex; flex-direction: column">` + items + `</div><p>koniec</p>`, 3},
+		{"kolumna po akapicie", `<p>start</p><div style="display: flex; flex-direction: column">` + items + `</div><p>koniec</p>`, 3},
+		{"body", `<style>body { display: flex; flex-direction: column }</style>` + items + `<p>koniec</p>`, 3},
+		{"zagnieżdżona", `<div style="display: flex; flex-direction: column"><div style="display: flex; flex-direction: column">` +
+			items + `</div><div class="i">e8</div></div><p>koniec</p>`, 3},
+		{"wiersz z zawijaniem", `<div style="display: flex; flex-wrap: wrap">` + wide + `</div><p>koniec</p>`, 2},
+	}
+	for _, c := range cases {
+		result := renderString(t, style+c.html)
+		if result.Pages != c.pages {
+			t.Errorf("%s: %d stron, oczekiwane %d", c.name, result.Pages, c.pages)
+		}
+		text := " " + string(extractText(t, result.PDF)) + " "
+		for i := 1; i <= 7; i++ {
+			if !strings.Contains(text, fmt.Sprintf(" e%d ", i)) {
+				t.Errorf("%s: brak elementu e%d w %q", c.name, i, text)
+			}
+		}
+		if !strings.Contains(text, " koniec ") {
+			t.Errorf("%s: brak akapitu końcowego w %q", c.name, text)
+		}
+	}
+	// kontener, z którego nic nie mieści się na stronie, przechodzi cały: element e1 jest na drugiej stronie
+	moved := renderString(t, style+`<div style="height: 130px"></div><div style="display: flex; border: 2px solid #000">`+
+		`<div class="i">e1</div></div>`)
+	if moved.Pages != 2 {
+		t.Errorf("kontener przenoszony w całości: %d stron, oczekiwane 2", moved.Pages)
+	}
+}
