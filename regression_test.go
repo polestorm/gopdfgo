@@ -1338,3 +1338,21 @@ func TestReversedCounters(t *testing.T) {
 		}
 	}
 }
+
+// Kolumna z szerokością procentową zachowuje swój udział także wtedy, gdy
+// w tabeli jest wiersz z komórką rozpinającą obie kolumny.
+func TestPercentageColumnWithSpanningCell(t *testing.T) {
+	const style = `<style>@page { size: 500px 200px; margin: 0 } body { margin: 0 }
+table { border-collapse: collapse; width: 400px } td { border: 1px solid black; padding: 0 }
+.m { height: 20px; background: #00f }</style>`
+	const spanning = `<tr><td colspan="2" style="white-space: nowrap">Lorem ipsum dolor sit amet consectetuer adipiscing</td></tr></table>`
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+`<table><tr><td style="width: 90%"><div class="m"></div></td><td></td></tr>`+spanning).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<table><tr><td style="width: 90%"><div class="m"></div></td><td style="width: 10%"></td></tr>`+spanning).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}

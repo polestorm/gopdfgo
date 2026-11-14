@@ -420,6 +420,10 @@ Wspólne dla obu katalogów:
     funkcja `reversedListInitial` usunięta. Nie zrobione: liczniki odwrócone zakładane przez pseudoelementy;
   - `html/tree/html5_ua.css`: `::marker { white-space: pre }` (CSS Lists 3 § 3.1), żeby spacja kończąca
     `content` znacznika nie ginęła;
+- `html/layout/preferred.go` (`tableAndColumnsPreferredWidths`): kolumna procentowa bierze z szerokości komórki
+  rozpinającej swój udział procentowy, zanim reszta trafi do pozostałych kolumn; źródło oddawało całość kolumnom
+  bez procentu, więc kolumna `width: 90%` obok pustej kolumny kurczyła się do kilku pikseli, gdy tabela miała
+  wiersz z `colspan` (test WPT `table-colspan-percent-auto`);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

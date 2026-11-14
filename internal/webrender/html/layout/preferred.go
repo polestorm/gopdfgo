@@ -714,14 +714,38 @@ outerLoop:
 		minContent := minContentWidth(context, cell_, true)
 		maxContent := maxContentWidth(context, cell_, true)
 		columnSlice := [2]int{cell.GridX, cell.GridX + cell.Colspan}
+		var spacing pr.Float
+		if table.Style.GetBorderCollapse() == "separate" {
+			spacing = pr.Float(cell.Colspan-1) * table.Style.GetBorderSpacing()[0].Value
+		}
+
+		// gopdfgo: kolumna procentowa bierze z szerokości komórki rozpinającej
+		// swój udział procentowy, zanim reszta trafi do pozostałych kolumn.
+		// Źródło oddawało całość kolumnom bez procentu (CSS Tables 3 § 3.8.3
+		// zostawia tu swobodę), więc kolumna „90%” obok pustej kolumny auto
+		// kurczyła się prawie do zera, gdy tabela miała wiersz z colspan;
+		// przeglądarki zachowują proporcję.
+		var spannedPercentage pr.Float
+		for s := columnSlice[0]; s < columnSlice[1]; s += 1 {
+			spannedPercentage += intrinsicPercentages[s]
+		}
+		if spannedPercentage > 0 {
+			scale := pr.Float(1)
+			if spannedPercentage > 100 {
+				scale = 100 / spannedPercentage
+			}
+			for s := columnSlice[0]; s < columnSlice[1]; s += 1 {
+				if share := intrinsicPercentages[s] * scale / 100; share > 0 {
+					minContentWidths[s] = max(minContentWidths[s], (minContent-spacing)*share)
+					maxContentWidths[s] = max(maxContentWidths[s], (maxContent-spacing)*share)
+				}
+			}
+		}
+
 		var columnsMinContent, columnsMaxContent pr.Float
 		for s := columnSlice[0]; s < columnSlice[1]; s += 1 {
 			columnsMinContent += minContentWidths[s]
 			columnsMaxContent += maxContentWidths[s]
-		}
-		var spacing pr.Float
-		if table.Style.GetBorderCollapse() == "separate" {
-			spacing = pr.Float(cell.Colspan-1) * table.Style.GetBorderSpacing()[0].Value
 		}
 
 		if minContent > columnsMinContent+spacing {
