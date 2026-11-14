@@ -288,6 +288,9 @@ type brokenBox struct {
 	containingBlock Box
 	resumeAt        tree.ResumeStack
 	order           int // kolejność zgłoszenia, zob. setBrokenOutOfFlow
+	// deferredPages > 0: pudełko pozycjonowane leży poniżej strony, na której zostało ułożone; liczba mówi,
+	// o ile stron dalej jesteśmy teraz względem tamtej strony
+	deferredPages int
 }
 
 // gopdfgo: pudełka poza przepływem podzielone między strony są kontynuowane w kolejności zgłoszenia.
@@ -629,6 +632,9 @@ func warnContentBelowPage(page *bo.PageBox, root Box, pageNumber int) {
 		}
 		if box.SliceFullHeight > 0 {
 			return nil // wycinek wiersza krojonego między strony: reszta jest na następnych stronach
+		}
+		if box.DeferredToLaterPage {
+			return nil // pudełko pozycjonowane poniżej strony: zostanie narysowane na późniejszej
 		}
 		for _, child := range box.Children {
 			if found := find(child); found != nil {

@@ -297,6 +297,19 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			containingBlock: containingBlock,
 			resumeAt:        resumeAt,
 		})
+		return
+	}
+	// gopdfgo: pudełko pozycjonowane w całości poniżej obszaru strony trafia na tę stronę, na którą wypada
+	// jego pozycja (treść dokumentu płynie przez strony w jednym układzie współrzędnych). W źródle zostawało
+	// poniżej dolnej krawędzi strony i nie było widoczne.
+	if bottomSpace > -pr.Inf && context.pageBottom != pr.Inf && context.pageHeight > 0 && context.clipDepth == 0 &&
+		newBox.Box().Style.GetPosition().String == "absolute" &&
+		(newBox.Box().Style.GetTop().Tag != pr.Auto || newBox.Box().Style.GetBottom().Tag != pr.Auto) {
+		// tylko pudełka z podanym top albo bottom: pozycja statyczna podąża za miejscem w treści
+		if top := newBox.Box().PositionY; top >= context.pageBottom && top < maxSliceableHeight {
+			newBox.Box().DeferredToLaterPage = true
+			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock, deferredPages: 1})
+		}
 	}
 }
 

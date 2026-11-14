@@ -733,6 +733,23 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	context.brokenOutOfFlow = make(map[Box]brokenBox) // new map
 	for _, v := range orderedBroken(contextOutOfFlow) {
 		box, containingBlock := v.box, v.containingBlock
+		if v.deferredPages > 0 {
+			// pudełko pozycjonowane poniżej wcześniejszej strony: układamy je od nowa i przesuwamy
+			// o wysokość stron, które minęły; jeśli nadal leży poniżej tej strony, czeka dalej
+			shift := pr.Float(v.deferredPages) * context.pageHeight
+			placed, placedResumeAt := absoluteBoxLayout(context, box, containingBlock, &positionedBoxes, -shift, nil)
+			if placed.Box().PositionY-shift >= context.pageBottom {
+				context.setBrokenOutOfFlow(placed, brokenBox{box: box, containingBlock: containingBlock, deferredPages: v.deferredPages + 1})
+				continue
+			}
+			placed.Translate(0, -shift, false)
+			outOfFlowBoxes = append(outOfFlowBoxes, placed)
+			pageIsEmpty = false
+			if placedResumeAt != nil {
+				context.setBrokenOutOfFlow(placed, brokenBox{box: box, containingBlock: containingBlock, resumeAt: placedResumeAt})
+			}
+			continue
+		}
 		box.Box().PositionY = rootBox.Box().ContentBoxY()
 
 		var (

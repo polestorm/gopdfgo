@@ -177,6 +177,10 @@ type BoxFields struct {
 	SliceFullHeight pr.Float
 	SliceOffset     pr.Float
 
+	// gopdfgo: pudełko pozycjonowane bezwzględnie, które leży poniżej tej strony i zostanie ułożone na
+	// późniejszej; na tej stronie nie jest widoczne.
+	DeferredToLaterPage bool
+
 	properTableChild       bool
 	internalTableOrCaption bool
 	tabularContainer       bool

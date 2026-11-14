@@ -22,11 +22,11 @@ fail	breaks	css/css-break/block-002-wm-vrl-print.html	strony 2 vs 4
 pass	breaks	css/css-break/block-in-inline-015-print.html	
 fail	breaks	css/css-break/break-inside-avoid-multicol-001-print.html	strony 1 vs 2
 pass	breaks	css/css-break/break-inside-avoid-multicol-iframe-crash-print.html	
-fail	breaks	css/css-break/firefox-bug-2026295-print.html	
+pass	breaks	css/css-break/firefox-bug-2026295-print.html	
 fail	breaks	css/css-break/root-margin-001-print.html	strona 2: różne piksele 3197
 pass	breaks	css/css-break/transform-022-print.html	
 pass	breaks	css/css-break/transform-023-print.html	
-fail	breaks	css/css-break/transform-024-print.html	strony 4 vs 5
+fail	breaks	css/css-break/transform-024-print.html	strona 1: różne piksele 72563
 fail	breaks	css/css-break/underflow-from-next-page-print.html	strona 1: różne piksele 204
 pass	breaks	css/css-break/zero-height-page-break-001-print.html	
 pass	breaks	css/css-page/basic-pagination-001-print.html	
@@ -117,7 +117,7 @@ pass	monolithic-overflow	css/css-page/monolithic-overflow-013-print.html
 pass	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	strony 5 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-016-print.html	strony 5 vs 4
-fail	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	strona 2: różne piksele 7606
+fail	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	strona 3: różne piksele 1920
 pass	monolithic-overflow	css/css-page/monolithic-overflow-018-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-019-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-020-print.html	
@@ -129,7 +129,7 @@ fail	monolithic-overflow	css/css-page/monolithic-overflow-025-print.html	strony 
 pass	monolithic-overflow	css/css-page/monolithic-overflow-026-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-027-print.html	strona 1: różne piksele 18432
 fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strona 1: różne piksele 18432
-fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strony 2 vs 4
+fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strona 1: różne piksele 18432
 pass	monolithic-overflow	css/css-page/monolithic-overflow-030-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-031-print.html	strony 8 vs 7
 fail	monolithic-overflow	css/css-page/monolithic-overflow-032-print.tentative.html	strony 6 vs 7
@@ -270,14 +270,14 @@ fail	page-size	css/css-page/subpixel-page-size-001-print.html	strony 2 vs 1
 fail	page-size	css/css-page/subpixel-page-size-002-print.html	strony 2 vs 1
 fail	positioned	css/css-break/abspos-001-print.html	strona 1: różne piksele 4200
 fail	positioned	css/css-break/abspos-002-print.html	strony 4 vs 3
-fail	positioned	css/css-page/fixedpos-001-print.html	strony 3 vs 1
-fail	positioned	css/css-page/fixedpos-002-print.html	strony 3 vs 1
-fail	positioned	css/css-page/fixedpos-003-print.html	strony 3 vs 1
-fail	positioned	css/css-page/fixedpos-004-print.html	strony 3 vs 1
-fail	positioned	css/css-page/fixedpos-005-print.html	strony 3 vs 5
-fail	positioned	css/css-page/fixedpos-006-print.html	strony 1 vs 3
-fail	positioned	css/css-page/fixedpos-007-print.html	strony 3 vs 1
-fail	positioned	css/css-page/fixedpos-008-print.html	strony 3 vs 1
+pass	positioned	css/css-page/fixedpos-001-print.html	
+fail	positioned	css/css-page/fixedpos-002-print.html	strona 2: różne piksele 1199
+pass	positioned	css/css-page/fixedpos-003-print.html	
+fail	positioned	css/css-page/fixedpos-004-print.html	strona 2: różne piksele 1359
+fail	positioned	css/css-page/fixedpos-005-print.html	strony 6 vs 5
+fail	positioned	css/css-page/fixedpos-006-print.html	strony 4 vs 5
+fail	positioned	css/css-page/fixedpos-007-print.html	strona 1: różne piksele 2144
+fail	positioned	css/css-page/fixedpos-008-print.html	strona 1: różne piksele 2606
 pass	positioned	css/css-page/fixedpos-009-print.html	
 fail	positioned	css/css-page/fixedpos-010-print.html	strona 2: różne piksele 10000
 fail	positioned	css/css-page/fixedpos-011-print.html	strona 1: różne piksele 9200
@@ -305,7 +305,7 @@ fail	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-8-pri
 pass	table-fragmentation	css/css-break/break-nested-float-in-table-001-print.html	
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-063-print.html	strona 1: różne piksele 768
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-064-print.html	strona 1: różne piksele 768
-fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-075-print.html	strony 3 vs 4
+fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-075-print.html	strony 2 vs 4
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-076-print.html	strony 3 vs 4
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-080-print.html	
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-081a-print.html	strona 1: różne piksele 12864
@@ -316,10 +316,10 @@ fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082b-print.html	strona 1: różne piksele 5023
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082c-print.html	strona 1: różne piksele 5023
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082d-print.html	strona 1: różne piksele 5023
-fail	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-042-print.html	strony 3 vs 4
+fail	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-042-print.html	strony 2 vs 4
 pass	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-045-print.html	
 pass	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-046-print.html	
-fail	table-fragmentation	css/css-break/table/repeated-section/fixedpos-in-footer-forced-break-print.html	strona 1: różne piksele 1680
+fail	table-fragmentation	css/css-break/table/repeated-section/fixedpos-in-footer-forced-break-print.html	strony 4 vs 7
 pass	table-fragmentation	css/css-break/table/table-fragmentation-001a-print.html	
 fail	table-fragmentation	css/css-break/table/table-fragmentation-001b-print.html	strona 1: różne piksele 2304
 fail	table-fragmentation	css/css-break/table/table-fragmentation-001c-print.html	strony 2 vs 3

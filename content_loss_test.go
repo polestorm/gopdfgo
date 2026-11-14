@@ -123,11 +123,37 @@ func TestWarningForContentBelowPage(t *testing.T) {
 		}
 		return false
 	}
-	// pudełko pozycjonowane w całości poniżej strony nie trafia na następną (znane ograniczenie)
-	if result := render(`<p>tekst</p><div style="position: absolute; top: 500px">niewidoczne</div>`); !warned(result) {
+	// pudełko o pozycji stałej (fixed) leżące poniżej strony powtarza się na każdej stronie w tym samym,
+	// niewidocznym miejscu
+	if result := render(`<p>tekst</p><div style="position: fixed; top: 500px">niewidoczne</div>`); !warned(result) {
 		t.Errorf("brak ostrzeżenia o treści poza stroną; ostrzeżenia: %v", result.Warnings)
 	}
 	if result := render(`<img src="cat.png" style="display: block; width: 100px; height: 400px">`); warned(result) {
 		t.Errorf("ostrzeżenie mimo pokrojenia obrazu między strony: %v", result.Warnings)
+	}
+}
+
+// Pudełko pozycjonowane bezwzględnie z podanym top albo bottom, leżące poniżej strony, trafia na tę stronę,
+// na którą wypada jego pozycja.
+func TestAbsoluteBoxBelowPageMovesToLaterPage(t *testing.T) {
+	const style = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px }</style>"
+	// obszar strony ma 160 px: top 500 px to czwarta strona, 20 px od jej góry
+	result := renderString(t, style+`<p>tekst</p><div style="position: absolute; top: 500px; left: 0">NIZEJ</div>`)
+	if result.Pages != 4 {
+		t.Fatalf("%d stron, oczekiwane 4", result.Pages)
+	}
+	if visible := visibleWords(t, result.PDF, 150); !visible["NIZEJ"] || !visible["tekst"] {
+		t.Errorf("widoczne słowa: %v", visible)
+	}
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning.Message, "leży poniżej dolnej krawędzi strony") {
+			t.Errorf("ostrzeżenie mimo przeniesienia pudełka: %s", warning.Message)
+		}
+	}
+	// trzy pudełka przyklejone do dołu kolejnych stron (bottom: 0, -160 px, -320 px)
+	bottoms := renderString(t, style+`<div style="position: absolute; bottom: 0">B0</div>`+
+		`<div style="position: absolute; bottom: -160px">B1</div><div style="position: absolute; bottom: -320px">B2</div><p>tekst</p>`)
+	if bottoms.Pages != 3 {
+		t.Errorf("%d stron, oczekiwane 3", bottoms.Pages)
 	}
 }

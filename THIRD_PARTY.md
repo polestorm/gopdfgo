@@ -267,6 +267,11 @@ Wspólne dla obu katalogów:
   nieskończonej lub absurdalnie dużej nie jest dzielony między strony. Bez tego warunku wiersz z siatką
   o nieskończonej wysokości był krojony w nieskończoność (zawieszenie wykryte pełnym sondażem; bezpiecznik
   pętli stron go nie łapał, bo stan zmieniał się na każdej stronie);
+- `html/layout/absolute.go`, `pages.go`, `layout.go` (`brokenBox.deferredPages`), `html/boxes/boxes.go`
+  (`DeferredToLaterPage`): pudełko pozycjonowane bezwzględnie z podanym `top` albo `bottom`, leżące w całości
+  poniżej obszaru strony, jest układane na tej stronie, na którą wypada jego pozycja. W źródle zostawało
+  poniżej dolnej krawędzi strony i nie było widoczne. Nie dotyczy `position: fixed` (powtarzane na każdej
+  stronie) ani pozycji statycznej. Reftesty druku 180 → 183 (`fixedpos-001`, `-003`, `firefox-bug-2026295`);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
