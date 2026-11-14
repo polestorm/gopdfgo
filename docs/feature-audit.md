@@ -496,3 +496,13 @@ z zasięgu licznika, domyślny przyrost −1) podzbiór `css-lists`, `css-conten
 `CSS2/lists`, `CSS2/css1` i `CSS2/box-display` (811 testów) daje 38 testów zyskanych i 0 straconych; w samym
 `css-lists` zostało ok. 41 niezaliczonych ze 155. Pełnego sondażu po tej zmianie nie było; ostatni pełny
 wynik to 6724 z 9135.
+
+Pełny sondaż po rundzie list (2026-11-14): **6762 z 9135 (74,0%)**, w tym 6352 ściśle i 410 krawędziowo;
+poprzednio 6724. Zyskanych 38 (wszystkie w `css-lists`), 0 straconych, 0 błędów renderowania i przekroczeń
+limitu czasu. Reftesty druku: 192 z 340.
+
+Kolumny (`css-multicol`, ok. 250 niezaliczonych z 400) po przeglądzie: 29 testów dotyczy nowej właściwości
+`column-height` (CSS Multicol 2), ok. 25 zagnieżdżonych układów wielołamowych, ok. 45 elementów rozpinających
+(`column-span: all`) w nietypowych położeniach (w przekształceniach, z ujemnymi marginesami, dzielonych między
+kolumny), reszta to tryby pisma pionowego i pojedyncze przypadki. Napraw tam nie zaczynano: żadna grupa nie
+odpowiada typowemu dokumentowi wielołamowemu, a te przechodzą.
