@@ -729,7 +729,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		contextOutOfFlow = context.brokenOutOfFlow
 	)
 	context.brokenOutOfFlow = make(map[Box]brokenBox) // new map
-	for _, v := range contextOutOfFlow {
+	for _, v := range orderedBroken(contextOutOfFlow) {
 		box, containingBlock := v.box, v.containingBlock
 		box.Box().PositionY = rootBox.Box().ContentBoxY()
 
@@ -750,7 +750,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		outOfFlowBoxes = append(outOfFlowBoxes, outOfFlowBox)
 		pageIsEmpty = false
 		if outOfFlowResumeAt != nil {
-			context.brokenOutOfFlow[outOfFlowBox] = brokenBox{box, containingBlock, outOfFlowResumeAt}
+			context.setBrokenOutOfFlow(outOfFlowBox, brokenBox{box: box, containingBlock: containingBlock, resumeAt: outOfFlowResumeAt})
 		}
 	}
 

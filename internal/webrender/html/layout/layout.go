@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/counters"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -285,6 +286,28 @@ type brokenBox struct {
 	box             Box
 	containingBlock Box
 	resumeAt        tree.ResumeStack
+	order           int // kolejność zgłoszenia, zob. setBrokenOutOfFlow
+}
+
+// gopdfgo: pudełka poza przepływem podzielone między strony są kontynuowane w kolejności zgłoszenia.
+// W źródle kolejność wynikała z iteracji po mapie, czyli była losowa: przy dwóch takich pudełkach
+// wynik (które rysuje się na wierzchu) zmieniał się między uruchomieniami.
+
+// setBrokenOutOfFlow zapamiętuje dalszy ciąg pudełka poza przepływem wraz z kolejnością zgłoszenia.
+func (l *layoutContext) setBrokenOutOfFlow(key Box, broken brokenBox) {
+	l.brokenSequence++
+	broken.order = l.brokenSequence
+	l.brokenOutOfFlow[key] = broken
+}
+
+// orderedBroken zwraca wpisy mapy w kolejności zgłoszenia.
+func orderedBroken(broken map[Box]brokenBox) []brokenBox {
+	out := make([]brokenBox, 0, len(broken))
+	for _, v := range broken {
+		out = append(out, v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].order < out[j].order })
+	return out
 }
 
 type shapeList struct {
@@ -318,6 +341,7 @@ type layoutContext struct {
 	excludedShapes      *shapeList
 	excludedShapesLists []shapeList
 	brokenOutOfFlow     map[Box]brokenBox
+	brokenSequence      int
 
 	footnotes            []Box
 	currentPageFootnotes []Box

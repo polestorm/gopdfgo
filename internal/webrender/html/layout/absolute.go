@@ -292,11 +292,11 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		resumeAt = nil
 	}
 	if resumeAt != nil {
-		context.brokenOutOfFlow[placeholder] = brokenBox{
+		context.setBrokenOutOfFlow(placeholder, brokenBox{
 			box:             box,
 			containingBlock: containingBlock,
 			resumeAt:        resumeAt,
-		}
+		})
 	}
 }
 

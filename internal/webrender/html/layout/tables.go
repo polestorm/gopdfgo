@@ -623,6 +623,21 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			}
 		} // else footer = nil
 
+		// gopdfgo: zanim zrezygnujemy z nagłówka lub stopki, bo żaden wiersz się z nimi nie zmieścił,
+		// próbujemy jeszcze raz tak, jak na pustej stronie: zawartość komórek może wtedy zostać podzielona.
+		// Wynik bierzemy tylko wtedy, gdy treść rzeczywiście mieści się nad stopką; inaczej zostaje
+		// zachowanie źródła (nagłówek i stopka znikają, żeby zrobić miejsce na wiersz). W źródle wiersz
+		// wyższy niż strona zawsze zabierał tabeli nagłówek i stopkę.
+		forcedBodyLayout := func(positionY, bottomSpace pr.Float, children []Box, resumeAt tree.ResumeStack,
+			nextPage tree.PageBreak, endPositionY pr.Float,
+		) ([]Box, tree.ResumeStack, tree.PageBreak, pr.Float) {
+			forcedChildren, forcedResumeAt, forcedNextPage, forcedEnd := bodyGroupsLayout(skipStack, positionY, bottomSpace, true)
+			if len(forcedChildren) != 0 && !context.overflowsPage(bottomSpace, forcedEnd-borderSpacingY) {
+				return forcedChildren, forcedResumeAt, forcedNextPage, forcedEnd
+			}
+			return children, resumeAt, nextPage, endPositionY
+		}
+
 		// Don't remove headers and footers if breaks are avoided in line groups
 		skip := 0
 		if skipStack != nil {
@@ -645,6 +660,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY+headerHeight,
 				bottomSpace+footerHeight, avoidBreaks)
+			if len(newTableChildren) == 0 && len(tableRows) != 0 && pageIsEmpty {
+				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY+headerHeight, bottomSpace+footerHeight,
+					newTableChildren, resumeAt, nextPage, endPositionY)
+			}
 			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
 				footer.Translate(0, endPositionY-footer.Box().PositionY, false)
 				endPositionY += footerHeight
@@ -662,6 +681,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				endPositionY     pr.Float
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY+headerHeight, bottomSpace, avoidBreaks)
+			if len(newTableChildren) == 0 && len(tableRows) != 0 && pageIsEmpty {
+				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY+headerHeight, bottomSpace,
+					newTableChildren, resumeAt, nextPage, endPositionY)
+			}
 			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
 				return header, newTableChildren, footer, endPositionY, resumeAt, nextPage
 			} else {
@@ -677,6 +700,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				endPositionY     pr.Float
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY, bottomSpace+footerHeight, avoidBreaks)
+			if len(newTableChildren) == 0 && len(tableRows) != 0 && pageIsEmpty {
+				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY, bottomSpace+footerHeight,
+					newTableChildren, resumeAt, nextPage, endPositionY)
+			}
 			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
 				footer.Translate(0, endPositionY-footer.Box().PositionY, false)
 				endPositionY += footerHeight

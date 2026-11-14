@@ -262,7 +262,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 
 		floatChildren = append(floatChildren, newWaitingFloat)
 		if waitingFloatResumeAt != nil {
-			context.brokenOutOfFlow[newWaitingFloat] = brokenBox{waitingFloat_, containingBlock_, waitingFloatResumeAt}
+			context.setBrokenOutOfFlow(newWaitingFloat, brokenBox{box: waitingFloat_, containingBlock: containingBlock_, resumeAt: waitingFloatResumeAt})
 		}
 	}
 	line.Children = append(line.Children, floatChildren...)
@@ -1137,7 +1137,7 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 				bottomSpace, nil)
 
 			if floatResumeAt != nil {
-				context.brokenOutOfFlow[child_] = brokenBox{child_, containingBlock, floatResumeAt}
+				context.setBrokenOutOfFlow(child_, brokenBox{box: child_, containingBlock: containingBlock, resumeAt: floatResumeAt})
 			}
 			*waitingChildren = append(*waitingChildren, indexedBoxC{index: index, box: newChild, child: child_})
 			child_ = newChild

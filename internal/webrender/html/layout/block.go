@@ -419,7 +419,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			stop, resumeAt, newChild, outOfFlowResumeAt = outOfFlowLayout(context, box_, index, child_,
 				&newChildren, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins, bottomSpace)
 			if outOfFlowResumeAt != nil {
-				context.brokenOutOfFlow[newChild] = brokenBox{child_, box_, outOfFlowResumeAt}
+				context.setBrokenOutOfFlow(newChild, brokenBox{box: child_, containingBlock: box_, resumeAt: outOfFlowResumeAt})
 				brokenOutOfFlow = append(brokenOutOfFlow, newChild)
 			}
 			if child.IsOutsideMarker {

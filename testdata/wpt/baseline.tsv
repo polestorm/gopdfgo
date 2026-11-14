@@ -123,7 +123,7 @@ pass	monolithic-overflow	css/css-page/monolithic-overflow-019-print.html
 pass	monolithic-overflow	css/css-page/monolithic-overflow-020-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-021-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-022-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-023-print.html	strona 1: różne piksele 16640
+fail	monolithic-overflow	css/css-page/monolithic-overflow-023-print.html	strona 2: różne piksele 15126
 fail	monolithic-overflow	css/css-page/monolithic-overflow-024-print.html	strony 3 vs 6
 fail	monolithic-overflow	css/css-page/monolithic-overflow-025-print.html	strony 4 vs 8
 pass	monolithic-overflow	css/css-page/monolithic-overflow-026-print.html	
@@ -285,13 +285,13 @@ pass	positioned	css/css-page/fixedpos-with-abspos-with-link-print.html
 pass	positioned	css/css-page/fixedpos-with-iframe-print.html	
 pass	positioned	css/css-page/fixedpos-with-link-with-inline-child-print.html	
 pass	table-fragmentation	css/CSS2/pagination/row-page-break-inside-avoid-1-print.html	
-fail	table-fragmentation	css/CSS2/pagination/row-page-break-inside-avoid-2-print.html	strony 3 vs 2
+fail	table-fragmentation	css/CSS2/pagination/row-page-break-inside-avoid-2-print.html	strony 3 vs 4
 fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-1-print.html	strony 2 vs 3
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-2-print.html	
 fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-3-print.html	strony 2 vs 3
-fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-4-print.html	strona 1: różne piksele 12349
-fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-5-print.html	strony 4 vs 2
-fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-6-print.html	strony 4 vs 2
+fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-4-print.html	strony 2 vs 4
+pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-5-print.html	
+pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-6-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-7-print.html	
 fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-8-print.html	strony 4 vs 3
 pass	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-1-print.html	
@@ -328,10 +328,10 @@ pass	table-fragmentation	css/css-break/table/table-fragmentation-002a-print.html
 fail	table-fragmentation	css/css-break/table/table-fragmentation-002b-print.html	strony 4 vs 3
 fail	table-fragmentation	css/css-break/table/table-fragmentation-002c-print.html	strona 2: różne piksele 17280
 fail	table-fragmentation	css/css-break/table/table-fragmentation-002d-print.html	strona 2: różne piksele 11520
-fail	table-fragmentation	css/css-break/table/table-fragmentation-003a-print.html	strony 2 vs 3
-fail	table-fragmentation	css/css-break/table/table-fragmentation-003b-print.html	strony 2 vs 3
-fail	table-fragmentation	css/css-break/table/table-fragmentation-003c-print.html	strony 1 vs 3
-fail	table-fragmentation	css/css-break/table/table-fragmentation-003d-print.html	strony 1 vs 3
+fail	table-fragmentation	css/css-break/table/table-fragmentation-003a-print.html	strona 1: różne piksele 12096
+fail	table-fragmentation	css/css-break/table/table-fragmentation-003b-print.html	strona 1: różne piksele 6912
+fail	table-fragmentation	css/css-break/table/table-fragmentation-003c-print.html	strony 2 vs 3
+fail	table-fragmentation	css/css-break/table/table-fragmentation-003d-print.html	strony 2 vs 3
 pass	table-fragmentation	css/css-break/table/table-row-break-inside-avoid-later-forced-break-print.html	
 pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-forced-break-moved-by-rowspan-print.html	
 pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-later-forced-break-print.html	

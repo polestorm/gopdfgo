@@ -412,3 +412,42 @@ func TestTableWidthIsBorderBox(t *testing.T) {
 		t.Errorf("content-box: %d px, oczekiwane 260", got)
 	}
 }
+
+// Dwa pudełka pozycjonowane bezwzględnie kontynuowane na następnej stronie dają za każdym razem ten sam
+// plik: kolejność ich układania nie może zależeć od iteracji po mapie.
+func TestContinuedAbsoluteBoxesAreDeterministic(t *testing.T) {
+	const html = "<style>@page { size: 200px 200px; margin: 20px } body { margin: 0; font-size: 14px }" +
+		" div { position: absolute; top: 0; width: 60px; height: 300px }</style>" +
+		`<div style="left: 0; background: #f00">a</div><div style="left: 30px; background: #00f">b</div>` +
+		`<div style="left: 60px; background: #0a0">c</div><p>tekst</p>`
+	first := renderString(t, html)
+	if first.Pages != 2 {
+		t.Fatalf("%d stron, oczekiwane 2", first.Pages)
+	}
+	for i := 0; i < 20; i++ {
+		if again := renderString(t, html); !bytes.Equal(first.PDF, again.PDF) {
+			t.Fatalf("przebieg %d dał inny plik", i+2)
+		}
+	}
+}
+
+// Nagłówek i stopka tabeli powtarzają się na każdej stronie także wtedy, gdy jedyny wiersz jest wyższy niż
+// strona i jego zawartość trzeba podzielić.
+func TestTableHeaderRepeatsWithTallRow(t *testing.T) {
+	const html = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px }" +
+		" table { border-spacing: 0; width: 200px } td { padding: 0 }</style>" +
+		`<table><thead><tr><td>NAGLOWEK</td></tr></thead>` +
+		`<tbody><tr><td><div style="height: 300px; background: #9cf"></div></td></tr></tbody>` +
+		`<tfoot><tr><td>STOPKA</td></tr></tfoot></table>`
+	result := renderString(t, html)
+	if result.Pages < 2 {
+		t.Fatalf("%d stron, oczekiwane co najmniej 2", result.Pages)
+	}
+	text := string(extractText(t, result.PDF))
+	if got := strings.Count(text, "NAGLOWEK"); got != result.Pages {
+		t.Errorf("nagłówek %d razy na %d stronach: %q", got, result.Pages, text)
+	}
+	if got := strings.Count(text, "STOPKA"); got != result.Pages {
+		t.Errorf("stopka %d razy na %d stronach: %q", got, result.Pages, text)
+	}
+}
