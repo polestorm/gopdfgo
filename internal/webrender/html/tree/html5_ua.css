@@ -191,6 +191,8 @@ select[multiple] option, select:not(:has(option[selected])) option:first-of-type
 textarea { height: 3em; margin: .1em 0; overflow: hidden; overflow-wrap: break-word; padding: .2em; white-space: pre-wrap }
 textarea:empty { height: 3em }
 fieldset { border: groove 2px; margin-left: 2px; margin-right: 2px; padding: .35em .625em .75em }
+/* gopdfgo: legenda ramki kurczy się do treści (HTML § 15.3.13); położenie na obramowaniu ustala układ */
+fieldset > legend { width: fit-content; padding-left: 2px; padding-right: 2px }
 
 /* Pages */
 

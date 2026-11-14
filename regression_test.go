@@ -773,3 +773,34 @@ func TestInfiniteHeightDoesNotLoop(t *testing.T) {
 		t.Errorf("%d stron dla kilku małych siatek", result.Pages)
 	}
 }
+
+// Legenda ramki fieldset leży na górnym obramowaniu, a obramowanie jest pod nią przerwane: w wierszu
+// obramowania nie ma ciemnych pikseli na szerokości legendy, a są po jej prawej stronie.
+func TestFieldsetLegendOnBorder(t *testing.T) {
+	result := renderString(t, "<style>@page { size: 400px 200px; margin: 20px } body { margin: 0; font-size: 16px }"+
+		" fieldset { border: 4px solid #000; margin: 0; padding: 10px } legend { color: #fff }</style>"+
+		`<p style="margin: 0 0 10px">nad ramką</p><fieldset><legend>Legenda ramki</legend>treść</fieldset>`)
+	pages := rasterize(t, result.PDF, t.TempDir(), "legend")
+	header, data := splitPPM(pages[0])
+	var width, height int
+	fmt.Sscan(strings.Fields(header)[1], &width)
+	fmt.Sscan(strings.Fields(header)[2], &height)
+	dark := func(x, y int) bool { return data[(y*width+x)*3] < 80 }
+	// wiersz górnego obramowania: pierwszy od góry z ciemnym pikselem przy prawej krawędzi ramki
+	border := -1
+	for y := 0; y < height && border < 0; y++ {
+		if dark(width-40, y) {
+			border = y + 1
+		}
+	}
+	if border < 0 {
+		t.Fatal("nie znaleziono górnego obramowania ramki")
+	}
+	// lewe obramowanie jest przy x = 20..24; legenda zaczyna się za odstępem wewnętrznym ramki
+	if dark(60, border) {
+		t.Errorf("obramowanie nie jest przerwane pod legendą (wiersz %d)", border)
+	}
+	if !dark(width-60, border) {
+		t.Errorf("brak obramowania po prawej stronie legendy (wiersz %d)", border)
+	}
+}

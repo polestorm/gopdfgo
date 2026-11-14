@@ -2,7 +2,9 @@ package layout
 
 import (
 	"fmt"
+	"github.com/polestorm/gopdfgo/internal/webrender/text"
 	"slices"
+	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
 
@@ -47,6 +49,7 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 	}
 
 	box_ := box.Box()
+	prepareFieldsetLegend(context, box)
 	if !bo.TableT.IsInstance(box) {
 		resolveSizesBox(context, box, containingBlock)
 
@@ -82,6 +85,9 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 	}
 	box, layout, v := blockLevelLayoutSwitch(context, box, bottomSpace, skipStack, containingBlock,
 		pageIsEmpty, absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+	if box != nil && skipStack == nil {
+		markLegendGap(box)
+	}
 
 	if traceMode {
 		traceLogger.DumpTree(box, "after blockLevelLayout")
@@ -1511,3 +1517,67 @@ func hasTallAtomicInline(box Box, limit pr.Float) bool {
 // maxSliceableHeight to górna granica wysokości wiersza, bloku albo obrazu dzielonego między strony
 // (ok. 2600 stron A4); wyższe, w tym nieskończone, zostają niepodzielone.
 const maxSliceableHeight pr.Float = 3_000_000
+
+// gopdfgo: legenda ramki (HTML § 15.3.13 "The fieldset and legend elements"). Pierwszy element legend
+// ramki fieldset leży na jej górnym obramowaniu, wyśrodkowany w pionie na linii obramowania, a obramowanie
+// jest pod nim przerwane. W źródle legenda była zwykłym blokiem wewnątrz ramki.
+
+// renderedLegend zwraca pierwsze dziecko ramki w normalnym przepływie, jeśli jest elementem legend.
+func renderedLegend(fieldset *bo.BoxFields) Box {
+	for _, child := range fieldset.Children {
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if strings.EqualFold(child.Box().ElementTag(), "legend") && !bo.LineT.IsInstance(child) {
+			return child
+		}
+		return nil
+	}
+	return nil
+}
+
+// prepareFieldsetLegend dostosowuje (raz) style ramki i jej legendy: legenda dostaje ujemny margines górny,
+// który wynosi ją na środek górnego obramowania, a ramka większy margines górny, żeby legenda nie nachodziła
+// na treść powyżej. Wysokość legendy przyjmujemy jak dla jednego wiersza tekstu.
+func prepareFieldsetLegend(context *layoutContext, box_ Box) {
+	box := box_.Box()
+	if box.LegendPrepared || !strings.EqualFold(box.ElementTag(), "fieldset") {
+		return
+	}
+	box.LegendPrepared = true
+	legend := renderedLegend(box)
+	if legend == nil {
+		return
+	}
+	px := func(v pr.TaggedDim) pr.Float {
+		if v.Tag == pr.Auto || v.Unit != pr.Px {
+			return 0
+		}
+		return v.Value
+	}
+	legendStyle := legend.Box().Style.Copy()
+	lineHeight, _ := text.StrutLayout(legendStyle, context)
+	legendHeight := lineHeight + px(legendStyle.GetPaddingTop()) + px(legendStyle.GetPaddingBottom()) +
+		legendStyle.GetBorderTopWidth().Value + legendStyle.GetBorderBottomWidth().Value
+	borderTop := box.Style.GetBorderTopWidth().Value
+	paddingTop := px(box.Style.GetPaddingTop())
+
+	legendStyle.SetMarginTop(pr.FToPx(-(paddingTop + borderTop/2 + legendHeight/2)))
+	legend.Box().Style = legendStyle
+
+	fieldsetStyle := box.Style.Copy()
+	fieldsetStyle.SetMarginTop(pr.FToPx(px(fieldsetStyle.GetMarginTop()) + max(legendHeight/2-borderTop/2, 0)))
+	box.Style = fieldsetStyle
+}
+
+// markLegendGap zapisuje w ułożonej ramce odcinek górnego obramowania zasłonięty przez legendę.
+func markLegendGap(fieldset Box) {
+	box := fieldset.Box()
+	if !strings.EqualFold(box.ElementTag(), "fieldset") {
+		return
+	}
+	if legend := renderedLegend(box); legend != nil {
+		box.BorderGapX = legend.Box().BorderBoxX()
+		box.BorderGapWidth = legend.Box().BorderWidth()
+	}
+}

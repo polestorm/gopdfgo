@@ -272,6 +272,11 @@ Wspólne dla obu katalogów:
   poniżej obszaru strony, jest układane na tej stronie, na którą wypada jego pozycja. W źródle zostawało
   poniżej dolnej krawędzi strony i nie było widoczne. Nie dotyczy `position: fixed` (powtarzane na każdej
   stronie) ani pozycji statycznej. Reftesty druku 180 → 183 (`fixedpos-001`, `-003`, `firefox-bug-2026295`);
+- legenda ramki `fieldset` (HTML § 15.3.13): `html/layout/block.go` (`prepareFieldsetLegend`, `markLegendGap`),
+  `html/boxes/boxes.go` (`LegendPrepared`, `BorderGapX`, `BorderGapWidth`), `html/document/draw_border.go`,
+  `html/tree/html5_ua.css` (`fieldset > legend` kurczy się do treści). Pierwszy element `legend` leży na górnym
+  obramowaniu ramki, a obramowanie jest pod nim przerwane; w źródle legenda była zwykłym blokiem wewnątrz
+  ramki. Uproszczenie: wysokość legendy przyjmowana jak dla jednego wiersza tekstu;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

@@ -181,6 +181,11 @@ type BoxFields struct {
 	// późniejszej; na tej stronie nie jest widoczne.
 	DeferredToLaterPage bool
 
+	// gopdfgo: ramka fieldset z legendą. LegendPrepared: style ramki i legendy zostały już dostosowane;
+	// BorderGapX i BorderGapWidth: odcinek górnego obramowania przerwany pod legendą.
+	LegendPrepared             bool
+	BorderGapX, BorderGapWidth pr.Float
+
 	properTableChild       bool
 	internalTableOrCaption bool
 	tabularContainer       bool

@@ -73,6 +73,20 @@ func (ctx drawContext) drawBorder(box_ Box) {
 		return
 	}
 
+	// gopdfgo: górne obramowanie ramki fieldset jest przerwane pod legendą: rysujemy obramowanie
+	// z wyciętym prostokątem (reguła parzystości).
+	if gap := box.BorderGapWidth; gap > 0 && box.BorderTopWidth.V() > 0 {
+		box.BorderGapWidth = 0
+		ctx.dst.OnNewStack(func() {
+			ctx.dst.Rectangle(-1e5, -1e5, 2e5, 2e5)
+			ctx.dst.Rectangle(fl(box.BorderGapX), fl(box.BorderBoxY()-1), fl(gap), fl(box.BorderTopWidth.V()+2))
+			ctx.dst.State().Clip(true)
+			ctx.drawBorder(box_)
+		})
+		box.BorderGapWidth = gap
+		return
+	}
+
 	// Draw column rules.
 	columns := bo.BlockContainerT.IsInstance(box_) && (box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto")
 	if columns && !box.Style.GetColumnRuleWidth().IsNone() {
