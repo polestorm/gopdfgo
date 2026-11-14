@@ -13,7 +13,8 @@ import (
 
 // Treść dłuższa niż strona nie może ginąć: dla każdego rodzaju kontenera osiem elementów i akapit końcowy
 // muszą leżeć w obrębie którejś strony. Przed 2026-11-14 kontenery flex i grid układały dalszą treść
-// poniżej dolnej krawędzi strony.
+// poniżej dolnej krawędzi strony, a wiersz z pudełkiem inline-block wyższym niż strona wystawał poza nią.
+// Gdy silnik mimo wszystko zostawi treść poza stroną, zgłasza ostrzeżenie (TestWarningForContentBelowPage).
 
 var wordBox = regexp.MustCompile(`yMin="([\d.-]+)" xMax="[\d.-]+" yMax="([\d.-]+)">(.*)</word>`)
 
@@ -74,6 +75,8 @@ func TestNoContentLostAcrossPages(t *testing.T) {
 		{"zagnieżdżony flex", `<div style="display: flex; flex-direction: column"><div style="display: flex; flex-direction: column">` + items + `</div></div>` + end},
 		{"grid", `<div style="display: grid">` + items + `</div>` + end},
 		{"blok w elemencie grid", `<div style="display: grid"><div>` + items + `</div></div>` + end},
+		{"inline-block", `<div style="display: inline-block; width: 80%">` + items + `</div>` + end},
+		{"inline-flex", `<div style="display: inline-flex; flex-direction: column">` + items + `</div>` + end},
 		{"html i body o wysokości 100%", `<style>html, body { height: 100% }</style>` + items + end},
 		{"body flex z min-height", `<style>body { display: flex; flex-direction: column; min-height: 100vh }</style><div style="flex: 1">` + items + `</div>` + end},
 	}
@@ -94,23 +97,37 @@ func TestNoContentLostAcrossPages(t *testing.T) {
 	}
 }
 
-// Znane luki, których test wyżej nie obejmuje: inline-block i inline-flex wyższe niż strona (pudełka
-// niepodzielne, dalsza część wystaje poza stronę). Ten test pilnuje, żeby lista luk nie rosła niezauważenie:
-// gdy któraś zostanie naprawiona, przenieś przypadek do testu wyżej.
-func TestKnownContentLossGaps(t *testing.T) {
-	const style = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px } " +
-		".i { height: 50px; box-sizing: border-box; border: 1px solid #000 }</style>"
-	var items string
-	for i := 1; i <= 8; i++ {
-		items += fmt.Sprintf(`<div class="i">e%d</div>`, i)
+// Treść, której silnik nie umie przenieść na następną stronę, nie znika po cichu: wynik zawiera ostrzeżenie
+// z numerem strony. Tu obraz z break-inside: avoid, wyższy niż strona, zostaje w całości i wystaje.
+func TestWarningForContentBelowPage(t *testing.T) {
+	data, err := os.ReadFile("testdata/wpt/css/css-page/support/cat.png")
+	if err != nil {
+		t.Fatal(err)
 	}
-	cases := []struct{ name, html string }{
-		{"inline-block", `<div style="display: inline-block; width: 80%">` + items + `</div>`},
-		{"inline-flex", `<div style="display: inline-flex; flex-direction: column">` + items + `</div>`},
-	}
-	for _, c := range cases {
-		if visible := visibleWords(t, renderString(t, style+c.html).PDF, 150); visible["e8"] {
-			t.Errorf("%s: luka naprawiona, przenieś przypadek do TestNoContentLostAcrossPages", c.name)
+	render := func(html string) Result {
+		result, err := Render(t.Context(), []byte("<style>@page { size: 300px 200px; margin: 20px } body { margin: 0 }</style>"+html), Options{
+			Fonts:    testFonts(t),
+			BaseURL:  "file:///doc/index.html",
+			Resolver: func(string) (Resource, error) { return Resource{Data: data, MediaType: "image/png"}, nil },
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
+		return result
+	}
+	warned := func(result Result) bool {
+		for _, warning := range result.Warnings {
+			if strings.Contains(warning.Message, "leży poniżej dolnej krawędzi strony") {
+				return true
+			}
+		}
+		return false
+	}
+	// pudełko pozycjonowane w całości poniżej strony nie trafia na następną (znane ograniczenie)
+	if result := render(`<p>tekst</p><div style="position: absolute; top: 500px">niewidoczne</div>`); !warned(result) {
+		t.Errorf("brak ostrzeżenia o treści poza stroną; ostrzeżenia: %v", result.Warnings)
+	}
+	if result := render(`<img src="cat.png" style="display: block; width: 100px; height: 400px">`); warned(result) {
+		t.Errorf("ostrzeżenie mimo pokrojenia obrazu między strony: %v", result.Warnings)
 	}
 }

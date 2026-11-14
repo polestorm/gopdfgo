@@ -319,9 +319,10 @@ Reftesty druku (`testdata/wpt`, 340): 173 zaliczone. Binarka `cmd/gopdfgo`: 21,5
 Stały test `content_loss_test.go` sprawdza 21 rodzajów kontenerów: osiem elementów i akapit końcowy muszą
 leżeć w obrębie którejś strony. Powstał po tym, jak okazało się, że przejęty kod układał treść kontenerów
 flex i grid poniżej dolnej krawędzi strony (ginęła także przy `body { display: flex }`); tabele, kolumny,
-elementy pływające i bloki dzieliły się poprawnie. Znane luki, pilnowane osobnym testem: `inline-block`
-i `inline-flex` wyższe niż strona. Treść wylewająca się z bloku o stałej wysokości poza stronę jest od
-2026-11-14 kontynuowana na następnej stronie (22. przypadek testu).
+elementy pływające i bloki dzieliły się poprawnie. Od 2026-11-14 test obejmuje 24 przypadki, w tym treść
+wylewającą się z bloku o stałej wysokości oraz `inline-block` i `inline-flex` wyższe niż strona (krojone
+między strony). Gdy treść mimo wszystko zostanie w całości poniżej strony, silnik zgłasza ostrzeżenie; znany
+przypadek to pudełko pozycjonowane bezwzględnie w całości poniżej strony.
 
 Pełny sondaż po rundach stronicowania flex, grid i treści wylewającej się (2026-11-14, wieczór): 6468 z 9135
 (6059 ściśle, 409 krawędziowo), 0 błędów renderowania; poprzedni pełny pomiar 6460. Jedna strata, w układzie

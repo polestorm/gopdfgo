@@ -115,7 +115,8 @@ func TestInlineBlockWithMargin(t *testing.T) {
 	// Regression test for https://github.com/Kozea/WeasyPrint/issues/1235
 	page1 := renderOnePage(t, `
       <style>
-        @page { size: 100px }
+        /* gopdfgo: strona wysoka, bo inline-block wyższy niż strona jest krojony między strony */
+        @page { size: 100px 1000px }
         span { font-family: weasyprint; display: inline-block; margin: 0 30px }
       </style>
       <span>a b c d e f g h i j k l</span>`)

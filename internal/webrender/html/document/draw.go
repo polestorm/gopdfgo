@@ -690,6 +690,17 @@ func (ctx drawContext) drawInlineLevel(page *bo.PageBox, box_ Box, offsetX fl, t
 			panic(fmt.Sprintf("expected InlineBlock or InlineFlex, got %v", stackingContext.box))
 		}
 		ctx.drawStackingContext(stackingContext)
+	} else if lineBox, ok := box_.(*bo.LineBox); ok && lineBox.SliceFullHeight > 0 {
+		// gopdfgo: wycinek wiersza krojonego między strony: cały wiersz przesunięty w górę o część
+		// pokazaną wcześniej i przycięty do wysokości wycinka.
+		whole := *lineBox
+		whole.SliceFullHeight = 0
+		ctx.dst.OnNewStack(func() {
+			ctx.dst.Rectangle(-1e5, fl(lineBox.PositionY), 2e5, fl(lineBox.Height.V()))
+			ctx.dst.State().Clip(false)
+			ctx.dst.State().Transform(matrix.Translation(0, -fl(lineBox.SliceOffset)))
+			ctx.drawInlineLevel(page, &whole, offsetX, textOverflow, blockEllipsis)
+		})
 	} else {
 		ctx.setMaskBorder(box_)
 		box := box_.Box()

@@ -332,7 +332,7 @@ func sliceTallReplaced(context *layoutContext, box_ bo.ReplacedBoxITF, layout bl
 	skipStack tree.ResumeStack,
 ) blockLayout {
 	box := box_.Box()
-	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || !box.IsInNormalFlow() ||
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || context.clipDepth > 0 || !box.IsInNormalFlow() ||
 		box.IsFlexItem || box.IsGridItem || box.Height == pr.AutoF {
 		return layout
 	}

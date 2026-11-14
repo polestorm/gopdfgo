@@ -45,8 +45,8 @@ fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentat
 fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069b-print.html	strona 1: różne piksele 4655
 fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069c-print.html	strona 1: różne piksele 4655
 fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069d-print.html	strona 1: różne piksele 4655
-fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	strony 1 vs 3
-fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	strony 1 vs 3
+fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	strona 2: różne piksele 46080
+fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	strona 2: różne piksele 46080
 fail	flex-fragmentation	css/css-flexbox/inline-flexbox-vertical-rl-image-flexitem-crash-print.html	
 fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-1-print.html	strony 2 vs 3
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-2-print.html	
@@ -100,7 +100,7 @@ pass	monolithic-overflow	css/css-break/abspos-overflow-hidden-001-print.html
 fail	monolithic-overflow	css/css-break/grid/monolithic-overflow-print.html	strona 2: różne piksele 9600
 pass	monolithic-overflow	css/css-break/overflowed-abs-pos-with-percentage-height-print.html	
 pass	monolithic-overflow	css/css-break/overflowing-block-002-print.html	
-fail	monolithic-overflow	css/css-break/overflowing-block-print.html	strony 2 vs 3
+fail	monolithic-overflow	css/css-break/overflowing-block-print.html	strona 1: różne piksele 3440
 pass	monolithic-overflow	css/css-page/monolithic-overflow-001-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-002-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-003-print.html	
@@ -114,8 +114,8 @@ pass	monolithic-overflow	css/css-page/monolithic-overflow-010-print.html
 pass	monolithic-overflow	css/css-page/monolithic-overflow-011-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-012-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-013-print.html	
-pass	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	strony 2 vs 4
+fail	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	strona 2: różne piksele 64128
+fail	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	strony 5 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-016-print.html	strony 5 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	strona 2: różne piksele 7606
 pass	monolithic-overflow	css/css-page/monolithic-overflow-018-print.html	
@@ -128,10 +128,10 @@ fail	monolithic-overflow	css/css-page/monolithic-overflow-024-print.html	strony 
 fail	monolithic-overflow	css/css-page/monolithic-overflow-025-print.html	strony 4 vs 8
 pass	monolithic-overflow	css/css-page/monolithic-overflow-026-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-027-print.html	strona 1: różne piksele 18432
-fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strony 12 vs 4
+fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strona 1: różne piksele 18432
 fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strony 2 vs 4
 pass	monolithic-overflow	css/css-page/monolithic-overflow-030-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-031-print.html	strony 8 vs 5
+fail	monolithic-overflow	css/css-page/monolithic-overflow-031-print.html	strony 8 vs 7
 fail	monolithic-overflow	css/css-page/monolithic-overflow-032-print.tentative.html	strony 6 vs 7
 pass	named-pages	css/css-page/page-name-000-print.html	
 pass	named-pages	css/css-page/page-name-001-print.html	
@@ -302,7 +302,7 @@ pass	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-5-pri
 pass	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-6-print.html	
 pass	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-7-print.html	
 fail	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-8-print.html	strona 1: różne piksele 67
-fail	table-fragmentation	css/css-break/break-nested-float-in-table-001-print.html	strony 1 vs 3
+pass	table-fragmentation	css/css-break/break-nested-float-in-table-001-print.html	
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-063-print.html	strona 1: różne piksele 768
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-064-print.html	strona 1: różne piksele 768
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-075-print.html	strony 3 vs 4

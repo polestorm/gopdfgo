@@ -340,7 +340,9 @@ func TestImagesAlt(t *testing.T) {
 	capt := tu.CaptureLogs()
 
 	base := `<style>
-		@page { size: 200px 30px }
+		/* gopdfgo: strona 200 px wysokości, bo pusty obraz SVG ma domyślnie 150 px, a obraz w wierszu wyższy
+		   niż strona jest teraz krojony między strony (w źródle 30 px i obraz wystawał) */
+		@page { size: 200px 200px }
 		body { margin: 0; background: #fff; font-size: 0 }
 	</style>
 	<div>%s</div>`

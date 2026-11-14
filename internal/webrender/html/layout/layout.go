@@ -272,6 +272,7 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 		layoutBackgrounds(page, context.resolver.FetchImage, &canvasOrigin)
 		canvasOffset += page.Height.V()
 		out[i] = page
+		warnContentBelowPage(page, root, i+1)
 
 		if traceMode {
 			traceLogger.DumpTree(page, fmt.Sprintf("Final page %d", i))
@@ -345,6 +346,10 @@ type layoutContext struct {
 	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się
 	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
 	flexMeasuring int
+	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
+	clipDepth int
+	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony
+	viewportClips bool
 
 	footnotes            []Box
 	currentPageFootnotes []Box
@@ -593,5 +598,47 @@ func (l *layoutContext) updateFootnoteArea() bool {
 	} else {
 		l.currentFootnoteArea.Height = pr.Float(0)
 		return false
+	}
+}
+
+// warnContentBelowPage zgłasza ostrzeżenie, gdy tekst albo obraz leży w całości poniżej dolnej krawędzi
+// strony, czyli nie będzie widoczny w wyniku. Treść przycięta przez przodka (overflow inne niż visible przy podanej
+// wysokości) nie jest zgłaszana: autor sam ją ukrył.
+//
+// gopdfgo: dodane. Silnik nie umie podzielić każdego pudełka między strony (np. inline-block wyższego niż
+// strona); bez ostrzeżenia taka strata treści była cicha.
+func warnContentBelowPage(page *bo.PageBox, root Box, pageNumber int) {
+	pageBottom := page.MarginHeight() + 1
+	var find func(box Box) Box
+	find = func(box_ Box) Box {
+		box := box_.Box()
+		if box.Style.GetVisibility() != "visible" && len(box.Children) == 0 {
+			return nil
+		}
+		_, isText := box_.(*bo.TextBox)
+		_, isReplaced := box_.(bo.ReplacedBoxITF)
+		if isText || isReplaced {
+			// tylko treść w całości poniżej strony: wiersz albo obraz, który wystaje częściowo, jest widoczny
+			if box.Height != pr.AutoF && box.Height != nil && box.PositionY > pageBottom {
+				return box_
+			}
+			return nil
+		}
+		if box.Style.GetOverflow() != "visible" && box.Style.GetHeight().Tag != pr.Auto {
+			return nil
+		}
+		if box.SliceFullHeight > 0 {
+			return nil // wycinek wiersza krojonego między strony: reszta jest na następnych stronach
+		}
+		for _, child := range box.Children {
+			if found := find(child); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+	if found := find(root); found != nil {
+		logger.WarningLogger.Printf("strona %d: treść elementu <%s> leży poniżej dolnej krawędzi strony i nie jest widoczna",
+			pageNumber, found.Box().ElementTag())
 	}
 }

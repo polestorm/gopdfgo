@@ -668,6 +668,8 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 
 	// Propagated from the root or <body>.
 	style.SetOverflow(pr.String(rootBox.Box().ViewportOverflow))
+	// overflow elementu głównego przeniesione na obszar strony: treść poza nim jest przycinana
+	context.viewportClips = rootBox.Box().ViewportOverflow != "" && rootBox.Box().ViewportOverflow != "visible"
 	page := bo.NewPageBox(pageType, style)
 
 	deviceSize_ := page.Style.GetSize()

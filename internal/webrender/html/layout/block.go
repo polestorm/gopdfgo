@@ -332,6 +332,13 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		traceLogger.DumpTree(box_, "at blockContainerLayout start")
 	}
 
+	// gopdfgo: w pudełku, które przycina treść (podana wysokość i overflow inne niż visible), nic nie jest
+	// krojone ani dzielone między strony: to, co się nie mieści, jest po prostu niewidoczne.
+	if clipsBlockOverflow(box) {
+		context.clipDepth++
+		defer func() { context.clipDepth-- }()
+	}
+
 	// See https://www.w3.org/TR/CSS21/visuren.html#block-formatting
 	if bo.EstablishesFormattingContext(box_) {
 		context.createBlockFormattingContext()
@@ -515,7 +522,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 					// Box height is fixed and it doesn’t overflow page: the box
 					// ends here, its overflowing children continue on the next page,
 					// unless the overflow is clipped.
-					if box.Style.GetOverflow() == "visible" && !box.IsColumn {
+					if box.Style.GetOverflow() == "visible" && !box.IsColumn && !context.viewportClips {
 						finishedWithOverflow = resumeAt != nil
 					} else {
 						resumeAt = nil
@@ -816,12 +823,39 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		traceLogger.DumpTree(child_, "at lineBoxLayout")
 	}
 
+	// gopdfgo: wiersz wyższy niż strona (obraz albo inline-block w wierszu tekstu) jest krojony między
+	// strony: każda strona pokazuje kolejny wycinek tego samego wiersza. W źródle taki wiersz wystawał
+	// poza stronę i jego dalsza część ginęła.
+	sliceConsumed, lineStart, sliced := skipStack.Slice()
+	if sliced {
+		skipStack = lineStart
+	}
+	canSlice := bottomSpace > -pr.Inf && context.pageBottom != pr.Inf && !context.inColumn && context.flexMeasuring == 0 &&
+		context.clipDepth == 0
+
 	linesIterator := iterLineBoxes(context, child_, positionY, bottomSpace, skipStack,
 		box_, absoluteBoxes, fixedBoxes, firstLetterStyle)
 	for i := 0; linesIterator.Has(); i++ {
 		tmp := linesIterator.Next()
 		resumeAt = tmp.resumeAt
 		line_, line := tmp.line, tmp.line.Box()
+
+		if fullHeight := line.Height.V(); canSlice && i == 0 && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight && hasTallAtomicInline(line_, context.pageHeight))) {
+			available := context.pageBottom - bottomSpace - line.PositionY
+			if remaining := fullHeight - pr.Float(sliceConsumed); available > 0 && remaining > 0 {
+				visible := min(remaining, available)
+				line.SliceFullHeight = fullHeight
+				line.SliceOffset = pr.Float(sliceConsumed)
+				line.Height = visible
+				if rest := remaining - visible; rest > 0.5 {
+					line_.ResumeAt = tree.SliceResume(sliceConsumed+float64(visible), skipStack)
+					newChildren = append(newChildren, line_)
+					positionY = line.PositionY + visible
+					stop = true
+					break
+				}
+			}
+		}
 
 		// Break box if we reached max-lines
 		if maxLines != -1 {
@@ -1390,14 +1424,14 @@ func forcePageBreak(pageBreak string, context *layoutContext) bool {
 // i bez przycinania treści.
 func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float) bool {
 	box := box_.Box()
-	if !bo.BlockT.IsInstance(box_) || !(box.IsInNormalFlow() || box.IsAbsolutelyPositioned()) || box.IsColumn || box.IsForRootElement {
+	if !bo.BlockT.IsInstance(box_) || !(box.IsInNormalFlow() || box.IsAbsolutelyPositioned() || box.IsFloated()) || box.IsColumn || box.IsForRootElement {
 		return false
 	}
 	// Elementy flex i grid oraz treść kolumn mają własne algorytmy podziału; tam bloków nie tniemy.
 	if box.IsFlexItem || box.IsGridItem || context.inColumn {
 		return false
 	}
-	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf {
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.clipDepth > 0 {
 		return false
 	}
 	if box.Style.GetOverflow() != "visible" || bo.IsMonolithic(box_) {
@@ -1434,4 +1468,20 @@ func narrowBesideFloats(context *layoutContext, box_ Box, containingBlock *bo.Bo
 	if available < box.Width.V() && available > 0 && available >= minWidth {
 		box.Width = available
 	}
+}
+
+// hasTallAtomicInline mówi, czy wiersz zawiera pudełko niepodzielne (obraz, inline-block, inline-flex,
+// inline-grid) wyższe niż limit. Tylko takie wiersze kroimy między strony; wiersz samego tekstu wyższy niż
+// strona zostaje w całości, jak w źródle.
+func hasTallAtomicInline(box Box, limit pr.Float) bool {
+	for _, child := range box.Box().Children {
+		if bo.AtomicInlineLevelT.IsInstance(child) || bo.InlineFlexT.IsInstance(child) || bo.InlineGridT.IsInstance(child) {
+			if height := child.Box().Height; height != nil && height != pr.AutoF && child.Box().MarginHeight() > limit {
+				return true
+			}
+		} else if bo.InlineT.IsInstance(child) && hasTallAtomicInline(child, limit) {
+			return true
+		}
+	}
+	return false
 }

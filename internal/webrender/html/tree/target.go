@@ -58,13 +58,36 @@ func (r ResumeStack) Overflow() (ResumeStack, bool) {
 	return children, ok
 }
 
+// sliceBase to początek zakresu kluczy dla wznowienia wiersza krojonego między strony: klucz niesie wysokość
+// pokazaną na poprzednich stronach, a wartością jest wznowienie, od którego ten wiersz się zaczyna.
+const sliceBase = -(1 << 30)
+
+// SliceResume zwraca wznowienie wiersza, z którego pokazano już consumed pikseli; lineStart to wznowienie,
+// od którego wiersz się zaczyna (nil dla pierwszego wiersza bloku).
+func SliceResume(consumed float64, lineStart ResumeStack) ResumeStack {
+	return ResumeStack{sliceBase - int(math.Round(consumed*remainderUnit)): lineStart}
+}
+
+// Slice rozpoznaje wznowienie z [SliceResume].
+func (r ResumeStack) Slice() (consumed float64, lineStart ResumeStack, ok bool) {
+	if len(r) != 1 {
+		return 0, nil, false
+	}
+	for k, v := range r {
+		if k <= sliceBase && k != overflowKey {
+			return float64(sliceBase-k) / remainderUnit, v, true
+		}
+	}
+	return 0, nil, false
+}
+
 // Remainder zwraca pozostałą wysokość bloku, jeśli stos jest wznowieniem z [RemainderResume].
 func (r ResumeStack) Remainder() (float64, bool) {
 	if len(r) != 1 {
 		return 0, false
 	}
 	for k := range r {
-		if k < 0 && k != overflowKey {
+		if k < 0 && k > sliceBase {
 			return float64(-1-k) / remainderUnit, true
 		}
 	}

@@ -237,6 +237,20 @@ Wspólne dla obu katalogów:
 - `html/layout/column.go`: wznowienie elementu rozpinającego (`column-span: all`) podzielonego między strony
   jest przekazywane do niego bez zmian; w źródle było mylone ze wznowieniem treści kolumn (indeks dziecka
   elementu rozpinającego brany za przesunięcie w liście dzieci kontenera);
+- krojenie wiersza wyższego niż strona, `html/layout/block.go` (`lineBoxLayout`, `hasTallAtomicInline`),
+  `html/tree/target.go` (`SliceResume`, `ResumeStack.Slice`), `html/document/draw.go`: wiersz zawierający
+  pudełko niepodzielne wyższe niż strona (obraz w wierszu tekstu, `inline-block`, `inline-flex`,
+  `inline-grid`) jest krojony między strony; każda strona pokazuje kolejny wycinek tego samego wiersza.
+  W źródle wiersz wystawał poza stronę i dalsza część ginęła. Wiersz samego tekstu wyższy niż strona zostaje
+  w całości. Testy odziedziczone dostosowane (wyższa strona, żeby pudełko się mieściło):
+  `TestInlineBlockWithMargin`, `TestImagesAlt`;
+- `html/layout/layout.go` (`warnContentBelowPage`): ostrzeżenie „treść elementu … leży poniżej dolnej
+  krawędzi strony i nie jest widoczna”, gdy tekst albo obraz leży w całości poniżej strony; w źródle taka
+  strata była cicha;
+- `html/layout/block.go`, `replaced.go`, `layout.go` (`clipDepth`, `viewportClips`): wewnątrz pudełka
+  przycinającego treść nic nie jest krojone ani dzielone między strony, a `overflow` inne niż `visible`
+  przeniesione z elementu głównego na obszar strony wyłącza kontynuację wylewającej się treści. Podział bloku
+  o podanej wysokości obejmuje też elementy pływające;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
