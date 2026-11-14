@@ -1362,16 +1362,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
-	// gopdfgo: fragment kontenera podzielonego między strony kończy się za ostatnim elementem, który na
-	// tej stronie został; inaczej zachowałby wysokość całej treści i sam wystawał poza stronę.
-	if resumeAt != nil && box.Height != pr.AutoF && bottomSpace > -pr.Inf {
-		contentBottom := box.ContentBoxY()
-		for _, child := range box.Children {
-			if child.Box().IsFlexItem {
-				contentBottom = max(contentBottom, child.Box().PositionY+child.Box().MarginHeight())
-			}
-		}
-		box.Height = min(box.Height.V(), max(contentBottom-box.ContentBoxY(), 0))
+	// gopdfgo: fragment kontenera podzielonego między strony sięga dolnej krawędzi strony, jak fragment
+	// zwykłego bloku (CSS Fragmentation 3 § 5.1); inaczej zachowałby wysokość całej treści i sam wystawał
+	// poza stronę.
+	if resumeAt != nil && box.Height != pr.AutoF && bottomSpace > -pr.Inf && context.flexMeasuring == 0 {
+		box.Height = max(context.pageBottom-bottomSpace-box.ContentBoxY(), 0)
 	}
 
 	if box.Style.GetPosition().String == "relative" {
