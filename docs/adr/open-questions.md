@@ -59,6 +59,15 @@ konkretnego odbiorcy.
     po mapach. Warianty: (a) poprawka upstream i czekanie, (b) własna kopia pakietów `model` i `contentstream`
     z sortowaniem kluczy, (c) backend na pakietach folio, które mają determinizm w założeniach. Propozycja: (b)
     teraz jako mała łatka plus zgłoszenie upstream, (c) rozważyć przy PDF/A.
+16. **Blok o podanej wysokości, który nie mieści się w reszcie strony.** Od 2026-11-14 blok wyższy niż cały
+    obszar strony jest dzielony między strony (wcześniej wystawał poza stronę i jego dalsza część ginęła).
+    Blok, który zmieściłby się na pustej stronie, jest nadal przenoszony w całości na następną, jak
+    w WeasyPrint. Przeglądarki dzielą także taki blok w miejscu końca strony, o ile nie ma
+    `break-inside: avoid`; CSS Fragmentation 3 nie rozstrzyga tego jednoznacznie (punkt podziału klasy C
+    jest zdefiniowany przez odstęp od treści dzieci, a pusty blok dzieci nie ma). Do decyzji: zostawić
+    przenoszenie (mniej niespodzianek w dokumentach z ramkami o stałej wysokości) czy dzielić jak
+    przeglądarki. Ograniczenia obecnej wersji: nie są dzielone elementy flex i grid, treść kolumn, bloki
+    z `overflow` innym niż `visible` ani bloki, których dzieci same zostały podzielone między strony.
 15. **Współbieżność i zmienne globalne.** `Render` wykonuje jedno renderowanie naraz, bo silnik zgłasza ostrzeżenia
     przez globalne `logger.WarningLogger` (80 wywołań w 25 plikach), a limit czasu nie przerywa pracy. Decyzja
     użytkownika 2026-11-12: równoległość nie jest teraz potrzebna; docelowo pełna przebudowa bez zmiennych

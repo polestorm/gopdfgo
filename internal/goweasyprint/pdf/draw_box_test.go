@@ -327,6 +327,9 @@ func TestDrawBorderRadius(t *testing.T) {
           border-radius: 50% 0 0 0;
           height: 16px;
           width: 16px;
+          /* gopdfgo: blok wyższy niż strona jest dzielony między strony; ten test sprawdza rysowanie
+             jednej strony, więc blok jest tu niepodzielny */
+          overflow: hidden;
         }
       </style>
       <div></div>

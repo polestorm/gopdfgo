@@ -3,9 +3,11 @@ package gopdfgo
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -271,5 +273,51 @@ func TestInterlacedPNG(t *testing.T) {
 	}
 	if !bytes.Contains(result.PDF, []byte("/Subtype/Image")) && !bytes.Contains(result.PDF, []byte("/Subtype /Image")) {
 		t.Error("w PDF nie ma obrazu")
+	}
+}
+
+// Blok o podanej wysokości, wyższy niż strona, jest dzielony między strony zamiast wystawać poza stronę
+// (CSS Fragmentation 3 § 5.1). Treść za blokiem ląduje za jego ostatnim fragmentem.
+func TestTallFixedHeightBlockIsSplit(t *testing.T) {
+	const page = "<style>@page { size: 200px 200px; margin: 20px } body { margin: 0; font-size: 14px } p { margin: 0 }</style>"
+	cases := []struct {
+		name, html string
+		pages      int
+	}{
+		// obszar strony ma 160 px: 400 px to 160 + 160 + 80
+		{"na początku strony", `<div style="height: 400px; background: #9cf"></div><p>koniec</p>`, 3},
+		// blok zaczyna się po akapicie i jest dzielony w miejscu
+		{"w środku strony", `<p>start</p><div style="height: 400px; background: #9cf"></div><p>koniec</p>`, 3},
+		// break-inside: avoid przenosi blok na początek strony, a tam i tak trzeba go podzielić
+		{"break-inside: avoid", `<p>start</p><div style="height: 300px; break-inside: avoid; background: #9cf"></div><p>koniec</p>`, 3},
+		// blok, który mieści się na stronie, jest przenoszony w całości
+		{"mieści się na stronie", `<p>start</p><div style="height: 150px; background: #9cf"></div>`, 2},
+		// overflow inny niż visible: bloku nie dzielimy
+		{"overflow: hidden", `<div style="height: 400px; overflow: hidden; background: #9cf"></div>`, 1},
+	}
+	for _, c := range cases {
+		result := renderString(t, page+c.html)
+		if result.Pages != c.pages {
+			t.Errorf("%s: %d stron, oczekiwane %d", c.name, result.Pages, c.pages)
+		}
+	}
+	// wysokości fragmentów sumują się do wysokości bloku
+	dir := t.TempDir()
+	pages := rasterize(t, renderString(t, page+`<div style="height: 400px; background: #00f"></div>`).PDF, dir, "split")
+	total := 0
+	for _, ppm := range pages {
+		header, data := splitPPM(ppm)
+		var width, height int
+		fmt.Sscan(strings.Fields(header)[1], &width)
+		fmt.Sscan(strings.Fields(header)[2], &height)
+		for y := 0; y < height; y++ {
+			i := (y*width + width/2) * 3
+			if data[i] < 80 && data[i+2] > 200 {
+				total++
+			}
+		}
+	}
+	if total != 400 {
+		t.Errorf("łączna wysokość fragmentów %d px, oczekiwane 400", total)
 	}
 }

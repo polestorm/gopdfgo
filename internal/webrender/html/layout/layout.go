@@ -326,6 +326,7 @@ type layoutContext struct {
 
 	currentPage int
 	pageBottom  pr.Float
+	pageHeight  pr.Float // wysokość obszaru bieżącej strony
 
 	marginClearance bool
 	forcedBreak     bool

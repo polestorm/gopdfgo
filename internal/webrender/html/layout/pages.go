@@ -682,6 +682,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	rootBox.Box().PositionX = page.ContentBoxX()
 	rootBox.Box().PositionY = page.ContentBoxY()
 	context.pageBottom = rootBox.Box().PositionY + page.Height.V()
+	context.pageHeight = page.Height.V()
 	initialContainingBlock := page
 
 	footnoteAreaStyle := context.styleFor.Get(pageType, "@footnote")
@@ -770,6 +771,9 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		box, parent := Box(initialRootBox), Box(initialRootBox)
 		skipStack := initialResumeAt
 		for len(skipStack) == 1 {
+			if _, isRemainder := skipStack.Remainder(); isRemainder {
+				break
+			}
 			var skip int
 			skip, skipStack = skipStack.Unpack()
 			box, parent = box.Box().Children[skip], box
@@ -988,6 +992,9 @@ func updatePageGroups(pageGroups *[]pageGroup, resumeAt tree.ResumeStack, nextPa
 	)
 	for {
 		var childResumeAt tree.ResumeStack
+		if _, isRemainder := currentResumeAt.Remainder(); isRemainder {
+			break
+		}
 		childIndex, childResumeAt = currentResumeAt.Unpack()
 		parentElement = currentElement
 		currentElement = currentElement.Box().Children[childIndex]

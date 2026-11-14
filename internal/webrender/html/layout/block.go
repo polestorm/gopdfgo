@@ -380,8 +380,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	skip := 0
 	firstLetterStyle := box.FirstLetterStyle
+	resumedRemainder := false
 	if !isStart {
-		skip, skipStack = skipStack.Unpack()
+		if remaining, isRemainder := skipStack.Remainder(); isRemainder {
+			// dalszy ciąg bloku o podanej wysokości: dzieci są już ułożone, zostaje reszta wysokości
+			resumedRemainder = true
+			skip, skipStack = len(box.Children), nil
+			box.Height = pr.Float(remaining)
+		} else {
+			skip, skipStack = skipStack.Unpack()
+		}
 		firstLetterStyle = nil
 	}
 	var (
@@ -499,6 +507,29 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		resumeAt = nil
 	}
 
+	// gopdfgo: blok o podanej wysokości, którego dzieci się zmieściły, ale który sam wystaje poza stronę,
+	// jest dzielony: na tej stronie zostaje część do dolnej krawędzi, reszta wysokości przechodzi na
+	// następną (CSS Fragmentation 3 § 5.1). W źródle blok wystawał poza stronę i jego dalsza część ginęła.
+	// Dzielimy tylko bloki wyższe niż obszar strony, czyli takie, które nie zmieszczą się na żadnej;
+	// blok, który mieści się na stronie, jest jak dotąd przenoszony w całości na następną (pytanie 16
+	// w docs/adr/open-questions.md).
+	splitHeight := pr.Float(-1)
+	// Gdy dzieci bloku były dzielone między strony, nie wiemy, ile wysokości zużyły strony poprzednie;
+	// takiego bloku nie dzielimy (zachowanie źródła).
+	splittable := resumedRemainder || (isStart && box.BorderHeight() > context.pageHeight)
+	// break-inside: avoid nie da się spełnić dla bloku wyższego niż strona; taki blok przenosimy najpierw
+	// na początek strony i dopiero tam dzielimy.
+	if splittable && !resumedRemainder && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
+		splittable = false
+	}
+	if resumeAt == nil && box.Height != pr.AutoF && splittable && canSplitFixedHeight(context, box_, bottomSpace) {
+		available := context.pageBottom - bottomSpace - box.ContentBoxY()
+		if remaining := box.Height.V() - available; available > 0 && remaining > 0.5 {
+			splitHeight = available
+			resumeAt = tree.RemainderResume(float64(remaining))
+		}
+	}
+
 	boxIsFragmented := resumeAt != nil || box.ForceFragmentation
 	if box.Style.GetContinue() == "discard" {
 		resumeAt = nil
@@ -588,7 +619,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		context.finishBlockFormattingContext(newBox_)
 	}
 
-	if discard || !boxIsFragmented {
+	if splitHeight >= 0 {
+		newBox.Height = splitHeight
+	} else if discard || !boxIsFragmented {
 		// After finishBlockFormattingContext which may increment
 		// newBox.Height
 		newBox.Height = max(min(newBox.Height.V(), newBox.MaxHeight.V()), newBox.MinHeight.V())
@@ -1303,4 +1336,28 @@ func forcePageBreak(pageBreak string, context *layoutContext) bool {
 		return pageBreak == "page" || pageBreak == "left" || pageBreak == "right" || pageBreak == "recto" || pageBreak == "verso" || pageBreak == "column"
 	}
 	return pageBreak == "page" || pageBreak == "left" || pageBreak == "right" || pageBreak == "recto" || pageBreak == "verso"
+}
+
+// canSplitFixedHeight mówi, czy blok o podanej wysokości wolno podzielić między strony w miejscu, gdzie
+// kończy się strona: tylko zwykłe bloki w normalnym przepływie, bez kolumn, w układzie stronicowanym
+// i bez przycinania treści.
+func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float) bool {
+	box := box_.Box()
+	if !bo.BlockT.IsInstance(box_) || !box.IsInNormalFlow() || box.IsColumn || box.IsForRootElement {
+		return false
+	}
+	// Elementy flex i grid oraz treść kolumn mają własne algorytmy podziału; tam bloków nie tniemy.
+	if box.IsFlexItem || box.IsGridItem || context.inColumn {
+		return false
+	}
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf {
+		return false
+	}
+	if box.Style.GetOverflow() != "visible" || bo.IsMonolithic(box_) {
+		return false
+	}
+	if box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto" {
+		return false
+	}
+	return true
 }

@@ -367,7 +367,8 @@ func TestImagesRepeatTransparent(t *testing.T) {
 	assertPixelsEqual(t, "_\n_\n_", `
       <style>
         @page { size: 1px }
-        div { height: 100px; width: 100px; background: url(../resources_test/logo_small.png) }
+        /* gopdfgo: overflow: hidden, żeby blok wyższy niż strona nie był dzielony między strony */
+        div { height: 100px; width: 100px; overflow: hidden; background: url(../resources_test/logo_small.png) }
       </style>
       <div></div><div></div><div></div>`)
 }

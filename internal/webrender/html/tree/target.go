@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
@@ -28,6 +29,31 @@ type RemakeState struct {
 // following the box tree structure.
 // At each level, several boxes may be selected.
 type ResumeStack map[int]ResumeStack
+
+// gopdfgo: wznowienie bloku o podanej wysokości, którego dzieci zmieściły się już na poprzednich stronach.
+// Zamiast indeksu dziecka stos niesie wtedy pozostałą wysokość bloku, zapisaną jako klucz ujemny
+// (indeksy dzieci są nieujemne). W źródle takiego stanu nie było: blok wyższy niż strona wystawał poza nią.
+
+// remainderUnit to dokładność zapisu pozostałej wysokości: 1/64 piksela.
+const remainderUnit = 64
+
+// RemainderResume zwraca stos wznowienia dla bloku, któremu zostało remaining pikseli wysokości.
+func RemainderResume(remaining float64) ResumeStack {
+	return ResumeStack{-1 - int(math.Round(remaining*remainderUnit)): nil}
+}
+
+// Remainder zwraca pozostałą wysokość bloku, jeśli stos jest wznowieniem z [RemainderResume].
+func (r ResumeStack) Remainder() (float64, bool) {
+	if len(r) != 1 {
+		return 0, false
+	}
+	for k := range r {
+		if k < 0 {
+			return float64(-1-k) / remainderUnit, true
+		}
+	}
+	return 0, false
+}
 
 // Unpack returns the first element and the corresponding stack.
 // It will panic if the stack is empty.
