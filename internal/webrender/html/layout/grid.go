@@ -1588,10 +1588,17 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		skipRow, skipHeight = 0, pr.Float(0)
 		resumeAt            tree.ResumeStack
 	)
+	// gopdfgo: podział elementów siatki między strony. Gdy element nie mieści się na stronie, stos wznowienia
+	// niesie {wiersz: {indeks elementu: wznowienie, …}}; na następnej stronie układamy tylko dalszy ciąg
+	// tych elementów, a kolejne wiersze zaczynają się od nowej strony. W źródle ("TODO: Support
+	// fragmentation in grid items") wznowienie elementu było porzucane i jego dalsza część ginęła.
+	var rowSkip tree.ResumeStack // dalszy ciąg elementów wiersza skipRow
 	if skipStack != nil {
-		skipRow, _ = skipStack.Unpack()
+		skipRow, rowSkip = skipStack.Unpack()
 		skipHeight = (sum0(rowsSizes[:skipRow]) + pr.Float(len(rowsSizes[:skipRow])-1)*rowGap)
 	}
+	rowResume := tree.ResumeStack{} // elementy podzielone na tej stronie, według indeksu
+	resumedRow := -1
 	hasBroken := false
 	for i := skipRow; i < len(rowsPositions); i++ {
 		rowY := rowsPositions[i]
@@ -1626,6 +1633,21 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 		}
 	}
+	if rowSkip != nil {
+		// dalszy ciąg wiersza: tylko elementy, które zostały podzielone; reszta siatki od następnej strony
+		continued := thisPageChildren[:0:0]
+		for _, child := range children {
+			_, y, _, _ := childrenPositions[child].unpack()
+			if _, pending := rowSkip[findBoxIndex(box.Children, child)]; pending && y-implicitY1 == skipRow {
+				continued = append(continued, child)
+			}
+		}
+		thisPageChildren = continued
+		resumeRow, resumeAt = -1, nil
+		if skipRow+1 < len(rowsPositions) {
+			resumeRow, resumeAt = skipRow+1, tree.ResumeStack{skipRow + 1: nil}
+		}
+	}
 	if box.Height == pr.AutoF {
 		slice := resumeRow
 		if resumeRow == -1 {
@@ -1645,11 +1667,15 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		x, y, width, height := childrenPositions[child].unpack()
 		index := findBoxIndex(box.Children, child)
 		var childSkipStack tree.ResumeStack
-		if v, has := skipStack[y][index]; has {
-			childSkipStack = v
+		if rowSkip != nil && y-implicitY1 == skipRow {
+			childSkipStack = rowSkip[index]
 		}
 		child = bo.Deepcopy(child)
 		childB := child.Box()
+		// gopdfgo: szerokość i wysokość rozciąganego elementu są niżej wpisywane do stylu; styl jest
+		// współdzielony z pudełkiem źródłowym, więc bez kopii wartości z tej strony obowiązywałyby też na
+		// następnych (dalszy ciąg elementu dostawał wysokość całego wiersza).
+		childB.Style = childB.Style.Copy()
 		// gopdfgo: tablice ścieżek zaczynają się od pierwszej ścieżki niejawnej, więc współrzędną siatki
 		// (ujemną dla ścieżek przed siatką jawną) trzeba przesunąć; w źródle indeks ujemny kończył się
 		// paniką, a w Pythonie po cichu brał ścieżkę od końca.
@@ -1686,7 +1712,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if alignSelf.Has(pr.Auto) {
 			alignSelf = alignItems
 		}
-		if !blockAuto && alignSelf.Intersects(pr.Normal, pr.Stretch) {
+		if !blockAuto && alignSelf.Intersects(pr.Normal, pr.Stretch) && childSkipStack == nil {
 			if childB.Style.GetHeight().Tag == pr.Auto {
 				childB.Style.SetHeight(pr.FToPx(childHeight))
 			}
@@ -1700,11 +1726,17 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		parent.Box().PositionY = childB.PositionY
 		parent.Box().Width = widthF
 		parent.Box().Height = heightF
-		newChild, _, _ := blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
+		newChild, itemLayout, _ := blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
 			pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
 		if newChild != nil {
-			pageIsEmpty = false
-			// TODO: Support fragmentation in grid items.
+			if itemLayout.resumeAt != nil && bottomSpace > -pr.Inf {
+				if resumedRow == -1 || yi < resumedRow {
+					resumedRow, rowResume = yi, tree.ResumeStack{}
+				}
+				if yi == resumedRow {
+					rowResume[index] = itemLayout.resumeAt
+				}
+			}
 		} else {
 			// TODO: Support fragmentation in grid rows.
 			continue
@@ -1748,6 +1780,13 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			case marginTopAuto:
 				newChild.Translate(0, diff, false)
 			}
+		} else if itemLayout.resumeAt != nil || childSkipStack != nil {
+			// fragment elementu podzielonego między strony: nie rozciągamy go do wysokości całego wiersza
+			// i nie pozwalamy mu sięgać poniżej obszaru strony
+			if over := newChild.Box().PositionY + newChild.Box().MarginHeight() - (context.pageBottom - bottomSpace); over > 0 &&
+				bottomSpace > -pr.Inf && newChild.Box().Height != pr.AutoF {
+				newChild.Box().Height = max(newChild.Box().Height.V()-over, 0)
+			}
 		} else if alignSelf.Intersects(pr.Normal, pr.Stretch) {
 			newChild.Box().Height = max(childHeight, newChild.Box().Height.V())
 		} else {
@@ -1764,6 +1803,19 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if baseline == nil && y == implicitY1 {
 			baseline = findInFlowBaseline(newChild, false)
 		}
+	}
+
+	if resumedRow != -1 {
+		resumeAt = tree.ResumeStack{resumedRow: rowResume}
+		// fragment kontenera sięga dolnej krawędzi strony
+		box.Height = max(context.pageBottom-bottomSpace-box.ContentBoxY(), 0)
+	} else if rowSkip != nil {
+		// ostatni fragment wiersza: kontener kończy się za najniższym elementem
+		bottom := box.ContentBoxY()
+		for _, child := range newChildren {
+			bottom = max(bottom, child.Box().PositionY+child.Box().MarginHeight())
+		}
+		box.Height = bottom - box.ContentBoxY()
 	}
 
 	box_ = bo.CopyWithChildren(box_, newChildren)

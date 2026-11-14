@@ -682,3 +682,28 @@ func TestFlexRowColumnsSplitInParallel(t *testing.T) {
 		t.Errorf("element zakończony na stronie 1 powtórzony na stronie 2: %q", second)
 	}
 }
+
+// Elementy siatki wyższe niż strona dzielą się między strony równolegle i nic nie ginie; dalszy ciąg
+// elementu ma wysokość swojej treści, a nie całego wiersza.
+func TestGridItemsSplitAcrossPages(t *testing.T) {
+	const style = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px } p { margin: 0 } " +
+		".i { height: 50px; box-sizing: border-box; border: 1px solid #000 }</style>"
+	var left, right string
+	for i := 1; i <= 5; i++ {
+		left += fmt.Sprintf(`<div class="i">a%d</div>`, i)
+	}
+	for i := 1; i <= 4; i++ {
+		right += fmt.Sprintf(`<div class="i">b%d</div>`, i)
+	}
+	result := renderString(t, style+`<div style="display: grid; grid-template-columns: 1fr 1fr"><div>`+left+`</div><div>`+right+
+		`</div></div><p>koniec</p>`)
+	if result.Pages != 2 {
+		t.Errorf("%d stron, oczekiwane 2", result.Pages)
+	}
+	text := " " + string(extractText(t, result.PDF)) + " "
+	for _, want := range []string{"a1", "a5", "b1", "b4", "koniec"} {
+		if !strings.Contains(text, " "+want+" ") {
+			t.Errorf("brak %q w %q", want, text)
+		}
+	}
+}

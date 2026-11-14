@@ -776,6 +776,10 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			}
 			var skip int
 			skip, skipStack = skipStack.Unpack()
+			// kontenery flex i grid zapisują w stosie numer linii lub wiersza, nie indeks dziecka
+			if skip >= len(box.Box().Children) || bo.FlexContainerT.IsInstance(box) || bo.GridContainerT.IsInstance(box) {
+				break
+			}
 			box, parent = box.Box().Children[skip], box
 		}
 		parent.Box().Children = nil
@@ -1006,6 +1010,9 @@ func updatePageGroups(pageGroups *[]pageGroup, resumeAt tree.ResumeStack, nextPa
 			break // stan wewnętrzny układu (reszta bloku, linia flex), nie indeks dziecka
 		}
 		childIndex, childResumeAt = currentResumeAt.Unpack()
+		if childIndex >= len(currentElement.Box().Children) || bo.GridContainerT.IsInstance(currentElement) {
+			break // grid zapisuje w stosie numer wiersza, nie indeks dziecka
+		}
 		parentElement = currentElement
 		currentElement = currentElement.Box().Children[childIndex]
 		if childResumeAt == nil {

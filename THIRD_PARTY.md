@@ -217,6 +217,14 @@ Wspólne dla obu katalogów:
   (`finishedFlexItem`), żeby pozostałe zachowały miejsce i szerokość. W źródle układ linii kończył się na
   pierwszym podzielonym elemencie, a jego sąsiedzi trafiali dopiero na ostatnią stronę. Nie dotyczy kierunków
   `-reverse`. Sortowanie według `order` jest stabilne (`sort.SliceStable`; w źródle `sort.Slice`);
+- podział elementów siatki między strony, `html/layout/grid.go`: wznowienie elementu, który nie mieści się na
+  stronie, jest niesione w stosie jako {wiersz: {indeks elementu: wznowienie}}; następna strona układa dalszy
+  ciąg tych elementów, a kolejne wiersze zaczynają się od nowej strony. W źródle („TODO: Support fragmentation
+  in grid items”) wznowienie było porzucane i dalsza część elementu ginęła. Styl elementu jest kopiowany przed
+  wpisaniem wyliczonej szerokości i wysokości (w źródle zmiana trafiała do stylu współdzielonego między
+  stronami). `pages.go`: przejścia po stosie wznowienia nie schodzą w kontenery flex i grid, które zapisują
+  w nim numer linii lub wiersza. Ograniczenie: po dalszym ciągu wiersza reszta siatki zaczyna się od nowej
+  strony, nawet gdy zostało miejsce;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
