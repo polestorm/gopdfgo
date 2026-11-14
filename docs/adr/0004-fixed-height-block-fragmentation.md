@@ -13,9 +13,11 @@ w całości na następną stronę, a blok wyższy niż strona zostawiał wystaj�
 ## Decyzja
 
 1. Blok, który zmieściłby się na pustej stronie, jest przenoszony w całości na następną stronę.
-2. Blok wyższy niż obszar strony jest dzielony między strony; `break-inside: avoid` przenosi go najpierw na
+2. Blok, który jest pierwszą treścią na stronie i nie mieści się w jej reszcie (przed nim są tylko
+   obramowania i odstępy przodków), jest dzielony: nie da się go przenieść, a inaczej wystawałby poza stronę.
+3. Blok wyższy niż obszar strony jest dzielony między strony; `break-inside: avoid` przenosi go najpierw na
    początek strony, a tam i tak jest dzielony.
-3. Zachowanie przeglądarek (przecinanie także bloku, który zmieściłby się na pustej stronie) może w przyszłości
+4. Zachowanie przeglądarek (przecinanie także bloku, który zmieściłby się na pustej stronie) może w przyszłości
    zostać dodane jako opcja renderowania; domyślne pozostaje przenoszenie.
 
 Kod: `internal/webrender/html/layout/block.go` (`canSplitFixedHeight`, warunek `splittable`

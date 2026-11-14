@@ -518,7 +518,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	splitHeight := pr.Float(-1)
 	// Gdy dzieci bloku były dzielone między strony, nie wiemy, ile wysokości zużyły strony poprzednie;
 	// takiego bloku nie dzielimy (zachowanie źródła).
-	splittable := resumedRemainder || (isStart && box.BorderHeight() > context.pageHeight)
+	// Dzielimy też blok, który jest pierwszą treścią na stronie: nie da się go przenieść, więc inaczej
+	// wystawałby poza stronę (przed nim są tylko obramowania i odstępy przodków).
+	splittable := resumedRemainder || (isStart && (box.BorderHeight() > context.pageHeight || (pageIsEmpty && box.IsInNormalFlow())))
 	// break-inside: avoid nie da się spełnić dla bloku wyższego niż strona; taki blok przenosimy najpierw
 	// na początek strony i dopiero tam dzielimy.
 	if splittable && !resumedRemainder && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {

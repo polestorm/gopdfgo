@@ -292,6 +292,9 @@ func TestTallFixedHeightBlockIsSplit(t *testing.T) {
 		{"break-inside: avoid", `<p>start</p><div style="height: 300px; break-inside: avoid; background: #9cf"></div><p>koniec</p>`, 3},
 		// blok, który mieści się na stronie, jest przenoszony w całości
 		{"mieści się na stronie", `<p>start</p><div style="height: 150px; background: #9cf"></div>`, 2},
+		// blok niższy niż strona, ale pierwszy na stronie (przed nim tylko odstęp przodka): nie da się go
+		// przenieść, więc jest dzielony zamiast wystawać poza stronę
+		{"pierwszy na stronie", `<div style="padding-top: 100px"><div style="height: 120px; background: #9cf"></div></div><p>koniec</p>`, 2},
 		// overflow inny niż visible: bloku nie dzielimy
 		{"overflow: hidden", `<div style="height: 400px; overflow: hidden; background: #9cf"></div>`, 1},
 	}

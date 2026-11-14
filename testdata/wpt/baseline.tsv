@@ -48,10 +48,10 @@ fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentat
 fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	strony 1 vs 3
 fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	strony 1 vs 3
 fail	flex-fragmentation	css/css-flexbox/inline-flexbox-vertical-rl-image-flexitem-crash-print.html	
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-1-print.html	strona 2: różne piksele 9867
+fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-1-print.html	strony 2 vs 3
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-2-print.html	
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-3-print.html	strona 2: różne piksele 27678
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-4-print.html	strona 2: różne piksele 27678
+fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-3-print.html	strona 1: różne piksele 8448
+fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-4-print.html	strona 1: różne piksele 8448
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-5-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-6-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-7-print.html	
@@ -132,7 +132,7 @@ fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strony 
 fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strony 2 vs 4
 pass	monolithic-overflow	css/css-page/monolithic-overflow-030-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-031-print.html	strony 8 vs 5
-fail	monolithic-overflow	css/css-page/monolithic-overflow-032-print.tentative.html	strony 5 vs 7
+fail	monolithic-overflow	css/css-page/monolithic-overflow-032-print.tentative.html	strony 6 vs 7
 pass	named-pages	css/css-page/page-name-000-print.html	
 pass	named-pages	css/css-page/page-name-001-print.html	
 pass	named-pages	css/css-page/page-name-002-print.html	
@@ -290,8 +290,8 @@ fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-1-
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-2-print.html	
 fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-3-print.html	strony 2 vs 3
 fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-4-print.html	strona 1: różne piksele 12349
-fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-5-print.html	strona 1: różne piksele 9540
-fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-6-print.html	strona 1: różne piksele 9540
+fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-5-print.html	strony 4 vs 2
+fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-6-print.html	strony 4 vs 2
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-7-print.html	
 fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-8-print.html	strony 4 vs 3
 pass	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-1-print.html	
@@ -320,16 +320,16 @@ fail	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentatio
 fail	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-045-print.html	strony 3 vs 2
 fail	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-046-print.html	strona 1: różne piksele 4800
 fail	table-fragmentation	css/css-break/table/repeated-section/fixedpos-in-footer-forced-break-print.html	strona 1: różne piksele 1680
-fail	table-fragmentation	css/css-break/table/table-fragmentation-001a-print.html	strona 1: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-001b-print.html	strona 1: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-001c-print.html	strona 1: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-001d-print.html	strona 1: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-002a-print.html	strona 2: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-002b-print.html	strona 2: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-002c-print.html	strona 2: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-002d-print.html	strona 2: różne piksele 28224
-fail	table-fragmentation	css/css-break/table/table-fragmentation-003a-print.html	strony 1 vs 3
-fail	table-fragmentation	css/css-break/table/table-fragmentation-003b-print.html	strony 1 vs 3
+pass	table-fragmentation	css/css-break/table/table-fragmentation-001a-print.html	
+fail	table-fragmentation	css/css-break/table/table-fragmentation-001b-print.html	strona 1: różne piksele 2304
+fail	table-fragmentation	css/css-break/table/table-fragmentation-001c-print.html	strony 2 vs 3
+fail	table-fragmentation	css/css-break/table/table-fragmentation-001d-print.html	strony 2 vs 3
+pass	table-fragmentation	css/css-break/table/table-fragmentation-002a-print.html	
+fail	table-fragmentation	css/css-break/table/table-fragmentation-002b-print.html	strony 4 vs 3
+fail	table-fragmentation	css/css-break/table/table-fragmentation-002c-print.html	strona 2: różne piksele 17280
+fail	table-fragmentation	css/css-break/table/table-fragmentation-002d-print.html	strona 2: różne piksele 11520
+fail	table-fragmentation	css/css-break/table/table-fragmentation-003a-print.html	strony 2 vs 3
+fail	table-fragmentation	css/css-break/table/table-fragmentation-003b-print.html	strony 2 vs 3
 fail	table-fragmentation	css/css-break/table/table-fragmentation-003c-print.html	strony 1 vs 3
 fail	table-fragmentation	css/css-break/table/table-fragmentation-003d-print.html	strony 1 vs 3
 pass	table-fragmentation	css/css-break/table/table-row-break-inside-avoid-later-forced-break-print.html	
