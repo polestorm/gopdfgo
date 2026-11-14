@@ -277,6 +277,13 @@ Wspólne dla obu katalogów:
   `html/tree/html5_ua.css` (`fieldset > legend` kurczy się do treści). Pierwszy element `legend` leży na górnym
   obramowaniu ramki, a obramowanie jest pod nim przerwane; w źródle legenda była zwykłym blokiem wewnątrz
   ramki. Uproszczenie: wysokość legendy przyjmowana jak dla jednego wiersza tekstu;
+- pamięć stylów, `html/tree/style.go`: (1) `newStyleFor` buduje kaskadę raz dla każdego ciągu dopasowanych
+  reguł (`sharedCascade`, `matchResult.appendSignature`) i dzieli ją między elementy; w źródle każdy element
+  dostawał własną mapę, także 28 tys. identycznych komórek tabeli. Elementy z atrybutem `style` lub atrybutami
+  prezentacyjnymi mają kaskadę własną jak dotąd. (2) `AnonymousStyle.Get` nie zapisuje wartości odziedziczonych
+  i początkowych; w źródle każde pudełko anonimowe (na przykład liniowe) trzymało tablicę na wszystkie
+  186 właściwości. Skutek uboczny: wartość odziedziczona jest czytana od rodzica przy każdym odwołaniu, a nie
+  zamrażana przy pierwszym. Pomiar w `docs/feature-audit.md`;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

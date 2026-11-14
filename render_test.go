@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func testFonts(t *testing.T) []Font {
+func testFonts(t testing.TB) []Font {
 	t.Helper()
 	data, err := os.ReadFile("testdata/fonts/NotoSans-Regular.ttf")
 	if err != nil {

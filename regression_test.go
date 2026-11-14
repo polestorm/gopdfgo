@@ -804,3 +804,33 @@ func TestFieldsetLegendOnBorder(t *testing.T) {
 		t.Errorf("brak obramowania po prawej stronie legendy (wiersz %d)", border)
 	}
 }
+
+// Elementy dopasowane przez te same reguły dzielą jedną kaskadę. Element z
+// atrybutem style nie może ani jej przejąć, ani zmienić rodzeństwu: dokument
+// z atrybutem musi dać ten sam PDF co dokument, w którym tę samą deklarację
+// niesie reguła dopasowana tylko do tego elementu (bez id, bo id tworzy kotwicę w PDF).
+func TestSharedCascadeKeepsOwnDeclarations(t *testing.T) {
+	const rules = `<style>p { margin: 4px 0; color: navy } p::before { content: "- " } .wide { letter-spacing: 2px }</style>`
+	withAttribute := rules + `<p class="wide">pierwszy</p><p class="wide" style="margin-left: 50px; color: green">drugi</p><p class="wide">trzeci</p>`
+	withRule := rules + `<style>p.wide.own { margin-left: 50px; color: green }</style>` +
+		`<p class="wide">pierwszy</p><p class="wide own">drugi</p><p class="wide">trzeci</p>`
+	options := Options{Fonts: testFonts(t)}
+	first, err := Render(t.Context(), []byte(withAttribute), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Render(t.Context(), []byte(withRule), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first.PDF, second.PDF) {
+		t.Error("atrybut style i równoważna reguła dały różne dokumenty")
+	}
+	plain, err := Render(t.Context(), []byte(rules+`<p class="wide">pierwszy</p><p class="wide">drugi</p><p class="wide">trzeci</p>`), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(first.PDF, plain.PDF) {
+		t.Error("deklaracje z atrybutu style nie zostały zastosowane")
+	}
+}

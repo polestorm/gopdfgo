@@ -14,11 +14,13 @@ package tree
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
+	"unsafe"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/counters"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
@@ -132,13 +134,43 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	// styles before their children, for inheritance.
 
 	// Iterate on all elements, even if there is no cascaded style for them.
+	// gopdfgo: elementy dopasowane przez ten sam ciąg reguł (wiersze i komórki
+	// dużej tabeli) mają identyczną kaskadę, więc dzielą jedną mapę zamiast
+	// budować własną. Mapa po zbudowaniu jest tylko czytana. Elementów z
+	// atrybutem style albo atrybutami prezentacyjnymi to nie dotyczy: ich
+	// kaskada zawiera deklaracje własne.
+	sharedCascades := map[string][]sharedCascade{}
+	var (
+		signature []byte
+		matches   [][]matchResult
+	)
 	iter := html.Root.Iter()
 	for iter.HasNext() {
 		element := iter.Next()
-		for _, sh := range sheets {
+		_, hasOwnDeclarations := out.cascadedStyles[element.ToKey("")]
+		signature, matches = signature[:0], matches[:0]
+		for i, sh := range sheets {
+			matched := sh.sheet.matcher.match(element.AsHtmlNode())
+			matches = append(matches, matched)
+			for _, sel := range matched {
+				signature = sel.appendSignature(signature, i)
+			}
+		}
+		if !hasOwnDeclarations {
+			if shared, ok := sharedCascades[string(signature)]; ok {
+				for _, sc := range shared {
+					out.cascadedStyles[element.ToKey(sc.pseudoType)] = sc.style
+				}
+				out.setComputedStyles(element, (*utils.HTMLNode)(element.Parent), html.Root, "", html.BaseUrl,
+					targetColllector)
+				continue
+			}
+		}
+		var built []sharedCascade
+		for i, sh := range sheets {
 			// sheet, origin, sheetSpecificity
 			// Add declarations for matched elements
-			matchedSelectors := sh.sheet.matcher.match(element.AsHtmlNode())
+			matchedSelectors := matches[i]
 
 			for _, sel := range matchedSelectors {
 				// specificity, order, pseudoType, declarations = selector
@@ -151,6 +183,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 				if !in {
 					style = cascadedStyle{}
 					out.cascadedStyles[key] = style
+					built = append(built, sharedCascade{pseudoType: sel.pseudoType, style: style})
 				}
 
 				for _, decl := range sel.payload {
@@ -163,6 +196,9 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 					}
 				}
 			}
+		}
+		if !hasOwnDeclarations {
+			sharedCascades[string(signature)] = built
 		}
 		out.setComputedStyles(element, (*utils.HTMLNode)(element.Parent), html.Root, "", html.BaseUrl,
 			targetColllector)
@@ -192,6 +228,26 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	}
 
 	return &out
+}
+
+// sharedCascade to kaskada jednego (pseudo)elementu dzielona przez wszystkie
+// elementy o tym samym ciągu dopasowanych reguł.
+type sharedCascade struct {
+	pseudoType string
+	style      cascadedStyle
+}
+
+// appendSignature dopisuje do podpisu to, od czego zależy wkład dopasowania
+// w kaskadę: arkusz, blok deklaracji, wagę selektora i pseudoelement.
+func (m matchResult) appendSignature(signature []byte, sheet int) []byte {
+	signature = binary.LittleEndian.AppendUint32(signature, uint32(sheet))
+	signature = binary.LittleEndian.AppendUint64(signature, uint64(uintptr(unsafe.Pointer(unsafe.SliceData(m.payload)))))
+	signature = binary.LittleEndian.AppendUint32(signature, uint32(len(m.payload)))
+	for _, part := range m.specificity {
+		signature = binary.LittleEndian.AppendUint32(signature, uint32(part))
+	}
+	signature = append(signature, m.pseudoType...)
+	return append(signature, 0)
 }
 
 // Set the computed values of styles to “Element“.
@@ -608,15 +664,6 @@ func newAnonymousStyle(parentStyle pr.ElementStyle) *AnonymousStyle {
 		out.cache = pr.NewTextRatioCache()
 	}
 
-	// border-*-style is none, so border-width computes to zero.
-	// Other than that, properties that would need computing are
-	// border-*-color, but they do not apply.
-	out.propsCache.Set(pr.PBorderTopWidth.Key(), pr.TaggedDim{})
-	out.propsCache.Set(pr.PBorderBottomWidth.Key(), pr.TaggedDim{})
-	out.propsCache.Set(pr.PBorderLeftWidth.Key(), pr.TaggedDim{})
-	out.propsCache.Set(pr.PBorderRightWidth.Key(), pr.TaggedDim{})
-	out.propsCache.Set(pr.POutlineWidth.Key(), pr.TaggedDim{})
-
 	out.specified.Display = out.GetDisplay()
 	out.specified.Float = out.GetFloat()
 	out.specified.Position = out.GetPosition()
@@ -640,20 +687,27 @@ func (a *AnonymousStyle) Get(key pr.PropKey) pr.CssProperty {
 		return v
 	}
 
-	var value pr.CssProperty
+	// gopdfgo: wartości odziedziczonych i początkowych nie zapisujemy. Ich
+	// wyznaczenie to jedno odwołanie, a tablica na wszystkie właściwości
+	// zajmuje ok. 3 kB na każde pudełko anonimowe (samych pudełek liniowych
+	// jest w dużej tabeli tyle, ile komórek). Tablica
+	// powstaje dopiero przy jawnym ustawieniu wartości.
+	switch key.KnownProp {
+	case pr.PBorderTopWidth, pr.PBorderBottomWidth, pr.PBorderLeftWidth, pr.PBorderRightWidth, pr.POutlineWidth:
+		// border-*-style is none, so border-width computes to zero.
+		// Other than that, properties that would need computing are
+		// border-*-color, but they do not apply.
+		return pr.TaggedDim{}
+	}
 	if pr.Inherited.Has(key.KnownProp) || key.Var != "" {
-		value = a.parentStyle.Get(key)
+		return a.parentStyle.Get(key)
 	} else if key.KnownProp == pr.PPage {
 		// page is not inherited but taken from the ancestor if 'auto'
-		value = a.parentStyle.Get(key)
+		return a.parentStyle.Get(key)
 	} else if key.KnownProp.IsTextDecoration() {
-		value = textDecoration(key.KnownProp, pr.InitialValues[key.KnownProp], a.parentStyle.Get(key), false)
-	} else {
-		value = pr.InitialValues[key.KnownProp]
+		return textDecoration(key.KnownProp, pr.InitialValues[key.KnownProp], a.parentStyle.Get(key), false)
 	}
-
-	a.propsCache.Set(key, value) // caches the value
-	return value
+	return pr.InitialValues[key.KnownProp]
 }
 
 // ResolveColor return the color for `key`, replacing

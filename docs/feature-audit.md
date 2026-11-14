@@ -346,3 +346,28 @@ Reftesty druku: 180 z 340. Korpus: 21 dokumentów, z czego trzy nowe porównane 
 Pełny sondaż po przeniesieniu pudełek pozycjonowanych poniżej strony i po poprawce krojenia (2026-11-14,
 ostatni pomiar dnia): 6468 z 9135 (6059 ściśle, 409 krawędziowo), 0 straconych, 0 błędów renderowania
 i 0 przekroczeń limitu czasu. Reftesty druku: 183 z 340.
+
+## Czas i pamięć dużych dokumentów (2026-11-14)
+
+Pomiar: `go test -run xxx -bench LargeTable -benchtime 5x .` (`benchmark_test.go`, tabela 4000 wierszy
+i 7 kolumn, ok. 32 tys. elementów, 130 stron A4; macOS arm64, 10 rdzeni, go1.26.6). Liczby to średnia z pięciu
+przebiegów; „pamięć przydzielona” to suma wszystkich przydziałów w trakcie renderowania, nie szczyt zajętości.
+
+| stan | czas | pamięć przydzielona | przydziały |
+|---|---|---|---|
+| przed (commit `4320f84`) | 1,46 s | 2239 MB | 9,93 mln |
+| po współdzieleniu kaskady i odchudzeniu stylów anonimowych | 1,32 s | 1676 MB | 9,36 mln |
+
+Czas nie jest problemem (ok. 10 ms na stronę). Pamięć jest: ok. 0,4 MB przydziałów na wiersz tabeli, a szczyt zajętości
+procesu dla tego dokumentu to ponad 1 GB (pomiar wstępny narzędziem wiersza poleceń przed zmianą: 2,0 GB RSS).
+Profil przed zmianą wskazywał style: 38% przydziałów to tablice wartości obliczonych (`propsCache.setKnown`),
+24% to mapy kaskady budowane osobno dla każdego elementu. Po zmianie mapy kaskady są wspólne dla elementów
+o tym samym ciągu dopasowanych reguł, a style pudełek anonimowych nie trzymają własnej tablicy wartości.
+Największą pozostałą pozycją są tablice wartości obliczonych elementów (ok. 37% przydziałów). Próba przydzielania
+ich od razu w pełnym rozmiarze pogorszyła wynik (1756 MB wobec 1605 MB w pomiarze `runtime.MemStats`), bo
+większość stylów czyta tylko właściwości o niskich numerach; zmiana została cofnięta. Dalszy zysk wymagałby
+współdzielenia całych stylów obliczonych między elementami o tej samej kaskadzie i tym samym rodzicu, co
+koliduje z tym, że układ modyfikuje style w miejscu.
+
+Pełny sondaż ekranowy po tej zmianie i po rundzie legendy `fieldset`: 6468 z 9135 (6059 ściśle, 409 krawędziowo),
+0 straconych, 0 zyskanych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
