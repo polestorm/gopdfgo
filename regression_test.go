@@ -730,3 +730,26 @@ func TestContainerContinuesWithTallFloat(t *testing.T) {
 		}
 	}
 }
+
+// Panel boczny w wierszu flex, rozciągany do wysokości linii, ciągnie się przez strony razem z sąsiednią
+// kolumną, która dzieli się między strony: jego tło jest na każdej stronie, na której jest treść kolumny.
+func TestStretchedFlexItemContinuesAcrossPages(t *testing.T) {
+	var text string
+	for i := 1; i <= 8; i++ {
+		text += fmt.Sprintf("<p>A%d lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor</p>", i)
+	}
+	result := renderString(t, "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 10px } p { margin: 0 0 4px }</style>"+
+		`<div style="display: flex; gap: 10px"><div style="flex: 2">`+text+`</div><div style="flex: 1; background: #fc0"><p>PANEL</p></div></div>`)
+	if result.Pages < 2 {
+		t.Fatalf("%d stron, oczekiwane co najmniej 2", result.Pages)
+	}
+	for number, ppm := range rasterize(t, result.PDF, t.TempDir(), "panel") {
+		header, data := splitPPM(ppm)
+		var width int
+		fmt.Sscan(strings.Fields(header)[1], &width)
+		i := (30*width + 250) * 3 // punkt w panelu, 10 px pod górną krawędzią obszaru strony
+		if !(data[i] > 200 && data[i+1] > 170 && data[i+2] < 80) {
+			t.Errorf("strona %d: brak tła panelu (kolor %v)", number+1, data[i:i+3])
+		}
+	}
+}

@@ -225,7 +225,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		skipStack = nil
 		for position, child := range children {
 			if resume, inLine := lineSkip[position+skip]; inLine && resume == nil && child.Box().IsFlexItem {
-				children[position] = finishedFlexItem(child)
+				children[position] = finishedFlexItem(child, isStretchedFlexItem(child, box))
 			}
 		}
 	}
@@ -1424,6 +1424,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			for _, child := range lineOverflow {
 				if over := child.Box().PositionY + child.Box().MarginHeight() - (context.pageBottom - bottomSpace); over > 0 && child.Box().Height != pr.AutoF {
 					child.Box().Height = max(child.Box().Height.V()-over, 0)
+					// element ciągnie się na następną stronę: bez dolnego obramowania i odstępu na tej
+					bottomDecoration := child.Box().BorderBottomWidth.V() + child.Box().PaddingBottom.V() + child.Box().MarginBottom.V()
+					child.RemoveDecoration(child.Box(), false, true)
+					child.Box().Height = child.Box().Height.V() + bottomDecoration
 				}
 			}
 		}
@@ -1585,18 +1589,37 @@ func parallelLineState(stack tree.ResumeStack) map[int]tree.ResumeStack {
 	return out
 }
 
-// finishedFlexItem zwraca pustą, niewidoczną kopię elementu flex, który skończył się na poprzedniej stronie.
-func finishedFlexItem(item Box) Box {
+// finishedFlexItem zwraca pustą kopię elementu flex, którego treść skończyła się na poprzedniej stronie.
+// Element rozciągany do wysokości linii (stretched) zostaje widoczny, bez górnego obramowania i odstępu:
+// jego tło i boczne obramowanie ciągną się obok sąsiada, który nadal się dzieli. Pozostałe są niewidoczne
+// i tylko trzymają miejsce.
+func finishedFlexItem(item Box, stretched bool) Box {
 	empty := item.Copy()
 	if bo.ParentT.IsInstance(item) {
 		empty = bo.CopyWithChildren(item, nil)
 	}
 	style := item.Box().Style.Copy()
-	style.SetVisibility("hidden")
 	style.SetHeight(pr.TagToV(pr.Auto))
 	style.SetMinHeight(pr.ZeroPixels.Tagged())
+	if stretched {
+		style.SetBorderTopWidth(pr.ZeroPixels.Tagged())
+		style.SetPaddingTop(pr.ZeroPixels.Tagged())
+		style.SetMarginTop(pr.ZeroPixels.Tagged())
+	} else {
+		style.SetVisibility("hidden")
+	}
 	empty.Box().Style = style
 	return empty
+}
+
+// isStretchedFlexItem mówi, czy element wiersza flex jest rozciągany do wysokości linii: align-self (albo
+// align-items kontenera) to stretch lub normal, a wysokość elementu jest auto.
+func isStretchedFlexItem(item Box, container *bo.BoxFields) bool {
+	alignSelf := item.Box().Style.GetAlignSelf()
+	if alignSelf.Has(pr.Auto) {
+		alignSelf = container.Style.GetAlignItems()
+	}
+	return alignSelf.Intersects(pr.Normal, pr.Stretch) && item.Box().Style.GetHeight().Tag == pr.Auto
 }
 
 // clipsBlockOverflow mówi, czy kontener o podanej wysokości przycina treść: to, co się w nim nie mieści,

@@ -259,6 +259,10 @@ Wspólne dla obu katalogów:
   całej linii; element rozciągnięty (`stretch`) obok sąsiada, który dzieli się między strony, jest przycinany
   do strony zamiast przenosić cały kontener. Znalezione porównaniem z Chromium na nowym dokumencie korpusu
   `19-flex-grid-pagination`;
+- `html/layout/flex.go` (`finishedFlexItem`, `isStretchedFlexItem`): element wiersza flex rozciągany do
+  wysokości linii, którego treść skończyła się wcześniej, pozostaje widoczny na dalszych stronach (tło
+  i boczne obramowanie, bez górnego), dopóki sąsiad z tej samej linii nadal się dzieli; na stronie, na której
+  się nie kończy, nie ma dolnego obramowania;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
