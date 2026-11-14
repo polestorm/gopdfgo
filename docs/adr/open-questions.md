@@ -59,7 +59,8 @@ konkretnego odbiorcy.
     po mapach. Warianty: (a) poprawka upstream i czekanie, (b) własna kopia pakietów `model` i `contentstream`
     z sortowaniem kluczy, (c) backend na pakietach folio, które mają determinizm w założeniach. Propozycja: (b)
     teraz jako mała łatka plus zgłoszenie upstream, (c) rozważyć przy PDF/A.
-16. **Blok o podanej wysokości, który nie mieści się w reszcie strony.** Od 2026-11-14 blok wyższy niż cały
+16. ~~**Blok o podanej wysokości, który nie mieści się w reszcie strony.**~~ Rozstrzygnięte 2026-11-14
+    (ADR 0004): przenoszenie w całości; zachowanie przeglądarek ewentualnie jako opcja w przyszłości. Zapis rozważań: Od 2026-11-14 blok wyższy niż cały
     obszar strony jest dzielony między strony (wcześniej wystawał poza stronę i jego dalsza część ginęła).
     Blok, który zmieściłby się na pustej stronie, jest nadal przenoszony w całości na następną, jak
     w WeasyPrint. Przeglądarki dzielą także taki blok w miejscu końca strony, o ile nie ma

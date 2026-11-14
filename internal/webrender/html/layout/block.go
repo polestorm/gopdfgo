@@ -511,8 +511,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// jest dzielony: na tej stronie zostaje część do dolnej krawędzi, reszta wysokości przechodzi na
 	// następną (CSS Fragmentation 3 § 5.1). W źródle blok wystawał poza stronę i jego dalsza część ginęła.
 	// Dzielimy tylko bloki wyższe niż obszar strony, czyli takie, które nie zmieszczą się na żadnej;
-	// blok, który mieści się na stronie, jest jak dotąd przenoszony w całości na następną (pytanie 16
-	// w docs/adr/open-questions.md).
+	// blok, który mieści się na stronie, jest przenoszony w całości na następną (ADR 0004).
 	splitHeight := pr.Float(-1)
 	// Gdy dzieci bloku były dzielone między strony, nie wiemy, ile wysokości zużyły strony poprzednie;
 	// takiego bloku nie dzielimy (zachowanie źródła).
