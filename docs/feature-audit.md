@@ -331,3 +331,8 @@ Pełny sondaż po rundach stronicowania flex, grid i treści wylewającej się (
 Dokument korpusu `19-flex-grid-pagination` (dodany 2026-11-14): pięć sekcji z flex i grid przechodzącymi przez
 granice stron. Po poprawkach ma 13 stron jak w Chromium i ten sam rozkład treści na stronach; jedyna różnica
 to karty o stałej wysokości na granicy strony, które Chromium przecina, a gopdfgo przenosi w całości (ADR 0004).
+
+Dokumenty `20-invoice` (faktura, 3 strony, tabela 46 pozycji z powtarzanym nagłówkiem) i `21-mixed-report`
+(obrazy opływane tekstem, listy zagnieżdżone, komórki scalone, kolumny; 3 strony) dodane 2026-11-14 zgadzają się
+z Chromium od pierwszego renderowania: ta sama liczba stron i ta sama treść na każdej; w `21-mixed-report`
+wszystkie 28 pasów tuszu pierwszej strony leżą w tych samych miejscach z dokładnością do 2 pikseli (96 dpi).

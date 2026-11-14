@@ -19,7 +19,7 @@ czy sforkować. Szczegóły w `docs/landscape.md` i `docs/adr/open-questions.md`
 | `docs/building-blocks.md` | Inwentarz bibliotek Go do użycia, gdyby silnik powstawał od zera | planujesz własną implementację |
 | `docs/estimates.md` | Rozmiar binarki, pamięć, pracochłonność dla trzech strategii; ocena wariantu „tylko PDF” | szacujesz koszt |
 | `docs/engine-fit.md` | Które pozycje „musi” obsługuje każdy z trzech silników Go (ocena z czytania kodu) | wybierasz strategię po korpusie |
-| `testdata/README.md` | Korpus: 20 dokumentów własnych, próbki WeasyPrint, testy druku z WPT; format oczekiwań | uruchamiasz albo rozszerzasz testy |
+| `testdata/README.md` | Korpus: 21 dokumentów własnych, próbki WeasyPrint, testy druku z WPT; format oczekiwań | uruchamiasz albo rozszerzasz testy |
 | `docs/benchmark.md` | Wyniki forka webrender na korpusie: dokumenty, próbki, reftesty WPT, wady warstwy PDF | oceniasz, co trzeba naprawić |
 | `docs/feature-audit.md` | Stan funkcji: rozmiar w binarce, sondaż 9135 reftestów, paniki, ocena grid; poprawić, zostawić czy wyłączyć | decydujesz, czym zająć się dalej |
 | `cmd/gopdfgo` | Polecenie: plik HTML → PDF | chcesz wyrenderować dokument z wiersza poleceń |

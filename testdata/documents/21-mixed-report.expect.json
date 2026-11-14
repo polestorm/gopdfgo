@@ -1,0 +1,32 @@
+{
+  "title": "Raport z treścią mieszaną",
+  "level": "must",
+  "covers": [
+    "U1, U2",
+    "scope: float z opływaniem, listy zagnieżdżone, rowspan/colspan, caption, blockquote, pre, dl w siatce, columns, figure"
+  ],
+  "pages": 3,
+  "checks": [
+    "Trzy strony A4; sekcje 1–3 na pierwszej, 4–5 na drugiej, 6 na trzeciej.",
+    "Sekcja 1: niebieski prostokąt po lewej i zielony po prawej, tekst akapitów F i G opływa oba.",
+    "Sekcja 2: lista numerowana z podlistą literową i punktowaną; numeracja 1, 2 oraz a, b.",
+    "Sekcja 3: tabela z podpisem nad nią; komórka „Obszar” obejmuje dwa wiersze nagłówka, „Kwartał III” i „Kwartał IV” po dwie kolumny, „Produkcja” dwa wiersze.",
+    "Sekcja 4: cytat z niebieską kreską po lewej; kod czcionką o stałej szerokości z zachowanymi wcięciami; definicje w dwóch kolumnach (termin pogrubiony).",
+    "Sekcja 5: akapity K1–K9 w dwóch kolumnach z linią między nimi; „PO-KOLUMNACH” pod kolumnami na całą szerokość.",
+    "Sekcja 6: rysunek z podpisem nie jest oddzielony od podpisu granicą strony."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-14",
+    "pages": 3,
+    "pageStarts": [
+      "Raport z treścią mieszaną",
+      "Kwartał III Kwartał IV",
+      "6. Rysunek z podpisem"
+    ],
+    "deviations": [
+      "Chromium nie obsługuje pól marginesowych @page, więc nie ma numeru strony."
+    ]
+  }
+}
