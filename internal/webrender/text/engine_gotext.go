@@ -509,8 +509,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		input.FontFeatures = newFeatures(defaults.list())
 
 		// shape !
-		output := fc.shaper.Shape(input)
-		outputs[i] = output
+		outputs[i] = shapePrecisely(&fc.shaper, input)
 	}
 
 	// do we have some tabs ?
@@ -976,6 +975,40 @@ func AlignTabs(l shaping.Line, text []rune, columnWidth, lineOffset fixed.Int26_
 		applyTabs(&l[i], text, columnWidth, runsAdvance)
 		runsAdvance += l[i].Advance
 	}
+}
+
+// shapingPrecision to mnożnik rozmiaru fontu na czas kształtowania tekstu.
+const shapingPrecision = 64
+
+// shapePrecisely kształtuje tekst w rozmiarze podanym z dokładnością do 1/64 piksela.
+//
+// gopdfgo: biblioteka go-text zaokrągla rozmiar fontu w górę do całych pikseli (Size.Ceil()), więc tekst
+// 13,33 px (10 pt) był składany z szerokościami znaków jak dla 14 px, o 5% za szeroko. Kształtujemy więc
+// w rozmiarze 64 razy większym i dzielimy wynik; błąd zaokrąglenia spada poniżej 0,1%. W źródle ten sam
+// zabieg był stosowany tylko przy pomiarze pojedynczych znaków (shapeRune).
+func shapePrecisely(shaper *shaping.HarfbuzzShaper, input shaping.Input) shaping.Output {
+	size := input.Size
+	input.Size = size * shapingPrecision
+	out := shaper.Shape(input)
+	scale := func(v fixed.Int26_6) fixed.Int26_6 {
+		if v < 0 {
+			return -((-v + shapingPrecision/2) / shapingPrecision)
+		}
+		return (v + shapingPrecision/2) / shapingPrecision
+	}
+	for i := range out.Glyphs {
+		g := &out.Glyphs[i]
+		g.Width, g.Height = scale(g.Width), scale(g.Height)
+		g.XBearing, g.YBearing = scale(g.XBearing), scale(g.YBearing)
+		g.Advance, g.XAdvance, g.YAdvance = scale(g.Advance), scale(g.XAdvance), scale(g.YAdvance)
+		g.XOffset, g.YOffset = scale(g.XOffset), scale(g.YOffset)
+	}
+	out.Size = size
+	out.LineBounds.Ascent = scale(out.LineBounds.Ascent)
+	out.LineBounds.Descent = scale(out.LineBounds.Descent)
+	out.LineBounds.Gap = scale(out.LineBounds.Gap)
+	out.RecalculateAll()
+	return out
 }
 
 // roundMetric zaokrągla wysokość nad i pod linią bazową do całych pikseli CSS.

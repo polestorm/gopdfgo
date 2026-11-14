@@ -289,3 +289,12 @@ Bez regresji: 90 testów źródłowych flex i 952 reftesty flexbox (390 zaliczon
 2. Koszt zagnieżdżenia flex i kolumn (pkt 6); z 27 przekroczeń czasu zostało 11, wszystkie w kolumnach.
 3. Powtórka sondażu i szukanie kolejnych wspólnych przyczyn (jak CDATA), zaczynając od obszarów 0–21%.
 4. Dopiero potem decyzje o dokańczaniu algorytmów (grid, flex, tabele) na podstawie oczyszczonych liczb.
+
+## Porównanie korpusu z Chromium (od 2026-11-14)
+
+Miara pomocnicza: dla każdego dokumentu z `testdata/documents` dopasowujemy słowa (strona, tekst) naszego PDF
+do wydruku referencyjnego z Chromium i liczymy, ile leży w tym samym miejscu z dokładnością do 1,5 pt. Pierwszy
+pomiar ujawnił dwa błędy, których reftesty W3C nie pokazują, bo test i wzorzec renderuje ten sam silnik:
+rozmiar fontu zaokrąglany w górę do całych pikseli (tekst 10 pt o 5% za szeroki) i pola formularza jako bloki.
+Po poprawkach np. `03-report-svg-chart` ma 127 słów zgodnych na 141 (wcześniej 64). Pozostałe różnice to
+głównie przesunięcia w pionie o 1–8 pt (do zbadania: metryki wiersza, odstępy tabel) i łamanie wierszy.

@@ -488,3 +488,31 @@ func TestFormControlsAndDetails(t *testing.T) {
 		}
 	}
 }
+
+// Szerokość tekstu rośnie proporcjonalnie do rozmiaru fontu także dla rozmiarów niecałkowitych w pikselach:
+// 10 pt (13,33 px) leży między 13 px a 14 px, a nie jest składane jak 14 px.
+func TestFractionalFontSizeWidth(t *testing.T) {
+	width := func(size string) float64 {
+		result := renderString(t, `<style>@page { size: 600px 100px; margin: 0 } body { margin: 0 }</style>`+
+			`<span style="font-size: `+size+`; background: #000; color: #000">Zestawienie liczby niezgodności w roku</span>`)
+		pages := rasterize(t, result.PDF, t.TempDir(), "width")
+		header, data := splitPPM(pages[0])
+		var pageWidth int
+		fmt.Sscan(strings.Fields(header)[1], &pageWidth)
+		last := 0
+		for x := 0; x < pageWidth; x++ {
+			if data[(8*pageWidth+x)*3] < 60 {
+				last = x
+			}
+		}
+		return float64(last + 1)
+	}
+	w13, w1333, w14 := width("13px"), width("13.33px"), width("14px")
+	expected := w13 + (w14-w13)*0.33
+	if diff := w1333 - expected; diff < -1.5 || diff > 1.5 {
+		t.Errorf("13,33 px: %.0f px szerokości, oczekiwane ok. %.1f (13 px: %.0f, 14 px: %.0f)", w1333, expected, w13, w14)
+	}
+	if pt := width("10pt"); pt != w1333 {
+		t.Errorf("10pt: %.0f px, 13.33px: %.0f px", pt, w1333)
+	}
+}
