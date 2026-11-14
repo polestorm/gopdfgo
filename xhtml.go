@@ -35,6 +35,7 @@ func expandSelfClosing(document []byte) []byte {
 	if !isXHTML(document) {
 		return document
 	}
+	document = stripNamespacePrefixes(document)
 	var out bytes.Buffer
 	rest := document
 	for len(rest) > 0 {
@@ -65,4 +66,21 @@ func expandSelfClosing(document []byte) []byte {
 		rest = rest[loc[1]:]
 	}
 	return out.Bytes()
+}
+
+// prefixedNamespace znajduje deklaracje xmlns:p="…" dla przestrzeni nazw, których elementy parser HTML5
+// rozpoznaje po samej nazwie: XHTML, SVG i MathML.
+var prefixedNamespace = regexp.MustCompile(`xmlns:([A-Za-z][A-Za-z0-9_.-]*)\s*=\s*["']http://www\.w3\.org/(?:1999/xhtml|2000/svg|1998/Math/MathML)["']`)
+
+// stripNamespacePrefixes zamienia w dokumencie XHTML znaczniki <p:nazwa> na <nazwa> dla przedrostków
+// związanych z XHTML, SVG lub MathML (Namespaces in XML 1.0: przedrostek jest tylko skrótem przestrzeni
+// nazw). Parser HTML5 nie zna przedrostków, więc <svg:svg> był dla niego nieznanym elementem i osadzona
+// grafika znikała.
+func stripNamespacePrefixes(document []byte) []byte {
+	for _, match := range prefixedNamespace.FindAllSubmatch(document, -1) {
+		prefix := match[1]
+		document = bytes.ReplaceAll(document, append(append([]byte("<"), prefix...), ':'), []byte("<"))
+		document = bytes.ReplaceAll(document, append(append([]byte("</"), prefix...), ':'), []byte("</"))
+	}
+	return document
 }

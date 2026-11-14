@@ -17,3 +17,13 @@ func TestExpandSelfClosing(t *testing.T) {
 		}
 	}
 }
+
+func TestStripNamespacePrefixes(t *testing.T) {
+	const document = `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg" xmlns:x="urn:other">` +
+		`<body><svg:svg height="50"><svg:rect width="10" height="10"/></svg:svg><x:data>a</x:data></body></html>`
+	const want = `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg" xmlns:x="urn:other">` +
+		`<body><svg height="50"><rect width="10" height="10"/></svg><x:data>a</x:data></body></html>`
+	if got := string(expandSelfClosing([]byte(document))); got != want {
+		t.Errorf("wynik:\n%s\noczekiwany:\n%s", got, want)
+	}
+}
