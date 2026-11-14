@@ -1110,3 +1110,31 @@ func TestAbsoluteAutoMargins(t *testing.T) {
 		}
 	}
 }
+
+// W kontenerze flex o nieokreślonej wysokości (kolumna, height: auto) procenty
+// w osi głównej nie mają podstawy: wysokość procentowa działa jak auto,
+// a procentowe flex-basis jak content (CSS Flexbox 1 § 7.2.3 i § 9.8).
+// Przejęty kod liczył je z nieskończoności i zapisywał NaN albo Inf w PDF.
+func TestFlexPercentagesInIndefiniteColumn(t *testing.T) {
+	const open = `<div style="display: flex; flex-direction: column">`
+	cases := []struct{ name, got, want string }{
+		{"wysokość procentowa", `<div style="height: 50%; background: red"></div><div style="height: 80px; width: 80px; background: green"></div>`,
+			`<div style="background: red"></div><div style="height: 80px; width: 80px; background: green"></div>`},
+		{"procentowe flex-basis", `<div style="flex: 1 0 100%; border: 1px solid blue">tekst</div>`,
+			`<div style="flex: 1 0 content; border: 1px solid blue">tekst</div>`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(open+c.got+`</div>`), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(open+c.want+`</div>`), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: %q dało inny dokument niż %q", c.name, c.got, c.want)
+		}
+	}
+}

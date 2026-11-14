@@ -438,3 +438,9 @@ collapse` wierszy, `min-height`/`max-height` i pojedynczy margines automatyczny 
 przycinanie przez `overflow` tylko tych pudełek pozycjonowanych, dla których element jest bryłą zawierającą.
 Nie zrobione: `visibility: collapse` kolumn, `iframe`, wysokość elementów zastępowanych zależna od metryk
 fontu wzorca (testy `*-replaced-height-002`: różnica 2 px wynika z fontu zastępującego Times).
+
+Flex, procenty przy nieokreślonym rozmiarze głównym (2026-11-14): podzbiór `css-flexbox` i `css-grid`
+(2545 testów) po zmianie daje 3 testy zyskane i 0 straconych. Ważniejszy od liczby jest skutek uboczny,
+który zniknął: wysokość procentowa i procentowe `flex-basis` w kolumnie bez podanej wysokości zapisywały
+w PDF wartości `NaN` i `Inf` (czytniki zgłaszały błąd składni strumienia). Pełnego sondażu po tej zmianie
+nie było; ostatni pełny wynik to 6636 z 9135.

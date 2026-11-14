@@ -181,6 +181,11 @@ type BoxFields struct {
 	// późniejszej; na tej stronie nie jest widoczne.
 	DeferredToLaterPage bool
 
+	// gopdfgo: wysokość nadana elementowi przez rozciąganie w kontenerze flex
+	// o nieokreślonym rozmiarze głównym; nie jest podstawą wysokości
+	// procentowych potomków (CSS Flexbox 1 § 9.8)
+	IndefiniteHeight bool
+
 	// gopdfgo: ramka fieldset z legendą. LegendPrepared: style ramki i legendy zostały już dostosowane;
 	// BorderGapX i BorderGapWidth: odcinek górnego obramowania przerwany pod legendą.
 	LegendPrepared             bool

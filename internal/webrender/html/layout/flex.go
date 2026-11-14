@@ -195,6 +195,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
+	// gopdfgo: zob. BoxFields.IndefiniteHeight
+	mainIsIndefinite := availableMainSpace == pr.Inf || (main == pr.PHeight && box.IndefiniteHeight)
+
 	// 3 Determine the flex base size and hypothetical main size of each item.
 	parentBox_ := box_.Copy()
 	parentBox := parentBox_.Box()
@@ -301,6 +304,15 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		var childContainingBlock bo.MaybePoint
 		if main == pr.PWidth {
 			childContainingBlock = bo.MaybePoint{availableMainSpace, parentBox.Height}
+			if box.IndefiniteHeight {
+				childContainingBlock[1] = pr.AutoF
+			}
+		} else if mainIsIndefinite {
+			// gopdfgo: wysokość kontenera kolumnowego jest nieokreślona, więc
+			// wysokości procentowe elementów liczą się jak auto (CSS Flexbox
+			// § 9.8); źródło liczyło procent z nieskończoności, co dawało
+			// NaN w zapisanym PDF
+			childContainingBlock = bo.MaybePoint{parentBox.Width, pr.AutoF}
 		} else {
 			childContainingBlock = bo.MaybePoint{parentBox.Width, availableMainSpace}
 		}
@@ -400,6 +412,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		basisIsContent := child.Style.GetFlexBasis().Tag == pr.Content
 		if styleFlexBasis := child.Style.GetFlexBasis(); styleFlexBasis.Tag == pr.Content {
 			flexBasis = nil
+		} else if styleFlexBasis.Unit == pr.Perc && mainIsIndefinite {
+			// gopdfgo: procentowa podstawa przy nieokreślonym rozmiarze głównym
+			// kontenera działa jak content (CSS Flexbox 1 § 7.2.3); źródło
+			// liczyło procent z nieskończoności i zapisywało Inf w PDF
+			flexBasis = nil
+			basisIsContent = true
 		} else {
 			resolved := pr.ResolvePercentage(styleFlexBasis, availableMainSpace)
 			if resolved == pr.AutoF {
@@ -738,6 +756,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child.Width = child.TargetMainSize
 			} else {
 				child.Height = child.TargetMainSize
+				// wysokość podana wprost pozostaje określona
+				specified := child.Style.GetHeight()
+				child.IndefiniteHeight = mainIsIndefinite && (specified.Tag == pr.Auto || specified.Unit == pr.Perc)
 			}
 		}
 	}

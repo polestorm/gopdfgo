@@ -362,6 +362,12 @@ Wspólne dla obu katalogów:
     `visible`, który nie jest pozycjonowany, nie przycina pudełek pozycjonowanych bezwzględnie, dla których nie
     jest bryłą zawierającą (CSS 2.1 § 11.1.1). Źródło robiło z niego pełny kontekst nakładania i przycinało
     wszystkich potomków, więc pudełko wyprowadzone poza taki element znikało;
+- flex, procenty przy nieokreślonym rozmiarze głównym (runda 2026-11-14), `html/layout/flex.go`,
+  `html/boxes/boxes.go` (`IndefiniteHeight`): w kontenerze kolumnowym bez podanej wysokości wysokość procentowa
+  elementu działa jak `auto`, a procentowe `flex-basis` jak `content` (CSS Flexbox 1 § 7.2.3 i § 9.8); wysokość
+  nadana elementowi przez rozciąganie w takim kontenerze nie jest podstawą procentów jego potomków. Źródło
+  liczyło procent z nieskończoności i zapisywało w PDF `NaN` albo `Inf` (test `flex-basis-011` przechodził tylko
+  dlatego, że tak samo zepsuty był wzorzec);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
