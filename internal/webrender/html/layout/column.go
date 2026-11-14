@@ -122,8 +122,16 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		columnsAndBlocks = append(columnsAndBlocks, ibl{len(box.Children) - len(columnChildren), boxOrList{list: columnChildren}})
 	}
 
+	// gopdfgo: wznowienie elementu rozpinającego (column-span: all) jest jego własnym stosem i trafia do niego
+	// bez zmian. W źródle było przekazywane jak wznowienie treści kolumn: indeks dziecka elementu
+	// rozpinającego był brany za przesunięcie w liście dzieci kontenera.
+	var spannerSkip, spannerResume tree.ResumeStack
 	if skipStack != nil {
-		skipStack = tree.ResumeStack{0: skipStack[skip]}
+		if skip >= 0 && skip < len(box.Children) && bo.IsColumnSpanner(box.Children[skip]) {
+			spannerSkip, skipStack = skipStack[skip], nil
+		} else {
+			skipStack = tree.ResumeStack{0: skipStack[skip]}
+		}
 	}
 
 	var nextPage tree.PageBreak
@@ -170,10 +178,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			resolveSizesBox(context, block, box)
 			block.Box().PositionX = box.ContentBoxX()
 			block.Box().PositionY = currentPositionY
-			newChild, tmp, _ := blockLevelLayout(context, block, originalBottomSpace, skipStack,
+			newChild, tmp, _ := blockLevelLayout(context, block, originalBottomSpace, spannerSkip,
 				box, pageIsEmpty, absoluteBoxes, fixedBoxes, &adjoiningMargins, false, -1)
 			nextPage, adjoiningMargins = tmp.nextPage, tmp.adjoiningMargins
-			skipStack = nil
+			skipStack, spannerSkip = nil, nil
 			if newChild == nil {
 				lastLoop = true
 				breakPage = true
@@ -185,7 +193,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			if tmp.resumeAt != nil {
 				lastLoop = true
 				breakPage = true
-				columnSkipStack = tmp.resumeAt
+				spannerResume = tmp.resumeAt
 				break
 			}
 			pageIsEmpty = false
@@ -488,7 +496,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	// Calculate skip stack
-	if columnSkipStack != nil {
+	if spannerResume != nil {
+		skipStack = tree.ResumeStack{index: spannerResume}
+	} else if columnSkipStack != nil {
 		skip, _ = columnSkipStack.Unpack()
 		skipStack = tree.ResumeStack{index + skip: columnSkipStack[skip]}
 	} else if breakPage {

@@ -385,9 +385,22 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	skip := 0
 	firstLetterStyle := box.FirstLetterStyle
-	resumedRemainder := false
+	// gopdfgo: treść wylewająca się z bloku o podanej wysokości jest kontynuowana na następnej stronie,
+	// choć sam blok skończył się wcześniej (CSS Fragmentation 3 § 5.1). W źródle taka treść była
+	// porzucana ("forget overflowing children").
+	resumedRemainder, overflowContinuation, finishedWithOverflow := false, false, false
 	if !isStart {
-		if remaining, isRemainder := skipStack.Remainder(); isRemainder {
+		if inner, isOverflow := skipStack.Overflow(); isOverflow {
+			// sam blok skończył się na poprzedniej stronie: zostaje po nim tylko wylewająca się treść
+			overflowContinuation = true
+			box.Height = pr.Float(0)
+			box.MinHeight, box.MaxHeight = pr.Float(0), pr.Inf
+			box_.RemoveDecoration(box, true, true)
+			skip, skipStack = 0, nil
+			if inner != nil {
+				skip, skipStack = inner.Unpack()
+			}
+		} else if remaining, isRemainder := skipStack.Remainder(); isRemainder {
 			// dalszy ciąg bloku o podanej wysokości: dzieci są już ułożone, zostaje reszta wysokości
 			resumedRemainder = true
 			skip, skipStack = len(box.Children), nil
@@ -499,9 +512,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		} else if stop {
 			if box.Height != pr.AutoF {
 				if overflows(box.PositionY+box.BorderHeight(), positionY) {
-					// Box height is fixed and it doesn’t overflow page, forget
-					// overflowing children.
-					resumeAt = nil
+					// Box height is fixed and it doesn’t overflow page: the box
+					// ends here, its overflowing children continue on the next page,
+					// unless the overflow is clipped.
+					if box.Style.GetOverflow() == "visible" && !box.IsColumn {
+						finishedWithOverflow = resumeAt != nil
+					} else {
+						resumeAt = nil
+					}
 				}
 			}
 			adjoiningMargins = new([]pr.Float)
@@ -544,7 +562,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		}
 	}
 
-	boxIsFragmented := resumeAt != nil || box.ForceFragmentation
+	if overflowContinuation && resumeAt != nil {
+		finishedWithOverflow = true
+	}
+	// wznowienie pudełka kolumny i kontenera kolumn czyta układ kolumn, który zna tylko indeksy dzieci
+	if box.IsColumn || box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto" {
+		finishedWithOverflow = false
+	}
+	boxIsFragmented := (resumeAt != nil && !finishedWithOverflow) || box.ForceFragmentation
 	if box.Style.GetContinue() == "discard" {
 		resumeAt = nil
 	}
@@ -658,6 +683,12 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		nextPage.HasPage = true
 	}
 
+	if overflowContinuation {
+		newBox.Height = pr.Float(0)
+	}
+	if finishedWithOverflow && resumeAt != nil {
+		resumeAt = tree.OverflowResume(resumeAt)
+	}
 	return newBox_, blockLayout{
 		resumeAt: resumeAt, nextPage: nextPage,
 		adjoiningMargins: *adjoiningMargins, collapsingThrough: collapsingThrough,

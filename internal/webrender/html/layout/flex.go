@@ -1329,6 +1329,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, pickSkip(i, childSkipStack), box,
 					pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
 				childResumeAt := tmp.resumeAt
+				if clipsBlockOverflow(box) {
+					childResumeAt = nil // dalszy ciąg byłby przycięty przez kontener
+				}
 				if newChild == nil {
 					resumeIndex := 0
 					if resumeAt != nil {
@@ -1342,7 +1345,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					// elementy były układane poniżej dolnej krawędzi strony i ginęły, bo kontener flex
 					// nie sprawdzał, czy wychodzą poza stronę.
 					bottom := newChild.Box().PositionY + newChild.Box().MarginHeight()
-					if childResumeAt == nil && context.flexMeasuring == 0 && context.overflowsPage(bottomSpace, bottom) {
+					if childResumeAt == nil && context.flexMeasuring == 0 && !clipsBlockOverflow(box) && context.overflowsPage(bottomSpace, bottom) {
 						lineStart := len(box.Children) - len(finalLines[lineIndex])
 						placedBefore := lineStart
 						if main == pr.PHeight {
@@ -1564,4 +1567,10 @@ func finishedFlexItem(item Box) Box {
 	style.SetMinHeight(pr.ZeroPixels.Tagged())
 	empty.Box().Style = style
 	return empty
+}
+
+// clipsBlockOverflow mówi, czy kontener o podanej wysokości przycina treść: to, co się w nim nie mieści,
+// nie jest widoczne, więc nie przechodzi na następną stronę.
+func clipsBlockOverflow(box *bo.BoxFields) bool {
+	return box.Style.GetOverflow() != "visible" && box.Style.GetHeight().Tag != pr.Auto
 }

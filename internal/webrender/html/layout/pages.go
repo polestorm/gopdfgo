@@ -777,7 +777,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			var skip int
 			skip, skipStack = skipStack.Unpack()
 			// kontenery flex i grid zapisują w stosie numer linii lub wiersza, nie indeks dziecka
-			if skip >= len(box.Box().Children) || bo.FlexContainerT.IsInstance(box) || bo.GridContainerT.IsInstance(box) {
+			if skip < 0 || skip >= len(box.Box().Children) || bo.FlexContainerT.IsInstance(box) || bo.GridContainerT.IsInstance(box) {
 				break
 			}
 			box, parent = box.Box().Children[skip], box
@@ -1010,7 +1010,7 @@ func updatePageGroups(pageGroups *[]pageGroup, resumeAt tree.ResumeStack, nextPa
 			break // stan wewnętrzny układu (reszta bloku, linia flex), nie indeks dziecka
 		}
 		childIndex, childResumeAt = currentResumeAt.Unpack()
-		if childIndex >= len(currentElement.Box().Children) || bo.GridContainerT.IsInstance(currentElement) {
+		if childIndex < 0 || childIndex >= len(currentElement.Box().Children) || bo.GridContainerT.IsInstance(currentElement) {
 			break // grid zapisuje w stosie numer wiersza, nie indeks dziecka
 		}
 		parentElement = currentElement
@@ -1154,6 +1154,7 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		pageGroups        []pageGroup
 	)
 
+	stalledPages := 0 // kolejne strony bez postępu
 	for {
 		remakeState := context.pageMaker[i].RemakeState
 		var (
@@ -1175,6 +1176,19 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		}
 
 		i += 1
+		// gopdfgo: bezpiecznik. Strona, która kończy się dokładnie tam, gdzie się zaczęła, nie zrobiła
+		// postępu; jedna taka strona bywa uprawniona (pusta strona przed break-before: right, strona
+		// z samym dalszym ciągiem pudełek poza przepływem), ale trzy z rzędu oznaczają pętlę. Kończymy
+		// wtedy dokument z ostrzeżeniem, zamiast tworzyć strony w nieskończoność.
+		if resumeAt != nil && resumeAt.Equals(context.pageMaker[i-1].ResumeAt) {
+			stalledPages++
+			if stalledPages >= 3 {
+				logger.WarningLogger.Printf("układ nie robi postępu od strony %d; pozostała treść została pominięta", i-2)
+				resumeAt, reportedFootnotes = nil, nil
+			}
+		} else {
+			stalledPages = 0
+		}
 		if resumeAt == nil && len(reportedFootnotes) == 0 {
 			// Throw away obsolete pages and content
 			context.pageMaker = context.pageMaker[:i+1]

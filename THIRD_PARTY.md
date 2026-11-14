@@ -225,6 +225,18 @@ Wspólne dla obu katalogów:
   stronami). `pages.go`: przejścia po stosie wznowienia nie schodzą w kontenery flex i grid, które zapisują
   w nim numer linii lub wiersza. Ograniczenie: po dalszym ciągu wiersza reszta siatki zaczyna się od nowej
   strony, nawet gdy zostało miejsce;
+- treść wylewająca się z bloku o podanej wysokości, `html/layout/block.go`, `html/tree/target.go`
+  (`OverflowResume`, `ResumeStack.Overflow`): gdy blok kończy się na stronie, a jego treść (przy `overflow:
+  visible`) sięga dalej, treść jest kontynuowana na następnej stronie jako dzieci bloku o zerowej wysokości
+  (CSS Fragmentation 3 § 5.1). W źródle była porzucana („forget overflowing children”). Nie dotyczy pudełek
+  kolumn ani kontenerów kolumn; kontenery flex i grid o podanej wysokości z `overflow` innym niż `visible`
+  nie przekazują dalszego ciągu elementów (`clipsBlockOverflow`);
+- `html/layout/pages.go` (`makeAllPages`): bezpiecznik pętli stron. Trzy kolejne strony kończące się w tym
+  samym miejscu dokumentu kończą renderowanie z ostrzeżeniem „układ nie robi postępu”; w źródle taki stan
+  dawał nieskończenie wiele stron (zawieszenie);
+- `html/layout/column.go`: wznowienie elementu rozpinającego (`column-span: all`) podzielonego między strony
+  jest przekazywane do niego bez zmian; w źródle było mylone ze wznowieniem treści kolumn (indeks dziecka
+  elementu rozpinającego brany za przesunięcie w liście dzieci kontenera);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

@@ -42,13 +42,29 @@ func RemainderResume(remaining float64) ResumeStack {
 	return ResumeStack{-1 - int(math.Round(remaining*remainderUnit)): nil}
 }
 
+// overflowKey oznacza wznowienie treści wylewającej się z bloku o podanej wysokości, który sam skończył się
+// na wcześniejszej stronie; wartością jest zwykłe wznowienie jego dzieci.
+const overflowKey = math.MinInt32
+
+// OverflowResume opakowuje wznowienie dzieci bloku, który sam już się skończył.
+func OverflowResume(children ResumeStack) ResumeStack { return ResumeStack{overflowKey: children} }
+
+// Overflow zwraca wznowienie dzieci, jeśli stos pochodzi z [OverflowResume].
+func (r ResumeStack) Overflow() (ResumeStack, bool) {
+	if len(r) != 1 {
+		return nil, false
+	}
+	children, ok := r[overflowKey]
+	return children, ok
+}
+
 // Remainder zwraca pozostałą wysokość bloku, jeśli stos jest wznowieniem z [RemainderResume].
 func (r ResumeStack) Remainder() (float64, bool) {
 	if len(r) != 1 {
 		return 0, false
 	}
 	for k := range r {
-		if k < 0 {
+		if k < 0 && k != overflowKey {
 			return float64(-1-k) / remainderUnit, true
 		}
 	}

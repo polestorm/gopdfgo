@@ -1729,7 +1729,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		newChild, itemLayout, _ := blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
 			pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
 		if newChild != nil {
-			if itemLayout.resumeAt != nil && bottomSpace > -pr.Inf {
+			if itemLayout.resumeAt != nil && bottomSpace > -pr.Inf && !clipsBlockOverflow(box) {
 				if resumedRow == -1 || yi < resumedRow {
 					resumedRow, rowResume = yi, tree.ResumeStack{}
 				}

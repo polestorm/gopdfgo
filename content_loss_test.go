@@ -60,6 +60,7 @@ func TestNoContentLostAcrossPages(t *testing.T) {
 		{"overflow: hidden", `<div style="overflow: hidden">` + items + `</div>` + end},
 		{"stała wysokość większa niż treść", `<div style="height: 500px">` + items + `</div>` + end},
 		{"min-height", `<div style="min-height: 600px">` + items + `</div>` + end},
+		{"stała wysokość mniejsza niż treść", `<div style="height: 100px">` + items + `</div>` + end},
 		{"komórka tabeli", `<table><tr><td>` + items + `</td></tr></table>` + end},
 		{"display: table", `<div style="display: table"><div style="display: table-cell">` + items + `</div></div>` + end},
 		{"kolumny", `<div style="columns: 2">` + items + `</div>` + end},
@@ -94,8 +95,7 @@ func TestNoContentLostAcrossPages(t *testing.T) {
 }
 
 // Znane luki, których test wyżej nie obejmuje: inline-block i inline-flex wyższe niż strona (pudełka
-// niepodzielne, dalsza część wystaje poza stronę) oraz blok o stałej wysokości mniejszej niż treść, gdy
-// wylewająca się treść sięga poza stronę. Ten test pilnuje, żeby lista luk nie rosła niezauważenie:
+// niepodzielne, dalsza część wystaje poza stronę). Ten test pilnuje, żeby lista luk nie rosła niezauważenie:
 // gdy któraś zostanie naprawiona, przenieś przypadek do testu wyżej.
 func TestKnownContentLossGaps(t *testing.T) {
 	const style = "<style>@page { size: 300px 200px; margin: 20px } body { margin: 0; font-size: 12px } " +
@@ -107,7 +107,6 @@ func TestKnownContentLossGaps(t *testing.T) {
 	cases := []struct{ name, html string }{
 		{"inline-block", `<div style="display: inline-block; width: 80%">` + items + `</div>`},
 		{"inline-flex", `<div style="display: inline-flex; flex-direction: column">` + items + `</div>`},
-		{"stała wysokość mniejsza niż treść", `<div style="height: 100px">` + items + `</div>`},
 	}
 	for _, c := range cases {
 		if visible := visibleWords(t, renderString(t, style+c.html).PDF, 150); visible["e8"] {

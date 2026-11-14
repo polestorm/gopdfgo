@@ -320,5 +320,5 @@ Stały test `content_loss_test.go` sprawdza 21 rodzajów kontenerów: osiem elem
 leżeć w obrębie którejś strony. Powstał po tym, jak okazało się, że przejęty kod układał treść kontenerów
 flex i grid poniżej dolnej krawędzi strony (ginęła także przy `body { display: flex }`); tabele, kolumny,
 elementy pływające i bloki dzieliły się poprawnie. Znane luki, pilnowane osobnym testem: `inline-block`
-i `inline-flex` wyższe niż strona oraz blok o stałej wysokości mniejszej niż treść, gdy wylewająca się treść
-sięga poza stronę.
+i `inline-flex` wyższe niż strona. Treść wylewająca się z bloku o stałej wysokości poza stronę jest od
+2026-11-14 kontynuowana na następnej stronie (22. przypadek testu).
