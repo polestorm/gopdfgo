@@ -193,6 +193,9 @@ Wspólne dla obu katalogów:
   odwzorowania wielkości liter z Unicode (`golang.org/x/text/cases`; CSS Text 3 § 2.1), np. ß → SS; w źródle
   odwzorowanie proste. `capitalize` bez zmian: norma zostawia granice wyrazów przeglądarkom, a te się różnią
   (po łączniku Chromium zaczyna nowy wyraz, przejęty kod jak Firefox nie);
+- `text/engine_gotext.go` (`SplitFirstLine`): przy `word-break: break-all` wiersz jest wypełniany do końca
+  (każdy znak jest miejscem łamania, CSS Text 3 § 5.2); w źródle słowo było łamane dopiero wtedy, gdy samo nie
+  mieściło się w wierszu;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

@@ -538,3 +538,37 @@ func TestTextTransformFullCaseMapping(t *testing.T) {
 		}
 	}
 }
+
+// word-break: break-all łamie w dowolnym miejscu, więc wiersz jest wypełniany do końca, także gdy wcześniej
+// jest granica wyrazu: tekst zajmuje mniej wierszy niż przy łamaniu na granicach wyrazów.
+func TestWordBreakBreakAll(t *testing.T) {
+	const style = "<style>@page { size: 300px 300px; margin: 10px } body { margin: 0; font-size: 14px } p { width: 200px; margin: 0 }</style>"
+	const text = "Niezaprzeczalność elektronicznych poświadczeń międzywydziałowych"
+	lines := func(html string) int {
+		pages := rasterize(t, renderString(t, style+html).PDF, t.TempDir(), "lines")
+		header, data := splitPPM(pages[0])
+		var width, height int
+		fmt.Sscan(strings.Fields(header)[1], &width)
+		fmt.Sscan(strings.Fields(header)[2], &height)
+		last := 0
+		for y := 0; y < height; y++ {
+			if data[(y*width+15)*3] < 100 {
+				last = y
+			}
+		}
+		return last
+	}
+	normal := lines(`<p style="background: #000; color: #000">` + text + `</p>`)
+	breakAll := lines(`<p style="background: #000; color: #000; word-break: break-all">` + text + `</p>`)
+	if normal == 0 || breakAll == 0 {
+		t.Fatalf("brak tła: %d, %d", normal, breakAll)
+	}
+	// ten sam akapit: trzy wiersze przy obu ustawieniach, ale break-all nie może zająć więcej
+	if breakAll > normal {
+		t.Errorf("break-all zajmuje więcej miejsca (%d px) niż łamanie zwykłe (%d px)", breakAll, normal)
+	}
+	got := string(extractText(t, renderString(t, style+`<p style="word-break: break-all">`+text+`</p>`).PDF))
+	if strings.Contains(got, "elektronicznych") {
+		t.Errorf("słowo nie zostało przełamane w środku: %q", got)
+	}
+}

@@ -915,7 +915,11 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 	// If we can break words and the first line is too long
 	canBreak := wordBreak == WBBreakAll ||
 		(isLineStart && (overflowWrap == OAnywhere || (overflowWrap == OBreakWord && !minimum)))
-	if space < 0 && canBreak {
+	// gopdfgo: przy word-break: break-all każdy znak jest miejscem łamania (CSS Text 3 § 5.2), więc wiersz
+	// wypełniamy do końca także wtedy, gdy wcześniej jest granica wyrazu; w źródle słowo było łamane dopiero
+	// wtedy, gdy samo nie mieściło się w wierszu.
+	breakAll := wordBreak == WBBreakAll && firstLine.ResumeAt != -1 && maxWidthV != pr.Inf
+	if (space < 0 && canBreak) || breakAll {
 		// Is it really OK to remove hyphenation for word-break ?
 		hyphenated = false
 		firstLine = fc.WrapWordBreak(text, style, maxWidthV, true)
