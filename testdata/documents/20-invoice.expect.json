@@ -1,0 +1,31 @@
+{
+  "title": "Faktura wielostronicowa",
+  "level": "must",
+  "covers": [
+    "U1, U3",
+    "scope: tabela wielostronicowa z powtarzanym nagłówkiem, flex i grid w nagłówku dokumentu, break-inside: avoid"
+  ],
+  "pages": 3,
+  "checks": [
+    "Trzy strony A4; numer strony w prawym dolnym polu marginesowym („Strona N z 3”).",
+    "Dane sprzedawcy i nabywcy w dwóch ramkach równej szerokości obok siebie; cztery pola nagłówka w siatce czterokolumnowej.",
+    "Tabela pozycji: 46 wierszy, pozycje 1–20 na stronie 1, 21–46 na stronie 2; nagłówek tabeli powtórzony na obu stronach; żaden wiersz nie jest przecięty.",
+    "Kolumny liczbowe wyrównane do prawej; nazwy towarów zawijają się w komórce.",
+    "Podsumowanie (netto, VAT, „DO-ZAPŁATY”) wyrównane do prawej, w całości na jednej stronie; pod nim uwagi i dwa pola podpisu rozsunięte do krawędzi."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-14",
+    "pages": 3,
+    "pageStarts": [
+      "Faktura VAT nr FV/2026/11/0142",
+      "Lp. Nazwa towaru lub usługi Ilość J.m. Cena VAT Wartość",
+      "Razem netto 18502.42 zł"
+    ],
+    "deviations": [
+      "Chromium nie obsługuje pól marginesowych @page, więc nie ma numeru strony.",
+      "Wiersze tabeli są w Chromium o ok. 0,3 px wyższe (obramowanie 0,5 pt zaokrąglane do 1 px); rozkład wierszy na stronach jest ten sam."
+    ]
+  }
+}

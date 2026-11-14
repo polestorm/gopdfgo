@@ -5,7 +5,7 @@ Pochodzenie i licencje obcych plików: `THIRD_PARTY.md`.
 
 | Katalog | Zawartość | Liczba | Wzorzec |
 |---|---|---|---|
-| `documents/` | dokumenty syntetyczne pisane pod pozycje „musi” ze `docs/scope.md` | 19 (17 „musi”, 2 „powinien”) | opis w `*.expect.json`, PDF z Chromium w `reference/chromium/` |
+| `documents/` | dokumenty syntetyczne pisane pod pozycje „musi” ze `docs/scope.md` | 20 (18 „musi”, 2 „powinien”) | opis w `*.expect.json`, PDF z Chromium w `reference/chromium/` |
 | `samples/weasyprint/` | próbki WeasyPrint: faktura, raport, list, bilet | 4 | PDF z WeasyPrint dołączony przez autorów |
 | `wpt/` | testy druku z web-platform-tests, bez JavaScriptu | 340 reftestów + 115 ręcznych | plik wzorcowy HTML (reftest) albo opis w treści testu |
 | `wpt/manifest.tsv`, warstwa `layout` | reftesty ekranowe CSS 2.1, tabele, listy, flex, fragmentacja w kolumnach | 8242, tylko lista | pliki w klonie WPT o commicie z `wpt/UPSTREAM` |

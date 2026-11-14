@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Faktura wielostronicowa</title>
+<style>
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Noto Serif"; src: url("../fonts/NotoSerif-Regular.ttf") format("truetype"); }
+html { font-family: "Noto Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #1a1a1a; print-color-adjust: exact; }
+body { margin: 0; }
+h1 { font-size: 18pt; margin: 0 0 4mm; }
+h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+h3 { font-size: 11pt; margin: 4mm 0 1mm; }
+p { margin: 0 0 2mm; }
+table { border-collapse: collapse; }
+code, pre, kbd { font-family: "Noto Sans Mono", monospace; }
+
+@page { size: A4; margin: 20mm 15mm 22mm 15mm;
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 8pt; }
+   }
+
+.parties { display: flex; gap: 10mm; margin: 4mm 0 6mm; }
+.party { flex: 1; border: 0.5pt solid #999; padding: 2mm 3mm; }
+.party h3 { margin: 0 0 1mm; font-size: 9pt; text-transform: uppercase; color: #555; }
+.meta { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 1mm 4mm; margin-bottom: 4mm; }
+.meta dt { color: #555; } .meta dd { margin: 0; font-weight: 700; }
+table.items { width: 100%; font-size: 9pt; }
+.items th, .items td { border: 0.5pt solid #777; padding: 1mm 1.5mm; vertical-align: top; }
+.items thead th { background: #1f4e79; color: #fff; text-align: left; }
+.items tr { break-inside: avoid; }
+.n { text-align: right; white-space: nowrap; }
+.summary { display: flex; justify-content: flex-end; margin-top: 5mm; break-inside: avoid; }
+.summary table { font-size: 10pt; } .summary td { padding: 1mm 3mm; border-bottom: 0.5pt solid #999; }
+.summary tr:last-child td { font-weight: 700; border-bottom: 1.5pt solid #000; }
+.sign { display: flex; justify-content: space-between; margin-top: 18mm; break-inside: avoid; }
+.sign div { width: 60mm; border-top: 0.5pt solid #000; text-align: center; font-size: 8pt; padding-top: 1mm; }
+.note { margin-top: 6mm; font-size: 8.5pt; color: #333; }
+</style>
+</head>
+<body>
+<h1>Faktura VAT nr FV/2026/11/0142</h1>
+<dl class="meta"><dt>Data wystawienia</dt><dd>2026-11-14</dd><dt>Data sprzedaży</dt><dd>2026-11-12</dd><dt>Termin płatności</dt><dd>2026-11-28</dd><dt>Sposób płatności</dt><dd>przelew</dd></dl>
+<div class="parties">
+<div class="party"><h3>Sprzedawca</h3><p><strong>Polestorm Sp. z o.o.</strong><br>ul. Przykładowa 1, 00-001 Warszawa<br>NIP 525-000-00-00</p></div>
+<div class="party"><h3>Nabywca</h3><p><strong>Laboratorium Kontroli Jakości S.A.</strong><br>al. Testowa 27/4, 30-002 Kraków<br>NIP 676-000-00-00</p></div>
+</div>
+<table class="items">
+<thead><tr><th>Lp.</th><th>Nazwa towaru lub usługi</th><th>Ilość</th><th>J.m.</th><th>Cena netto</th><th>VAT</th><th>Wartość netto</th></tr></thead>
+<tbody>
+<tr><td class="n">1</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1001</td><td class="n">8</td><td>szt.</td><td class="n">49.63</td><td class="n">23%</td><td class="n">397.04</td></tr>
+<tr><td class="n">2</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1002</td><td class="n">2</td><td>szt.</td><td class="n">86.76</td><td class="n">23%</td><td class="n">173.52</td></tr>
+<tr><td class="n">3</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1003</td><td class="n">9</td><td>szt.</td><td class="n">33.89</td><td class="n">23%</td><td class="n">305.01</td></tr>
+<tr><td class="n">4</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1004</td><td class="n">3</td><td>szt.</td><td class="n">71.02</td><td class="n">23%</td><td class="n">213.06</td></tr>
+<tr><td class="n">5</td><td>Pojemnik na odpady medyczne 10 l — partia P-1005</td><td class="n">10</td><td>szt.</td><td class="n">18.15</td><td class="n">23%</td><td class="n">181.50</td></tr>
+<tr><td class="n">6</td><td>Audyt wewnętrzny systemu zarządzania jakością (dzień roboczy) — partia P-1006</td><td class="n">4</td><td>szt.</td><td class="n">55.28</td><td class="n">23%</td><td class="n">221.12</td></tr>
+<tr><td class="n">7</td><td>Rękawice nitrylowe bezpudrowe, rozmiar M, opakowanie 100 szt. — partia P-1007</td><td class="n">11</td><td>szt.</td><td class="n">92.41</td><td class="n">23%</td><td class="n">1016.51</td></tr>
+<tr><td class="n">8</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1008</td><td class="n">5</td><td>szt.</td><td class="n">38.54</td><td class="n">23%</td><td class="n">192.70</td></tr>
+<tr><td class="n">9</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1009</td><td class="n">12</td><td>szt.</td><td class="n">75.67</td><td class="n">23%</td><td class="n">908.04</td></tr>
+<tr><td class="n">10</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1010</td><td class="n">6</td><td>szt.</td><td class="n">22.80</td><td class="n">23%</td><td class="n">136.80</td></tr>
+<tr><td class="n">11</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1011</td><td class="n">13</td><td>szt.</td><td class="n">59.93</td><td class="n">23%</td><td class="n">779.09</td></tr>
+<tr><td class="n">12</td><td>Pojemnik na odpady medyczne 10 l — partia P-1012</td><td class="n">7</td><td>szt.</td><td class="n">97.06</td><td class="n">23%</td><td class="n">679.42</td></tr>
+<tr><td class="n">13</td><td>Audyt wewnętrzny systemu zarządzania jakością (dzień roboczy) — partia P-1013</td><td class="n">1</td><td>szt.</td><td class="n">44.19</td><td class="n">23%</td><td class="n">44.19</td></tr>
+<tr><td class="n">14</td><td>Rękawice nitrylowe bezpudrowe, rozmiar M, opakowanie 100 szt. — partia P-1014</td><td class="n">8</td><td>szt.</td><td class="n">81.32</td><td class="n">23%</td><td class="n">650.56</td></tr>
+<tr><td class="n">15</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1015</td><td class="n">2</td><td>szt.</td><td class="n">28.45</td><td class="n">23%</td><td class="n">56.90</td></tr>
+<tr><td class="n">16</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1016</td><td class="n">9</td><td>szt.</td><td class="n">64.58</td><td class="n">23%</td><td class="n">581.22</td></tr>
+<tr><td class="n">17</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1017</td><td class="n">3</td><td>szt.</td><td class="n">101.71</td><td class="n">23%</td><td class="n">305.13</td></tr>
+<tr><td class="n">18</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1018</td><td class="n">10</td><td>szt.</td><td class="n">48.84</td><td class="n">23%</td><td class="n">488.40</td></tr>
+<tr><td class="n">19</td><td>Pojemnik na odpady medyczne 10 l — partia P-1019</td><td class="n">4</td><td>szt.</td><td class="n">85.97</td><td class="n">23%</td><td class="n">343.88</td></tr>
+<tr><td class="n">20</td><td>Audyt wewnętrzny systemu zarządzania jakością (dzień roboczy) — partia P-1020</td><td class="n">11</td><td>szt.</td><td class="n">33.10</td><td class="n">23%</td><td class="n">364.10</td></tr>
+<tr><td class="n">21</td><td>Rękawice nitrylowe bezpudrowe, rozmiar M, opakowanie 100 szt. — partia P-1021</td><td class="n">5</td><td>szt.</td><td class="n">70.23</td><td class="n">23%</td><td class="n">351.15</td></tr>
+<tr><td class="n">22</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1022</td><td class="n">12</td><td>szt.</td><td class="n">17.36</td><td class="n">23%</td><td class="n">208.32</td></tr>
+<tr><td class="n">23</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1023</td><td class="n">6</td><td>szt.</td><td class="n">54.49</td><td class="n">23%</td><td class="n">326.94</td></tr>
+<tr><td class="n">24</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1024</td><td class="n">13</td><td>szt.</td><td class="n">90.62</td><td class="n">23%</td><td class="n">1178.06</td></tr>
+<tr><td class="n">25</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1025</td><td class="n">7</td><td>szt.</td><td class="n">37.75</td><td class="n">23%</td><td class="n">264.25</td></tr>
+<tr><td class="n">26</td><td>Pojemnik na odpady medyczne 10 l — partia P-1026</td><td class="n">1</td><td>szt.</td><td class="n">74.88</td><td class="n">23%</td><td class="n">74.88</td></tr>
+<tr><td class="n">27</td><td>Audyt wewnętrzny systemu zarządzania jakością (dzień roboczy) — partia P-1027</td><td class="n">8</td><td>szt.</td><td class="n">22.01</td><td class="n">23%</td><td class="n">176.08</td></tr>
+<tr><td class="n">28</td><td>Rękawice nitrylowe bezpudrowe, rozmiar M, opakowanie 100 szt. — partia P-1028</td><td class="n">2</td><td>szt.</td><td class="n">59.14</td><td class="n">23%</td><td class="n">118.28</td></tr>
+<tr><td class="n">29</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1029</td><td class="n">9</td><td>szt.</td><td class="n">96.27</td><td class="n">23%</td><td class="n">866.43</td></tr>
+<tr><td class="n">30</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1030</td><td class="n">3</td><td>szt.</td><td class="n">43.40</td><td class="n">23%</td><td class="n">130.20</td></tr>
+<tr><td class="n">31</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1031</td><td class="n">10</td><td>szt.</td><td class="n">79.53</td><td class="n">23%</td><td class="n">795.30</td></tr>
+<tr><td class="n">32</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1032</td><td class="n">4</td><td>szt.</td><td class="n">26.66</td><td class="n">23%</td><td class="n">106.64</td></tr>
+<tr><td class="n">33</td><td>Pojemnik na odpady medyczne 10 l — partia P-1033</td><td class="n">11</td><td>szt.</td><td class="n">63.79</td><td class="n">23%</td><td class="n">701.69</td></tr>
+<tr><td class="n">34</td><td>Audyt wewnętrzny systemu zarządzania jakością (dzień roboczy) — partia P-1034</td><td class="n">5</td><td>szt.</td><td class="n">100.92</td><td class="n">23%</td><td class="n">504.60</td></tr>
+<tr><td class="n">35</td><td>Rękawice nitrylowe bezpudrowe, rozmiar M, opakowanie 100 szt. — partia P-1035</td><td class="n">12</td><td>szt.</td><td class="n">48.05</td><td class="n">23%</td><td class="n">576.60</td></tr>
+<tr><td class="n">36</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1036</td><td class="n">6</td><td>szt.</td><td class="n">85.18</td><td class="n">23%</td><td class="n">511.08</td></tr>
+<tr><td class="n">37</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1037</td><td class="n">13</td><td>szt.</td><td class="n">32.31</td><td class="n">23%</td><td class="n">420.03</td></tr>
+<tr><td class="n">38</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1038</td><td class="n">7</td><td>szt.</td><td class="n">69.44</td><td class="n">23%</td><td class="n">486.08</td></tr>
+<tr><td class="n">39</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1039</td><td class="n">1</td><td>szt.</td><td class="n">15.57</td><td class="n">23%</td><td class="n">15.57</td></tr>
+<tr><td class="n">40</td><td>Pojemnik na odpady medyczne 10 l — partia P-1040</td><td class="n">8</td><td>szt.</td><td class="n">52.70</td><td class="n">23%</td><td class="n">421.60</td></tr>
+<tr><td class="n">41</td><td>Audyt wewnętrzny systemu zarządzania jakością (dzień roboczy) — partia P-1041</td><td class="n">2</td><td>szt.</td><td class="n">89.83</td><td class="n">23%</td><td class="n">179.66</td></tr>
+<tr><td class="n">42</td><td>Rękawice nitrylowe bezpudrowe, rozmiar M, opakowanie 100 szt. — partia P-1042</td><td class="n">9</td><td>szt.</td><td class="n">36.96</td><td class="n">23%</td><td class="n">332.64</td></tr>
+<tr><td class="n">43</td><td>Fartuch ochronny jednorazowy z włókniny — partia P-1043</td><td class="n">3</td><td>szt.</td><td class="n">74.09</td><td class="n">23%</td><td class="n">222.27</td></tr>
+<tr><td class="n">44</td><td>Płyn do dezynfekcji powierzchni, kanister 5 l — partia P-1044</td><td class="n">10</td><td>szt.</td><td class="n">21.22</td><td class="n">23%</td><td class="n">212.20</td></tr>
+<tr><td class="n">45</td><td>Maseczka chirurgiczna trójwarstwowa, opakowanie 50 szt. — partia P-1045</td><td class="n">4</td><td>szt.</td><td class="n">58.35</td><td class="n">23%</td><td class="n">233.40</td></tr>
+<tr><td class="n">46</td><td>Usługa wzorcowania przyrządów pomiarowych wraz ze świadectwem — partia P-1046</td><td class="n">11</td><td>szt.</td><td class="n">95.48</td><td class="n">23%</td><td class="n">1050.28</td></tr>
+</tbody>
+</table>
+<div class="summary"><table><tr><td>Razem netto</td><td class="n">18502.42 zł</td></tr><tr><td>VAT 23%</td><td class="n">4255.56 zł</td></tr><tr><td>DO-ZAPŁATY</td><td class="n">22757.98 zł</td></tr></table></div>
+<p class="note">Uwagi: towar pozostaje własnością sprzedawcy do chwili zapłaty całej należności. Reklamacje ilościowe przyjmujemy w ciągu siedmiu dni od dostawy.</p>
+<div class="sign"><div>osoba upoważniona do wystawienia</div><div>PODPIS-ODBIORCY</div></div>
+</body>
+</html>
