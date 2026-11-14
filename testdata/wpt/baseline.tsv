@@ -64,31 +64,31 @@ fail	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	strony 2
 fail	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	strona 1: różne piksele 16284
 fail	margin-boxes	css/css-page/margin-boxes/auto-margins-003-print.html	strona 1: różne piksele 2275
 pass	margin-boxes	css/css-page/margin-boxes/content-001-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/content-002-print.html	strona 1: różne piksele 2032
-fail	margin-boxes	css/css-page/margin-boxes/content-004-print.html	strona 1: różne piksele 7314
-fail	margin-boxes	css/css-page/margin-boxes/content-005-print.html	strona 1: różne piksele 7924
-fail	margin-boxes	css/css-page/margin-boxes/content-006-print.html	strona 1: różne piksele 7924
-fail	margin-boxes	css/css-page/margin-boxes/content-007-print.html	strona 1: różne piksele 7924
-fail	margin-boxes	css/css-page/margin-boxes/content-008-print.html	strona 1: różne piksele 392
-fail	margin-boxes	css/css-page/margin-boxes/content-009-print.html	strona 1: różne piksele 400
-fail	margin-boxes	css/css-page/margin-boxes/content-010-print.html	strona 1: różne piksele 425
-fail	margin-boxes	css/css-page/margin-boxes/content-011-print.html	strona 1: różne piksele 494
-fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 1: różne piksele 637
-fail	margin-boxes	css/css-page/margin-boxes/content-013-print.html	strona 1: różne piksele 4860
+pass	margin-boxes	css/css-page/margin-boxes/content-002-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-004-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-005-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-006-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-007-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-008-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-009-print.html	
+fail	margin-boxes	css/css-page/margin-boxes/content-010-print.html	strona 1: różne piksele 42
+fail	margin-boxes	css/css-page/margin-boxes/content-011-print.html	strona 1: różne piksele 146
+fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 1: różne piksele 345
+pass	margin-boxes	css/css-page/margin-boxes/content-013-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-001-print.html	strona 1: różne piksele 1892
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-002-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-003-print.html	strona 1: różne piksele 12386
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-004-print.html	strona 1: różne piksele 58235
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-005-print.html	strona 1: różne piksele 19824
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-006-print.html	strona 1: różne piksele 99628
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-007-print.html	strona 1: różne piksele 121144
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-008-print.html	strona 1: różne piksele 32877
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-009-print.html	strona 1: różne piksele 16568
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-003-print.html	strona 1: różne piksele 2768
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-004-print.html	strona 1: różne piksele 8432
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-005-print.html	strona 1: różne piksele 1664
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-006-print.html	strona 1: różne piksele 10176
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-007-print.html	strona 1: różne piksele 43388
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-008-print.html	strona 1: różne piksele 9573
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-009-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-010-print.html	strona 1: różne piksele 35000
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html	strona 1: różne piksele 33064
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 146864
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 143504
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 143520
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html	strona 1: różne piksele 24870
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 13872
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 60889
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 59849
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	strona 1: różne piksele -1
 pass	margin-boxes	css/css-page/margin-boxes/inapplicable-properties-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/overconstrained-001-print.html	strona 1: różne piksele 2130

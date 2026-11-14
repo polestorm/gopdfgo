@@ -451,3 +451,20 @@ func TestTableHeaderRepeatsWithTallRow(t *testing.T) {
 		t.Errorf("stopka %d razy na %d stronach: %q", got, result.Pages, text)
 	}
 }
+
+// Ścieżki siatki podane w em mają rozmiar liczony z fontu elementu: wynik jak dla tych samych rozmiarów
+// w pikselach.
+func TestGridTracksInEm(t *testing.T) {
+	const style = "<style>@page { size: 300px 300px; margin: 0 } body { margin: 0; font-size: 10px } " +
+		".grid { display: grid; height: 300px } .grid div { background: #9cf; border-top: 2px solid #036 }</style>"
+	const items = `<div>a</div><div>b</div><div>c</div></div>`
+	dir := t.TempDir()
+	em := rasterize(t, renderString(t, style+`<div class="grid" style="grid-template-rows: 4em auto 5em">`+items).PDF, dir, "em")
+	px := rasterize(t, renderString(t, style+`<div class="grid" style="grid-template-rows: 40px auto 50px">`+items).PDF, dir, "px")
+	if len(em) != 1 || len(px) != 1 {
+		t.Fatalf("strony %d i %d", len(em), len(px))
+	}
+	if n := differentPixels(em[0], px[0]); n != 0 {
+		t.Errorf("%d pikseli różni się", n)
+	}
+}

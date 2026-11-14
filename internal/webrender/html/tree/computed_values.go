@@ -494,7 +494,8 @@ func borderImageOutset(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPro
 		if value.Unit == pr.Scalar {
 			values[i] = value
 		} else {
-			values[i] = length_(computer, value, 0, false)
+			// gopdfgo: -1 (font elementu) zamiast 0, jak w computeTrackBreadth
+			values[i] = length_(computer, value, -1, false)
 		}
 	}
 
@@ -826,7 +827,9 @@ func computeTrackBreadth(computer *ComputedStyle, value pr.TaggedDim) pr.TaggedD
 		if value.Unit == pr.Fr {
 			return value
 		} else {
-			return length_(computer, value, 0, false)
+			// gopdfgo: -1 oznacza rozmiar fontu elementu; w źródle przekazywane było 0, więc ścieżki
+			// siatki podane w em, ex, ch miały zerowy rozmiar.
+			return length_(computer, value, -1, false)
 		}
 	}
 }
