@@ -484,3 +484,9 @@ bazowe 42), definicja siatki 24, algorytm układu 18, model siatki 18, pozostał
 Po obsłudze `z-index` elementów flex i grid oraz zwijania pustych ścieżek `auto-fit` podzbiór `css-flexbox`,
 `css-grid`, `CSS2/zindex` i `CSS2/positioning` (3087 testów) daje 43 testy zyskane (grid 40, flexbox 3)
 i 0 straconych. Pełnego sondażu po tej zmianie nie było; ostatni pełny wynik to 6655 z 9135.
+
+Pełny sondaż po rundach elementów pływających, `@layer`, gridu i odstępów (2026-11-14): **6724 z 9135
+(73,6%)**, w tym 6314 ściśle i 410 krawędziowo; poprzednio 6655. Zyskanych 70 (grid 59, elementy pływające 6,
+flexbox 4, kolumny 1), stracony 1 (`grid-lanes-contain-intrinsic-size-row-002`: układ `grid-lanes` nie jest
+obsługiwany, test przechodził przypadkiem), 0 błędów renderowania i przekroczeń limitu czasu.
+Reftesty druku: 192 z 340.
