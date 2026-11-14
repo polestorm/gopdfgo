@@ -159,7 +159,7 @@ func newCSS(input utils.ContentInput, baseUrl string,
 		mediaType = "print"
 	}
 
-	ressource, err := utils.FetchSource(input, baseUrl, urlFetcher, checkMimeType)
+	ressource, err := utils.FetchStylesheet(input, baseUrl, urlFetcher, checkMimeType)
 	if err != nil {
 		return CSS{}, fmt.Errorf("error fetching css input : %s", err)
 	}

@@ -263,10 +263,12 @@ func getUrl(_token Token, baseUrl string) (url pr.TaggedString, attr pr.AttrData
 	case pa.URL:
 		return parseURLToken(token.Value, baseUrl)
 	case pa.FunctionBlock:
-		if token.Name == "attr" {
+		// gopdfgo: nazwy funkcji nie rozróżniają wielkości liter (CSS Syntax 3
+		// § 4.3.4); źródło porównywało je dosłownie
+		if name := utils.AsciiLower(token.Name); name == "attr" {
 			attr = checkAttrFunction(token, "url")
 			return
-		} else if L := len(token.Arguments); token.Name == "url" && (L == 1 || L == 2) {
+		} else if L := len(token.Arguments); name == "url" && (L == 1 || L == 2) {
 			val, _ := (token.Arguments)[0].(pa.String)
 			return parseURLToken(val.Value, baseUrl)
 		}

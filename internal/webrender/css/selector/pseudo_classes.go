@@ -181,10 +181,7 @@ func nthChildMatch(a, b int, last, ofType bool, n *html.Node) bool {
 		return false
 	}
 
-	parent := n.Parent
-	if parent == nil {
-		return false
-	}
+	parent := structuralParent(n)
 
 	i := -1
 	count := 0
@@ -225,10 +222,7 @@ func simpleNthChildMatch(b int, ofType bool, n *html.Node) bool {
 		return false
 	}
 
-	parent := n.Parent
-	if parent == nil {
-		return false
-	}
+	parent := structuralParent(n)
 
 	count := 0
 	for c := parent.FirstChild; c != nil; c = c.NextSibling {
@@ -253,10 +247,7 @@ func simpleNthLastChildMatch(b int, ofType bool, n *html.Node) bool {
 		return false
 	}
 
-	parent := n.Parent
-	if parent == nil {
-		return false
-	}
+	parent := structuralParent(n)
 
 	count := 0
 	for c := parent.LastChild; c != nil; c = c.PrevSibling {
@@ -286,10 +277,7 @@ func (s onlyChildPseudoClassSelector) Match(n *html.Node) bool {
 		return false
 	}
 
-	parent := n.Parent
-	if parent == nil {
-		return false
-	}
+	parent := structuralParent(n)
 
 	count := 0
 	for c := parent.FirstChild; c != nil; c = c.NextSibling {
@@ -368,14 +356,65 @@ type langPseudoClassSelector struct {
 	lang string
 }
 
+// Match (gopdfgo) porównuje język elementu z zakresem selektora bez
+// rozróżniania wielkości liter (Selectors 3 § 6.6.3). Źródło dopasowywało
+// atrybut lang dowolnego przodka, także wtedy, gdy bliższy przodek podawał
+// inny język, nie znało xml:lang i rozróżniało wielkość liter.
 func (s langPseudoClassSelector) Match(n *html.Node) bool {
-	own := matchAttribute(n, "lang", func(val string) bool {
-		return val == s.lang || strings.HasPrefix(val, s.lang+"-")
-	})
-	if n.Parent == nil {
-		return own
+	language := strings.ToLower(elementLanguage(n))
+	want := strings.ToLower(s.lang)
+	if language == "" || want == "" {
+		return false
 	}
-	return own || s.Match(n.Parent)
+	return language == want || strings.HasPrefix(language, want+"-")
+}
+
+// elementLanguage zwraca język elementu według HTML § 3.2.6.2: atrybut
+// xml:lang albo lang najbliższego przodka (lub samego elementu), a gdy żaden
+// go nie podaje, język domyślny dokumentu z <meta http-equiv="content-language">.
+func elementLanguage(n *html.Node) string {
+	root := n
+	for p := n; p != nil; p = p.Parent {
+		if p.Type != html.ElementNode {
+			continue
+		}
+		root = p
+		lang, found := "", false
+		for _, a := range p.Attr {
+			switch a.Key {
+			case "xml:lang":
+				return a.Val
+			case "lang":
+				lang, found = a.Val, true
+			}
+		}
+		if found {
+			return lang
+		}
+	}
+	for head := root.FirstChild; head != nil; head = head.NextSibling {
+		if head.DataAtom != atom.Head {
+			continue
+		}
+		for meta := head.FirstChild; meta != nil; meta = meta.NextSibling {
+			if meta.DataAtom != atom.Meta {
+				continue
+			}
+			var equiv, content string
+			for _, a := range meta.Attr {
+				switch a.Key {
+				case "http-equiv":
+					equiv = a.Val
+				case "content":
+					content = a.Val
+				}
+			}
+			if strings.EqualFold(equiv, "content-language") && !strings.Contains(content, ",") {
+				return strings.TrimSpace(content)
+			}
+		}
+	}
+	return ""
 }
 
 type enabledPseudoClassSelector struct {
@@ -452,4 +491,15 @@ func (s checkedPseudoClassSelector) Match(n *html.Node) bool {
 		return hasAttr(n, "selected")
 	}
 	return false
+}
+
+// structuralParent (gopdfgo) zwraca rodzica do liczenia rodzeństwa. Element
+// główny bez węzła dokumentu nad sobą jest jedynym dzieckiem dokumentu
+// (Selectors 4 § 13: „:root:first-child” pasuje); źródło odmawiało wtedy
+// dopasowania każdej pseudoklasy strukturalnej.
+func structuralParent(n *html.Node) *html.Node {
+	if n.Parent != nil {
+		return n.Parent
+	}
+	return &html.Node{FirstChild: n, LastChild: n}
 }

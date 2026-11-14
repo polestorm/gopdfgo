@@ -592,6 +592,12 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 			if prelude == nil {
 				continue
 			}
+			// gopdfgo: blok bez selektora wewnątrz reguły („div { {color: red} }”)
+			// nie jest regułą zagnieżdżoną, tylko błędem (CSS 2.1 § 4.1.7,
+			// CSS Nesting § 2); źródło stosowało jego deklaracje do rodzica
+			if len(pa.RemoveWhitespace(declaration.Prelude)) == 0 {
+				continue
+			}
 			hasNesting := false
 			// Replace & selector by parent.
 			var declarationPrelude []Token
@@ -611,7 +617,10 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 			contents, err := PreprocessDeclarationsPrelude(baseURL, pa.ParseBlocksContents(declaration.Content, false),
 				declarationPrelude)
 			if err != nil {
-				return nil, err
+				// gopdfgo: błędna reguła zagnieżdżona odpada sama, bez
+				// unieważniania reguły, w której stoi (CSS Nesting § 2)
+				logger.WarningLogger.Printf("Invalid or unsupported nested selector '%s', %s \n", pa.Serialize(declaration.Prelude), err)
+				continue
 			}
 			out = append(out, contents...)
 		}
@@ -832,8 +841,8 @@ func outlineColor(tokens []Token, _ string) pr.CssProperty {
 		token := tokens[0]
 		if getKeyword(token) == "invert" {
 			return pr.Color{Type: pa.ColorCurrentColor}
-		} else {
-			return pr.Color(pa.ParseColor(token))
+		} else if c := pa.ParseColor(token); !c.IsNone() {
+			return pr.Color(c)
 		}
 	}
 	return nil
@@ -873,6 +882,11 @@ func color(tokens []Token, _ string) pr.DeclaredValue {
 	}
 	token := tokens[0]
 	result := pa.ParseColor(token)
+	if result.IsNone() {
+		// gopdfgo: błędna wartość unieważnia deklarację (CSS 2.1 § 4.2);
+		// źródło przyjmowało ją jako kolor zerowy i tekst znikał
+		return nil
+	}
 	if result.Type == pa.ColorCurrentColor {
 		return pr.Inherit
 	} else {

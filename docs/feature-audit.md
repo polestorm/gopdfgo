@@ -385,3 +385,32 @@ Nieudana próba: przydzielanie tablicy wartości od razu w pełnym rozmiarze zwi
 
 Pełny sondaż ekranowy po zmianach w stylach (2026-11-14): 6468 z 9135 (6059 ściśle, 409 krawędziowo),
 0 straconych, 0 zyskanych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
+
+## Runda składni, selektorów i kaskady (2026-11-14)
+
+Pełny sondaż ekranowy: **6537 z 9135 (71,6%)**, w tym 6126 ściśle i 411 krawędziowo; poprzednio 6468.
+Zyskanych 75 (składnia CSS 2: 47, selektory 10, przepływ normalny 8, kaskada 4, treść generowana 2, listy 2,
+kolory 1, `css1` 1), straconych 6, 0 błędów renderowania i przekroczeń limitu czasu. Po pomiarze naprawiony
+jeszcze `text-indent-intrinsic-001` (sprawdzony osobno; ćwiartka sondażu po tej poprawce bez zmian).
+Reftesty druku: 183 z 340.
+
+Straty nie są regresjami układu, tylko testami, które wcześniej przechodziły przez błąd:
+
+- `at-import-004`, `media-dependency-008`: `@import url("…") print` nie ma działać na ekranie; silnik renderuje
+  dla mediów drukowanych, więc arkusz stosuje. Dotąd ta postać `@import` była w ogóle pomijana;
+- `text-indent-intrinsic-001`, `-003`, `-004`, `block-in-inline-whitespace-001a`: arkusz tych testów ma selektor
+  zapisany jako `body &gt; div`. Przed rozwijaniem odwołań znakowych w `<style>` reguła odpadała zarówno w teście,
+  jak i we wzorcu, więc obrazy były równe. Teraz reguła działa i widać rzeczywiste różnice (`-001` naprawiony,
+  w `-003` i `-004` zostaje szerokość minimalna przy ujemnym wcięciu i znaku U+200B).
+
+Najważniejsze poprawki z punktu widzenia zwykłych dokumentów (szczegóły w `THIRD_PARTY.md`):
+
+- błędna wartość koloru czyniła tekst niewidocznym zamiast unieważniać deklarację;
+- `style="…"` przegrywało z regułą `#id { … }`;
+- `@import url("arkusz.css")` nie wczytywało arkusza;
+- arkusze w kodowaniu innym niż UTF-8 (znacznik kolejności bajtów, `@charset`) były czytane jako UTF-8;
+- spacja po znaku z fontu zastępczego miała szerokość z tego fontu.
+
+Pozostałe niezaliczone w `CSS2/syntax` (28): 20 wymaga nagłówków HTTP albo kodowania dokumentu, reszta to
+wielkość liter w XHTML, `declarations-009` (różnica między CSS 2.1 a CSS Syntax 3) i niedomknięte konstrukcje
+na końcu arkusza. W `CSS2/selectors` zostaje głównie `::first-line`, którego silnik nie stosuje (14 testów).

@@ -295,6 +295,46 @@ Wspólne dla obu katalogów:
      nie zobaczy późniejszej zmiany rodzica przez `Set*`, jeśli inny styl z grupy odczytał ją wcześniej;
   4. `AnonymousStyle.Get` nie zapisuje wartości odziedziczonych i początkowych, a mapę zmiennych bierze od
      rodzica bez kopiowania; w źródle każde pudełko anonimowe (na przykład liniowe) trzymało własną tablicę;
+- składnia CSS (runda 2026-11-14, testy `css/CSS2/syntax`: 189 → 236 z 264):
+  - `utils/io.go` (`FetchStylesheet`, `decodeStylesheet`), `html/tree/tree.go`: kodowanie arkusza według
+    CSS Syntax 3 § 3.2 (znacznik kolejności bajtów, protokół, dosłowna reguła `@charset`, potem UTF-8), także dla
+    `@import`; źródło patrzyło tylko na protokół. Kodowanie środowiska (atrybut `charset`, kodowanie dokumentu)
+    pominięte;
+  - `css/validation/validation.go` (`color`, `outlineColor`): błędna wartość koloru unieważnia deklarację;
+    źródło przyjmowało ją jako kolor zerowy i tekst stawał się niewidoczny (`color: rgb(255, 0)`, `color: redish`);
+  - `css/parser/colors.go`: zapis `#rgba` i `#rrggbbaa` (CSS Color 4 § 5.2). Test odziedziczony
+    `css-parsing-tests/color3.json` oczekiwał odrzucenia `#ffff` i `#ffffffff` (poziom 3), zmieniony na biały;
+    `TestImagesTransparentText` używa `#0001` i przechodził dotąd tylko dzięki błędowi wyżej;
+  - `css/validation/validation.go` (`PreprocessDeclarationsPrelude`): blok bez selektora wewnątrz reguły jest
+    błędem, a nie regułą zagnieżdżoną; błędna reguła zagnieżdżona odpada sama, bez unieważniania rodzica;
+  - `html/tree/style.go` (`preprocessStylesheet`): `@import` po pustej regule (`foo{}`) jest ignorowany;
+  - `css/selector/parser.go` (`parseIDSelector`): `#` wymaga identyfikatora, `#6id` unieważnia regułę;
+  - `css/parser/serialize.go`: cyfra na początku identyfikatora zapisywana jako ucieczka zakończona spacją;
+  - `css/validation/utils.go` (`getUrl`): nazwy funkcji `url` i `attr` bez rozróżniania wielkości liter.
+  Nie zmienione celowo: `declarations-009` oczekuje, że po regule `@media {…}` w bloku deklaracji przepada
+  następna deklaracja (CSS 2.1); według CSS Syntax 3 reguła kończy się na bloku i deklaracja obowiązuje;
+- selektory (runda 2026-11-14), `css/selector`:
+  - `pseudo_classes.go` (`structuralParent`): element główny bez węzła dokumentu nad sobą jest jedynym dzieckiem
+    dokumentu, więc pasuje do `:first-child`, `:only-child` i pokrewnych; źródło odmawiało dopasowania;
+  - `pseudo_classes.go` (`langPseudoClassSelector.Match`, `elementLanguage`): język elementu według HTML
+    § 3.2.6.2: najbliższy przodek z `xml:lang` albo `lang`, potem `<meta http-equiv="content-language">`;
+    porównanie bez rozróżniania wielkości liter. Źródło dopasowywało `lang` dowolnego przodka;
+  - `selector.go` (`matchInclude`): `[attr~=""]` i wartość z odstępem nie pasują do niczego;
+  - `parser.go` (`parseSelector`): kombinator po pseudoelemencie unieważnia regułę.
+  Nie zrobione: `::first-line` (styl jest odczytywany, ale układ go nie stosuje; tak samo w źródle);
+- kaskada, `html/tree/style.go` (`weight.styleAttribute`): deklaracja z atrybutu `style` wygrywa z każdym
+  selektorem tego samego pochodzenia i ważności (CSS 2.1 § 6.4.3). Źródło dawało jej wagę (1,0,0), równą jednemu
+  selektorowi identyfikatora, więc `#id { color: red }` przesłaniało `style="color: green"`;
+- `@import url("adres")`, `html/tree/style.go` (`preprocessStylesheet`): adres w cudzysłowie wewnątrz `url()`
+  jest dla analizatora funkcją; źródło obsługiwało tylko `url(adres)` i `"adres"`, więc ta postać była pomijana
+  (próbowało wczytać katalog arkusza);
+- `xhtml.go` (kod własny, `decodeStyleEntities`): odwołania znakowe w `<style>` dokumentu XHTML są rozwijane
+  (`.a &gt; .b`), poza sekcjami CDATA;
+- font spacji, `text/engine_gotext.go` (`spacesInOwnFace`): spacja i spacja nierozdzielająca dostają pierwszy
+  font z listy rodzin, który je zawiera (CSS Fonts 4 § 5.3), także po znaku złożonym fontem zastępczym. Segmentacja
+  go-text dokleja odstępy do bieżącego przebiegu, więc „◦ ” miało spację o szerokości z fontu zastępczego;
+- `html/layout/preferred.go` (`inlineLineWidths`): wcięcie pierwszego wiersza liczy się do szerokości minimalnej
+  razem z obiektem stojącym na początku wiersza, a ujemne wcięcie nie daje ujemnej szerokości wiersza;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

@@ -81,7 +81,9 @@ func serializeIdentifier(value string) string {
 	case '\f':
 		suffix = `\C `
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		suffix = fmt.Sprintf("\\%X", c)
+		// gopdfgo: spacja kończy ucieczkę; bez niej „1def” zapisane jako
+		// „\31def” wracało jako jeden znak U+31DEF
+		suffix = fmt.Sprintf("\\%X ", c)
 	default:
 		if c > 0x7F {
 			suffix = string(c)

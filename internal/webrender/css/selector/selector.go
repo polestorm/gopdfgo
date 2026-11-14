@@ -313,6 +313,11 @@ var spaceAsciiSet = makeASCIISet(" \t\r\n\f")
 
 // returns true if s is a whitespace-separated list that includes val.
 func matchInclude(val, s string, ignoreCase bool) bool {
+	// gopdfgo: wartość pusta albo zawierająca odstęp nie pasuje do niczego
+	// (Selectors 3 § 6.3.1); źródło dopasowywało "" do title=" "
+	if val == "" || spaceAsciiSet.index(val) != -1 {
+		return false
+	}
 	for s != "" {
 		i := spaceAsciiSet.index(s)
 		if i == -1 {

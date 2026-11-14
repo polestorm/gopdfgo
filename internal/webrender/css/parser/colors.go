@@ -18,6 +18,9 @@ var (
 	hashRegexps = [...]hashRegexp{
 		{multiplier: 2., regexp: regexp.MustCompile(`(?i)^([\da-f])([\da-f])([\da-f])$`)},
 		{multiplier: 1., regexp: regexp.MustCompile(`(?i)^([\da-f]{2})([\da-f]{2})([\da-f]{2})$`)},
+		// gopdfgo: zapis z kanałem alfa, #rgba i #rrggbbaa (CSS Color 4 § 5.2)
+		{multiplier: 2., regexp: regexp.MustCompile(`(?i)^([\da-f])([\da-f])([\da-f])([\da-f])$`)},
+		{multiplier: 1., regexp: regexp.MustCompile(`(?i)^([\da-f]{2})([\da-f]{2})([\da-f]{2})([\da-f]{2})$`)},
 	}
 
 	// (r, g, b) := range 0..255
@@ -303,11 +306,15 @@ func ParseColor(token Token) Color {
 	case Hash:
 		for _, hashReg := range hashRegexps {
 			match := hashReg.regexp.FindStringSubmatch(token.Value)
-			if len(match) == 4 {
+			if len(match) >= 4 {
 				r := mustParseHexa(strings.Repeat(match[1], hashReg.multiplier)) / 255
 				g := mustParseHexa(strings.Repeat(match[2], hashReg.multiplier)) / 255
 				b := mustParseHexa(strings.Repeat(match[3], hashReg.multiplier)) / 255
-				return Color{Type: ColorRGBA, RGBA: RGBA{R: r, G: g, B: b, A: 1.}}
+				a := utils.Fl(1)
+				if len(match) == 5 {
+					a = mustParseHexa(strings.Repeat(match[4], hashReg.multiplier)) / 255
+				}
+				return Color{Type: ColorRGBA, RGBA: RGBA{R: r, G: g, B: b, A: a}}
 			}
 		}
 	case FunctionBlock:

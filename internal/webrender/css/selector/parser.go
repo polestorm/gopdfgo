@@ -322,7 +322,10 @@ func (p *parser) parseIDSelector() (idSelector, error) {
 	}
 
 	p.i++
-	id, err := p.parseName()
+	// gopdfgo: selektor identyfikatora wymaga identyfikatora (Selectors 3
+	// § 6.5, CSS 2.1 § 4.1.3); „#6id” i „#-1id” są błędne i unieważniają
+	// całą regułę. Źródło przyjmowało dowolną nazwę.
+	id, err := p.parseIdentifier()
 	if err != nil {
 		return idSelector{}, err
 	}
@@ -861,6 +864,11 @@ func (p *parser) parseSelector() (Sel, error) {
 
 		if combinator == 0 {
 			return result, nil
+		}
+		// gopdfgo: pseudoelement kończy selektor (Selectors 3 § 7); po nim
+		// nie może stać kombinator, a błąd unieważnia całą regułę
+		if result.PseudoElement() != "" {
+			return nil, errors.New("pseudo-element must be the last part of the selector")
 		}
 
 		c, err = p.parseSimpleSelectorSequence()

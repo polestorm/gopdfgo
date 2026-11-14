@@ -498,6 +498,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		Size:      floatToFixed(style.FontDescription.Size),
 		Direction: dir, // default, will be overriden
 	}, fc.fm)
+	inputs = fc.spacesInOwnFace(inputs)
 
 	// TODO: lazy iterator
 	outputs := make(shaping.Line, len(inputs))
@@ -1030,4 +1031,54 @@ func shapePrecisely(shaper *shaping.HarfbuzzShaper, input shaping.Input) shaping
 // każdy blok pod akapitem tekstu zaczynał się w ułamku piksela.
 func roundMetric(v pr.Float) pr.Float {
 	return pr.Float(math.Round(float64(v)))
+}
+
+// spacesInOwnFace (gopdfgo) wydziela spacje z przebiegów złożonych fontem
+// zastępczym. Segmentacja go-text dokleja odstępy do bieżącego przebiegu, więc
+// spacja po znaku spoza fontu podstawowego („◦ ”, „• ”, znak CJK) dostawała
+// szerokość z fontu zastępczego. Według CSS Fonts 4 § 5.3 font dobiera się dla
+// każdego znaku osobno, zaczynając od początku listy rodzin, czyli spacja
+// należy do pierwszego fontu, który ją ma.
+func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []shaping.Input {
+	var spaceFace *font.Face
+	needsSplit := false
+	for _, input := range inputs {
+		for _, r := range input.Text[input.RunStart:input.RunEnd] {
+			if r != ' ' && r != '\u00a0' {
+				continue
+			}
+			if spaceFace == nil {
+				spaceFace = fc.fm.ResolveFace(' ')
+			}
+			if spaceFace != nil && input.Face != spaceFace {
+				needsSplit = true
+			}
+			break
+		}
+	}
+	if !needsSplit {
+		return inputs
+	}
+	out := make([]shaping.Input, 0, len(inputs)+2)
+	for _, input := range inputs {
+		if input.Face == spaceFace {
+			out = append(out, input)
+			continue
+		}
+		start := input.RunStart
+		isSpace := func(i int) bool { r := input.Text[i]; return r == ' ' || r == '\u00a0' }
+		for i := input.RunStart + 1; i <= input.RunEnd; i++ {
+			if i < input.RunEnd && isSpace(i) == isSpace(start) {
+				continue
+			}
+			piece := input
+			piece.RunStart, piece.RunEnd = start, i
+			if isSpace(start) {
+				piece.Face = spaceFace
+			}
+			out = append(out, piece)
+			start = i
+		}
+	}
+	return out
 }

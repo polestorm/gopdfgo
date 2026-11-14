@@ -3,6 +3,7 @@ package gopdfgo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -874,5 +875,116 @@ func TestSharedComputedValuesStayPerElement(t *testing.T) {
 	}
 	if bytes.Equal(result.PDF, bothRed.PDF) || bytes.Equal(result.PDF, noneRed.PDF) {
 		t.Error("kolor odziedziczony po jednej sekcji przeszedł do drugiej albo zniknął")
+	}
+}
+
+// Błędy składni CSS: lewa strona musi dać ten sam dokument co prawa.
+// Każdy przypadek był w przejętym kodzie obsłużony inaczej, niż każe norma.
+func TestCSSSyntaxErrorHandling(t *testing.T) {
+	const body = `<p>akapit</p><div id="a" class="k">tekst</div>`
+	cases := []struct{ name, got, want string }{
+		{"błędny kolor nie ukrywa tekstu", `div { color: green; color: rgb(255, 0) }`, `div { color: green }`},
+		{"nieznana nazwa koloru", `div { color: green; color: redish }`, `div { color: green }`},
+		{"kolor z kanałem alfa", `div { color: #0080007f }`, `div { color: rgba(0, 128, 0, 0.498039) }`},
+		{"blok bez selektora w regule", `div { { color: red } }`, ``},
+		{"błędna reguła zagnieżdżona nie psuje rodzica", `div { color: green; 12 { color: red } }`, `div { color: green }`},
+		{"identyfikator od cyfry", `#6a, div { color: red }`, ``},
+		{"nazwa funkcji url wielkimi literami", `div { background: UrL("missing.png") green }`, `div { background: url("missing.png") green }`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: %q dało inny dokument niż %q", c.name, c.got, c.want)
+		}
+	}
+}
+
+// Dopasowanie selektorów: lewy arkusz musi dać ten sam dokument co prawy.
+func TestSelectorMatchingFixes(t *testing.T) {
+	const body = `<p title=" ">akapit</p><div lang="de"><span lang="PL-pl">tekst</span><em>inny</em></div>`
+	cases := []struct{ name, got, want string }{
+		{"element główny jest pierwszym dzieckiem", `:root:first-child { color: green }`, `html { color: green }`},
+		{"pusta wartość w [attr~=]", `[title~=""] { color: red }`, ``},
+		{"kombinator po pseudoelemencie", `p::first-line em, p { color: red }`, ``},
+		{"język bliższego przodka wygrywa", `span:lang(de) { color: red }`, ``},
+		{"język bez rozróżniania wielkości liter", `span:lang(pl) { color: green }`, `span { color: green }`},
+		{"język dziedziczony", `em:lang(de) { color: green }`, `em { color: green }`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: %q dało inny dokument niż %q", c.name, c.got, c.want)
+		}
+	}
+}
+
+// Atrybut style wygrywa z selektorem identyfikatora, a przegrywa tylko
+// z deklaracją !important (CSS 2.1 § 6.4.1 i § 6.4.3).
+func TestStyleAttributeBeatsIDSelector(t *testing.T) {
+	options := Options{Fonts: testFonts(t)}
+	render := func(html string) []byte {
+		t.Helper()
+		result, err := Render(t.Context(), []byte(html), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.PDF
+	}
+	green := render(`<style>#a { color: green }</style><div id="a">tekst</div>`)
+	if got := render(`<style>#a { color: red }</style><div id="a" style="color: green">tekst</div>`); !bytes.Equal(got, green) {
+		t.Error("reguła #a przesłoniła atrybut style")
+	}
+	if got := render(`<style>#a { color: green !important }</style><div id="a" style="color: red">tekst</div>`); !bytes.Equal(got, green) {
+		t.Error("atrybut style przesłonił deklarację !important")
+	}
+}
+
+// @import z adresem w cudzysłowie wewnątrz url() wczytuje arkusz tak samo
+// jak pozostałe postaci.
+func TestImportWithQuotedURL(t *testing.T) {
+	sheet := []byte(`div { color: green }`)
+	resolver := func(url string) (Resource, error) {
+		if strings.HasSuffix(url, "sheet.css") {
+			return Resource{Data: sheet, MediaType: "text/css"}, nil
+		}
+		return Resource{}, errors.New("nieznany zasób " + url)
+	}
+	var documents [][]byte
+	for _, rule := range []string{`@import url("sheet.css");`, `@import url(sheet.css);`, `@import "sheet.css";`} {
+		result, err := Render(t.Context(), []byte(`<style>`+rule+`</style><div>tekst</div>`),
+			Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "https://example.test/doc.html"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, warning := range result.Warnings {
+			t.Errorf("%s: ostrzeżenie %q", rule, warning.Message)
+		}
+		documents = append(documents, result.PDF)
+	}
+	plain, err := Render(t.Context(), []byte(`<style></style><div>tekst</div>`), Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(documents[0], documents[1]) || !bytes.Equal(documents[0], documents[2]) {
+		t.Error("trzy postaci @import dały różne dokumenty")
+	}
+	if bytes.Equal(documents[0], plain.PDF) {
+		t.Error("arkusz z @import nie został zastosowany")
 	}
 }

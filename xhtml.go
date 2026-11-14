@@ -2,6 +2,7 @@ package gopdfgo
 
 import (
 	"bytes"
+	"html"
 	"regexp"
 )
 
@@ -35,7 +36,7 @@ func expandSelfClosing(document []byte) []byte {
 	if !isXHTML(document) {
 		return document
 	}
-	document = stripNamespacePrefixes(document)
+	document = decodeStyleEntities(stripNamespacePrefixes(document))
 	var out bytes.Buffer
 	rest := document
 	for len(rest) > 0 {
@@ -83,4 +84,26 @@ func stripNamespacePrefixes(document []byte) []byte {
 		document = bytes.ReplaceAll(document, append(append([]byte("</"), prefix...), ':'), []byte("</"))
 	}
 	return document
+}
+
+var styleElement = regexp.MustCompile(`(?is)(<style\b[^>]*>)(.*?)(</style\s*>)`)
+
+// decodeStyleEntities rozwija odwołania znakowe w treści <style> dokumentu XHTML. W XML treść tego
+// elementu to zwykłe dane znakowe, więc „.a &gt; .b” oznacza „.a > .b”; parser HTML5 czyta ją dosłownie
+// i selektor z encją unieważniał regułę. Sekcji CDATA nie dotykamy: w niej odwołań się nie rozwija.
+func decodeStyleEntities(document []byte) []byte {
+	return styleElement.ReplaceAllFunc(document, func(element []byte) []byte {
+		parts := styleElement.FindSubmatch(element)
+		if !bytes.Contains(parts[2], []byte("&")) || bytes.Contains(parts[2], []byte("<![CDATA[")) {
+			return element
+		}
+		decoded := html.UnescapeString(string(parts[2]))
+		if bytes.Contains(bytes.ToLower([]byte(decoded)), []byte("</style")) {
+			return element
+		}
+		out := make([]byte, 0, len(element))
+		out = append(out, parts[1]...)
+		out = append(out, decoded...)
+		return append(out, parts[3]...)
+	})
 }

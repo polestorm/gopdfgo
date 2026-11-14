@@ -77,6 +77,7 @@ konkretnego odbiorcy.
     `counter(pages)`, `target-counter` ani pól marginesowych zależnych od całości, a w pozostałych przypadkach
     działać jak dziś; (c) przebudować układ na strumieniowy także dla tych przypadków (dwa przebiegi).
     Propozycja: (b), po pomiarze na dokumencie 1000 stron i rozpoznaniu, jak rozdzielić układ, rysowanie i zapis PDF.
+    Decyzja użytkownika 2026-11-14: odłożone, pomysł zanotowany na przyszłość; pierwszeństwo mają reftesty W3C.
 
 15. **Współbieżność i zmienne globalne.** `Render` wykonuje jedno renderowanie naraz, bo silnik zgłasza ostrzeżenia
     przez globalne `logger.WarningLogger` (80 wywołań w 25 plikach), a limit czasu nie przerywa pracy. Decyzja

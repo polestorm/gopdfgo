@@ -138,7 +138,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		for _, decl := range validation.PreprocessDeclarations(styleAttr.baseUrl, styleAttr.declaration) {
 			// name, values, importance = decl
 			precedence := declarationPrecedence("author", decl.Important)
-			we := weight{precedence: precedence, specificity: styleAttr.specificity}
+			we := weight{precedence: precedence, specificity: styleAttr.specificity, styleAttribute: styleAttr.specificity != selector.Specificity{}}
 			oldWeight := style[decl.Name].weight
 			if oldWeight.isNone() || oldWeight.Less(we) {
 				style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}
@@ -1342,8 +1342,13 @@ type Element interface {
 }
 
 type weight struct {
-	precedence  uint8
-	specificity selector.Specificity
+	precedence uint8
+	// gopdfgo: deklaracja z atrybutu style wygrywa z każdym selektorem tego
+	// samego pochodzenia i ważności (CSS 2.1 § 6.4.3: a=1). Źródło dawało
+	// jej wagę (1,0,0), równą jednemu selektorowi identyfikatora, więc
+	// reguła „#id { … }” ją przesłaniała.
+	styleAttribute bool
+	specificity    selector.Specificity
 }
 
 func (w weight) isNone() bool {
@@ -1352,7 +1357,13 @@ func (w weight) isNone() bool {
 
 // Less return `true` if w <= other
 func (w weight) Less(other weight) bool {
-	return w.precedence < other.precedence || (w.precedence == other.precedence && (w.specificity.Less(other.specificity) || w.specificity == other.specificity))
+	if w.precedence != other.precedence {
+		return w.precedence < other.precedence
+	}
+	if w.styleAttribute != other.styleAttribute {
+		return other.styleAttribute
+	}
+	return w.specificity.Less(other.specificity) || w.specificity == other.specificity
 }
 
 type weigthedValue struct {
@@ -1524,6 +1535,11 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 				logger.WarningLogger.Printf("Parse error at %d:%d: %s\n", err.Pos().Line, err.Pos().Column, err.Message)
 			}
 			if !isAtRule {
+				// gopdfgo: także pusta reguła („foo{}”) jest regułą, po której
+				// @import jest już nieważny (CSS 2.1 § 4.1.5)
+				if _, isRule := rule.(pa.QualifiedRule); isRule {
+					ignoreImports = true
+				}
 				continue
 			}
 			if utils.AsciiLower(atRule.AtKeyword) != "import" {
@@ -1576,6 +1592,20 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 						url = str.Value
 					case pa.String:
 						url = str.Value
+					case pa.FunctionBlock:
+						// gopdfgo: url("…") z adresem w cudzysłowie jest dla
+						// analizatora funkcją, nie żetonem URL; źródło
+						// obsługiwało tylko url(bez cudzysłowu) i "napis",
+						// więc najczęstsza postać @import była pomijana
+						if args := pa.RemoveWhitespace(str.Arguments); utils.AsciiLower(str.Name) == "url" && len(args) == 1 {
+							if quoted, ok := args[0].(pa.String); ok {
+								url = quoted.Value
+							}
+						}
+					}
+					if url == "" {
+						logger.WarningLogger.Printf("Invalid @import rule '%s' was ignored. \n", pa.Serialize(rule.Prelude))
+						continue
 					}
 				} else {
 					continue

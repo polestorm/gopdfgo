@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -57,6 +58,21 @@ type Source struct {
 func FetchSource(input ContentInput, baseUrl string, urlFetcher UrlFetcher,
 	checkCssMimeType bool,
 ) (out Source, err error) {
+	return fetchSource(input, baseUrl, urlFetcher, checkCssMimeType, false)
+}
+
+// FetchStylesheet (gopdfgo) działa jak FetchSource, ale treść pobraną spod
+// adresu dekoduje według reguł dla arkuszy stylów (decodeStylesheet), także
+// wtedy, gdy typ MIME nie jest sprawdzany (@import).
+func FetchStylesheet(input ContentInput, baseUrl string, urlFetcher UrlFetcher,
+	checkCssMimeType bool,
+) (out Source, err error) {
+	return fetchSource(input, baseUrl, urlFetcher, checkCssMimeType, true)
+}
+
+func fetchSource(input ContentInput, baseUrl string, urlFetcher UrlFetcher,
+	checkCssMimeType, stylesheet bool,
+) (out Source, err error) {
 	if baseUrl != "" {
 		baseUrl, err = ensureUrl(baseUrl)
 		if err != nil {
@@ -92,7 +108,12 @@ func FetchSource(input ContentInput, baseUrl string, urlFetcher UrlFetcher,
 			if baseUrl == "" {
 				baseUrl = result.RedirectedUrl
 			}
-			decoded, err := decodeToUtf8(result.Content, result.ProtocolEncoding)
+			var decoded []byte
+			if stylesheet {
+				decoded, err = decodeStylesheet(result.Content, result.ProtocolEncoding)
+			} else {
+				decoded, err = decodeToUtf8(result.Content, result.ProtocolEncoding)
+			}
 			if err != nil {
 				return Source{}, err
 			}
@@ -123,4 +144,39 @@ func decodeToUtf8(data io.Reader, encod string) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported encoding %s", encod)
 	}
 	return io.ReadAll(enc.NewDecoder().Reader(data))
+}
+
+// decodeStylesheet (gopdfgo) ustala kodowanie arkusza według CSS Syntax 3
+// § 3.2: znacznik kolejności bajtów, potem kodowanie z protokołu, potem
+// reguła @charset zapisana dosłownie na początku pliku, na końcu UTF-8.
+// Kodowania środowiska (atrybut charset odsyłacza, kodowanie dokumentu) nie
+// uwzględniamy. Źródło patrzyło tylko na protokół.
+func decodeStylesheet(data io.Reader, protocolEncoding string) ([]byte, error) {
+	content, err := io.ReadAll(data)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case bytes.HasPrefix(content, []byte{0xEF, 0xBB, 0xBF}):
+		return content[3:], nil
+	case bytes.HasPrefix(content, []byte{0xFE, 0xFF}):
+		return decodeToUtf8(bytes.NewReader(content[2:]), "utf-16be")
+	case bytes.HasPrefix(content, []byte{0xFF, 0xFE}):
+		return decodeToUtf8(bytes.NewReader(content[2:]), "utf-16le")
+	}
+	if enc, _ := charset.Lookup(protocolEncoding); enc != nil {
+		return io.ReadAll(enc.NewDecoder().Reader(bytes.NewReader(content)))
+	}
+	const prefix = `@charset "`
+	if head := content[:min(len(content), 1024)]; bytes.HasPrefix(head, []byte(prefix)) {
+		if end := bytes.Index(head[len(prefix):], []byte(`";`)); end >= 0 {
+			enc, name := charset.Lookup(string(head[len(prefix) : len(prefix)+end]))
+			// Arkusz, w którym regułę dało się odczytać bajt po bajcie, nie
+			// może być zapisany w UTF-16; norma każe wtedy przyjąć UTF-8.
+			if enc != nil && !strings.HasPrefix(name, "utf-16") && name != "utf-8" {
+				return io.ReadAll(enc.NewDecoder().Reader(bytes.NewReader(content)))
+			}
+		}
+	}
+	return content, nil
 }

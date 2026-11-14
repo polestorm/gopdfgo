@@ -425,7 +425,13 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 			// https://www.unicode.org/reports/tr14/#DescriptionOfProperties
 			// "By default, there is a break opportunity
 			//  both before and after any inline object."
-			if minimum {
+			if minimum && currentLine == 0 {
+				// gopdfgo: na początku wiersza nie ma czego łamać przed
+				// obiektem, więc wcięcie pierwszego wiersza (text-indent)
+				// liczy się razem z nim; źródło zostawiało wcięcie w pustym
+				// wierszu i szerokość minimalna wychodziła za mała
+				lines = []pr.MaybeFloat{minContentWidth(context, child, true), nil}
+			} else if minimum {
 				lines = []pr.MaybeFloat{nil, minContentWidth(context, child, true), nil}
 			} else {
 				lines = []pr.MaybeFloat{maxContentWidth(context, child, true)}
@@ -435,7 +441,8 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		currentLine += orZero(lines[0])
 		if len(lines) > 1 {
 			// Forced line break(s).
-			out = append(out, currentLine+textIndent)
+			// gopdfgo: ujemne wcięcie nie daje ujemnej szerokości wiersza
+			out = append(out, max(0, currentLine+textIndent))
 			textIndent = 0
 			if len(lines) > 2 {
 				for _, v := range lines[1 : len(lines)-1] {
@@ -447,7 +454,7 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		isLineStart = lines[len(lines)-1] == nil
 		skipStack = nil
 	}
-	out = append(out, currentLine+textIndent)
+	out = append(out, max(0, currentLine+textIndent))
 	return out
 }
 

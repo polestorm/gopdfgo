@@ -27,3 +27,18 @@ func TestStripNamespacePrefixes(t *testing.T) {
 		t.Errorf("wynik:\n%s\noczekiwany:\n%s", got, want)
 	}
 }
+
+func TestDecodeStyleEntities(t *testing.T) {
+	cases := map[string]string{
+		`<style>.a &gt; .b { color: red }</style>`:               `<style>.a > .b { color: red }</style>`,
+		`<style type="text/css">p:lang(&#x70;l) {}</style>`:      `<style type="text/css">p:lang(pl) {}</style>`,
+		`<style><![CDATA[ .a &gt; .b {} ]]></style>`:             `<style><![CDATA[ .a &gt; .b {} ]]></style>`,
+		`<style>p::before { content: "&lt;/style&gt;" }</style>`: `<style>p::before { content: "&lt;/style&gt;" }</style>`,
+		`<p>a &gt; b</p>`: `<p>a &gt; b</p>`,
+	}
+	for input, want := range cases {
+		if got := string(decodeStyleEntities([]byte(input))); got != want {
+			t.Errorf("decodeStyleEntities(%q) = %q, oczekiwane %q", input, got, want)
+		}
+	}
+}
