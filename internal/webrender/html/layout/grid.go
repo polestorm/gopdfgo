@@ -102,7 +102,7 @@ func autoRepeatCount(tracks pr.GridTemplate, repeat pr.GridRepeat, available pr.
 }
 
 // gopdfgo: available i gap służą tylko do repeat(auto-fill | auto-fit); w źródle oba dawały jedno
-// powtórzenie z ostrzeżeniem. auto-fit jest liczone jak auto-fill: puste ścieżki nie są zwijane.
+// powtórzenie z ostrzeżeniem. Puste ścieżki auto-fit zwija potem collapseEmptyAutoFit.
 func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float) []pr.GridSpec {
 	if tracks.Tag == pr.None {
 		tracks.Names = []pr.GridSpec{pr.GridNames{}}
@@ -119,9 +119,6 @@ func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.F
 			if trackR, isRepeat := track.(pr.GridRepeat); isRepeat {
 				repeatNumber := trackR.Repeat
 				if repeatNumber == pr.RepeatAutoFill || repeatNumber == pr.RepeatAutoFit {
-					if repeatNumber == pr.RepeatAutoFit {
-						logger.WarningLogger.Println(`"auto-fit" in repeat() is laid out as "auto-fill": empty tracks are not collapsed`)
-					}
 					repeatNumber = autoRepeatCount(tracks, trackR, available, gap)
 				}
 				for _c := 0; _c < repeatNumber; _c++ {
@@ -152,6 +149,69 @@ func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.F
 		}
 	}
 	return tracksList
+}
+
+// autoFitRange zwraca położenie ścieżek pochodzących z repeat(auto-fit, …):
+// numer pierwszej (od zera, w siatce jawnej) i ich liczbę; (0, 0), gdy
+// szablon nie ma takiego powtórzenia.
+func autoFitRange(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float) (first, count int) {
+	if tracks.Tag == pr.None || tracks.Tag == pr.Subgrid {
+		return 0, 0
+	}
+	before := 0
+	for i, track := range tracks.Names {
+		if i%2 == 0 {
+			continue
+		}
+		repeat, isRepeat := track.(pr.GridRepeat)
+		if !isRepeat {
+			before++
+			continue
+		}
+		perRepeat := len(repeat.Names) / 2
+		switch repeat.Repeat {
+		case pr.RepeatAutoFit:
+			return before, perRepeat * autoRepeatCount(tracks, repeat, available, gap)
+		case pr.RepeatAutoFill:
+			before += perRepeat * autoRepeatCount(tracks, repeat, available, gap)
+		default:
+			before += perRepeat * repeat.Repeat
+		}
+	}
+	return 0, 0
+}
+
+// collapseEmptyAutoFit usuwa z listy ścieżek te ścieżki auto-fit, w których
+// nie leży żaden element, i przesuwa współrzędne elementów za nimi.
+//
+// gopdfgo: CSS Grid 2 § 7.2.3.2 każe pustą ścieżkę auto-fit zwinąć: dostaje
+// rozmiar zero, a odstępy po jej obu stronach zlewają się w jeden. Wynik
+// jest taki sam jak po usunięciu ścieżki, bo żaden element jej nie obejmuje.
+// Źródło układało auto-fit jak auto-fill, więc elementy nie rozkładały się
+// na całą szerokość kontenera.
+func collapseEmptyAutoFit(specs []pr.GridSpec, first, count, implicitBefore int, positions map[Box]rect, axis int) []pr.GridSpec {
+	if count == 0 {
+		return specs
+	}
+	occupied := map[int]bool{}
+	for _, r := range positions {
+		for k := 0; k < r[axis+2]; k++ {
+			occupied[r[axis]+implicitBefore+k] = true
+		}
+	}
+	for k := implicitBefore + first + count - 1; k >= implicitBefore+first; k-- {
+		if occupied[k] || 2*k+2 >= len(specs) {
+			continue
+		}
+		specs = append(specs[:2*k+1:2*k+1], specs[2*k+3:]...)
+		for child, r := range positions {
+			if r[axis]+implicitBefore > k {
+				r[axis]--
+				positions[child] = r
+			}
+		}
+	}
+	return specs
 }
 
 type maybeInt struct {
@@ -985,6 +1045,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	rows := getTemplateTracks(style.GetGridTemplateRows(), box.Height, rowGap)
 	columns := getTemplateTracks(style.GetGridTemplateColumns(), box.Width, columnGap)
+	rowsFitFirst, rowsFitCount := autoFitRange(style.GetGridTemplateRows(), box.Height, rowGap)
+	columnsFitFirst, columnsFitCount := autoFitRange(style.GetGridTemplateColumns(), box.Width, columnGap)
 
 	// Adjust rows number
 	gridAreasColumns := 0
@@ -1098,6 +1160,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 	if columnFlow {
 		rows, columns = columns, rows
+		rowsFitFirst, columnsFitFirst = columnsFitFirst, rowsFitFirst
+		rowsFitCount, columnsFitCount = columnsFitCount, rowsFitCount
 		autoRows, autoColumns = autoColumns, autoRows
 		autoRowsBack, autoColumnsBack = autoColumnsBack, autoRowsBack
 		gridAreas = transposeAreas(gridAreas)
@@ -1438,6 +1502,9 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	for c := len(gridAreas); c < implicitY2; c++ {
 		rows = append(rows, autoRows.Next(), pr.GridNames{})
 	}
+
+	columns = collapseEmptyAutoFit(columns, columnsFitFirst, columnsFitCount, -implicitX1, childrenPositions, 0)
+	rows = collapseEmptyAutoFit(rows, rowsFitFirst, rowsFitCount, -implicitY1, childrenPositions, 1)
 
 	if columnFlow {
 		rows, columns = columns, rows

@@ -391,6 +391,12 @@ Wspólne dla obu katalogów:
   odwrotnie, warstwa zagnieżdżona przed regułami rodzica), także dla `@page`. Źródło pomijało `@layer` razem
   z zawartością. Nie zrobione: `@import … layer(…)` i `revert-layer`. Numerator warstw bez nazwy jest zmienną
   globalną (służy tylko do odróżniania warstw);
+- grid i kolejność nakładania (runda 2026-11-14):
+  - `html/layout/grid.go` (`autoFitRange`, `collapseEmptyAutoFit`): puste ścieżki `repeat(auto-fit, …)` są
+    zwijane razem z odstępami (CSS Grid 2 § 7.2.3.2); wcześniej `auto-fit` było układane jak `auto-fill`
+    z ostrzeżeniem;
+  - `html/document/stacking.go` (`dispatch`): element flex lub grid z `z-index` innym niż `auto` tworzy kontekst
+    nakładania bez pozycjonowania (CSS Flexbox 1 § 5.4, CSS Grid 2 § 6.4); źródło wymagało `position`;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

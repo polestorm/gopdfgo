@@ -1241,3 +1241,36 @@ func TestCascadeLayers(t *testing.T) {
 		}
 	}
 }
+
+// repeat(auto-fit, …): puste ścieżki są zwijane razem z odstępami, więc
+// elementy rozkładają się tak, jakby siatka miała tylko zajęte ścieżki
+// (CSS Grid 2 § 7.2.3.2). Element flex lub grid z z-index tworzy kontekst
+// nakładania bez pozycjonowania.
+func TestGridAutoFitAndItemZIndex(t *testing.T) {
+	const item = `<div style="background: #555; height: 30px"></div>`
+	cases := []struct{ name, got, want string }{
+		{"auto-fit zwija puste ścieżki",
+			`<div style="display: grid; width: 400px; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(50px, 1fr))">` + item + item + `</div>`,
+			`<div style="display: grid; width: 400px; gap: 10px; grid-template-columns: repeat(2, minmax(50px, 1fr))">` + item + item + `</div>`},
+		{"auto-fit z wyrównaniem do środka",
+			`<div style="display: grid; width: 400px; grid-template-columns: repeat(auto-fit, 50px); justify-content: center">` + item + `</div>`,
+			`<div style="display: grid; width: 400px; grid-template-columns: 50px; justify-content: center">` + item + `</div>`},
+		{"auto-fill zostawia puste ścieżki",
+			`<div style="display: grid; width: 400px; grid-template-columns: repeat(auto-fill, 100px); justify-content: end">` + item + `</div>`,
+			`<div style="display: grid; width: 400px; grid-template-columns: repeat(4, 100px); justify-content: end">` + item + `</div>`},
+		{"z-index elementu grid bez pozycjonowania",
+			`<div style="display: grid; width: 100px"><div style="grid-area: 1 / 1; z-index: 2; background: green; height: 40px"></div><div style="grid-area: 1 / 1; background: red; height: 40px"></div></div>`,
+			`<div style="display: grid; width: 100px"><div style="grid-area: 1 / 1; background: red; height: 40px"></div><div style="grid-area: 1 / 1; z-index: 2; background: green; height: 40px"></div></div>`},
+	}
+	dir := t.TempDir()
+	for i, c := range cases {
+		got := rasterize(t, renderString(t, c.got).PDF, dir, fmt.Sprintf("got%d", i))
+		want := rasterize(t, renderString(t, c.want).PDF, dir, fmt.Sprintf("want%d", i))
+		if len(got) != 1 || len(want) != 1 {
+			t.Fatalf("%s: strony %d i %d", c.name, len(got), len(want))
+		}
+		if n := differentPixels(got[0], want[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
+		}
+	}
+}

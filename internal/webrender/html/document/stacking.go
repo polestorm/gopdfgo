@@ -166,7 +166,11 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	if positioned || hasTransform {
 		innerEscape = nil
 	}
-	absoluteAndZIndex := positioned && style.GetZIndex().String != "auto"
+	// gopdfgo: element flex lub grid z z-index innym niż auto tworzy kontekst
+	// nakładania także bez pozycjonowania (CSS Flexbox 1 § 5.4, CSS Grid 2
+	// § 6.4); źródło wymagało position innego niż static
+	zIndexApplies := positioned || box.Box().IsFlexItem || box.Box().IsGridItem
+	absoluteAndZIndex := zIndexApplies && style.GetZIndex().String != "auto"
 	if absoluteAndZIndex || style.GetOpacity() < 1 ||
 		// "transform: none" gives a "falsy" empty list here
 		hasTransform || style.GetOverflow() != "visible" {

@@ -472,3 +472,15 @@ albo stopką, wymuszony podział po `thead`), pola marginesowe (ok. 22) w więks
 w regule `@page`, których silnik nie zna, a część testów `page-size` i `page-rule-specificity` zakłada, że
 `size: landscape` obraca rozmiar papieru urządzenia (5 × 3 cala w harnessie WPT), podczas gdy silnik obraca
 swój rozmiar domyślny.
+
+## Grid: co naprawdę zostało (2026-11-14)
+
+Z 1240 niezaliczonych testów `css-grid` w ostatnim pełnym sondażu 735 leży w `grid-lanes` (układ murowany
+z roboczego szkicu CSS Grid 3, `display: grid-lanes`), a 75 w `subgrid`. Żadnego z nich silnik nie obsługuje
+i nie są to części CSS Grid 1 ani 2, które dotyczą zwykłych dokumentów. „Zwykły” grid to ok. 390
+niezaliczonych: pozycjonowanie bezwzględne w siatce 110, elementy siatki 88, wyrównanie 109 (z tego linie
+bazowe 42), definicja siatki 24, algorytm układu 18, model siatki 18, pozostałe 24.
+
+Po obsłudze `z-index` elementów flex i grid oraz zwijania pustych ścieżek `auto-fit` podzbiór `css-flexbox`,
+`css-grid`, `CSS2/zindex` i `CSS2/positioning` (3087 testów) daje 43 testy zyskane (grid 40, flexbox 3)
+i 0 straconych. Pełnego sondażu po tej zmianie nie było; ostatni pełny wynik to 6655 z 9135.
