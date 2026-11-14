@@ -349,25 +349,39 @@ i 0 przekroczeń limitu czasu. Reftesty druku: 183 z 340.
 
 ## Czas i pamięć dużych dokumentów (2026-11-14)
 
-Pomiar: `go test -run xxx -bench LargeTable -benchtime 5x .` (`benchmark_test.go`, tabela 4000 wierszy
-i 7 kolumn, ok. 32 tys. elementów, 130 stron A4; macOS arm64, 10 rdzeni, go1.26.6). Liczby to średnia z pięciu
-przebiegów; „pamięć przydzielona” to suma wszystkich przydziałów w trakcie renderowania, nie szczyt zajętości.
+Dokument pomiarowy (`benchmark_test.go`): tabela 4000 wierszy i 7 kolumn z krótkim tekstem, obramowaniem
+i co drugim wierszem z tłem; ok. 32 tys. elementów, 130 stron A4. To zwykły długi wykaz, nie przypadek
+skrajny. Maszyna: macOS arm64, 10 rdzeni, go1.26.6.
 
-| stan | czas | pamięć przydzielona | przydziały |
+Miary: czas i pamięć przydzielona (suma wszystkich przydziałów) z `go test -run xxx -bench LargeTable
+-benchtime 5x .`; szczyt żywej sterty z próbnika, który co 25 ms wymusza odśmiecanie i czyta
+`runtime.MemStats.HeapAlloc` (ten sam, którego używa `TestLargeTablePeakMemory`).
+
+| stan | czas | pamięć przydzielona | szczyt żywej sterty |
 |---|---|---|---|
-| przed (commit `4320f84`) | 1,46 s | 2239 MB | 9,93 mln |
-| po współdzieleniu kaskady i odchudzeniu stylów anonimowych | 1,32 s | 1676 MB | 9,36 mln |
+| przejęty kod (commit `4320f84`) | 1,46 s | 2239 MB | nie mierzony |
+| wspólna kaskada, lżejsze style anonimowe (`82e8b6b`) | 1,32 s | 1676 MB | 718 MB |
+| style pseudoelementów na żądanie | nie mierzony | nie mierzona | 483 MB |
+| wspólne tablice wartości obliczonych | 1,06 s | 1239 MB | 323 MB |
 
-Czas nie jest problemem (ok. 10 ms na stronę). Pamięć jest: ok. 0,4 MB przydziałów na wiersz tabeli, a szczyt zajętości
-procesu dla tego dokumentu to ponad 1 GB (pomiar wstępny narzędziem wiersza poleceń przed zmianą: 2,0 GB RSS).
-Profil przed zmianą wskazywał style: 38% przydziałów to tablice wartości obliczonych (`propsCache.setKnown`),
-24% to mapy kaskady budowane osobno dla każdego elementu. Po zmianie mapy kaskady są wspólne dla elementów
-o tym samym ciągu dopasowanych reguł, a style pudełek anonimowych nie trzymają własnej tablicy wartości.
-Największą pozostałą pozycją są tablice wartości obliczonych elementów (ok. 37% przydziałów). Próba przydzielania
-ich od razu w pełnym rozmiarze pogorszyła wynik (1756 MB wobec 1605 MB w pomiarze `runtime.MemStats`), bo
-większość stylów czyta tylko właściwości o niskich numerach; zmiana została cofnięta. Dalszy zysk wymagałby
-współdzielenia całych stylów obliczonych między elementami o tej samej kaskadzie i tym samym rodzicu, co
-koliduje z tym, że układ modyfikuje style w miejscu.
+Co zajmowało pamięć (profil żywej sterty w szczycie, stan `82e8b6b`): ponad połowę style obliczone. Reguły
+arkusza domyślnego `::marker`, `::footnote-call` i `::footnote-marker` nie mają selektora elementu, więc
+pasują do wszystkiego, a przejęty kod obliczał od razu styl każdego pseudoelementu z kaskadą: cztery pełne
+style na element, każdy z tablicą na 186 właściwości (ok. 3 kB). Teraz styl pseudoelementu powstaje przy
+pierwszym pytaniu, a elementy o tej samej kaskadzie i tak samo wyliczonym rodzicu dzielą jedną tablicę
+wartości; komórki tej tabeli mają cztery takie tablice zamiast 28 tysięcy. Wartości właściwe jednemu
+elementowi (`attr()`, kotwice, język, zmiany wprowadzane przez układ) leżą w małej nakładce stylu.
 
-Pełny sondaż ekranowy po tej zmianie i po rundzie legendy `fieldset`: 6468 z 9135 (6059 ściśle, 409 krawędziowo),
+Po zmianach zostaje ok. 80 kB żywej sterty na wiersz tabeli (ok. 11 kB na komórkę) i prawie wszystko to
+pudełka: drzewo wejściowe i jego ułożona kopia istnieją jednocześnie dla całego dokumentu (kopie pudełek
+ok. 105 MB, pudełka tekstowe i liniowe ok. 60 MB, wyniki kształtowania tekstu ok. 40 MB, strumienie stron
+przed zapisem ok. 30 MB; szacunki z profilu). Dalsze zejście wymaga zmiany przepływu, a nie stylów:
+zwalniania ułożonych stron po narysowaniu i poddrzew wejściowych po ułożeniu. Przeszkodą jest to, że
+`counter(pages)` i odwołania `target-counter` każą dziś układać dokument ponownie od początku, więc drzewo
+wejściowe musi przetrwać do końca. To osobna decyzja (pytanie w `docs/adr/open-questions.md`).
+
+Nieudana próba: przydzielanie tablicy wartości od razu w pełnym rozmiarze zwiększyło sumę przydziałów
+(1756 MB wobec 1605 MB w `runtime.MemStats.TotalAlloc`), więc zostało cofnięte.
+
+Pełny sondaż ekranowy po zmianach w stylach (2026-11-14): 6468 z 9135 (6059 ściśle, 409 krawędziowo),
 0 straconych, 0 zyskanych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.

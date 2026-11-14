@@ -69,6 +69,15 @@ konkretnego odbiorcy.
     przenoszenie (mniej niespodzianek w dokumentach z ramkami o stałej wysokości) czy dzielić jak
     przeglądarki. Ograniczenia obecnej wersji: nie są dzielone elementy flex i grid, treść kolumn, bloki
     z `overflow` innym niż `visible` ani bloki, których dzieci same zostały podzielone między strony.
+17. **Pamięć dużych dokumentów: układ i zapis strona po stronie.** Po odchudzeniu stylów (2026-11-14) tabela
+    4000 wierszy trzyma w szczycie 323 MB żywej sterty, prawie wyłącznie w pudełkach: drzewo wejściowe i ułożone
+    strony całego dokumentu istnieją jednocześnie, a rysowanie zaczyna się po ułożeniu ostatniej strony
+    (`docs/feature-audit.md`, „Czas i pamięć dużych dokumentów”). Warianty: (a) zostawić, bo 80 kB na wiersz
+    wystarcza dla dokumentów do kilkuset stron; (b) rysować i zwalniać strony na bieżąco, gdy dokument nie używa
+    `counter(pages)`, `target-counter` ani pól marginesowych zależnych od całości, a w pozostałych przypadkach
+    działać jak dziś; (c) przebudować układ na strumieniowy także dla tych przypadków (dwa przebiegi).
+    Propozycja: (b), po pomiarze na dokumencie 1000 stron i rozpoznaniu, jak rozdzielić układ, rysowanie i zapis PDF.
+
 15. **Współbieżność i zmienne globalne.** `Render` wykonuje jedno renderowanie naraz, bo silnik zgłasza ostrzeżenia
     przez globalne `logger.WarningLogger` (80 wywołań w 25 plikach), a limit czasu nie przerywa pracy. Decyzja
     użytkownika 2026-11-12: równoległość nie jest teraz potrzebna; docelowo pełna przebudowa bez zmiennych

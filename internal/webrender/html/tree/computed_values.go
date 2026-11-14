@@ -536,7 +536,7 @@ func gap(computer *ComputedStyle, name pr.KnownProp, _value pr.CssProperty) pr.C
 
 func computeAttrFunction(computer *ComputedStyle, values pr.AttrData) (out pr.ContentProperty, err error) {
 	attrName, typeOrUnit, fallback := values.Name, values.TypeOrUnit, values.Fallback
-	node, ok := computer.element.(*utils.HTMLNode)
+	node, ok := computer.ownElement().(*utils.HTMLNode)
 	if !ok {
 		return
 	}
@@ -648,7 +648,7 @@ func contentList(computer *ComputedStyle, values pr.ContentProperties) (pr.Conte
 			}
 		}
 		if computedValue.IsNone() {
-			logger.WarningLogger.Printf("Unable to compute %v's value for content: %v\n", computer.element, value)
+			logger.WarningLogger.Printf("Unable to compute %v's value for content: %v\n", computer.ownElement(), value)
 		} else {
 			computedValues = append(computedValues, computedValue)
 		}
@@ -909,7 +909,7 @@ func anchor(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.C
 	if !ok {
 		return pr.String("")
 	}
-	if node, ok := computer.element.(*utils.HTMLNode); ok {
+	if node, ok := computer.ownElement().(*utils.HTMLNode); ok {
 		anchorName := node.Get(attrData.Name)
 		if anchorName == "" {
 			return pr.String("")
@@ -925,7 +925,7 @@ func link(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.Css
 	if value.S == "none" {
 		return pr.TaggedString{}
 	} else if value.Tag == pr.Attr {
-		if node, ok := computer.element.(*utils.HTMLNode); ok {
+		if node, ok := computer.ownElement().(*utils.HTMLNode); ok {
 			typeAttr, ok := getLinkAttribute(node, value.S, computer.baseUrl)
 			if !ok {
 				return pr.TaggedString{}
@@ -975,7 +975,7 @@ func lang(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.Css
 	if value.Tag == pr.None {
 		return pr.TaggedString{}
 	}
-	if node, ok := computer.element.(*utils.HTMLNode); ok && value.Tag == pr.Attr {
+	if node, ok := computer.ownElement().(*utils.HTMLNode); ok && value.Tag == pr.Attr {
 		s := node.Get(value.S)
 		if s == "" {
 			return pr.TaggedString{}

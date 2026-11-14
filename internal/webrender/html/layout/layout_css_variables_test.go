@@ -192,7 +192,9 @@ func TestVariableInFunctionMissing(t *testing.T) {
           </section>
         `)
 	gotL := capt.Logs()
-	tu.AssertEqual(t, len(gotL), 4)
+	// gopdfgo: oba h1 i oba div::before dzielą wartości obliczone, więc każda
+	// błędna deklaracja jest zgłaszana raz, a nie raz na element (w źródle 4)
+	tu.AssertEqual(t, len(gotL), 2)
 	tu.AssertEqual(t, strings.Contains(gotL[0], "no value"), true)
 	tu.AssertEqual(t, strings.Contains(gotL[1], "invalid value"), true)
 	html := unpack1(page)

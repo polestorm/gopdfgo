@@ -3,8 +3,10 @@ package gopdfgo
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // largeTableDocument buduje tabelę o podanej liczbie wierszy i siedmiu kolumnach:
@@ -33,5 +35,61 @@ func BenchmarkLargeTable(b *testing.B) {
 			b.Fatal(err)
 		}
 		b.ReportMetric(float64(result.Pages), "stron")
+	}
+}
+
+// peakLiveHeap renderuje dokument i zwraca największy przyrost żywej sterty
+// zaobserwowany w trakcie (odśmiecanie wymuszane co 25 ms, więc czas przebiegu
+// nie jest miarodajny).
+func peakLiveHeap(t testing.TB, document []byte) (pages int, peak uint64) {
+	options := Options{Fonts: testFonts(t)}
+	var stats runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&stats)
+	before := stats.HeapAlloc
+	stop := make(chan struct{})
+	done := make(chan uint64)
+	go func() {
+		var highest uint64
+		var stats runtime.MemStats
+		tick := time.NewTicker(25 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-stop:
+				done <- highest
+				return
+			case <-tick.C:
+				runtime.GC()
+				runtime.ReadMemStats(&stats)
+				highest = max(highest, stats.HeapAlloc)
+			}
+		}
+	}()
+	result, err := Render(context.Background(), document, options)
+	close(stop)
+	highest := <-done
+	if err != nil {
+		t.Fatal(err)
+	}
+	if highest < before {
+		return result.Pages, 0
+	}
+	return result.Pages, highest - before
+}
+
+// Pamięć dużej tabeli ma rosnąć z liczbą wierszy łagodnie. Przejęty kod trzymał
+// dla 2000 wierszy ok. 360 MB żywej sterty (cztery pełne style na element);
+// po współdzieleniu wartości obliczonych jest to ok. 160 MB. Próg zostawia
+// zapas na różnice między platformami, a łapie powrót do stylu na element.
+func TestLargeTablePeakMemory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("pomiar pamięci pomijany w trybie -short")
+	}
+	const rows, limit = 2000, 240 << 20
+	pages, peak := peakLiveHeap(t, largeTableDocument(rows))
+	t.Logf("%d wierszy, %d stron, szczyt żywej sterty %d MB", rows, pages, peak>>20)
+	if peak > limit {
+		t.Errorf("szczyt żywej sterty %d MB przekracza próg %d MB", peak>>20, limit>>20)
 	}
 }

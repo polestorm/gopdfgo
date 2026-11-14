@@ -834,3 +834,45 @@ func TestSharedCascadeKeepsOwnDeclarations(t *testing.T) {
 		t.Error("deklaracje z atrybutu style nie zostały zastosowane")
 	}
 }
+
+// Elementy o tej samej kaskadzie dzielą tablicę wartości obliczonych. Wartość
+// zależna od atrybutu elementu (attr()) albo zmieniona tylko u jednego przodka
+// nie może przejść do rodzeństwa.
+func TestSharedComputedValuesStayPerElement(t *testing.T) {
+	html := `<style>
+  @page { size: 400px 300px; margin: 20px }
+  li { list-style: none }
+  li::before { content: attr(data-code) " " }
+  section { margin: 0 }
+</style>
+<ul>
+  <li data-code="alfa">jeden</li>
+  <li data-code="beta">dwa</li>
+  <li data-code="gamma">trzy</li>
+</ul>
+<section style="color: red"><p><span>czerwony</span></p></section>
+<section><p><span>czarny</span></p></section>`
+	result, err := Render(t.Context(), []byte(html), Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := visibleWords(t, result.PDF, 225)
+	for _, want := range []string{"alfa", "beta", "gamma", "jeden", "dwa", "trzy"} {
+		if !words[want] {
+			t.Errorf("brak słowa %q; attr() dało wartość wspólną dla rodzeństwa", want)
+		}
+	}
+	// Ten sam dokument bez czerwieni musi się różnić: kolor odziedziczony po
+	// pierwszej sekcji nie może ani zniknąć, ani objąć drugiej.
+	bothRed, err := Render(t.Context(), []byte(strings.Replace(html, `<section><p>`, `<section style="color: red"><p>`, 1)), Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	noneRed, err := Render(t.Context(), []byte(strings.Replace(html, ` style="color: red"`, ``, 1)), Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(result.PDF, bothRed.PDF) || bytes.Equal(result.PDF, noneRed.PDF) {
+		t.Error("kolor odziedziczony po jednej sekcji przeszedł do drugiej albo zniknął")
+	}
+}

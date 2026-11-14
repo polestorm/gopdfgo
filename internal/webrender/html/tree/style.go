@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode"
@@ -51,6 +52,15 @@ type StyleFor struct {
 
 	// gopdfgo: obszar pierwszej strony dla jednostek vw/vh; wspólny dla kopii StyleFor
 	viewport *viewport
+
+	// gopdfgo: kaskady pseudoelementów, z których styl obliczony powstaje
+	// dopiero na żądanie (zob. Get), oraz to, czego do tego potrzeba
+	pseudoCascades  map[*utils.HTMLNode][]sharedCascade
+	share           *shareContext
+	emptyCascade    cascadedStyle // wspólna kaskada elementów bez żadnej deklaracji
+	root            *utils.HTMLNode
+	baseUrl         string
+	targetCollector *TargetCollector
 }
 
 // viewport liczy leniwie obszar pierwszej strony (rozmiar strony bez marginesów), do którego odnoszą się
@@ -106,6 +116,13 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		sheets:         sheets,
 		textContext:    textContext,
 		viewport:       &viewport{html: html},
+
+		pseudoCascades:  map[*utils.HTMLNode][]sharedCascade{},
+		share:           newShareContext(),
+		emptyCascade:    cascadedStyle{},
+		root:            html.Root,
+		baseUrl:         html.BaseUrl,
+		targetCollector: targetColllector,
 	}
 
 	out.viewport.styleFor = &out
@@ -158,11 +175,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		}
 		if !hasOwnDeclarations {
 			if shared, ok := sharedCascades[string(signature)]; ok {
-				for _, sc := range shared {
-					out.cascadedStyles[element.ToKey(sc.pseudoType)] = sc.style
-				}
-				out.setComputedStyles(element, (*utils.HTMLNode)(element.Parent), html.Root, "", html.BaseUrl,
-					targetColllector)
+				out.finishElement(element, shared)
 				continue
 			}
 		}
@@ -200,34 +213,57 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		if !hasOwnDeclarations {
 			sharedCascades[string(signature)] = built
 		}
-		out.setComputedStyles(element, (*utils.HTMLNode)(element.Parent), html.Root, "", html.BaseUrl,
-			targetColllector)
+		for _, sc := range built {
+			delete(out.cascadedStyles, element.ToKey(sc.pseudoType))
+		}
+		out.finishElement(element, built)
 	}
 
-	// Then computed styles for pseudo elements, in any order.
-	// Pseudo-elements inherit from their associated Element so they come
-	// last. Do them in a second pass as there is no easy way to iterate
-	// on the pseudo-elements for a given Element with the current structure
-	// of CascadedStyles. (Keys are (Element, pseudoType) tuples.)
+	// gopdfgo: style pseudoelementów nie są tu obliczane. W źródle powstawały
+	// wszystkie, a reguły arkusza domyślnego bez selektora elementu (::marker,
+	// ::footnote-call, ::footnote-marker) pasują do każdego elementu, więc
+	// każdy niósł trzy style, z których układ prawie nigdy nie korzysta.
+	// Kaskada czeka w pseudoCascades, a styl oblicza Get przy pierwszym pytaniu.
 
-	// Only iterate on pseudo-elements that have cascaded styles. (Others
-	// might as well not exist.)
-	for key := range out.cascadedStyles {
-		// Element, pseudoType
-		if key.PseudoType != "" && !key.IsPageType() {
-			out.setComputedStyles(key.Element, key.Element, html.Root,
-				key.PseudoType, html.BaseUrl, targetColllector)
-			// The pseudo-Element inherits from the Element.
+	// The cascaded styles of elements are not needed anymore. Keep the
+	// dictionary, it is used later for page margins.
+	return &out
+}
+
+// finishElement oblicza styl elementu z jego kaskady (wpis bez pseudoelementu
+// w cascades albo deklaracje własne zebrane wcześniej w cascadedStyles)
+// i odkłada kaskady pseudoelementów na później.
+func (sf *StyleFor) finishElement(element *utils.HTMLNode, cascades []sharedCascade) {
+	key := element.ToKey("")
+	hasPseudo := false
+	for _, sc := range cascades {
+		if sc.pseudoType == "" {
+			sf.cascadedStyles[key] = sc.style
+		} else {
+			hasPseudo = true
 		}
 	}
-
-	// Clear the cascaded styles, we don't need them anymore. Keep the
-	// dictionary, it is used later for page margins.
-	for k := range out.cascadedStyles {
-		delete(out.cascadedStyles, k)
+	sf.setComputedStyles(element, (*utils.HTMLNode)(element.Parent), sf.root, "", sf.baseUrl, sf.targetCollector)
+	delete(sf.cascadedStyles, key)
+	if hasPseudo {
+		sf.pseudoCascades[element] = cascades
 	}
+}
 
-	return &out
+// pseudoStyle oblicza na żądanie styl pseudoelementu, jeśli ma on kaskadę.
+// The pseudo-Element inherits from the Element.
+func (sf *StyleFor) pseudoStyle(element *utils.HTMLNode, pseudoType string) pr.ElementStyle {
+	for _, sc := range sf.pseudoCascades[element] {
+		if sc.pseudoType != pseudoType {
+			continue
+		}
+		key := element.ToKey(pseudoType)
+		sf.cascadedStyles[key] = sc.style
+		sf.setComputedStyles(element, element, sf.root, pseudoType, sf.baseUrl, sf.targetCollector)
+		delete(sf.cascadedStyles, key)
+		return sf.computedStyles[key]
+	}
+	return nil
 }
 
 // sharedCascade to kaskada jednego (pseudo)elementu dzielona przez wszystkie
@@ -282,10 +318,10 @@ func (sf *StyleFor) setComputedStyles(element, parent Element,
 	key := element.ToKey(pseudoType)
 	cascaded, in := sf.cascadedStyles[key]
 	if !in {
-		cascaded = cascadedStyle{}
+		cascaded = sf.emptyCascade
 	}
 	style := computedFromCascaded(element, cascaded, parentStyle,
-		rootStyle_, pseudoType, baseUrl, targetCollector, sf.textContext)
+		rootStyle_, pseudoType, baseUrl, targetCollector, sf.textContext, sf.share)
 	if computed, ok := style.(*ComputedStyle); ok {
 		computed.viewport = sf.viewport
 	}
@@ -294,6 +330,11 @@ func (sf *StyleFor) setComputedStyles(element, parent Element,
 
 func (s StyleFor) Get(element Element, pseudoType string) pr.ElementStyle {
 	style := s.computedStyles[element.ToKey(pseudoType)]
+	if style == nil && pseudoType != "" {
+		if node, ok := element.(*utils.HTMLNode); ok && node != nil {
+			style = s.pseudoStyle(node, pseudoType)
+		}
+	}
 	if style != nil {
 		display := style.GetDisplay()
 		if display.Has(pr.Table) && style.GetBorderCollapse() == "collapse" {
@@ -356,74 +397,109 @@ var (
 	_ pr.ElementStyle = (*AnonymousStyle)(nil)
 )
 
+// gopdfgo: wartości obliczone trzymamy w dwóch warstwach. Wspólna tablica
+// (sharedValues) należy do wszystkich stylów o tej samej kaskadzie i tak samo
+// wyliczonym rodzicu; 28 tys. komórek tabeli ma zwykle kilka takich tablic,
+// a w źródle każdy element miał własną, ok. 3 kB. Nakładka (own) trzyma to,
+// co dotyczy tylko jednego stylu: wartości ustawione z zewnątrz (Set*) oraz
+// obliczone z udziałem atrybutów elementu albo cudzej nakładki.
+type ownValue struct {
+	prop  pr.KnownProp
+	value pr.CssProperty
+}
+
 type propsCache struct {
-	known []pr.CssProperty
-	vars  map[string]pr.CssProperty
+	own    []ownValue
+	vars   map[string]pr.CssProperty
+	shared *sharedValues // nil w stylach anonimowych
+	share  *shareContext // nil w stylach anonimowych
 }
 
-func newPropsCache() propsCache {
-	return propsCache{
-		vars: make(map[string]pr.CssProperty),
-	}
+// sharedValues to wartości wynikające wyłącznie z kaskady i z przodków.
+type sharedValues struct {
+	known     []pr.CssProperty
+	variables map[string]pr.RawTokens
 }
 
-func (c propsCache) get(key pr.PropKey) (out pr.CssProperty, ok bool) {
+type sharedKey struct {
+	cascade unsafe.Pointer // tożsamość mapy kaskady
+	parent  *sharedValues
+	pseudo  string
+}
+
+// shareContext jest wspólny dla stylów jednego dokumentu.
+type shareContext struct {
+	values map[sharedKey]*sharedValues
+	// tainted: w trakcie obliczania wartości sięgnięto po coś, co nie wynika
+	// z samej kaskady (atrybut elementu, czyjaś nakładka), więc wyniku nie
+	// wolno zapisać we wspólnej tablicy
+	tainted bool
+}
+
+func newShareContext() *shareContext {
+	return &shareContext{values: map[sharedKey]*sharedValues{}}
+}
+
+func (c *propsCache) get(key pr.PropKey) (out pr.CssProperty, ok bool) {
 	if k := key.KnownProp; k != 0 {
-		if int(k) >= len(c.known) {
-			return
+		for i := range c.own {
+			if c.own[i].prop == k {
+				if c.share != nil {
+					c.share.tainted = true
+				}
+				return c.own[i].value, true
+			}
 		}
-		out = c.known[k]
-		ok = out != nil
+		if c.shared != nil && int(k) < len(c.shared.known) {
+			out = c.shared.known[k]
+			ok = out != nil
+		}
 	} else {
 		out, ok = c.vars[key.Var]
+		if ok && c.share != nil {
+			c.share.tainted = true
+		}
 	}
 	return
 }
 
-func (c *propsCache) setKnown(k_ pr.KnownProp, value pr.CssProperty) {
-	k := int(k_)
-	L := len(c.known)
-	if k < L {
-		c.known[k] = value
-	} else { // grow to at least k+1
-		if cap(c.known) < k+1 {
-			c.known = append(c.known, make([]pr.CssProperty, k+1-L)...)
+// setKnown zapisuje wartość w nakładce tego stylu.
+func (c *propsCache) setKnown(k pr.KnownProp, value pr.CssProperty) {
+	for i := range c.own {
+		if c.own[i].prop == k {
+			c.own[i].value = value
+			return
 		}
-		c.known = c.known[:k+1]
-		c.known[k] = value
 	}
+	c.own = append(c.own, ownValue{prop: k, value: value})
 }
 
 func (c *propsCache) Set(key pr.PropKey, value pr.CssProperty) {
 	if key.KnownProp != 0 {
 		c.setKnown(key.KnownProp, value)
 	} else {
+		if c.vars == nil {
+			c.vars = make(map[string]pr.CssProperty)
+		}
 		c.vars[key.Var] = value
 	}
 }
 
-func (c propsCache) delete(key pr.PropKey) {
-	if k := int(key.KnownProp); k != 0 {
-		if k >= len(c.known) {
-			return
-		}
-		c.known[key.KnownProp] = nil
-	} else {
-		delete(c.vars, key.Var)
+// setShared zapisuje wartość we wspólnej tablicy.
+func (s *sharedValues) set(k_ pr.KnownProp, value pr.CssProperty) {
+	k := int(k_)
+	if L := len(s.known); k >= L {
+		s.known = append(s.known, make([]pr.CssProperty, k+1-L)...)
 	}
+	s.known[k] = value
 }
 
 func (c *propsCache) updateWith(other propsCache) {
-	if Lo, Lc := len(other.known), len(c.known); Lo > Lc {
-		c.known = append(c.known, make([]pr.CssProperty, Lo-Lc)...)
-	}
-	for k, v := range other.known {
-		if v != nil {
-			c.known[k] = v
-		}
+	for _, v := range other.own {
+		c.setKnown(v.prop, v.value)
 	}
 	for k, v := range other.vars {
-		c.vars[k] = v
+		c.Set(pr.PropKey{Var: k}, v)
 	}
 }
 
@@ -437,6 +513,7 @@ type ComputedStyle struct {
 
 	cache pr.TextRatioCache
 
+	// gopdfgo: wspólne dla stylów o tej samej kaskadzie i rodzicu, tylko do odczytu
 	variables map[string]pr.RawTokens
 
 	// subset of properties of the root element
@@ -452,11 +529,11 @@ type ComputedStyle struct {
 
 func newComputedStyle(parentStyle pr.ElementStyle, cascaded cascadedStyle,
 	element Element, pseudoType string, rootStyle pr.StyleAccessor, baseUrl string, textContext text.TextLayoutContext,
+	share *shareContext,
 ) *ComputedStyle {
 	out := &ComputedStyle{
-		propsCache: newPropsCache(),
+		propsCache: propsCache{share: share},
 
-		variables:   make(map[string]pr.RawTokens),
 		textContext: textContext,
 		parentStyle: parentStyle,
 		cascaded:    cascaded,
@@ -466,17 +543,37 @@ func newComputedStyle(parentStyle pr.ElementStyle, cascaded cascadedStyle,
 		baseUrl:     baseUrl,
 	}
 
-	// inherit the variables
-	if parentStyle != nil {
-		for k, v := range parentStyle.Variables() {
-			out.variables[k] = v
+	// gopdfgo: wspólną tablicę wartości dostają style o tej samej kaskadzie,
+	// tym samym pseudoelemencie i rodzicu z tą samą wspólną tablicą. Rodzic
+	// innego rodzaju niż ComputedStyle (albo jego brak poza korzeniem) nie
+	// daje takiej gwarancji, więc styl dostaje tablicę własną.
+	key := sharedKey{cascade: reflect.ValueOf(cascaded).UnsafePointer(), pseudo: pseudoType}
+	sharable := parentStyle == nil
+	if parent, ok := parentStyle.(*ComputedStyle); ok && parent != nil && parent.share == share {
+		key.parent = parent.shared
+		sharable = true
+	}
+	if sharable {
+		out.shared = share.values[key]
+	}
+	if out.shared == nil {
+		out.shared = &sharedValues{variables: make(map[string]pr.RawTokens)}
+		// inherit the variables
+		if parentStyle != nil {
+			for k, v := range parentStyle.Variables() {
+				out.shared.variables[k] = v
+			}
+		}
+		for k, v := range cascaded {
+			if k.Var != "" {
+				out.shared.variables[k.Var] = v.value.(pr.RawTokens)
+			}
+		}
+		if sharable {
+			share.values[key] = out.shared
 		}
 	}
-	for k, v := range cascaded {
-		if k.Var != "" {
-			out.variables[k.Var] = v.value.(pr.RawTokens)
-		}
-	}
+	out.variables = out.shared.variables
 	// inherit the cache
 	if parentStyle != nil {
 		out.cache = parentStyle.Cache()
@@ -499,7 +596,7 @@ func newComputedStyle(parentStyle pr.ElementStyle, cascaded cascadedStyle,
 func (c *ComputedStyle) isRootElement() bool { return c.parentStyle == nil }
 
 func (c *ComputedStyle) Copy() pr.ElementStyle {
-	out := newComputedStyle(c.parentStyle, c.cascaded, c.element, c.pseudoType, c.rootStyle, c.baseUrl, c.textContext)
+	out := newComputedStyle(c.parentStyle, c.cascaded, c.element, c.pseudoType, c.rootStyle, c.baseUrl, c.textContext, c.share)
 	out.viewport = c.viewport
 	out.propsCache.updateWith(c.propsCache)
 	return out
@@ -593,18 +690,38 @@ func (c *ComputedStyle) Get(key pr.PropKey) pr.CssProperty {
 		return v
 	}
 
-	value, save := c.cascadeValue(key)
+	// gopdfgo: wynik trafia do wspólnej tablicy tylko wtedy, gdy w trakcie
+	// obliczania nie sięgnięto po nic właściwego jednemu elementowi
+	share := c.share
+	outer := share.tainted
+	share.tainted = false
+	out := c.compute(key)
+	tainted := share.tainted
+	share.tainted = outer || tainted
 
-	if save {
-		c.Set(key, value.(pr.CssProperty))
+	if tainted || key.KnownProp == 0 {
+		c.propsCache.Set(key, out)
+	} else {
+		c.shared.set(key.KnownProp, out)
 	}
+	return out
+}
+
+// ownElement zwraca element stylu i odnotowuje, że obliczana wartość od
+// niego zależy (zob. Get).
+func (c *ComputedStyle) ownElement() Element {
+	c.share.tainted = true
+	return c.element
+}
+
+func (c *ComputedStyle) compute(key pr.PropKey) pr.CssProperty {
+	value, save := c.cascadeValue(key)
 
 	if css, ok := value.(pr.CssProperty); ok && key.KnownProp.IsTextDecoration() && c.parentStyle != nil {
 		// Text decorations are not inherited but propagated. See
 		// https://www.w3.org/TR/css-text-decor-3/#line-decoration.
 		_, isCascaded := c.cascaded[key]
 		value = textDecoration(key.KnownProp, css, c.parentStyle.Get(key), isCascaded)
-		c.delete(key)
 	} else if key.KnownProp == pr.PPage && value == pr.Page("auto") {
 		// The page property does not inherit. However, if the page value on
 		// an element is auto, then its used value is the value specified on
@@ -615,13 +732,9 @@ func (c *ComputedStyle) Get(key pr.PropKey) pr.CssProperty {
 		if c.parentStyle != nil {
 			value = c.parentStyle.GetPage()
 		}
-		c.delete(key)
-	}
-
-	// check the cache again
-	if v, has := c.propsCache.get(key); has {
-		// Value already computed and saved: return.
-		return v
+	} else if save {
+		// Value already computed.
+		return value.(pr.CssProperty)
 	}
 
 	out := value.(pr.CssProperty)
@@ -629,7 +742,6 @@ func (c *ComputedStyle) Get(key pr.PropKey) pr.CssProperty {
 		// Value not computed yet: compute.
 		out = fn(c, key.KnownProp, out)
 	}
-	c.propsCache.Set(key, out)
 	return out
 }
 
@@ -647,15 +759,12 @@ type AnonymousStyle struct {
 
 func newAnonymousStyle(parentStyle pr.ElementStyle) *AnonymousStyle {
 	out := &AnonymousStyle{
-		propsCache:  newPropsCache(),
 		parentStyle: parentStyle,
-		variables:   make(map[string]pr.RawTokens),
 	}
-	// inherit the variables
+	// inherit the variables (gopdfgo: mapa rodzica jest tylko czytana, więc
+	// wystarczy odwołanie zamiast kopii na każde pudełko anonimowe)
 	if parentStyle != nil {
-		for k, v := range parentStyle.Variables() {
-			out.variables[k] = v
-		}
+		out.variables = parentStyle.Variables()
 	}
 	// inherit the cache
 	if parentStyle != nil {
@@ -1210,17 +1319,17 @@ func declarationPrecedence(origin string, importance bool) uint8 {
 // Get a dict of computed style mixed from parent and cascaded styles.
 func ComputedFromCascaded(element Element, cascaded cascadedStyle, parentStyle pr.ElementStyle, textContext text.TextLayoutContext,
 ) pr.ElementStyle {
-	return computedFromCascaded(element, cascaded, parentStyle, pr.Properties{}, "", "", nil, textContext)
+	return computedFromCascaded(element, cascaded, parentStyle, pr.Properties{}, "", "", nil, textContext, newShareContext())
 }
 
 func computedFromCascaded(element Element, cascaded cascadedStyle, parentStyle pr.ElementStyle, rootStyle_ pr.StyleAccessor, pseudoType, baseUrl string,
-	targetCollector *TargetCollector, textContext text.TextLayoutContext,
+	targetCollector *TargetCollector, textContext text.TextLayoutContext, share *shareContext,
 ) pr.ElementStyle {
 	if cascaded == nil && parentStyle != nil {
 		return newAnonymousStyle(parentStyle)
 	}
 
-	style := newComputedStyle(parentStyle, cascaded, element, pseudoType, rootStyle_, baseUrl, textContext)
+	style := newComputedStyle(parentStyle, cascaded, element, pseudoType, rootStyle_, baseUrl, textContext, share)
 	if anchor := string(style.GetAnchor()); targetCollector != nil && anchor != "" {
 		targetCollector.collectAnchor(anchor)
 	}

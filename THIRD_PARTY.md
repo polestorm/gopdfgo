@@ -277,13 +277,24 @@ Wspólne dla obu katalogów:
   `html/tree/html5_ua.css` (`fieldset > legend` kurczy się do treści). Pierwszy element `legend` leży na górnym
   obramowaniu ramki, a obramowanie jest pod nim przerwane; w źródle legenda była zwykłym blokiem wewnątrz
   ramki. Uproszczenie: wysokość legendy przyjmowana jak dla jednego wiersza tekstu;
-- pamięć stylów, `html/tree/style.go`: (1) `newStyleFor` buduje kaskadę raz dla każdego ciągu dopasowanych
-  reguł (`sharedCascade`, `matchResult.appendSignature`) i dzieli ją między elementy; w źródle każdy element
-  dostawał własną mapę, także 28 tys. identycznych komórek tabeli. Elementy z atrybutem `style` lub atrybutami
-  prezentacyjnymi mają kaskadę własną jak dotąd. (2) `AnonymousStyle.Get` nie zapisuje wartości odziedziczonych
-  i początkowych; w źródle każde pudełko anonimowe (na przykład liniowe) trzymało tablicę na wszystkie
-  186 właściwości. Skutek uboczny: wartość odziedziczona jest czytana od rodzica przy każdym odwołaniu, a nie
-  zamrażana przy pierwszym. Pomiar w `docs/feature-audit.md`;
+- pamięć stylów, `html/tree/style.go` (pomiary w `docs/feature-audit.md`):
+  1. `newStyleFor` buduje kaskadę raz dla każdego ciągu dopasowanych reguł (`sharedCascade`,
+     `matchResult.appendSignature`) i dzieli ją między elementy; w źródle każdy element dostawał własną mapę.
+     Elementy z atrybutem `style` lub atrybutami prezentacyjnymi mają kaskadę własną jak dotąd;
+  2. style pseudoelementów powstają na żądanie (`StyleFor.Get` → `pseudoStyle`, kaskady w `pseudoCascades`).
+     W źródle obliczane były wszystkie od razu, a reguły arkusza domyślnego bez selektora elementu (`::marker`,
+     `::footnote-call`, `::footnote-marker`) pasują do każdego elementu, więc każdy niósł trzy dodatkowe pełne
+     style. Skutek uboczny: zniknęła pętla po mapie kaskad, a kotwica pseudoelementu jest rejestrowana dopiero
+     przy budowie jego pudełka;
+  3. wartości obliczone w dwóch warstwach (`propsCache`): wspólna tablica `sharedValues` dla stylów o tej samej
+     kaskadzie, pseudoelemencie i rodzicu z tą samą wspólną tablicą oraz nakładka `own` na wartości jednego
+     stylu (ustawione przez `Set*`, obliczone z udziałem atrybutów elementu albo cudzej nakładki; pilnuje tego
+     znacznik `shareContext.tainted` i `ComputedStyle.ownElement`). W źródle każdy styl miał własną tablicę na
+     186 właściwości. Skutki uboczne: błędna deklaracja jest zgłaszana raz na grupę stylów, a nie raz na element
+     (test odziedziczony `TestVariableInFunctionMissing`: 4 → 2 komunikaty); wartość zapisana we wspólnej tablicy
+     nie zobaczy późniejszej zmiany rodzica przez `Set*`, jeśli inny styl z grupy odczytał ją wcześniej;
+  4. `AnonymousStyle.Get` nie zapisuje wartości odziedziczonych i początkowych, a mapę zmiennych bierze od
+     rodzica bez kopiowania; w źródle każde pudełko anonimowe (na przykład liniowe) trzymało własną tablicę;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
