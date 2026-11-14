@@ -506,3 +506,43 @@ Kolumny (`css-multicol`, ok. 250 niezaliczonych z 400) po przeglądzie: 29 test�
 (`column-span: all`) w nietypowych położeniach (w przekształceniach, z ujemnymi marginesami, dzielonych między
 kolumny), reszta to tryby pisma pionowego i pojedyncze przypadki. Napraw tam nie zaczynano: żadna z tych grup
 nie odpowiada typowemu dokumentowi wielołamowemu (tekst w kilku łamach z nagłówkiem rozpinającym).
+
+## Korpus po zmianach z 2026-11-14 oraz rozmiar kodu
+
+**Korpus.** 21 dokumentów z `testdata/documents` wyrenderowano binarką ze stanu `4320f84` (początek prac
+tego dnia nad pamięcią i testami W3C) i ze stanu `1cd9e2c`, po czym porównano strona po stronie w 96 dpi
+(próg 40 na kanał) oraz ze słowami z wydruków Chromium (`pdftotext -bbox`). Liczba stron nie zmieniła się
+w żadnym dokumencie, liczba słów na innej stronie niż w Chromium i liczba słów przesuniętych o ponad 3 pt
+jest identyczna dla obu stanów we wszystkich 21 dokumentach. W 17 dokumentach obraz jest identyczny co do
+piksela. W czterech (`09`, `13`, `16`, `21`) zmieniło się od 56 do 1557 pikseli na pierwszej stronie i we
+wszystkich jest to ta sama, zamierzona zmiana: spacja po znaku złożonym fontem zastępczym (znacznik listy,
+„▾” w `summary`, „→ ≤ ≥”) ma szerokość z fontu podstawowego, tak jak w Chromium.
+
+**Rozmiar źródeł** (pliki `.go` w repozytorium, `wc -l`, 2026-11-14, stan `1cd9e2c`):
+
+| część | wiersze | pliki | zmiana 2026-11-14 |
+|---|---|---|---|
+| kod przejęty (`internal/`, bez testów) | 70 921 | 150 | +2508 / −304 |
+| testy przejęte | 44 788 | 113 | +155 / −47 |
+| kod własny (korzeń, `cmd`, `tools`) | 528 | 6 | +80 / −1 |
+| testy własne | 2 565 | 11 | +1666 / −8 |
+| razem | 118 802 | 280 | |
+
+**Ile zostało ze źródeł** (porównanie plik po pliku z czystymi kopiami: `bench/webrender`,
+`bench/go-weasyprint`, `pdf@v0.0.15` z pamięci modułów; `git diff --no-index --numstat -w`, zmiany samych
+odstępów pominięte; wiersze importów przepisane na nową ścieżkę modułu liczą się jako zmienione):
+
+| pakiet | wiersze kodu | wspólne ze źródłem | dodane przez nas | usunięte ze źródła |
+|---|---|---|---|---|
+| `internal/webrender` | 54 183 | 50 239 (92,7%) | 3 944 | 699 |
+| `internal/goweasyprint` | 1 486 | 1 400 (94,2%) | 86 | 61 |
+| `internal/pdflib` | 15 252 | 15 032 (98,6%) | 220 | 94 |
+| razem kod przejęty | 70 921 | 66 671 (94,0%) | 4 250 | 854 |
+
+Z biblioteki `pdf` przejęto 38 z 105 plików kodu (pominięte 67 plików, ok. 95 tys. wierszy: czytanie PDF,
+formularze, szyfrowanie i inne części niepotrzebne do zapisu). Kod produkcyjny napisany w projekcie to
+zatem ok. 4 780 wierszy (4 250 w pakietach przejętych i 528 własnych), czyli ok. 6,7% z 71 449 wierszy kodu
+bez testów. W testach przejętych zmieniono lub dodano ok. 414 wierszy.
+
+**Rozmiar binarki** `cmd/gopdfgo` (macOS arm64, go1.26.6, `CGO_ENABLED=0 -trimpath -ldflags='-s -w'`):
+21,60 MB; ze stanu `4320f84` 21,52 MB (+0,08 MB). Bez usuwania symboli: 28,16 MB.
