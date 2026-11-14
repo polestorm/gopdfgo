@@ -341,6 +341,9 @@ func sliceTallReplaced(context *layoutContext, box_ bo.ReplacedBoxITF, layout bl
 		return layout
 	}
 	fullHeight := box.Height.V()
+	if fullHeight >= maxSliceableHeight {
+		return layout
+	}
 	var consumed pr.Float
 	if remaining, isRemainder := skipStack.Remainder(); isRemainder {
 		consumed = max(fullHeight-pr.Float(remaining), 0)

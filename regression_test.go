@@ -753,3 +753,23 @@ func TestStretchedFlexItemContinuesAcrossPages(t *testing.T) {
 		}
 	}
 }
+
+// Dokument, w którym wiersz z siatką (inline-grid, elementy z height: fit-content) dostaje nieskończoną
+// wysokość, nie może dać nieskończenie wielu stron: krojenie i podział dotyczą tylko skończonych wysokości.
+// Plik pochodzi z testów W3C (wzorzec grid-lanes-item-placement-006); przed poprawką renderowanie kończyło
+// się przekroczeniem limitu czasu.
+func TestInfiniteHeightDoesNotLoop(t *testing.T) {
+	html, err := os.ReadFile("testdata/regression/endless-line-slicing.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, err := Render(ctx, html, Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Pages > 5 {
+		t.Errorf("%d stron dla kilku małych siatek", result.Pages)
+	}
+}

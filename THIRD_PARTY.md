@@ -263,6 +263,10 @@ Wspólne dla obu katalogów:
   wysokości linii, którego treść skończyła się wcześniej, pozostaje widoczny na dalszych stronach (tło
   i boczne obramowanie, bez górnego), dopóki sąsiad z tej samej linii nadal się dzieli; na stronie, na której
   się nie kończy, nie ma dolnego obramowania;
+- `html/layout/block.go` (`maxSliceableHeight`), `replaced.go`: wiersz, blok albo obraz o wysokości
+  nieskończonej lub absurdalnie dużej nie jest dzielony między strony. Bez tego warunku wiersz z siatką
+  o nieskończonej wysokości był krojony w nieskończoność (zawieszenie wykryte pełnym sondażem; bezpiecznik
+  pętli stron go nie łapał, bo stan zmieniał się na każdej stronie);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

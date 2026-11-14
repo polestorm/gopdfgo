@@ -338,5 +338,7 @@ z Chromium od pierwszego renderowania: ta sama liczba stron i ta sama treść na
 wszystkie 28 pasów tuszu pierwszej strony leżą w tych samych miejscach z dokładnością do 2 pikseli (96 dpi).
 
 Pełny sondaż po rundach krojenia wierszy, kontynuacji elementów pływających i flex (2026-11-14, noc): bez
-zmian względem poprzedniego pełnego pomiaru (6468 z 9135; 0 straconych, 0 zyskanych, 0 błędów renderowania).
+zmian w zaliczeniach względem poprzedniego pełnego pomiaru (6468 z 9135; 0 straconych, 0 zyskanych), ale
+jeden wzorzec przekroczył limit czasu: krojenie wiersza o nieskończonej wysokości nie miało końca. Naprawione
+tego samego dnia (`TestInfiniteHeightDoesNotLoop`); po poprawce plik renderuje się w 0,4 s.
 Reftesty druku: 180 z 340. Korpus: 21 dokumentów, z czego trzy nowe porównane z Chromium.

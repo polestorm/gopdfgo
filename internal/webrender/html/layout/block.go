@@ -673,7 +673,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// (np. display: flow-root z wysokim elementem pływającym), też jest dzielone, żeby jego tło
 	// i obramowanie sięgały tak daleko jak te elementy. W źródle pudełko kończyło się na pierwszej stronie,
 	// a dalszy ciąg elementu pływającego zostawał bez tła.
-	if splitHeight < 0 && resumeAt == nil && isStart && floatRemaining > 0.5 && box.Height == pr.AutoF &&
+	if splitHeight < 0 && resumeAt == nil && isStart && floatRemaining > 0.5 && floatRemaining < maxSliceableHeight && box.Height == pr.AutoF &&
 		bo.EstablishesFormattingContext(newBox_) && canSplitFixedHeight(context, box_, bottomSpace) {
 		if available := context.pageBottom - bottomSpace - newBox.ContentBoxY(); available > 0 {
 			splitHeight = available
@@ -857,7 +857,8 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		resumeAt = tmp.resumeAt
 		line_, line := tmp.line, tmp.line.Box()
 
-		if fullHeight := line.Height.V(); canSlice && i == 0 && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight && hasTallAtomicInline(line_, context.pageHeight))) {
+		// wysokość nieskończona (błąd układu pudełka w wierszu) dawałaby nieskończenie wiele wycinków
+		if fullHeight := line.Height.V(); canSlice && i == 0 && fullHeight < maxSliceableHeight && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight && hasTallAtomicInline(line_, context.pageHeight))) {
 			available := context.pageBottom - bottomSpace - line.PositionY
 			if remaining := fullHeight - pr.Float(sliceConsumed); available > 0 && remaining > 0 {
 				visible := min(remaining, available)
@@ -1451,6 +1452,10 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.clipDepth > 0 {
 		return false
 	}
+	// wysokość nieskończona albo absurdalnie duża dawałaby (prawie) nieskończenie wiele stron
+	if box.Height != pr.AutoF && box.Height != nil && box.Height.V() >= maxSliceableHeight {
+		return false
+	}
 	if box.Style.GetOverflow() != "visible" || bo.IsMonolithic(box_) {
 		return false
 	}
@@ -1502,3 +1507,7 @@ func hasTallAtomicInline(box Box, limit pr.Float) bool {
 	}
 	return false
 }
+
+// maxSliceableHeight to górna granica wysokości wiersza, bloku albo obrazu dzielonego między strony
+// (ok. 2600 stron A4); wyższe, w tym nieskończone, zostają niepodzielone.
+const maxSliceableHeight pr.Float = 3_000_000
