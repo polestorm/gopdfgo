@@ -782,6 +782,25 @@ outerLoop:
 		// https://dbaron.org/css/intrinsic/#outer-intrinsic
 		tableMinWidth = wid.Value
 		tableMaxWidth = wid.Value
+		// gopdfgo: przy box-sizing: border-box (domyślnym dla tabel w HTML) podana szerokość obejmuje
+		// obramowanie i odstęp wewnętrzny tabeli; w źródle była brana jako szerokość treści, więc tabela
+		// wychodziła za szeroka.
+		if table.Style.GetBoxSizing() != "content-box" {
+			delta := table.Style.GetBorderLeftWidth().Value + table.Style.GetBorderRightWidth().Value
+			if table.Style.GetBoxSizing() == "border-box" && table.Style.GetBorderCollapse() == "collapse" {
+				delta = 0
+			}
+			for _, padding := range [...]pr.TaggedDim{table.Style.GetPaddingLeft(), table.Style.GetPaddingRight()} {
+				if padding.Unit == pr.Px && table.Style.GetBorderCollapse() != "collapse" {
+					delta += padding.Value
+				}
+			}
+			if table.Style.GetBoxSizing() == "padding-box" {
+				delta -= table.Style.GetBorderLeftWidth().Value + table.Style.GetBorderRightWidth().Value
+			}
+			tableMinWidth = max(tableMinWidth-delta, 0)
+			tableMaxWidth = max(tableMaxWidth-delta, 0)
+		}
 	}
 
 	tableMinContentWidth = max(tableMinContentWidth, adjust(table, false, tableMinWidth, true, true))

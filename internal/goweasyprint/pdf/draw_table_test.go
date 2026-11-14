@@ -1215,14 +1215,16 @@ func TestTables_19(t *testing.T) {
       <table><tr><td>a a a a</td></tr></table>`)
 }
 
+// gopdfgo: szerokość tabeli obejmuje obramowanie (box-sizing: border-box z arkusza HTML), więc tabela
+// ma 10 px razem z obramowaniem; w źródle 12 px.
 func TestTables_20(t *testing.T) {
 	defer testutils.CaptureLogs().AssertNoLogs(t)
 
 	assertPixelsEqual(t, `
       ____________________
-      _RRRRRRRRRRRR_______
-      _RBBBBBBBBBBR_______
-      _RRRRRRRRRRRR_______
+      _RRRRRRRRRR_________
+      _RBBBBBBBBR_________
+      _RRRRRRRRRR_________
       ____________________
     `, `
       <style>

@@ -380,3 +380,32 @@ func TestTallImageIsSliced(t *testing.T) {
 		t.Errorf("obraz 150 px: %d stron, oczekiwane 2", moved.Pages)
 	}
 }
+
+// Podana szerokość tabeli obejmuje obramowanie i odstęp wewnętrzny (box-sizing: border-box z arkusza HTML).
+func TestTableWidthIsBorderBox(t *testing.T) {
+	const style = "<style>@page { size: 400px 100px; margin: 0 } body { margin: 0 } td { padding: 0; height: 20px }</style>"
+	dir := t.TempDir()
+	measure := func(html string) int {
+		pages := rasterize(t, renderString(t, style+html).PDF, dir, "table")
+		header, data := splitPPM(pages[0])
+		var width int
+		fmt.Sscan(strings.Fields(header)[1], &width)
+		first, last := -1, -1
+		for x := 0; x < width; x++ {
+			if data[(5*width+x)*3] < 60 {
+				if first < 0 {
+					first = x
+				}
+				last = x
+			}
+		}
+		return last - first + 1
+	}
+	const table = `border: 20px solid #000; padding: 10px; border-spacing: 0"><tr><td></td></tr></table>`
+	if got := measure(`<table style="width: 200px; ` + table); got != 200 {
+		t.Errorf("border-box: %d px, oczekiwane 200", got)
+	}
+	if got := measure(`<table style="width: 200px; box-sizing: content-box; ` + table); got != 260 {
+		t.Errorf("content-box: %d px, oczekiwane 260", got)
+	}
+}
