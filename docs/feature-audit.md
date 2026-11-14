@@ -504,5 +504,5 @@ limitu czasu. Reftesty druku: 192 z 340.
 Kolumny (`css-multicol`, ok. 250 niezaliczonych z 400) po przeglądzie: 29 testów dotyczy nowej właściwości
 `column-height` (CSS Multicol 2), ok. 25 zagnieżdżonych układów wielołamowych, ok. 45 elementów rozpinających
 (`column-span: all`) w nietypowych położeniach (w przekształceniach, z ujemnymi marginesami, dzielonych między
-kolumny), reszta to tryby pisma pionowego i pojedyncze przypadki. Napraw tam nie zaczynano: żadna grupa nie
-odpowiada typowemu dokumentowi wielołamowemu, a te przechodzą.
+kolumny), reszta to tryby pisma pionowego i pojedyncze przypadki. Napraw tam nie zaczynano: żadna z tych grup
+nie odpowiada typowemu dokumentowi wielołamowemu (tekst w kilku łamach z nagłówkiem rozpinającym).
