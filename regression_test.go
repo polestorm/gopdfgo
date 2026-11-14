@@ -1172,3 +1172,39 @@ func TestFlexDefiniteSizesAndFallbackAlignment(t *testing.T) {
 		}
 	}
 }
+
+// To samo co TestFormattingContextNarrowsBesideFloat, ale z marginesem body,
+// który składa się z marginesami potomków: pozycja pudełka nie zawiera go
+// jeszcze w chwili szukania miejsca obok elementu pływającego.
+func TestFormattingContextNarrowsBesideFloatWithCollapsedMargins(t *testing.T) {
+	const style = "<style>@page { size: 400px 200px; margin: 0 } body { margin: 20px } " +
+		".box { width: 300px; height: 100px } .float { float: left; width: 100px; height: 100px; background: #00f }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+`<div class="box"><div class="float"></div>`+
+		`<div style="overflow: hidden; background: #fc0"><div style="height: 50px"></div></div></div>`).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<div class="box"><div class="float"></div>`+
+		`<div style="float: left; width: 200px; height: 50px; background: #fc0"></div></div>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}
+
+// Element pływający wewnątrz pudełka liniowego z marginesem, obramowaniem
+// i odstępem leży przy krawędzi bloku zawierającego, a nie za tym odstępem.
+func TestFloatInsideInlineWithSpacing(t *testing.T) {
+	const style = "<style>@page { size: 400px 200px; margin: 0 } body { margin: 0 } " +
+		".f { float: left; width: 80px; height: 60px; background: #00f }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+
+		`<span style="padding: 20px; border: 10px solid transparent; margin: 30px"><span class="f"></span></span>`).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<div class="f"></div>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}

@@ -379,6 +379,12 @@ Wspólne dla obu katalogów:
     `space-around` i `space-evenly` jak „safe center” (CSS Box Alignment 3 § 4.3); `right` w kontenerze
     kolumnowym działa jak `start` (§ 4.1). Testy odziedziczone `TestFlexDirectionColumnJustify`, `…Gap`,
     `…GapWrap` i `…MarginPadding` oczekiwały dla `right` końca osi; wiersz `right` zmieniony na wartości `left`;
+- `html/layout/block.go` (`narrowBesideFloats`): przy szukaniu miejsca obok elementu pływającego wliczane są
+  marginesy czekające na złożenie (np. margines `body` nad pierwszym blokiem). Bez tego pudełko tworzące własny
+  kontekst formatowania było zwężane tylko w dokumentach bez marginesów nad nim, a w pozostałych lądowało pod
+  elementem pływającym (poprawka do wcześniejszej zmiany własnej);
+- `html/layout/inline.go` (`splitInlineBox`): element pływający wewnątrz pudełka liniowego nie jest przesuwany
+  o margines, obramowanie i odstęp tego pudełka (CSS 2.1 § 9.5.1); źródło przesuwało go razem z treścią;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

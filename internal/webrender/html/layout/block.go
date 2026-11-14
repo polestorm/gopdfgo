@@ -163,7 +163,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		tableWrapperWidth(context, box_, bo.MaybePoint{containingBlock.Width, containingBlock.Height})
 	}
 	blockLevelWidth(box_, nil, containingBlock)
-	narrowBesideFloats(context, box_, containingBlock)
+	narrowBesideFloats(context, box_, containingBlock, *adjoiningMargins)
 
 	newBox__, result, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
@@ -1477,7 +1477,7 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 // gopdfgo: CSS 2.1 § 9.5 pozwala takie pudełko zwęzić albo przenieść pod element pływający; przeglądarki
 // zwężają. W źródle pudełko dostawało pełną szerokość bloku zawierającego i, nie mieszcząc się obok,
 // lądowało pod elementem pływającym.
-func narrowBesideFloats(context *layoutContext, box_ Box, containingBlock *bo.BoxFields) {
+func narrowBesideFloats(context *layoutContext, box_ Box, containingBlock *bo.BoxFields, adjoiningMargins []pr.Float) {
 	box := box_.Box()
 	width := box.Style.GetWidth()
 	if len(context.excludedShapes.list) == 0 || box.IsTableWrapper || box.IsFlexItem || box.IsGridItem ||
@@ -1491,6 +1491,13 @@ func narrowBesideFloats(context *layoutContext, box_ Box, containingBlock *bo.Bo
 	probe := box_.Copy()
 	probe.Box().Width = minWidth
 	probe.Box().Height = pr.Float(0.01)
+	// Marginesy czekające na złożenie (np. margines body nad pierwszym blokiem)
+	// nie są jeszcze wliczone w pozycję pudełka; bez nich sonda leżała nad
+	// elementem pływającym, nie widziała go i pudełko nie było zwężane.
+	if marginTop, ok := box.MarginTop.(pr.Float); ok && len(adjoiningMargins) != 0 {
+		pending := append(append([]pr.Float{}, adjoiningMargins...), marginTop)
+		probe.Box().PositionY += collapseMargin(pending) - marginTop
+	}
 	_, _, available := avoidCollisions(context, probe, containingBlock, false)
 	available -= box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
 	if available < box.Width.V() && available > 0 && available >= minWidth {

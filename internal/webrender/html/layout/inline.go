@@ -1029,7 +1029,14 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 		if translationNeeded {
 			for _, child := range newBox.Children {
-				child.Translate(leftSpacing, 0, false)
+				// gopdfgo: element pływający leży względem bloku
+				// zawierającego, nie pudełka liniowego (CSS 2.1 § 9.5.1),
+				// więc margines, obramowanie i odstęp pudełka go nie
+				// przesuwają; źródło przesuwało go razem z tekstem
+				if child.Box().IsFloated() {
+					continue
+				}
+				child.Translate(leftSpacing, 0, true)
 			}
 		}
 		newBox.Width = positionX - contentBoxLeft
