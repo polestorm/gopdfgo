@@ -1839,30 +1839,33 @@ func TestTableColumnWidth1(t *testing.T) {
 
 	tu.AssertEqual(t, cells[1][0].Box().PositionX, Fl(5100)) // 5000 + border-spacing
 	// `width` on a column sets the border width of cells
-	tu.AssertEqual(t, cells[1][0].Box().BorderWidth(), Fl(1000)) // 10% of 10000px
-	tu.AssertEqual(t, cells[1][0].Box().Width, Fl(978))          // 1000 - borders - padding
+	// gopdfgo: procent kolumny liczy się od szerokości tabeli bez odstępów
+	// między komórkami (CSS Tables 3 § 3.9.3): 10% z 10000 - 5*100. Źródło
+	// liczyło od całej szerokości i oczekiwało 1000.
+	tu.AssertEqual(t, cells[1][0].Box().BorderWidth(), Fl(950)) // 10% of 9500px
+	tu.AssertEqual(t, cells[1][0].Box().Width, Fl(928))         // 950 - borders - padding
 
-	tu.AssertEqual(t, cells[1][1].Box().PositionX, Fl(6200))    // 5100 + 1000 + border-spacing
-	tu.AssertEqual(t, cells[1][1].Box().BorderWidth(), Fl(911)) // (3022 - 1000 - 2*100) / 2
-	tu.AssertEqual(t, cells[1][1].Box().Width, Fl(889))         // 911 - borders - padding
+	tu.AssertEqual(t, cells[1][1].Box().PositionX, Fl(6150))    // 5100 + 950 + border-spacing
+	tu.AssertEqual(t, cells[1][1].Box().BorderWidth(), Fl(936)) // (3022 - 950 - 2*100) / 2
+	tu.AssertEqual(t, cells[1][1].Box().Width, Fl(914))         // 936 - borders - padding
 
-	tu.AssertEqual(t, cells[1][2].Box().PositionX, Fl(7211))    // 6200 + 911 + border-spacing
-	tu.AssertEqual(t, cells[1][2].Box().BorderWidth(), Fl(911)) // (3022 - 1000 - 2*100) / 2
-	tu.AssertEqual(t, cells[1][2].Box().Width, Fl(889))         // 911 - borders - padding
+	tu.AssertEqual(t, cells[1][2].Box().PositionX, Fl(7186))    // 6150 + 936 + border-spacing
+	tu.AssertEqual(t, cells[1][2].Box().BorderWidth(), Fl(936)) // (3022 - 950 - 2*100) / 2
+	tu.AssertEqual(t, cells[1][2].Box().Width, Fl(914))         // 936 - borders - padding
 
 	// Same as cells[0][1]
-	tu.AssertEqual(t, cells[1][3].Box().PositionX, Fl(8222)) // Also 7211 + 911 + border-spacing
+	tu.AssertEqual(t, cells[1][3].Box().PositionX, Fl(8222)) // Also 7186 + 936 + border-spacing
 	tu.AssertEqual(t, cells[1][3].Box().BorderWidth(), Fl(6678))
 	tu.AssertEqual(t, cells[1][3].Box().Width, Fl(6656))
 
 	// Same as cells[1][0]
 	tu.AssertEqual(t, cells[2][0].Box().PositionX, Fl(5100))
-	tu.AssertEqual(t, cells[2][0].Box().BorderWidth(), Fl(1000))
-	tu.AssertEqual(t, cells[2][0].Box().Width, Fl(978))
+	tu.AssertEqual(t, cells[2][0].Box().BorderWidth(), Fl(950))
+	tu.AssertEqual(t, cells[2][0].Box().Width, Fl(928))
 
-	tu.AssertEqual(t, cells[2][1].Box().PositionX, Fl(6200))     // Same as cells[1][1]
-	tu.AssertEqual(t, cells[2][1].Box().BorderWidth(), Fl(8700)) // 1000 - 1000 - 3*border-spacing
-	tu.AssertEqual(t, cells[2][1].Box().Width, Fl(8678))         // 8700 - borders - padding
+	tu.AssertEqual(t, cells[2][1].Box().PositionX, Fl(6150))     // Same as cells[1][1]
+	tu.AssertEqual(t, cells[2][1].Box().BorderWidth(), Fl(8750)) // 10000 - 950 - 3*border-spacing
+	tu.AssertEqual(t, cells[2][1].Box().Width, Fl(8728))         // 8750 - borders - padding
 	tu.AssertEqual(t, cells[2][1].Box().Colspan, 3)              // truncated to grid width
 }
 

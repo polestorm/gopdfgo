@@ -342,6 +342,16 @@ Wspólne dla obu katalogów:
   - `html/layout/tables.go` (`tableLayout`): `min-height` i `max-height` tabeli (CSS 2.1 § 10.7);
   - `html/layout/background.go` (`layoutBackgroundLayer`): tło grupy wierszy obejmuje całą grupę; źródło brało
     wysokość najwyższej komórki, więc tło kończyło się po pierwszym wierszu;
+- tabele, druga część (runda 2026-11-14):
+  - `html/layout/absolute.go` (`absoluteBlock`): tabela pozycjonowana bezwzględnie ma do dyspozycji bryłę
+    zawierającą pomniejszoną o `left` i `right` (CSS 2.1 § 10.3.7); źródło dawało jej całą szerokość. Trzy testy
+    `css-tables/absolute-tables-008`, `-009`, `-011` (oznaczone `tentative`, opisują zachowanie Chromium)
+    oczekują szerokości bryły bez tej korekty i po zmianie nie przechodzą;
+  - `html/layout/tables.go` (`fixedTableLayout`): procent szerokości kolumny w układzie stałym odnosi się do
+    szerokości tabeli bez odstępów między komórkami (CSS Tables 3 § 3.9.3). Test odziedziczony
+    `TestTableColumnWidth1` oczekiwał 10% z całych 10000 px; zmieniony na 10% z 9500 px;
+  - `html/layout/tables.go` (`tableLayout`), `background.go`: wiersz z `visibility: collapse` nie zajmuje
+    wysokości i nie jest rysowany (CSS 2.1 § 17.5.5). Kolumn z `visibility: collapse` to nie obejmuje;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

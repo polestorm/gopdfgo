@@ -1015,3 +1015,42 @@ func TestTableMinMaxSizes(t *testing.T) {
 		}
 	}
 }
+
+// Wiersz z visibility: collapse nie zajmuje miejsca i nie jest rysowany, ale
+// nadal wyznacza szerokość kolumn (CSS 2.1 § 17.5.5).
+func TestCollapsedTableRow(t *testing.T) {
+	html := `<style>@page { size: 400px 300px; margin: 20px } td { padding: 0; height: 40px }</style>
+<table style="border-spacing: 0"><tr style="visibility: collapse"><td>ukryty-szeroki-wiersz</td></tr><tr><td>widoczny</td></tr></table><p>akapit</p>`
+	result, err := Render(t.Context(), []byte(html), Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference, err := Render(t.Context(), []byte(strings.Replace(html, `<tr style="visibility: collapse"><td>ukryty-szeroki-wiersz</td></tr>`, ``, 1)), Options{Fonts: testFonts(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	words := visibleWords(t, result.PDF, 225)
+	if words["ukryty-szeroki-wiersz"] {
+		t.Error("tekst zwiniętego wiersza jest widoczny")
+	}
+	position := func(pdf []byte) string {
+		t.Helper()
+		file := filepath.Join(t.TempDir(), "out.pdf")
+		if err := os.WriteFile(file, pdf, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := exec.Command("pdftotext", "-bbox", file, "-").Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.Contains(line, ">akapit<") {
+				return wordBox.FindStringSubmatch(line)[1]
+			}
+		}
+		return ""
+	}
+	if got, want := position(result.PDF), position(reference.PDF); got == "" || got != want {
+		t.Errorf("akapit pod tabelą na wysokości %q, bez zwiniętego wiersza %q", got, want)
+	}
+}

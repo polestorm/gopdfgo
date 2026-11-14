@@ -245,7 +245,18 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 	var absoluteBoxes []*AbsolutePlaceholder
 
 	if box.IsTableWrapper {
-		tableWrapperWidth(context, box_, bo.MaybePoint{cbWidth, cbHeight})
+		// gopdfgo: tabela pozycjonowana bezwzględnie ma do dyspozycji bryłę
+		// zawierającą pomniejszoną o left i right (CSS 2.1 § 10.3.7); źródło
+		// dawało jej całą szerokość, więc tabela z left: 1px; right: 1px
+		// wystawała o dwa piksele
+		available := cbWidth
+		if left, ok := box.Left.(pr.Float); ok {
+			available -= left
+		}
+		if right, ok := box.Right.(pr.Float); ok {
+			available -= right
+		}
+		tableWrapperWidth(context, box_, bo.MaybePoint{available, cbHeight})
 	}
 
 	var (

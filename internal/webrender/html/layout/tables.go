@@ -401,6 +401,13 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if resumeAt == nil {
 				nextPositionY += borderSpacingY
 			}
+			// gopdfgo: wiersz z visibility: collapse bierze udział w wyznaczaniu
+			// szerokości kolumn, ale nie zajmuje wysokości i nie jest rysowany
+			// (CSS 2.1 § 17.5.5); źródło traktowało go jak zwykły wiersz
+			if row.Style.GetVisibility() == "collapse" && resumeAt == nil {
+				row.Height = pr.Float(0)
+				nextPositionY = row.PositionY
+			}
 
 			// Break if one cell was broken.
 			breakCell := false
@@ -943,18 +950,22 @@ func fixedTableLayout(box *bo.BoxFields) {
 	// ``None`` means not know yet.
 	columnWidths := make([]pr.MaybeFloat, numColumns)
 
-	// `width` on column boxes
-	for i, column_ := range allColumns {
-		column := column_.Box()
-		column.Width = resolveOnePercentage(column.Style.GetWidth(), pr.PWidth, table.Width.V())
-		if column.Width != pr.AutoF {
-			columnWidths[i] = column.Width
-		}
-	}
-
 	var borderSpacingX pr.Float
 	if table.Style.GetBorderCollapse() == "separate" {
 		borderSpacingX = table.Style.GetBorderSpacing()[0].Value
+	}
+
+	// `width` on column boxes
+	// gopdfgo: procent szerokości kolumny odnosi się do szerokości tabeli bez
+	// odstępów między komórkami (CSS Tables 3 § 3.9.3); źródło liczyło go od
+	// całej szerokości, więc kolumny procentowe wychodziły za szerokie
+	percentageBase := max(0, table.Width.V()-borderSpacingX*pr.Float(numColumns+1))
+	for i, column_ := range allColumns {
+		column := column_.Box()
+		column.Width = resolveOnePercentage(column.Style.GetWidth(), pr.PWidth, percentageBase)
+		if column.Width != pr.AutoF {
+			columnWidths[i] = column.Width
+		}
 	}
 
 	// `width` on cells of the first row.

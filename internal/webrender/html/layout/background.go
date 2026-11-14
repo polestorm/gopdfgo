@@ -88,7 +88,8 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 		images_   []images.Image
 		anyImages = false
 	)
-	if style.GetVisibility() != "hidden" {
+	// gopdfgo: visibility: collapse ukrywa tło tak samo jak hidden
+	if style.GetVisibility() == "visible" {
 		orientation := style.GetImageOrientation()
 		bs := style.GetBackgroundImage()
 		images_ = make([]images.Image, len(bs))
