@@ -1292,7 +1292,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	box = box_.Box()
 	childSkipStack = skipStack
 	finalLines := make([][]Box, len(flexLines)) // pudełka po ostatecznym układzie, według linii
-	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
+	flexItemsBefore := len(box.Children)        // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
 	for lineIndex, line := range flexLines {
 		for _, v := range line.line {
 			i, child := v.index, v.box.Box()
