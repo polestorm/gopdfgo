@@ -574,3 +574,21 @@ func TestWordBreakBreakAll(t *testing.T) {
 		t.Errorf("słowo nie zostało przełamane w środku: %q", got)
 	}
 }
+
+// Pudełko tworzące nowy kontekst formatowania, o szerokości auto, staje obok elementu pływającego
+// i zajmuje resztę wiersza, zamiast spadać pod niego z pełną szerokością (CSS 2.1 § 9.5).
+func TestFormattingContextNarrowsBesideFloat(t *testing.T) {
+	const style = "<style>@page { size: 400px 200px; margin: 0 } body { margin: 0 } " +
+		".box { width: 300px; height: 100px } .float { float: left; width: 100px; height: 100px; background: #00f }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+`<div class="box"><div class="float"></div>`+
+		`<div style="overflow: hidden; background: #fc0"><div style="height: 50px"></div></div></div>`).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<div class="box"><div class="float"></div>`+
+		`<div style="float: left; width: 200px; height: 50px; background: #fc0"></div></div>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}

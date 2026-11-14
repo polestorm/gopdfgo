@@ -200,6 +200,11 @@ Wspólne dla obu katalogów:
   i `max-height`; `css/validation`, `html/boxes/boxes.go`, `html/layout/flex.go` (`isScrollContainer`):
   `overflow: clip` jest osobną wartością, która przycina, ale nie tworzy kontenera przewijania ani kontekstu
   formatowania (CSS Overflow 3 § 3.1);
+- `html/layout/block.go` (`narrowBesideFloats`): pudełko tworzące nowy kontekst formatowania, o szerokości
+  auto, jest zwężane do miejsca obok elementów pływających, jeśli mieści się tam jego `min-width` (CSS 2.1
+  § 9.5 dopuszcza zwężenie albo przeniesienie pod spód; przeglądarki zwężają). W źródle dostawało pełną
+  szerokość i lądowało pod elementem pływającym. Szerokość jest dobierana według elementów pływających na
+  wysokości górnej krawędzi pudełka;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

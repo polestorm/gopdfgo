@@ -154,6 +154,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		tableWrapperWidth(context, box_, bo.MaybePoint{containingBlock.Width, containingBlock.Height})
 	}
 	blockLevelWidth(box_, nil, containingBlock)
+	narrowBesideFloats(context, box_, containingBlock)
 
 	newBox__, result, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
@@ -1372,4 +1373,31 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 		return false
 	}
 	return true
+}
+
+// narrowBesideFloats zwęża pudełko tworzące nowy kontekst formatowania o szerokości auto do miejsca, które
+// zostaje obok elementów pływających na jego wysokości, o ile mieści się tam jego min-width.
+//
+// gopdfgo: CSS 2.1 § 9.5 pozwala takie pudełko zwęzić albo przenieść pod element pływający; przeglądarki
+// zwężają. W źródle pudełko dostawało pełną szerokość bloku zawierającego i, nie mieszcząc się obok,
+// lądowało pod elementem pływającym.
+func narrowBesideFloats(context *layoutContext, box_ Box, containingBlock *bo.BoxFields) {
+	box := box_.Box()
+	width := box.Style.GetWidth()
+	if len(context.excludedShapes.list) == 0 || box.IsTableWrapper || box.IsFlexItem || box.IsGridItem ||
+		!box.IsInNormalFlow() || width.Tag != pr.Auto || width.Intrinsic != pr.IntrinsicNone ||
+		!bo.EstablishesFormattingContext(box_) || box.Width == pr.AutoF {
+		return
+	}
+	// Liczy się min-width, nie szerokość treści: treść szersza niż miejsce obok elementu pływającego
+	// wystaje z pudełka (albo jest przycinana), a pudełko zostaje obok.
+	minWidth := box.MinWidth.V()
+	probe := box_.Copy()
+	probe.Box().Width = minWidth
+	probe.Box().Height = pr.Float(0.01)
+	_, _, available := avoidCollisions(context, probe, containingBlock, false)
+	available -= box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
+	if available < box.Width.V() && available > 0 && available >= minWidth {
+		box.Width = available
+	}
 }
