@@ -516,3 +516,13 @@ func TestFractionalFontSizeWidth(t *testing.T) {
 		t.Errorf("10pt: %.0f px, 13.33px: %.0f px", pt, w1333)
 	}
 }
+
+// Tabulator po tekście kończącym się dokładnie na pozycji tabulatora przesuwa do następnej pozycji:
+// kolumny w <pre> nie zlewają się.
+func TestTabAfterTextEndingAtTabStop(t *testing.T) {
+	result := renderString(t, "<pre>kolumna1\tkolumna2\tkolumna3</pre>")
+	text := string(extractText(t, result.PDF))
+	if !strings.Contains(text, "kolumna1 kolumna2 kolumna3") {
+		t.Errorf("kolumny zlane: %q", text)
+	}
+}

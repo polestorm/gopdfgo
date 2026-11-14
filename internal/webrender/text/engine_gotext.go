@@ -950,7 +950,15 @@ func applyTabs(out *shaping.Output, text []rune, columnWidth, runStart fixed.Int
 			// (runStart + advance + updatedTabAdvance) % columnWith == 0
 			glyphStartF := float64(runStart+advance) / 64
 			remainder := math.Mod(glyphStartF, columnWidthF)
-			updatedTabAdvance = fixed.Int26_6((columnWidthF - remainder) * 64)
+			toNextStop := columnWidthF - remainder
+			// gopdfgo: gdy do pozycji tabulatora brakuje mniej niż pół znaku, obowiązuje następna
+			// (CSS Text 3 § 4.2). W źródle tekst kończący się dokładnie na pozycji tabulatora, z błędem
+			// zaokrąglenia tuż przed nią, dostawał tabulator o szerokości bliskiej zera i kolumny się zlewały.
+			// Pół znaku przybliżamy jako 1/16 odstępu tabulacji (dokładnie dla tab-size: 8).
+			if toNextStop < columnWidthF/16 {
+				toNextStop += columnWidthF
+			}
+			updatedTabAdvance = fixed.Int26_6(toNextStop * 64)
 		}
 
 		out.Glyphs[i].Advance = updatedTabAdvance
