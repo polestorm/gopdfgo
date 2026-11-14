@@ -342,3 +342,7 @@ zmian w zaliczeniach względem poprzedniego pełnego pomiaru (6468 z 9135; 0 str
 jeden wzorzec przekroczył limit czasu: krojenie wiersza o nieskończonej wysokości nie miało końca. Naprawione
 tego samego dnia (`TestInfiniteHeightDoesNotLoop`); po poprawce plik renderuje się w 0,4 s.
 Reftesty druku: 180 z 340. Korpus: 21 dokumentów, z czego trzy nowe porównane z Chromium.
+
+Pełny sondaż po przeniesieniu pudełek pozycjonowanych poniżej strony i po poprawce krojenia (2026-11-14,
+ostatni pomiar dnia): 6468 z 9135 (6059 ściśle, 409 krawędziowo), 0 straconych, 0 błędów renderowania
+i 0 przekroczeń limitu czasu. Reftesty druku: 183 z 340.
