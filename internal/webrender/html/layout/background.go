@@ -170,6 +170,12 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 				totalHeight = max(totalHeight, maxVal)
 			}
 		}
+		// gopdfgo: tło grupy wierszy obejmuje całą grupę (CSS 2.1 § 17.5.1);
+		// źródło brało wysokość najwyższej komórki, więc tło kończyło się
+		// po pierwszym wierszu
+		if height, ok := box.Height.(pr.Float); ok {
+			totalHeight = max(totalHeight, height)
+		}
 		paintingArea = [4]pr.Float{
 			box.BorderBoxX(), box.BorderBoxY(),
 			box.BorderWidth(), totalHeight,

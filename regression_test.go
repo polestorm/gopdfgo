@@ -988,3 +988,30 @@ func TestImportWithQuotedURL(t *testing.T) {
 		t.Error("arkusz z @import nie został zastosowany")
 	}
 }
+
+// min-width, max-width, min-height i max-height działają na tabelach
+// (CSS 2.1 § 10.4 i § 10.7): tabela z ograniczeniem musi wyjść tak samo jak
+// tabela z podanym wprost wymiarem wynikowym.
+func TestTableMinMaxSizes(t *testing.T) {
+	const cell = `<tr><td style="background: #ccc">a</td></tr></table>`
+	cases := []struct{ name, got, want string }{
+		{"max-width przy podanej szerokości", `width: 300px; max-width: 120px`, `width: 120px`},
+		{"min-width przy szerokości automatycznej", `min-width: 250px`, `width: 250px`},
+		{"max-height przy podanej wysokości", `width: 100px; height: 300px; max-height: 80px`, `width: 100px; height: 80px`},
+		{"min-height przy wysokości automatycznej", `width: 100px; min-height: 90px`, `width: 100px; height: 90px`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(`<table style="`+c.got+`">`+cell), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(`<table style="`+c.want+`">`+cell), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: %q dało inną tabelę niż %q", c.name, c.got, c.want)
+		}
+	}
+}

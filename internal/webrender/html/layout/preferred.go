@@ -812,6 +812,12 @@ outerLoop:
 
 	tableMinContentWidth = max(tableMinContentWidth, adjust(table, false, tableMinWidth, true, true))
 	tableMaxContentWidth = max(tableMaxContentWidth, adjust(table, false, tableMaxWidth, true, true))
+	// gopdfgo: max-width tabeli ogranicza także jej szerokość preferowaną (nie
+	// poniżej szerokości minimalnej treści), żeby kontener kurczący się do
+	// treści miał tę samą szerokość co ułożona tabela
+	if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
+		tableMaxContentWidth = max(tableMinContentWidth, min(tableMaxContentWidth, maxWidth.Value))
+	}
 	tableOuterMinContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMinContentWidth, true, true), true, true)
 	tableOuterMaxContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMaxContentWidth, true, true), true, true)
 

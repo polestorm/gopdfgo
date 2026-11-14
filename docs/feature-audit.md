@@ -411,6 +411,6 @@ Najważniejsze poprawki z punktu widzenia zwykłych dokumentów (szczegóły w `
 - arkusze w kodowaniu innym niż UTF-8 (znacznik kolejności bajtów, `@charset`) były czytane jako UTF-8;
 - spacja po znaku z fontu zastępczego miała szerokość z tego fontu.
 
-Pozostałe niezaliczone w `CSS2/syntax` (28): 20 wymaga nagłówków HTTP albo kodowania dokumentu, reszta to
+Pozostałe niezaliczone w `CSS2/syntax` (28): 17 wymaga nagłówków HTTP albo kodowania dokumentu, reszta to
 wielkość liter w XHTML, `declarations-009` (różnica między CSS 2.1 a CSS Syntax 3) i niedomknięte konstrukcje
-na końcu arkusza. W `CSS2/selectors` zostaje głównie `::first-line`, którego silnik nie stosuje (14 testów).
+na końcu arkusza. W `CSS2/selectors` zostaje głównie `::first-line`, którego silnik nie stosuje (13 testów).

@@ -335,6 +335,13 @@ Wspólne dla obu katalogów:
   go-text dokleja odstępy do bieżącego przebiegu, więc „◦ ” miało spację o szerokości z fontu zastępczego;
 - `html/layout/preferred.go` (`inlineLineWidths`): wcięcie pierwszego wiersza liczy się do szerokości minimalnej
   razem z obiektem stojącym na początku wiersza, a ujemne wcięcie nie daje ujemnej szerokości wiersza;
+- tabele (runda 2026-11-14):
+  - `html/layout/tables.go` (`tableWrapperWidth`), `preferred.go`: `min-width` i `max-width` tabeli (CSS 2.1
+    § 10.4, CSS Tables 3 § 3.9.1); źródło je pomijało. Test odziedziczony `TestLayoutTableAuto35` oczekiwał, że
+    tabela z `max-width: 300px` i pustą komórką `width: 400px` ma 400 px; zmieniony na 300 px;
+  - `html/layout/tables.go` (`tableLayout`): `min-height` i `max-height` tabeli (CSS 2.1 § 10.7);
+  - `html/layout/background.go` (`layoutBackgroundLayer`): tło grupy wierszy obejmuje całą grupę; źródło brało
+    wysokość najwyższej komórki, więc tło kończyło się po pierwszym wierszu;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

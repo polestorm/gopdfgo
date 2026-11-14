@@ -768,18 +768,27 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// gopdfgo: gdy tabela ma podaną wysokość większą niż suma wierszy, nadmiar rozdzielamy między wiersze
 	// (CSS Tables 3 § 3.10.5); w źródle zostawał jako puste miejsce pod ostatnim wierszem. Tabeli
 	// podzielonej między strony nie rozciągamy.
-	if resumeAt == nil && table.Height != pr.AutoF {
-		if extra := table.Height.V() - (positionY - table.ContentBoxY()); extra > 0 {
+	// gopdfgo: podana wysokość jest ograniczana przez max-height i min-height
+	// (CSS 2.1 § 10.7); źródło ich dla tabel nie stosowało. Treść i tak nie
+	// pozwala tabeli zejść poniżej sumy wierszy.
+	var th pr.Float
+	if table.Height != pr.AutoF {
+		th = table.Height.V()
+	}
+	if maxHeight, ok := table.MaxHeight.(pr.Float); ok && maxHeight != pr.Inf {
+		th = min(th, maxHeight)
+	}
+	if minHeight, ok := table.MinHeight.(pr.Float); ok {
+		th = max(th, minHeight)
+	}
+	if resumeAt == nil && th > 0 {
+		if extra := th - (positionY - table.ContentBoxY()); extra > 0 {
 			positionY += distributeExtraTableHeight(table, extra)
 		}
 	}
 
 	// If the height property has a bigger value, just add blank space
 	// below the last row group.
-	var th pr.Float
-	if table.Height != pr.AutoF {
-		th = table.Height.V()
-	}
 	table.Height = max(th, positionY-table.ContentBoxY())
 
 	// Layout for column groups and columns
@@ -1154,12 +1163,40 @@ func tableWrapperWidth(context *layoutContext, wrapper_ Box, containingBlock bo.
 	table := wrapper.GetWrappedTable()
 	resolvePercentages(table, containingBlock)
 
-	if table.Box().Style.GetTableLayout() == "fixed" && table.Box().Width != pr.AutoF {
-		fixedTableLayout(wrapper)
-	} else {
-		autoTableLayout(context, wrapper_, containingBlock.V())
+	// gopdfgo: min-width i max-width tabeli (CSS 2.1 § 10.4, CSS Tables 3
+	// § 3.9.1). Źródło je pomijało: tabela z width: 3in i max-width: 1in
+	// miała trzy cale. Podana szerokość jest ograniczana przed układem;
+	// szerokość automatyczna po nim, z ponownym układem w razie przekroczenia
+	// (tabela i tak nie zejdzie poniżej szerokości minimalnej treści).
+	tableBox := table.Box()
+	clamp := func(width pr.Float) pr.Float {
+		if maxWidth, ok := tableBox.MaxWidth.(pr.Float); ok && maxWidth != pr.Inf {
+			width = min(width, maxWidth)
+		}
+		if minWidth, ok := tableBox.MinWidth.(pr.Float); ok {
+			width = max(width, minWidth)
+		}
+		return width
 	}
-	wrapper.Width = table.Box().BorderWidth()
+	layout := func() {
+		if tableBox.Style.GetTableLayout() == "fixed" && tableBox.Width != pr.AutoF {
+			fixedTableLayout(wrapper)
+		} else {
+			autoTableLayout(context, wrapper_, containingBlock.V())
+		}
+	}
+	if width, ok := tableBox.Width.(pr.Float); ok {
+		tableBox.Width = clamp(width)
+		layout()
+	} else {
+		layout()
+		if width, ok := tableBox.Width.(pr.Float); ok && clamp(width) != width {
+			// układ automatyczny sam pilnuje szerokości minimalnej treści
+			tableBox.Width = clamp(width)
+			layout()
+		}
+	}
+	wrapper.Width = tableBox.BorderWidth()
 }
 
 // Return the y position of a cell’s baseline from the top of its border box.
