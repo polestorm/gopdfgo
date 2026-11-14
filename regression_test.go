@@ -1054,3 +1054,59 @@ func TestCollapsedTableRow(t *testing.T) {
 		t.Errorf("akapit pod tabelą na wysokości %q, bez zwiniętego wiersza %q", got, want)
 	}
 }
+
+// Pudełko pozycjonowane bezwzględnie względem strony nie jest przycinane przez
+// przodka z overflow: hidden, który nie jest jego bryłą zawierającą; pudełko,
+// dla którego przodek jest bryłą zawierającą, jest przycinane (CSS 2.1 § 11.1.1).
+func TestOverflowClipsOnlyContainedAbsoluteBoxes(t *testing.T) {
+	page := `<style>@page { size: 400px 300px; margin: 20px } body { margin: 0 }
+.clip { width: 100px; height: 40px; overflow: hidden; margin-top: 150px }
+.out { position: absolute; top: 10px; left: 200px }</style>`
+	options := Options{Fonts: testFonts(t)}
+	escaped, err := Render(t.Context(), []byte(page+`<div class="clip"><div class="out">ucieka</div></div>`), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !visibleWords(t, escaped.PDF, 225)["ucieka"] {
+		t.Error("pudełko pozycjonowane względem strony zostało przycięte przez przodka z overflow")
+	}
+	contained, err := Render(t.Context(), []byte(page+`<div class="clip" style="position: relative"><div class="out">zostaje</div></div>`), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Tekst przycięty pozostaje w PDF (przycięcie to ścieżka, nie usunięcie),
+	// więc zamiast szukać słowa porównujemy z tym samym dokumentem bez przycinania.
+	visible, err := Render(t.Context(), []byte(page+`<div class="clip" style="position: relative; overflow: visible"><div class="out">zostaje</div></div>`), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(contained.PDF, visible.PDF) {
+		t.Error("pudełko pozycjonowane względem przodka z overflow nie zostało przycięte")
+	}
+}
+
+// Marginesy automatyczne pudełka pozycjonowanego liczą się z wysokości po
+// zastosowaniu max-height, a pojedynczy margines automatyczny uwzględnia drugi.
+func TestAbsoluteAutoMargins(t *testing.T) {
+	const frame = `<style>@page { size: 400px 300px; margin: 0 } body { margin: 0 }
+.cb { position: relative; width: 200px; height: 200px }
+.box { position: absolute; left: 0; width: 50px; background: #333 }</style><div class="cb"><div class="box" style="`
+	cases := []struct{ name, got, want string }{
+		{"max-height przed wyśrodkowaniem", `top: 20px; bottom: 20px; height: 120px; max-height: 40px; margin: auto 0`, `top: 80px; height: 40px`},
+		{"margines górny automatyczny przy dolnym podanym", `top: 10px; bottom: 10px; height: 50px; margin-top: auto; margin-bottom: 30px`, `top: 110px; height: 50px`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(frame+c.got+`"></div></div>`), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(frame+c.want+`"></div></div>`), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: %q dało inne położenie niż %q", c.name, c.got, c.want)
+		}
+	}
+}

@@ -419,3 +419,22 @@ Pełny sondaż po rundzie tabel (2026-11-14, `min/max-width`, `min/max-height`, 
 w szerokości minimalnej): **6576 z 9135 (72,0%)**, w tym 6165 ściśle i 411 krawędziowo; 39 zyskanych (tło 15,
 przepływ normalny 11, tabele CSS 2: 5, tekst dwukierunkowy 3, `clear` 3, tekst 1, tabele CSS 3: 1),
 0 straconych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
+
+## Runda tabel i pozycjonowania (2026-11-14)
+
+Pełny sondaż ekranowy: **6636 z 9135 (72,6%)**, w tym 6225 ściśle i 411 krawędziowo; poprzednio 6576.
+Zyskanych 65 (tabele CSS 2: 41, pozycjonowanie 20, tabele CSS 3: 2, `abspos` 1, kolumny 1), straconych 5,
+0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
+
+Z pięciu strat dwie (`static-inside-float-inside-inline`, `margin-collapse-quirks-mode-001`) wynikały
+z kolejności rysowania pudełek wyprowadzonych spod przycięcia i zostały naprawione po pomiarze (sprawdzone
+osobno; ćwiartka sondażu po poprawce bez zmian). Trzy pozostałe to `css-tables/absolute-tables-008`, `-009`
+i `-011`, oznaczone `tentative`: oczekują, że tabela pozycjonowana bezwzględnie ma do dyspozycji całą
+szerokość bryły zawierającej niezależnie od `left` i `right`. CSS 2.1 § 10.3.7 mówi inaczej i na tej regule
+opiera się 32 testów `table-anonymous-objects`, więc zostajemy przy normie.
+
+Co doszło: szerokość tabeli pozycjonowanej bezwzględnie, procenty kolumn w układzie stałym, `visibility:
+collapse` wierszy, `min-height`/`max-height` i pojedynczy margines automatyczny pudełek pozycjonowanych,
+przycinanie przez `overflow` tylko tych pudełek pozycjonowanych, dla których element jest bryłą zawierającą.
+Nie zrobione: `visibility: collapse` kolumn, `iframe`, wysokość elementów zastępowanych zależna od metryk
+fontu wzorca (testy `*-replaced-height-002`: różnica 2 px wynika z fontu zastępującego Times).

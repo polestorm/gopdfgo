@@ -352,6 +352,16 @@ Wspólne dla obu katalogów:
     `TestTableColumnWidth1` oczekiwał 10% z całych 10000 px; zmieniony na 10% z 9500 px;
   - `html/layout/tables.go` (`tableLayout`), `background.go`: wiersz z `visibility: collapse` nie zajmuje
     wysokości i nie jest rysowany (CSS 2.1 § 17.5.5). Kolumn z `visibility: collapse` to nie obejmuje;
+- pozycjonowanie (runda 2026-11-14):
+  - `html/layout/absolute.go` (`absoluteHeightMinMax`): `min-height` i `max-height` pudełka pozycjonowanego
+    bezwzględnie są stosowane przed wyznaczeniem marginesów automatycznych (CSS 2.1 § 10.7), więc pudełko
+    z `top`, `bottom` i `max-height` jest wyśrodkowane według wysokości ostatecznej;
+  - `html/layout/absolute.go` (`absoluteHeight`, `_absoluteWidth`): jedyny margines automatyczny dostaje resztę
+    po odjęciu drugiego marginesu (CSS 2.1 § 10.3.7 i § 10.6.4); źródło drugi margines pomijało;
+  - `html/document/stacking.go` (`newStackingContextFromBox`, parametr `escape`): przodek z `overflow` innym niż
+    `visible`, który nie jest pozycjonowany, nie przycina pudełek pozycjonowanych bezwzględnie, dla których nie
+    jest bryłą zawierającą (CSS 2.1 § 11.1.1). Źródło robiło z niego pełny kontekst nakładania i przycinało
+    wszystkich potomków, więc pudełko wyprowadzone poza taki element znikało;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

@@ -113,6 +113,17 @@ func insertStackingContext(a *[]StackingContext, i int, item StackingContext) {
 }
 
 func NewStackingContextFromBox(box Box, page *bo.PageBox, childContexts *[]StackingContext) StackingContext {
+	return newStackingContextFromBox(box, page, childContexts, nil)
+}
+
+// escape (gopdfgo): lista kontekstu leżącego na zewnątrz najbliższego przodka
+// z overflow innym niż visible, który sam nie jest pozycjonowany. Trafiają do
+// niej pudełka pozycjonowane bezwzględnie, których bryła zawierająca leży poza
+// tym przodkiem: przycięcie obejmuje tylko potomków, dla których element jest
+// (pośrednio) bryłą zawierającą (CSS 2.1 § 11.1.1). Źródło przycinało wszystkich
+// potomków, więc takie pudełko znikało, gdy leżało poza przodkiem. nil oznacza,
+// że nie ma skąd uciekać.
+func newStackingContextFromBox(box Box, page *bo.PageBox, childContexts, escape *[]StackingContext) StackingContext {
 	var children []StackingContext // What will be passed to this box
 	if childContexts == nil {
 		childContexts = &children
@@ -129,11 +140,11 @@ func NewStackingContextFromBox(box Box, page *bo.PageBox, childContexts *[]Stack
 		blocksAndCells = newBoxTree()
 	)
 
-	box = dispatchChildren(box, page, childContexts, &blocks, &floats, blocksAndCells)
+	box = dispatchChildren(box, page, childContexts, escape, &blocks, &floats, blocksAndCells)
 	return NewStackingContext(box, children, blocks, floats, blocksAndCells, page)
 }
 
-func dispatch(box Box, page *bo.PageBox, childContexts *[]StackingContext,
+func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContext,
 	blocks *[]Box, floats *[]StackingContext, blocksAndCells BoxTree,
 ) Box {
 	if absPlac, ok := box.(*layout.AbsolutePlaceholder); ok {
@@ -142,16 +153,36 @@ func dispatch(box Box, page *bo.PageBox, childContexts *[]StackingContext,
 		box = stack.box
 	}
 	style := box.Box().Style
-	absoluteAndZIndex := style.GetPosition().String != "static" && style.GetZIndex().String != "auto"
+	position := style.GetPosition().String
+	positioned := position != "static"
+	hasTransform := len(style.GetTransform()) != 0
+	if escape != nil && (position == "absolute" || position == "fixed") {
+		// bryła zawierająca tego pudełka leży poza przycinającym przodkiem
+		childContexts, escape = escape, nil
+	}
+	// dla potomków pudełka pozycjonowanego lub przekształconego bryłą
+	// zawierającą jest ono samo, więc nie mają dokąd uciekać
+	innerEscape := escape
+	if positioned || hasTransform {
+		innerEscape = nil
+	}
+	absoluteAndZIndex := positioned && style.GetZIndex().String != "auto"
 	if absoluteAndZIndex || style.GetOpacity() < 1 ||
 		// "transform: none" gives a "falsy" empty list here
-		len(style.GetTransform()) != 0 || style.GetOverflow() != "visible" {
+		hasTransform || style.GetOverflow() != "visible" {
 
+		// Pudełka uciekające spod przycięcia rysujemy po kontekście, z którego
+		// uciekły, tak jak leżałyby w nim: nad jego treścią.
+		var escaped []StackingContext
+		if style.GetOverflow() != "visible" && !positioned && !hasTransform && innerEscape == nil {
+			innerEscape = &escaped
+		}
 		// This box defines a new stacking context, remove it
 		// from the "normal" children list.
-		*childContexts = append(*childContexts, NewStackingContextFromBox(box, page, nil))
+		*childContexts = append(*childContexts, newStackingContextFromBox(box, page, nil, innerEscape))
+		*childContexts = append(*childContexts, escaped...)
 	} else {
-		if style.GetPosition().String != "static" {
+		if positioned {
 			if style.GetZIndex().String != "auto" {
 				panic(fmt.Sprintf("expected auto z-index, got %v", style.GetZIndex()))
 			}
@@ -159,28 +190,28 @@ func dispatch(box Box, page *bo.PageBox, childContexts *[]StackingContext,
 			// `childContexts` list.
 			// Insert at the position before creating the sub-context.
 			index := len(*childContexts)
-			insertStackingContext(childContexts, index, NewStackingContextFromBox(box, page, childContexts))
+			insertStackingContext(childContexts, index, newStackingContextFromBox(box, page, childContexts, nil))
 		} else if box.Box().IsFloated() {
-			*floats = append(*floats, NewStackingContextFromBox(box, page, childContexts))
+			*floats = append(*floats, newStackingContextFromBox(box, page, childContexts, innerEscape))
 		} else if bo.InlineBlockT.IsInstance(box) || bo.InlineFlexT.IsInstance(box) || bo.InlineGridT.IsInstance(box) {
 			// gopdfgo: dodane InlineGridT; rysowanie już je przewidywało, a bez tego kończyło się paniką
 			// Have this fake stacking context be part of the "normal"
 			// box tree, because we need its position in the middle
 			// of a tree of inline boxes.
-			return NewStackingContextFromBox(box, page, childContexts)
+			return newStackingContextFromBox(box, page, childContexts, innerEscape)
 		} else {
 			if bo.BlockLevelT.IsInstance(box) {
 				blocksIndex := len(*blocks)
 				boxBlocksAndCells := newBoxTree()
-				box = dispatchChildren(box, page, childContexts, blocks, floats, boxBlocksAndCells)
+				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
 				*blocks = slices.Insert(*blocks, blocksIndex, box)
 				blocksAndCells.set(box, boxBlocksAndCells)
 			} else if bo.TableCellT.IsInstance(box) {
 				boxBlocksAndCells := newBoxTree()
-				box = dispatchChildren(box, page, childContexts, blocks, floats, boxBlocksAndCells)
+				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
 				blocksAndCells.set(box, boxBlocksAndCells)
 			} else {
-				box = dispatchChildren(box, page, childContexts, blocks, floats, blocksAndCells)
+				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, blocksAndCells)
 			}
 
 			return box
@@ -189,7 +220,7 @@ func dispatch(box Box, page *bo.PageBox, childContexts *[]StackingContext,
 	return nil
 }
 
-func dispatchChildren(box Box, page *bo.PageBox, childContexts *[]StackingContext,
+func dispatchChildren(box Box, page *bo.PageBox, childContexts, escape *[]StackingContext,
 	blocks *[]Box, floats *[]StackingContext, blocksAndCells BoxTree,
 ) Box {
 	if !bo.ParentT.IsInstance(box) {
@@ -198,7 +229,7 @@ func dispatchChildren(box Box, page *bo.PageBox, childContexts *[]StackingContex
 
 	var newChildren []Box
 	for _, child := range box.Box().Children {
-		result := dispatch(child, page, childContexts, blocks, floats, blocksAndCells)
+		result := dispatch(child, page, childContexts, escape, blocks, floats, blocksAndCells)
 		if result != nil {
 			newChildren = append(newChildren, result)
 		}

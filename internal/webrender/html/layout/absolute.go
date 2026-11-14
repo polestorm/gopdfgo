@@ -110,13 +110,14 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 				}
 			}
 		} else if marginL == pr.AutoF {
-			box.MarginLeft = widthForMargins
+			// gopdfgo: jak wyżej, CSS 2.1 § 10.3.7
+			box.MarginLeft = widthForMargins - marginR.V()
 		} else if marginR == pr.AutoF {
-			box.MarginRight = widthForMargins
+			box.MarginRight = widthForMargins - marginL.V()
 		} else if ltr {
-			box.MarginRight = widthForMargins
+			box.MarginRight = widthForMargins - marginL.V()
 		} else {
-			box.MarginLeft = widthForMargins
+			box.MarginLeft = widthForMargins - marginR.V()
 		}
 		translateX = left.V() + defaultTranslateX
 	} else {
@@ -184,11 +185,13 @@ func absoluteHeight(box_ Box, containingBlock block) (bool, pr.Float) {
 			box.MarginTop = heightForMargins / 2
 			box.MarginBottom = box.MarginTop
 		} else if marginT == pr.AutoF {
-			box.MarginTop = heightForMargins
+			// gopdfgo: jeden margines automatyczny dostaje resztę po odjęciu
+			// drugiego (CSS 2.1 § 10.6.4); źródło pomijało drugi margines
+			box.MarginTop = heightForMargins - marginB.V()
 		} else if marginB == pr.AutoF {
-			box.MarginBottom = heightForMargins
+			box.MarginBottom = heightForMargins - marginT.V()
 		} else {
-			box.MarginBottom = heightForMargins
+			box.MarginBottom = heightForMargins - marginT.V()
 		}
 		translateY = top.V() + defaultTranslateY
 	} else {
@@ -218,6 +221,33 @@ func absoluteHeight(box_ Box, containingBlock block) (bool, pr.Float) {
 	return translateBoxHeight, translateY
 }
 
+// absoluteHeightMinMax (gopdfgo) stosuje min-height i max-height według
+// CSS 2.1 § 10.7: gdy wysokość wstępna wykracza poza ograniczenie, reguły
+// z § 10.6.4 liczy się ponownie z wysokością ograniczoną, więc marginesy
+// automatyczne (wyśrodkowanie) i przesunięcie wynikają z wysokości ostatecznej.
+// Źródło ograniczało wysokość dopiero po wyznaczeniu marginesów.
+func absoluteHeightMinMax(box_ Box, containingBlock block) (bool, pr.Float) {
+	box := box_.Box()
+	marginTop, marginBottom := box.MarginTop, box.MarginBottom
+	translateBoxHeight, translateY := absoluteHeight(box_, containingBlock)
+	height, ok := box.Height.(pr.Float)
+	if !ok {
+		return translateBoxHeight, translateY
+	}
+	clamped := height
+	if maxHeight, ok := box.MaxHeight.(pr.Float); ok && maxHeight != pr.Inf {
+		clamped = min(clamped, maxHeight)
+	}
+	if minHeight, ok := box.MinHeight.(pr.Float); ok {
+		clamped = max(clamped, minHeight)
+	}
+	if clamped == height {
+		return translateBoxHeight, translateY
+	}
+	box.MarginTop, box.MarginBottom, box.Height = marginTop, marginBottom, clamped
+	return absoluteHeight(box_, containingBlock)
+}
+
 // performs either "blockContainer", "flex" or "grid" layout on box_
 func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixedBoxes *[]*AbsolutePlaceholder,
 	bottomSpace pr.Float, skipStack tree.ResumeStack,
@@ -228,7 +258,7 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 	translateBoxWidth, translateX := absoluteWidth(box_, context, containingBlock)
 	translateBoxHeight, translateY := false, pr.Float(0)
 	if len(skipStack) == 0 {
-		translateBoxHeight, translateY = absoluteHeight(box_, containingBlock)
+		translateBoxHeight, translateY = absoluteHeightMinMax(box_, containingBlock)
 	}
 
 	if traceMode {
