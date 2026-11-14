@@ -5,7 +5,7 @@ Bez JavaScriptu, bez Chromium, bez cgo. Silnik ogólnego użytku dla typowych do
 z obrazami, raporty z tabelami, grafika wektorowa), nie dla „dowolnej strony z internetu”. Obsługuje CSS Paged Media: rozmiar strony, pola marginesowe
 z numerem strony, nagłówki bieżące, łamanie stron z `orphans`/`widows`.
 
-Stan na 2026-11-14: sondaż 9135 reftestów ekranowych W3C: 6460 zaliczonych; reftesty druku: 173 z 340; binarka 21,5 MB (`docs/feature-audit.md`). Wcześniej: **działa `gopdfgo.Render` (HTML → PDF) na forku webrender w `internal/` (ADR 0002); korpus testowy pilnuje liczby stron, wyszukiwalności tekstu, determinizmu i braku panik. Brakuje m.in. `calc()`, PDF/A, listy wyświetlania i wyjść SVG/PNG.** Rozpoznanie wykazało, że w Go istnieją już trzy
+Stan na 2026-11-14: sondaż 9135 reftestów ekranowych W3C: 6468 zaliczonych; reftesty druku: 179 z 340; binarka 21,5 MB (`docs/feature-audit.md`). Wcześniej: **działa `gopdfgo.Render` (HTML → PDF) na forku webrender w `internal/` (ADR 0002); korpus testowy pilnuje liczby stron, wyszukiwalności tekstu, determinizmu i braku panik. Brakuje m.in. `calc()`, PDF/A, listy wyświetlania i wyjść SVG/PNG.** Rozpoznanie wykazało, że w Go istnieją już trzy
 silniki układu HTML/CSS (port WeasyPrint, Folio, go-webengine), więc pierwsza decyzja brzmi: pisać własny, adoptować,
 czy sforkować. Szczegóły w `docs/landscape.md` i `docs/adr/open-questions.md`.
 

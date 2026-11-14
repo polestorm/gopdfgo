@@ -322,3 +322,7 @@ flex i grid poniżej dolnej krawędzi strony (ginęła także przy `body { displ
 elementy pływające i bloki dzieliły się poprawnie. Znane luki, pilnowane osobnym testem: `inline-block`
 i `inline-flex` wyższe niż strona. Treść wylewająca się z bloku o stałej wysokości poza stronę jest od
 2026-11-14 kontynuowana na następnej stronie (22. przypadek testu).
+
+Pełny sondaż po rundach stronicowania flex, grid i treści wylewającej się (2026-11-14, wieczór): 6468 z 9135
+(6059 ściśle, 409 krawędziowo), 0 błędów renderowania; poprzedni pełny pomiar 6460. Jedna strata, w układzie
+`grid-lanes`, którego silnik nie obsługuje. Reftesty druku: 179 z 340.
