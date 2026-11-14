@@ -925,6 +925,16 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		tmp.nextPage = pageMaker[pageNumber-1].NextPage
 	}
 
+	// gopdfgo: treść w przepływie się skończyła, ale zostały podzielone pudełka poza przepływem (np. blok
+	// pozycjonowany bezwzględnie wyższy niż strona). Zwracamy wznowienie „po ostatnim dziecku”, żeby
+	// powstała następna strona z ich dalszym ciągiem; w źródle dokument kończył się tutaj i reszta ginęła.
+	if resumeAt == nil && len(context.brokenOutOfFlow) != 0 {
+		resumeAt = tree.RemainderResume(0)
+		if (tmp.nextPage == tree.PageBreak{}) {
+			tmp.nextPage = tree.PageBreak{Break: "any"}
+		}
+	}
+
 	if traceMode {
 		traceLogger.DumpTree(page, "end makePage")
 		traceLogger.Dump(fmt.Sprintf("end makePage: resume at %s, nextPage %v", resumeAt, tmp.nextPage))

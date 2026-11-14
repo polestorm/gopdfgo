@@ -258,6 +258,9 @@ func TestAbsoluteSplit_7(t *testing.T) {
     `)
 }
 
+// gopdfgo: treść pozycjonowana bezwzględnie, która nie mieści się na stronie, jest kontynuowana na
+// następnych stronach (CSS Fragmentation 3); w źródle dokument kończył się na ostatniej stronie treści
+// w przepływie i reszta ginęła. Oczekiwany obraz obejmuje teraz strony z dalszym ciągiem.
 func TestAbsoluteSplit_8(t *testing.T) {
 	capt := tu.CaptureLogs()
 	defer capt.AssertNoLogs(t)
@@ -268,6 +271,22 @@ func TestAbsoluteSplit_8(t *testing.T) {
         ______
         __RR__
         __RR__
+        ______
+        ______
+        ______
+        ______
+        __RR__
+        __RR__
+        __RR__
+        __RR__
+        ______
+        ______
+        ______
+        ______
+        __RR__
+        __RR__
+        ______
+        ______
         ______
         ______
     `, `
@@ -294,6 +313,9 @@ func TestAbsoluteSplit_8(t *testing.T) {
     `)
 }
 
+// gopdfgo: treść pozycjonowana bezwzględnie, która nie mieści się na stronie, jest kontynuowana na
+// następnych stronach (CSS Fragmentation 3); w źródle dokument kończył się na ostatniej stronie treści
+// w przepływie i reszta ginęła. Oczekiwany obraz obejmuje teraz strony z dalszym ciągiem.
 func TestAbsoluteSplit_9(t *testing.T) {
 	capt := tu.CaptureLogs()
 	defer capt.AssertNoLogs(t)
@@ -304,6 +326,14 @@ func TestAbsoluteSplit_9(t *testing.T) {
         BBRRBB
         BBRR__
         BBRR__
+        ______
+        ______
+        ______
+        ______
+        __RR__
+        __RR__
+        __RR__
+        __RR__
         ______
         ______
     `, `
@@ -595,6 +625,8 @@ func TestAbsoluteRtl_5(t *testing.T) {
     `)
 }
 
+// gopdfgo: dalszy ciąg treści pozycjonowanej bezwzględnie trafia na trzecią stronę (w źródle ginął), więc
+// oczekiwany obraz ma o stronę więcej. Fragmenty dwóch pudełek zaczynają się u góry strony i nakładają.
 func TestAbsolutePagesCounter(t *testing.T) {
 	capt := tu.CaptureLogs()
 	defer capt.AssertNoLogs(t)
@@ -610,6 +642,12 @@ func TestAbsolutePagesCounter(t *testing.T) {
         _RR___
         _BB___
         _BB___
+        _____B
+        ______
+        _BB___
+        _BB___
+        ______
+        ______
         _____B
     `, `
         <style>
@@ -639,6 +677,8 @@ func TestAbsolutePagesCounter(t *testing.T) {
     `)
 }
 
+// gopdfgo: dalszy ciąg treści pozycjonowanej bezwzględnie trafia na trzecią stronę (w źródle ginął), więc
+// oczekiwany obraz ma o stronę więcej. Fragmenty dwóch pudełek zaczynają się u góry strony i nakładają.
 func TestAbsolutePagesCounterOrphans(t *testing.T) {
 	capt := tu.CaptureLogs()
 	defer capt.AssertNoLogs(t)
@@ -659,6 +699,15 @@ func TestAbsolutePagesCounterOrphans(t *testing.T) {
         _BB___
         _GG___
         _GG___
+        ______
+        _____B
+        ______
+        _GG___
+        _GG___
+        _GG___
+        _GG___
+        ______
+        ______
         ______
         _____B
     `, `

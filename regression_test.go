@@ -321,3 +321,24 @@ func TestTallFixedHeightBlockIsSplit(t *testing.T) {
 		t.Errorf("łączna wysokość fragmentów %d px, oczekiwane 400", total)
 	}
 }
+
+// Blok pozycjonowany bezwzględnie, wyższy niż strona, jest kontynuowany na następnych stronach, także gdy
+// treść w przepływie już się skończyła. Pudełko przycięte przez blok zawierający stron nie tworzy.
+func TestTallAbsoluteBlockContinues(t *testing.T) {
+	const page = "<style>@page { size: 200px 200px; margin: 20px } body { margin: 0; font-size: 14px } p { margin: 0 }</style>"
+	cases := []struct {
+		name, html string
+		pages      int
+	}{
+		{"bez przycinania", `<div style="position: absolute; top: 0; left: 0; width: 50px; height: 400px; background: #00f"></div><p>tekst</p>`, 3},
+		{"overflow: hidden", `<div style="position: absolute; overflow: hidden; width: 10px; height: 10px">` +
+			`<div style="position: absolute; height: 400px; width: 5px"></div></div><p>tekst</p>`, 1},
+		{"overflow: clip", `<div style="position: absolute; overflow: clip; width: 10px; height: 10px">` +
+			`<div style="position: absolute; height: 400px; width: 5px"></div></div><p>tekst</p>`, 1},
+	}
+	for _, c := range cases {
+		if result := renderString(t, page+c.html); result.Pages != c.pages {
+			t.Errorf("%s: %d stron, oczekiwane %d", c.name, result.Pages, c.pages)
+		}
+	}
+}

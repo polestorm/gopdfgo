@@ -287,6 +287,10 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 	box := placeholder.AliasBox
 	newBox, resumeAt := absoluteBoxLayout(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
 	placeholder.setLaidOutBox(newBox)
+	// gopdfgo: dalszy ciąg pudełka przyciętego przez blok zawierający nie jest widoczny, więc nie tworzy stron
+	if _, isPage := containingBlock.(*bo.PageBox); !isPage && containingBlock.Box().Style.GetOverflow() != "visible" {
+		resumeAt = nil
+	}
 	if resumeAt != nil {
 		context.brokenOutOfFlow[placeholder] = brokenBox{
 			box:             box,

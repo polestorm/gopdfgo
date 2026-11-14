@@ -30,5 +30,7 @@ Przewidywalność jest ważniejsza niż zgodność z przeglądarką w punkcie, k
 ## Konsekwencje
 
 - Liczba stron może różnić się od wydruku z przeglądarki dla dokumentów z wysokimi blokami o stałej wysokości.
+- Od 2026-11-14 dzielone są także bloki pozycjonowane bezwzględnie, a dokument nie kończy się, dopóki
+  zostaje ich dalszy ciąg.
 - Ograniczenia obecnej wersji podziału: nie są dzielone elementy flex i grid, treść kolumn, bloki z `overflow`
   innym niż `visible` ani bloki, których dzieci same zostały podzielone między strony.

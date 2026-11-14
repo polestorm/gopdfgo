@@ -2503,6 +2503,10 @@ func overflow(tokens []Token, _ string) pr.CssProperty {
 	switch keyword {
 	case "auto", "visible", "hidden", "scroll":
 		return pr.String(keyword)
+	case "clip":
+		// gopdfgo: overflow: clip (CSS Overflow 3) przycina jak hidden. Różnica, czyli brak nowego kontekstu
+		// formatowania, nie jest odwzorowana; w źródle wartość była odrzucana i treść nie była przycinana.
+		return pr.String("hidden")
 	default:
 		return nil
 	}

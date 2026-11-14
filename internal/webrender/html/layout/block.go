@@ -386,7 +386,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			// dalszy ciąg bloku o podanej wysokości: dzieci są już ułożone, zostaje reszta wysokości
 			resumedRemainder = true
 			skip, skipStack = len(box.Children), nil
-			box.Height = pr.Float(remaining)
+			if remaining > 0 {
+				box.Height = pr.Float(remaining)
+			}
 		} else {
 			skip, skipStack = skipStack.Unpack()
 		}
@@ -1342,7 +1344,7 @@ func forcePageBreak(pageBreak string, context *layoutContext) bool {
 // i bez przycinania treści.
 func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float) bool {
 	box := box_.Box()
-	if !bo.BlockT.IsInstance(box_) || !box.IsInNormalFlow() || box.IsColumn || box.IsForRootElement {
+	if !bo.BlockT.IsInstance(box_) || !(box.IsInNormalFlow() || box.IsAbsolutelyPositioned()) || box.IsColumn || box.IsForRootElement {
 		return false
 	}
 	// Elementy flex i grid oraz treść kolumn mają własne algorytmy podziału; tam bloków nie tniemy.
