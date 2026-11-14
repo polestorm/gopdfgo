@@ -449,3 +449,9 @@ Pełny sondaż po rundzie flex (2026-11-14, procenty przy nieokreślonym rozmiar
 rozciągnięciu, wyrównania zastępcze `justify-content`): **6655 z 9135 (72,9%)**, w tym 6244 ściśle
 i 411 krawędziowo; poprzednio 6636. Zyskanych 19 (flexbox 17 oraz dwa testy naprawione po poprzednim
 pomiarze), 0 straconych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
+
+Elementy pływające (2026-11-14): podzbiór przepływu CSS 2 (`floats`, `floats-clear`, `normal-flow`,
+`margin-padding-clear`, `visuren`, `box-display`, `linebox`, `text`; 2389 testów) po dwóch poprawkach daje
+6 testów zyskanych i 0 straconych. Pełnego sondażu po nich nie było; ostatni pełny wynik to 6655 z 9135.
+Pozostałe niezaliczone w `floats` i `floats-clear` (ok. 65) to głównie odstęp `clear` przy składaniu
+marginesów, ujemne i bardzo duże marginesy obok elementów pływających oraz kolejność rysowania.
