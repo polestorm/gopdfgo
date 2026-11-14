@@ -45,6 +45,9 @@ func TestCanvasBackground(t *testing.T) {
 	}
 }
 
+// gopdfgo: tło płótna jest pozycjonowane i powtarzane względem elementu głównego (CSS Backgrounds 3
+// § 2.11.1), który ma tu 4 px wysokości, więc gradient powtarza się co 4 px. W źródle gradient był
+// rozciągany na całą stronę (oczekiwane: 3 wiersze czerwone, 3 niebieskie przy body o wysokości 1 px).
 func TestCanvasBackgroundSize(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
@@ -53,10 +56,10 @@ func TestCanvasBackgroundSize(t *testing.T) {
         __________
         __RRRRRR__
         __RGGGGR__
+        __BGGGGB__
+        __BBBBBB__
         __RRRRRR__
-        __BBBBBB__
-        __BBBBBB__
-        __BBBBBB__
+        __RRRRRR__
         __________
         __________
     `
@@ -67,7 +70,7 @@ func TestCanvasBackgroundSize(t *testing.T) {
          html { background: linear-gradient(
            red 0, red 50%, blue 50%, blue 100%); }
          /* html has a background, so body’s does not propagate */
-         body { margin: 1px; background: lime; height: 1px }
+         body { margin: 1px; background: lime; height: 2px }
       </style>
       <body>`
 	assertPixelsEqual(t, expectedPixels, html)

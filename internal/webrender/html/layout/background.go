@@ -60,14 +60,17 @@ func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.
 }
 
 // Fetch and position background images.
-func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFetcher, layoutChildren bool, style pr.ElementStyle) {
+// gopdfgo: positioningBox, jeśli podane, wyznacza obszar pozycjonowania obrazów tła zamiast box_. Służy tłu
+// płótna, które według CSS Backgrounds 3 § 2.11.1 jest pozycjonowane względem elementu głównego; w źródle
+// było pozycjonowane względem pudełka strony.
+func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFetcher, layoutChildren bool, style pr.ElementStyle, positioningBox *bo.BoxFields) {
 	// Resolve percentages in border-radius properties
 	box := box_.Box()
 	resolveRadiiPercentages(box)
 
 	if layoutChildren {
 		for _, child := range box_.AllChildren() {
-			layoutBoxBackgrounds(page, child, getImageFromUri, true, nil)
+			layoutBoxBackgrounds(page, child, getImageFromUri, true, nil, nil)
 		}
 	}
 
@@ -121,7 +124,7 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 	ir := style.GetImageResolution()
 	layers := make([]bo.BackgroundLayer, len(images_))
 	for i, img := range images_ {
-		layers[i] = layoutBackgroundLayer(box_, page, ir, img,
+		layers[i] = layoutBackgroundLayer(box_, page, positioningBox, ir, img,
 			sizes[cycle(i, sizesN)],
 			clips[cycle(i, clipsN)],
 			repeats[cycle(i, repeatsN)],
@@ -138,7 +141,7 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 	box.Background = &bo.Background{Color: color, ImageRendering: style.GetImageRendering(), Layers: layers}
 }
 
-func layoutBackgroundLayer(box_ Box, page *bo.PageBox, resolution pr.TaggedDim, image images.Image, size pr.Size, clip string, repeat [2]string,
+func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFields, resolution pr.TaggedDim, image images.Image, size pr.Size, clip string, repeat [2]string,
 	origin string, position pr.CenterPos, attachment string,
 ) bo.BackgroundLayer {
 	var (
@@ -244,6 +247,8 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, resolution pr.TaggedDim, 
 		} else {
 			positioningArea = boxRectangle(page.BoxFields, "content-box")
 		}
+	} else if positioningBox != nil {
+		positioningArea = boxRectangle(*positioningBox, origin)
 	} else {
 		positioningArea = boxRectangle(*box, origin)
 	}
@@ -313,7 +318,7 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, resolution pr.TaggedDim, 
 //
 // See https://www.w3.org/TR/CSS21/colors.html#background
 func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher) {
-	layoutBoxBackgrounds(page, page, getImageFromUri, true, nil)
+	layoutBoxBackgrounds(page, page, getImageFromUri, true, nil, nil)
 
 	rootBox_ := page.Children[0]
 	rootBox := rootBox_.Box()
@@ -333,7 +338,7 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher) {
 	if chosenBox.Background != nil {
 		paintingArea := boxRectangle(page.BoxFields, "border-box")
 		originalBackground := page.Background
-		layoutBoxBackgrounds(page, page, getImageFromUri, false, chosenBox.Style)
+		layoutBoxBackgrounds(page, page, getImageFromUri, false, chosenBox.Style, rootBox)
 		canvasBg := *page.Background
 		for i, l := range canvasBg.Layers {
 			l.PaintingArea = paintingArea
