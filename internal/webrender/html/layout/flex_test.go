@@ -1269,7 +1269,8 @@ func TestFlexDirectionColumnJustify(t *testing.T) {
 		{"left", 0, 2, 4},
 		{"end", 6, 8, 10},
 		{"flex-end", 6, 8, 10},
-		{"right", 6, 8, 10},
+		// gopdfgo: w kolumnie right działa jak start (CSS Box Alignment 3 § 4.1); źródło oczekiwało końca
+		{"right", 0, 2, 4},
 		{"center", 3, 5, 7},
 		{"space-between", 0, 5, 10},
 		{"space-around", 1, 5, 9},
@@ -1352,7 +1353,8 @@ func TestFlexDirectionColumnJustifyGap(t *testing.T) {
 		{"left", 0, 4, 8},
 		{"end", 6, 10, 14},
 		{"flex-end", 6, 10, 14},
-		{"right", 6, 10, 14},
+		// gopdfgo: w kolumnie right działa jak start (CSS Box Alignment 3 § 4.1); źródło oczekiwało końca
+		{"right", 0, 4, 8},
 		{"center", 3, 7, 11},
 		{"space-between", 0, 7, 14},
 		{"space-around", 1, 7, 13},
@@ -1436,7 +1438,8 @@ func TestFlexDirectionColumnJustifyGapWrap(t *testing.T) {
 		{"left", 0, 4, 0},
 		{"end", 3, 7, 7},
 		{"flex-end", 3, 7, 7},
-		{"right", 3, 7, 7},
+		// gopdfgo: w kolumnie right działa jak start (CSS Box Alignment 3 § 4.1); źródło oczekiwało końca
+		{"right", 0, 4, 0},
 		{"center", 1.5, 5.5, 3.5},
 		{"space-between", 0, 7, 0},
 		{"space-around", 0.75, 6.25, 3.5},
@@ -1576,7 +1579,8 @@ func TestFlexDirectionColumnJustifyMarginPadding(t *testing.T) {
 		{"left", 0, 6, 12},
 		{"end", 6, 12, 18},
 		{"flex-end", 6, 12, 18},
-		{"right", 6, 12, 18},
+		// gopdfgo: w kolumnie right działa jak start (CSS Box Alignment 3 § 4.1); źródło oczekiwało końca
+		{"right", 0, 6, 12},
 		{"center", 3, 9, 15},
 		{"space-between", 0, 9, 18},
 		{"space-around", 1, 9, 17},

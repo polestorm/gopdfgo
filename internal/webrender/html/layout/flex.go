@@ -202,6 +202,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	parentBox_ := box_.Copy()
 	parentBox := parentBox_.Box()
 	resolveSizesBox(context, parentBox_, containingBlock)
+	// gopdfgo: wysokość nadana kontenerowi z zewnątrz (rozciągnięcie w osi
+	// poprzecznej kontenera nadrzędnego) jest określona i służy za podstawę
+	// procentów jego elementów (CSS Flexbox 1 § 9.4, krok 11). Źródło wracało
+	// tu do wysokości ze stylu, czyli auto.
+	if height, ok := box.Height.(pr.Float); ok && parentBox.Height == pr.AutoF && !box.IndefiniteHeight {
+		parentBox.Height = height
+	}
 	blockLevelWidth(parentBox_, nil, containingBlock)
 	children := append([]Box{}, box.Children...)
 	// gopdfgo: sortowanie stabilne; w źródle sort.Slice, które przy równych wartościach order nie gwarantuje
@@ -1053,12 +1060,39 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			freeSpace = 0
 		}
 
+		// gopdfgo: gdy wolnego miejsca brakuje albo w linii jest jeden element,
+		// space-between działa jak flex-start, a space-around i space-evenly
+		// jak „safe center” (CSS Box Alignment 3 § 4.3). Źródło
+		// rozdzielało wtedy ujemne odstępy, a pojedynczy element przy
+		// kierunku odwróconym zostawiało po złej stronie.
+		justifyContent := justifyContent
+		if freeSpace < 0 || len(line.line) == 1 {
+			flexStart := pr.JustifyOrAlign{pr.FlexStart}
+			if strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") {
+				flexStart = pr.JustifyOrAlign{pr.FlexEnd}
+			}
+			if justifyContent.Has(pr.SpaceBetween) {
+				justifyContent = flexStart
+			} else if justifyContent.Intersects(pr.SpaceAround, pr.SpaceEvenly) {
+				// wyrównanie zastępcze to „safe center”: środek, a gdy
+				// treść się nie mieści, początek
+				justifyContent = pr.JustifyOrAlign{pr.Center}
+				if freeSpace < 0 {
+					justifyContent = flexStart
+				}
+			}
+		}
+
 		if box.Style.GetDirection() == pr.Rtl && main == pr.PWidth {
 			freeSpace = -freeSpace
 		}
 
 		// 12.2 Align the items along the main-axis per justify-content.
-		if justifyContent.Intersects(pr.FlexEnd, pr.End, pr.Right) {
+		// gopdfgo: left i right odnoszą się do osi poziomej; w kontenerze
+		// kolumnowym działają jak start (CSS Box Alignment 3 § 4.1), a źródło
+		// traktowało right jak koniec osi głównej
+		towardsEnd := justifyContent.Intersects(pr.FlexEnd, pr.End) || (justifyContent.Has(pr.Right) && main == pr.PWidth)
+		if towardsEnd {
 			positionMain += freeSpace
 		} else if justifyContent.Has(pr.Center) {
 			positionMain += freeSpace / 2

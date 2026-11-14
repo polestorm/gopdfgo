@@ -1138,3 +1138,37 @@ func TestFlexPercentagesInIndefiniteColumn(t *testing.T) {
 		}
 	}
 }
+
+// Flex: wysokość nadana kontenerowi przez rozciągnięcie jest podstawą procentów
+// jego elementów; justify-content ma wyrównania zastępcze, gdy brakuje miejsca
+// albo w linii jest jeden element (CSS Flexbox 1 § 9.4, CSS Box Alignment 3 § 4).
+func TestFlexDefiniteSizesAndFallbackAlignment(t *testing.T) {
+	const row = `<style>.f { display: flex } .i { flex: 0 0 60px; height: 20px; background: #555 }</style>`
+	cases := []struct{ name, got, want string }{
+		{"procentowe min-height w rozciągniętym kontenerze",
+			`<div style="display: flex; height: 80px"><div style="display: flex; width: 60px; align-items: center"><span style="min-height: 100%; width: 100%; background: green"></span></div></div>`,
+			`<div style="display: flex; height: 80px"><div style="display: flex; width: 60px; align-items: center"><span style="min-height: 80px; width: 100%; background: green"></span></div></div>`},
+		{"space-between bez miejsca", row + `<div class="f" style="width: 100px; justify-content: space-between"><div class="i"></div><div class="i"></div></div>`,
+			row + `<div class="f" style="width: 100px; justify-content: flex-start"><div class="i"></div><div class="i"></div></div>`},
+		{"space-around bez miejsca", row + `<div class="f" style="width: 100px; justify-content: space-around"><div class="i"></div><div class="i"></div></div>`,
+			row + `<div class="f" style="width: 100px; justify-content: flex-start"><div class="i"></div><div class="i"></div></div>`},
+		{"space-around z jednym elementem", row + `<div class="f" style="width: 200px; justify-content: space-around"><div class="i"></div></div>`,
+			row + `<div class="f" style="width: 200px; justify-content: center"><div class="i"></div></div>`},
+		{"right w kolumnie", row + `<div class="f" style="height: 100px; flex-direction: column; justify-content: right"><div class="i"></div></div>`,
+			row + `<div class="f" style="height: 100px; flex-direction: column; justify-content: start"><div class="i"></div></div>`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(c.got), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(c.want), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: dokument różni się od wzorcowego", c.name)
+		}
+	}
+}

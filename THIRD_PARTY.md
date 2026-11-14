@@ -372,6 +372,13 @@ Wspólne dla obu katalogów:
   zapisywane jako 0 i zliczane, a `Render` zgłasza je ostrzeżeniem; źródło zapisywało napisy `NaN` i `+Inf`,
   które psują składnię strumienia strony. Licznik jest zmienną globalną, tak jak rejestrator ostrzeżeń
   (pytanie 15 w `docs/adr/open-questions.md`). Skan 9135 testów sondażu po poprawkach flex: 0 takich dokumentów;
+- flex, druga część (runda 2026-11-14), `html/layout/flex.go`:
+  - wysokość nadana kontenerowi z zewnątrz (rozciągnięcie w kontenerze nadrzędnym) pozostaje określona i jest
+    podstawą procentów jego elementów (CSS Flexbox 1 § 9.4, krok 11); źródło wracało do wysokości ze stylu;
+  - `justify-content`: `space-between` przy braku miejsca albo jednym elemencie działa jak `flex-start`,
+    `space-around` i `space-evenly` jak „safe center” (CSS Box Alignment 3 § 4.3); `right` w kontenerze
+    kolumnowym działa jak `start` (§ 4.1). Testy odziedziczone `TestFlexDirectionColumnJustify`, `…Gap`,
+    `…GapWrap` i `…MarginPadding` oczekiwały dla `right` końca osi; wiersz `right` zmieniony na wartości `left`;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
