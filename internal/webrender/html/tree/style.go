@@ -18,8 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"unicode"
 	"unsafe"
 
@@ -57,7 +59,8 @@ type StyleFor struct {
 	// dopiero na żądanie (zob. Get), oraz to, czego do tego potrzeba
 	pseudoCascades  map[*utils.HTMLNode][]sharedCascade
 	share           *shareContext
-	emptyCascade    cascadedStyle // wspólna kaskada elementów bez żadnej deklaracji
+	layers          map[string]int32 // miejsce warstwy kaskady według nazwy
+	emptyCascade    cascadedStyle    // wspólna kaskada elementów bez żadnej deklaracji
 	root            *utils.HTMLNode
 	baseUrl         string
 	targetCollector *TargetCollector
@@ -119,6 +122,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 
 		pseudoCascades:  map[*utils.HTMLNode][]sharedCascade{},
 		share:           newShareContext(),
+		layers:          layerRanks(sheets),
 		emptyCascade:    cascadedStyle{},
 		root:            html.Root,
 		baseUrl:         html.BaseUrl,
@@ -202,7 +206,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 				for _, decl := range sel.payload {
 					// name, values, importance = decl
 					precedence := declarationPrecedence(sh.origin, decl.Important)
-					we := weight{precedence: precedence, specificity: specificity}
+					we := weight{precedence: precedence, specificity: specificity, layer: out.layers[sel.layer]}
 					oldWeight := style[decl.Name].weight
 					if oldWeight.isNone() || oldWeight.Less(we) {
 						style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}
@@ -264,6 +268,49 @@ func (sf *StyleFor) pseudoStyle(element *utils.HTMLNode, pseudoType string) pr.E
 		return sf.computedStyles[key]
 	}
 	return nil
+}
+
+// layerRanks ustala kolejność warstw kaskady ze wszystkich arkuszy: warstwy
+// w kolejności pierwszego ogłoszenia, a warstwa zagnieżdżona przed regułami
+// stojącymi bezpośrednio w warstwie nadrzędnej. Zwraca wartości ujemne;
+// brak wpisu (0) oznacza reguły poza warstwami.
+func layerRanks(sheets []sheet) map[string]int32 {
+	first := map[string]int{} // pierwsze wystąpienie każdej warstwy i każdego jej przodka
+	var names []string
+	for _, sh := range sheets {
+		for _, m := range sh.sheet.matcher {
+			if m.layer == "" {
+				continue
+			}
+			if _, seen := first[m.layer]; !seen {
+				names = append(names, m.layer)
+			}
+			for end := 0; end <= len(m.layer); end++ {
+				if end == len(m.layer) || m.layer[end] == '.' {
+					if _, seen := first[m.layer[:end]]; !seen {
+						first[m.layer[:end]] = len(first)
+					}
+				}
+			}
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.SliceStable(names, func(i, j int) bool {
+		a, b := strings.Split(names[i], "."), strings.Split(names[j], ".")
+		for k := 0; k < len(a) && k < len(b); k++ {
+			if a[k] != b[k] {
+				return first[strings.Join(a[:k+1], ".")] < first[strings.Join(b[:k+1], ".")]
+			}
+		}
+		return len(a) > len(b) // warstwa zagnieżdżona przed własnymi regułami rodzica
+	})
+	ranks := make(map[string]int32, len(names))
+	for i, name := range names {
+		ranks[name] = int32(i - len(names))
+	}
+	return ranks
 }
 
 // sharedCascade to kaskada jednego (pseudo)elementu dzielona przez wszystkie
@@ -377,7 +424,7 @@ func (s StyleFor) addPageDeclarations(page_T utils.PageElement) {
 					for _, decl := range pageR.declarations {
 						// name, values, importance
 						precedence := declarationPrecedence(sh.origin, decl.Important)
-						we := weight{precedence: precedence, specificity: specificity}
+						we := weight{precedence: precedence, specificity: specificity, layer: s.layers[pageR.layer]}
 						oldWeight := style[decl.Name].weight
 						if oldWeight.isNone() || oldWeight.Less(we) {
 							style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}
@@ -1348,7 +1395,10 @@ type weight struct {
 	// jej wagę (1,0,0), równą jednemu selektorowi identyfikatora, więc
 	// reguła „#id { … }” ją przesłaniała.
 	styleAttribute bool
-	specificity    selector.Specificity
+	// gopdfgo: miejsce warstwy kaskady; 0 poza warstwami, wartości ujemne
+	// dla warstw, tym mniejsze, im wcześniej warstwa została ogłoszona
+	layer       int32
+	specificity selector.Specificity
 }
 
 func (w weight) isNone() bool {
@@ -1362,6 +1412,15 @@ func (w weight) Less(other weight) bool {
 	}
 	if w.styleAttribute != other.styleAttribute {
 		return other.styleAttribute
+	}
+	if w.layer != other.layer {
+		// Deklaracje zwykłe: późniejsza warstwa wygrywa, a reguły poza
+		// warstwami wygrywają ze wszystkimi; dla !important odwrotnie
+		// (CSS Cascade 5 § 6.4.3). Ważność 4 i 5 to deklaracje !important.
+		if w.precedence >= 4 {
+			return w.layer > other.layer
+		}
+		return w.layer < other.layer
 	}
 	return w.specificity.Less(other.specificity) || w.specificity == other.specificity
 }
@@ -1519,6 +1578,7 @@ type PageRule struct {
 	rule         pa.AtRule
 	selectors    []selectorPageRule
 	declarations []validation.Declaration
+	layer        string // gopdfgo: jak match.layer
 }
 
 // Do the work that can be done early on stylesheet, before they are
@@ -1527,6 +1587,29 @@ type PageRule struct {
 func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.Compound,
 	urlFetcher utils.UrlFetcher, matcher *matcher, pageRules *[]PageRule,
 	fontConfig text.FontConfiguration, counterStyle counters.CounterStyle, ignoreImports bool,
+) {
+	preprocessLayer(deviceMediaType, baseUrl, stylesheetRules, urlFetcher, matcher, pageRules,
+		fontConfig, counterStyle, ignoreImports, "")
+}
+
+// anonymousLayers numeruje warstwy bez nazwy; każda jest osobną warstwą.
+var anonymousLayers atomic.Int64
+
+// declareLayer odnotowuje pierwsze wystąpienie warstwy: o kolejności warstw
+// decyduje kolejność ogłoszenia, nie kolejność reguł (CSS Cascade 5 § 6.4.3).
+func declareLayer(matcher *matcher, pageRules *[]PageRule, name string) {
+	*matcher = append(*matcher, match{layer: name})
+	if pageRules != nil {
+		*pageRules = append(*pageRules, PageRule{layer: name})
+	}
+}
+
+// preprocessLayer (gopdfgo) to dawne preprocessStylesheet z nazwą warstwy
+// kaskady, w której stoją przetwarzane reguły. Źródło pomijało @layer razem
+// z całą zawartością.
+func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compound,
+	urlFetcher utils.UrlFetcher, matcher *matcher, pageRules *[]PageRule,
+	fontConfig text.FontConfiguration, counterStyle counters.CounterStyle, ignoreImports bool, layer string,
 ) {
 	for _, rule := range stylesheetRules {
 		atRule, isAtRule := rule.(pa.AtRule)
@@ -1542,7 +1625,18 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 				}
 				continue
 			}
-			if utils.AsciiLower(atRule.AtKeyword) != "import" {
+			if keyword := utils.AsciiLower(atRule.AtKeyword); keyword == "layer" {
+				// „@layer a, b;” ogłasza warstwy i ich kolejność
+				for _, name := range strings.Split(pa.Serialize(atRule.Prelude), ",") {
+					if name = strings.TrimSpace(name); name != "" {
+						if layer != "" {
+							name = layer + "." + name
+						}
+						declareLayer(matcher, pageRules, name)
+					}
+				}
+				continue
+			} else if keyword != "import" {
 				logger.WarningLogger.Printf("Unknown empty rule %s at %d:%d\n", pa.Serialize(atRule.Content), atRule.Pos().Line, atRule.Pos().Column)
 				continue
 			}
@@ -1569,7 +1663,7 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 						logger.WarningLogger.Println(err)
 						continue
 					}
-					*matcher = append(*matcher, match{item.Selector, item.Declarations})
+					*matcher = append(*matcher, match{selector: item.Selector, declarations: item.Declarations, layer: layer})
 					ignoreImports = true
 				}
 			} else {
@@ -1639,9 +1733,22 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 					continue
 				}
 				contentRules := pa.ParseRuleList(rule.Content, false, false)
-				preprocessStylesheet(
+				preprocessLayer(
 					deviceMediaType, baseUrl, contentRules, urlFetcher,
-					matcher, pageRules, fontConfig, counterStyle, true)
+					matcher, pageRules, fontConfig, counterStyle, true, layer)
+			case "layer":
+				name := strings.TrimSpace(pa.Serialize(rule.Prelude))
+				if name == "" {
+					name = fmt.Sprintf("\x00%d", anonymousLayers.Add(1))
+				}
+				if layer != "" {
+					name = layer + "." + name
+				}
+				declareLayer(matcher, pageRules, name)
+				ignoreImports = true
+				preprocessLayer(
+					deviceMediaType, baseUrl, pa.ParseRuleList(rule.Content, false, false), urlFetcher,
+					matcher, pageRules, fontConfig, counterStyle, true, name)
 			case "page":
 				data := parsePageSelectors(rule.QualifiedRule)
 				if data == nil {
@@ -1659,7 +1766,7 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 					var selectors []selectorPageRule
 					if len(declarations) > 0 {
 						selectors = []selectorPageRule{{specificity: specificity, pseudoType: "", pageType: pageType}}
-						*pageRules = append(*pageRules, PageRule{rule: rule, selectors: selectors, declarations: declarations})
+						*pageRules = append(*pageRules, PageRule{rule: rule, selectors: selectors, declarations: declarations, layer: layer})
 					}
 
 					for _, marginRule := range content {
@@ -1674,7 +1781,7 @@ func preprocessStylesheet(deviceMediaType, baseUrl string, stylesheetRules []pa.
 								specificity: specificity, pseudoType: "@" + utils.AsciiLower(atRule.AtKeyword),
 								pageType: pageType,
 							}}
-							*pageRules = append(*pageRules, PageRule{rule: atRule, selectors: selectors, declarations: declarations})
+							*pageRules = append(*pageRules, PageRule{rule: atRule, selectors: selectors, declarations: declarations, layer: layer})
 						}
 					}
 				}

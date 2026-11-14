@@ -385,6 +385,12 @@ Wspólne dla obu katalogów:
   elementem pływającym (poprawka do wcześniejszej zmiany własnej);
 - `html/layout/inline.go` (`splitInlineBox`): element pływający wewnątrz pudełka liniowego nie jest przesuwany
   o margines, obramowanie i odstęp tego pudełka (CSS 2.1 § 9.5.1); źródło przesuwało go razem z treścią;
+- warstwy kaskady `@layer` (runda 2026-11-14), `html/tree/style.go` (`preprocessLayer`, `declareLayer`,
+  `layerRanks`, `weight.layer`), `tree.go` (`match.layer`): reguły w warstwach są stosowane z kolejnością według
+  CSS Cascade 5 § 6.4 (późniejsza warstwa wygrywa, reguły poza warstwami wygrywają z warstwami, dla `!important`
+  odwrotnie, warstwa zagnieżdżona przed regułami rodzica), także dla `@page`. Źródło pomijało `@layer` razem
+  z zawartością. Nie zrobione: `@import … layer(…)` i `revert-layer`. Numerator warstw bez nazwy jest zmienną
+  globalną (służy tylko do odróżniania warstw);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

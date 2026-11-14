@@ -201,6 +201,9 @@ func (c CSS) IsNone() bool {
 type match struct {
 	selector     selector.SelectorGroup
 	declarations []validation.Declaration
+	// gopdfgo: pełna nazwa warstwy kaskady (@layer), w której stoi reguła;
+	// pusta poza warstwami. Wpis bez selektora tylko ogłasza warstwę.
+	layer string
 }
 
 type matcher []match
@@ -213,13 +216,14 @@ type matchResult struct {
 	pseudoType  string
 	payload     []validation.Declaration
 	specificity selector.Specificity
+	layer       string
 }
 
 func (m matcher) match(element *html.Node) (out []matchResult) {
 	for _, mat := range m {
 		for _, sel := range mat.selector {
 			if sel.Match(element) {
-				out = append(out, matchResult{specificity: sel.Specificity(), pseudoType: sel.PseudoElement(), payload: mat.declarations})
+				out = append(out, matchResult{specificity: sel.Specificity(), pseudoType: sel.PseudoElement(), payload: mat.declarations, layer: mat.layer})
 			}
 		}
 	}

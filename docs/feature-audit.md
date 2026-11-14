@@ -455,3 +455,20 @@ Elementy pływające (2026-11-14): podzbiór przepływu CSS 2 (`floats`, `floats
 6 testów zyskanych i 0 straconych. Pełnego sondażu po nich nie było; ostatni pełny wynik to 6655 z 9135.
 Pozostałe niezaliczone w `floats` i `floats-clear` (ok. 65) to głównie odstęp `clear` przy składaniu
 marginesów, ujemne i bardzo duże marginesy obok elementów pływających oraz kolejność rysowania.
+
+## Reftesty druku: znacznik `reftest-pages` i warstwy kaskady (2026-11-14)
+
+Reftesty druku (`testdata/wpt`, 340): **192 zaliczone** (wszystkie ściśle), poprzednio 183.
+
+- Pięć testów doszło po tym, jak harness zaczął uwzględniać `<meta name="reftest-pages">` (porównanie tylko
+  wskazanych stron testu; konwencja WPT). To poprawka pomiaru, nie silnika: dziewięć testów ma ten znacznik,
+  z czego trzy `page-orientation` nadal nie przechodzą (właściwość nieobsługiwana), a jeden przechodził
+  już wcześniej.
+- Cztery testy `layers-00x` doszły dzięki obsłudze `@layer`; wcześniej reguły w warstwach były pomijane
+  w całości, co w zwykłym dokumencie oznaczało utratę wszystkich stylów zapisanych w warstwach.
+
+Przegląd pozostałych 148: podział tabel (ok. 30) to pojedyncze przypadki brzegowe (tabela z samym nagłówkiem
+albo stopką, wymuszony podział po `thead`), pola marginesowe (ok. 22) w większości używają `width` i `height`
+w regule `@page`, których silnik nie zna, a część testów `page-size` i `page-rule-specificity` zakłada, że
+`size: landscape` obraca rozmiar papieru urządzenia (5 × 3 cala w harnessie WPT), podczas gdy silnik obraca
+swój rozmiar domyślny.

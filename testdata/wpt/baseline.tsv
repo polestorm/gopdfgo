@@ -75,7 +75,7 @@ fail	margin-boxes	css/css-page/margin-boxes/content-010-print.html	strona 1: ró
 fail	margin-boxes	css/css-page/margin-boxes/content-011-print.html	strona 1: różne piksele 146
 fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 1: różne piksele 345
 pass	margin-boxes	css/css-page/margin-boxes/content-013-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-001-print.html	strona 1: różne piksele 1892
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-002-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-003-print.html	strona 1: różne piksele 2768
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-004-print.html	strona 1: różne piksele 8432
@@ -194,10 +194,10 @@ fail	other	css/css-page/media-queries-001-print.html	strona 1: różne piksele 3
 fail	other	css/css-page/media-queries-002-print.html	strona 1: różne piksele 10000
 fail	other	css/css-page/media-queries-003-print.html	strona 1: różne piksele 12032
 pass	other	css/css-page/page-visibility-hidden-001-print.html	
-fail	page-context	css/css-page/layers-001-print.html	strona 1: różne piksele 640
-fail	page-context	css/css-page/layers-002-print.html	strona 1: różne piksele 624
-fail	page-context	css/css-page/layers-003-print.html	strona 1: różne piksele 616
-fail	page-context	css/css-page/layers-004-print.html	strona 1: różne piksele 640
+pass	page-context	css/css-page/layers-001-print.html	
+pass	page-context	css/css-page/layers-002-print.html	
+pass	page-context	css/css-page/layers-003-print.html	
+pass	page-context	css/css-page/layers-004-print.html	
 pass	page-context	css/css-page/page-background-001-print.html	
 fail	page-context	css/css-page/page-background-002-print.html	strona 2: różne piksele 1233
 fail	page-context	css/css-page/page-background-003-print.html	strony 2 vs 3
@@ -205,9 +205,9 @@ pass	page-context	css/css-page/page-background-004-print.html
 pass	page-context	css/css-page/page-context-inherits-from-root-custom-property-print.html	
 pass	page-context	css/css-page/page-context-inherits-from-root-em-rem-print.html	
 pass	page-context	css/css-page/page-context-inherits-from-root-rem-print.html	
-fail	page-context	css/css-page/page-rule-specificity-001-print.html	strony 2 vs 1
-fail	page-context	css/css-page/page-rule-specificity-002-print.html	strony 2 vs 1
-fail	page-context	css/css-page/page-rule-specificity-003-print.html	strony 2 vs 1
+pass	page-context	css/css-page/page-rule-specificity-001-print.html	
+fail	page-context	css/css-page/page-rule-specificity-002-print.html	strona 1: różne piksele -1
+pass	page-context	css/css-page/page-rule-specificity-003-print.html	
 fail	page-context	css/css-page/root-element-display-none-print.html	strona 1: różne piksele 138240
 pass	page-margins	css/css-page/page-box-000-print.html	
 pass	page-margins	css/css-page/page-box-001-print.html	
@@ -244,11 +244,11 @@ pass	page-selectors	css/css-page/pseudo-first-margin-003-print.html
 pass	page-selectors	css/css-page/pseudo-first-margin-004-print.html	
 pass	page-size	css/css-page/page-context-inherits-from-root-font-size-001-print.html	
 pass	page-size	css/css-page/page-context-inherits-from-root-font-size-002-print.html	
-fail	page-size	css/css-page/page-orientation-on-landscape-001-print.html	strony 2 vs 1
-fail	page-size	css/css-page/page-orientation-on-portrait-001-print.html	strony 2 vs 1
+fail	page-size	css/css-page/page-orientation-on-landscape-001-print.html	strona 1: różne piksele -1
+fail	page-size	css/css-page/page-orientation-on-portrait-001-print.html	strona 1: różne piksele -1
 pass	page-size	css/css-page/page-orientation-on-portrait-002-print.html	
 pass	page-size	css/css-page/page-orientation-on-portrait-003-print.html	
-fail	page-size	css/css-page/page-orientation-on-square-001-print.html	strony 2 vs 1
+fail	page-size	css/css-page/page-orientation-on-square-001-print.html	strona 1: różne piksele 10170
 pass	page-size	css/css-page/page-size-001-print.html	
 pass	page-size	css/css-page/page-size-002-print.html	
 pass	page-size	css/css-page/page-size-003-print.html	
@@ -335,7 +335,7 @@ fail	table-fragmentation	css/css-break/table/table-fragmentation-003d-print.html
 pass	table-fragmentation	css/css-break/table/table-row-break-inside-avoid-later-forced-break-print.html	
 pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-forced-break-moved-by-rowspan-print.html	
 pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-later-forced-break-print.html	
-fail	table-fragmentation	css/css-tables/collapsed-border-fragmentation-001-print.html	strony 2 vs 1
-fail	table-fragmentation	css/css-tables/collapsed-border-fragmentation-002-print.html	strony 2 vs 1
+pass	table-fragmentation	css/css-tables/collapsed-border-fragmentation-001-print.html	
+pass	table-fragmentation	css/css-tables/collapsed-border-fragmentation-002-print.html	
 fail	table-fragmentation	css/css-tables/table-cell-percent-height-row-groups-print.html	strona 1: różne piksele 7680
 fail	table-fragmentation	css/css-tables/table-cell-percent-height-rowspan-fragmented-print.html	strona 2: różne piksele 8000

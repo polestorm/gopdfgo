@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -194,6 +195,13 @@ func TestWPTReftests(t *testing.T) {
 			results[name] = outcome{"error", topic, firstLine(test.err)}
 			continue
 		}
+		// <meta name="reftest-pages" content="2,4-5"> ogranicza porównanie do wskazanych stron testu
+		// (konwencja WPT dla testów druku); wzorzec ma wtedy dokładnie tyle stron, ile wybrano.
+		if source, err := os.ReadFile(filepath.Join("testdata/wpt", name)); err == nil {
+			if selected, ok := selectReftestPages(source, test.pages); ok {
+				test.pages = selected
+			}
+		}
 		result, detail := resultPass, ""
 		for _, reference := range strings.Split(references, ";") {
 			ref := render(reference)
@@ -281,4 +289,32 @@ func TestWPTReftests(t *testing.T) {
 func firstLine(err error) string {
 	line, _, _ := strings.Cut(err.Error(), "\n")
 	return line
+}
+
+var reftestPagesMeta = regexp.MustCompile(`<meta\s+name=["']reftest-pages["']\s+content=["']([^"']*)["']`)
+
+// selectReftestPages zwraca strony wskazane przez znacznik reftest-pages (zakresy jak "1,3-5,7-",
+// numeracja od 1). Drugi wynik mówi, czy dokument ma ten znacznik.
+func selectReftestPages(source []byte, pages [][]byte) ([][]byte, bool) {
+	match := reftestPagesMeta.FindSubmatch(source)
+	if match == nil {
+		return nil, false
+	}
+	selected := [][]byte{}
+	for _, part := range strings.Split(string(match[1]), ",") {
+		first, last, isRange := strings.Cut(strings.TrimSpace(part), "-")
+		from, to := 1, len(pages)
+		if first != "" {
+			from, _ = strconv.Atoi(first)
+		}
+		if !isRange {
+			to = from
+		} else if last != "" {
+			to, _ = strconv.Atoi(last)
+		}
+		for page := max(from, 1); page <= min(to, len(pages)); page++ {
+			selected = append(selected, pages[page-1])
+		}
+	}
+	return selected, true
 }

@@ -2,6 +2,7 @@ package gopdfgo
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -48,5 +49,25 @@ func TestOnlyEdgeDifferences(t *testing.T) {
 	}
 	if onlyEdgeDifferences(white, syntheticPage(41, 40, nil)) {
 		t.Error("strony o różnych rozmiarach nie mogą być zgodne")
+	}
+}
+
+func TestSelectReftestPages(t *testing.T) {
+	pages := [][]byte{[]byte("1"), []byte("2"), []byte("3"), []byte("4"), []byte("5")}
+	join := func(selected [][]byte) string {
+		var out []string
+		for _, page := range selected {
+			out = append(out, string(page))
+		}
+		return strings.Join(out, "")
+	}
+	for content, want := range map[string]string{"2": "2", "1,2": "12", "1,3-4": "134", "4-": "45", "-2": "12", "9": ""} {
+		selected, ok := selectReftestPages([]byte(`<meta name="reftest-pages" content="`+content+`">`), pages)
+		if !ok || join(selected) != want {
+			t.Errorf("reftest-pages %q: %q, oczekiwane %q", content, join(selected), want)
+		}
+	}
+	if _, ok := selectReftestPages([]byte(`<p>bez znacznika</p>`), pages); ok {
+		t.Error("dokument bez znacznika uznany za ograniczony do stron")
 	}
 }

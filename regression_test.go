@@ -1208,3 +1208,36 @@ func TestFloatInsideInlineWithSpacing(t *testing.T) {
 		t.Errorf("%d pikseli różni się od wzorca", n)
 	}
 }
+
+// Warstwy kaskady (@layer, CSS Cascade 5 § 6.4): późniejsza warstwa wygrywa
+// z wcześniejszą niezależnie od wagi selektora, reguły poza warstwami wygrywają
+// z warstwami, a dla !important kolejność jest odwrotna.
+func TestCascadeLayers(t *testing.T) {
+	const body = `<div id="a" class="k">tekst</div>`
+	cases := []struct{ name, got, want string }{
+		{"późniejsza warstwa wygrywa mimo słabszego selektora", `@layer one { #a { color: red } } @layer two { div { color: green } }`, `div { color: green }`},
+		{"kolejność ogłoszenia, nie reguł", `@layer one, two; @layer two { div { color: green } } @layer one { #a { color: red } }`, `div { color: green }`},
+		{"reguły poza warstwami wygrywają", `div { color: green } @layer one { #a.k { color: red } }`, `div { color: green }`},
+		{"!important odwraca kolejność warstw", `@layer one { div { color: green !important } } @layer two { #a { color: red !important } }`, `div { color: green }`},
+		{"warstwa zagnieżdżona przegrywa z regułami rodzica", `@layer one { div { color: green } @layer inner { #a { color: red } } }`, `div { color: green }`},
+		{"warstwa bez nazwy", `@layer { #a { color: red } } div { color: green }`, `div { color: green }`},
+		{"warstwa wewnątrz @media", `@media print { @layer one { div { color: green } } }`, `div { color: green }`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		got, err := Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got.PDF, want.PDF) {
+			t.Errorf("%s: %q dało inny dokument niż %q", c.name, c.got, c.want)
+		}
+		for _, warning := range got.Warnings {
+			t.Errorf("%s: ostrzeżenie %q", c.name, warning.Message)
+		}
+	}
+}
