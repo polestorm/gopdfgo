@@ -444,3 +444,8 @@ Flex, procenty przy nieokreślonym rozmiarze głównym (2026-11-14): podzbiór `
 który zniknął: wysokość procentowa i procentowe `flex-basis` w kolumnie bez podanej wysokości zapisywały
 w PDF wartości `NaN` i `Inf` (czytniki zgłaszały błąd składni strumienia). Pełnego sondażu po tej zmianie
 nie było; ostatni pełny wynik to 6636 z 9135.
+
+Pełny sondaż po rundzie flex (2026-11-14, procenty przy nieokreślonym rozmiarze, określona wysokość po
+rozciągnięciu, wyrównania zastępcze `justify-content`): **6655 z 9135 (72,9%)**, w tym 6244 ściśle
+i 411 krawędziowo; poprzednio 6636. Zyskanych 19 (flexbox 17 oraz dwa testy naprawione po poprzednim
+pomiarze), 0 straconych, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku: 183 z 340.
