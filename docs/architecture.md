@@ -46,7 +46,7 @@ tdewolff/canvas (jeden cel rysowania, wiele wyjść).
 ## Interfejs
 
 Stan 2026-11-12: w `render.go` istnieje pierwsza wersja, węższa niż szkic poniżej: `Options` ma `Fonts`, `Resolver`,
-`BaseURL`, `UserCSS`; `Result` ma `PDF`, `Pages`, `Warnings`, nazwę i wersję silnika. Brakuje metadanych, limitów,
+`BaseURL`, `UserCSS`, od 2026-11-15 `GenericFamilies` (ADR 0005) i `MarginsEscapeHeightLimits` (ADR 0006); `Result` ma `PDF`, `Pages`, `Warnings`, nazwę i wersję silnika. Brakuje metadanych, limitów,
 wyjść SVG/PNG i PDF/A. Szkic docelowy:
 
 ```go

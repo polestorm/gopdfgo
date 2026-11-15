@@ -2,13 +2,15 @@
 //
 //	gopdfgo -in dokument.html -out dokument.pdf -fonts katalog-fontów [-root katalog-zasobów]
 //
-// Fonty bierze wyłącznie z katalogu -fonts (*.ttf, *.otf). Zasoby wskazane w dokumencie czyta tylko
+// Fonty bierze wyłącznie z katalogu -fonts i jego podkatalogów pierwszego poziomu (*.ttf, *.otf);
+// plik families.json w tym katalogu wskazuje fonty dla rodzin generycznych (ADR 0005). Zasoby wskazane w dokumencie czyta tylko
 // spod -root (domyślnie katalog pliku wejściowego); wszystko inne jest odrzucane z ostrzeżeniem.
 // Adres bezwzględny w dokumencie (/style/a.css) liczy się od -root, jak na serwerze WWW.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/url"
@@ -28,18 +30,31 @@ func main() {
 	timeout := flag.Duration("timeout", time.Minute, "limit czasu")
 	userCSS := flag.String("css", "", "arkusz użytkownika, np. \"@page { size: A4 }\"")
 	quiet := flag.Bool("quiet", false, "nie wypisuj ostrzeżeń")
+	marginsEscape := flag.Bool("margins-escape-height-limits", false,
+		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
+	generic := map[string][]string{}
+	for name, usage := range map[string]string{"serif": "serif", "sans-serif": "sans-serif", "monospace": "monospace"} {
+		flag.Func(name, "rodziny fontów dla rodziny generycznej "+usage+", po przecinku, np. \"Tinos\"", func(value string) error {
+			for _, family := range strings.Split(value, ",") {
+				if family = strings.TrimSpace(family); family != "" {
+					generic[name] = append(generic[name], family)
+				}
+			}
+			return nil
+		})
+	}
 	flag.Parse()
 	if *in == "" || *out == "" || *fontDir == "" {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(*in, *out, *fontDir, *root, *userCSS, *timeout, *quiet); err != nil {
+	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *timeout, *quiet); err != nil {
 		fmt.Fprintln(os.Stderr, "gopdfgo:", err)
 		os.Exit(1)
 	}
 }
 
-func run(in, out, fontDir, root, userCSS string, timeout time.Duration, quiet bool) error {
+func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape bool, timeout time.Duration, quiet bool) error {
 	html, err := os.ReadFile(in)
 	if err != nil {
 		return err
@@ -57,7 +72,7 @@ func run(in, out, fontDir, root, userCSS string, timeout time.Duration, quiet bo
 	}
 
 	var fonts []gopdfgo.Font
-	for _, pattern := range []string{"*.ttf", "*.otf"} {
+	for _, pattern := range []string{"*.ttf", "*.otf", "*/*.ttf", "*/*.otf"} {
 		files, _ := filepath.Glob(filepath.Join(fontDir, pattern))
 		for _, file := range files {
 			data, err := os.ReadFile(file)
@@ -65,6 +80,19 @@ func run(in, out, fontDir, root, userCSS string, timeout time.Duration, quiet bo
 				return err
 			}
 			fonts = append(fonts, gopdfgo.Font{Name: filepath.Base(file), Data: data})
+		}
+	}
+	// Plik families.json w katalogu fontów przypisuje rodziny fontów rodzinom generycznym CSS,
+	// np. {"serif": ["Tinos"]}; flagi -serif, -sans-serif i -monospace mają pierwszeństwo.
+	if data, err := os.ReadFile(filepath.Join(fontDir, "families.json")); err == nil {
+		fromFile := map[string][]string{}
+		if err := json.Unmarshal(data, &fromFile); err != nil {
+			return fmt.Errorf("families.json: %w", err)
+		}
+		for name, families := range fromFile {
+			if _, set := generic[name]; !set {
+				generic[name] = families
+			}
 		}
 	}
 
@@ -86,7 +114,8 @@ func run(in, out, fontDir, root, userCSS string, timeout time.Duration, quiet bo
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS})
+	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
+		MarginsEscapeHeightLimits: marginsEscape})
 	if err != nil {
 		return err
 	}

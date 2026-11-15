@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
@@ -74,14 +75,9 @@ func renderFileResult(path, resourceRoot, userCSS string) (Result, error) {
 		return Resource{Data: data}, nil
 	}
 
-	var fonts []Font
-	files, _ := filepath.Glob(filepath.Join("testdata", "fonts", "*.ttf"))
-	for _, file := range files {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return Result{}, err
-		}
-		fonts = append(fonts, Font{Name: filepath.Base(file), Data: data})
+	fonts, families, err := corpusFonts()
+	if err != nil {
+		return Result{}, err
 	}
 
 	html, err := os.ReadFile(path)
@@ -91,7 +87,33 @@ func renderFileResult(path, resourceRoot, userCSS string) (Result, error) {
 	absolute, _ := filepath.Abs(path)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return Render(ctx, html, Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS})
+	return Render(ctx, html, Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS,
+		GenericFamilies: families})
+}
+
+// corpusFonts wczytuje wszystkie fonty z testdata/fonts i jego podkatalogów oraz przypisanie fontów
+// do rodzin generycznych z testdata/fonts/families.json (ADR 0005). Nazwy rodzin są tylko w tym pliku.
+func corpusFonts() ([]Font, map[string][]string, error) {
+	var fonts []Font
+	for _, pattern := range []string{"*.ttf", "*/*.ttf"} {
+		files, _ := filepath.Glob(filepath.Join("testdata", "fonts", pattern))
+		for _, file := range files {
+			data, err := os.ReadFile(file)
+			if err != nil {
+				return nil, nil, err
+			}
+			fonts = append(fonts, Font{Name: filepath.Base(file), Data: data})
+		}
+	}
+	data, err := os.ReadFile(filepath.Join("testdata", "fonts", "families.json"))
+	if err != nil {
+		return nil, nil, err
+	}
+	families := map[string][]string{}
+	if err := json.Unmarshal(data, &families); err != nil {
+		return nil, nil, fmt.Errorf("testdata/fonts/families.json: %w", err)
+	}
+	return fonts, families, nil
 }
 
 func TestCorpusDocuments(t *testing.T) {

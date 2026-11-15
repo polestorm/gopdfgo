@@ -337,6 +337,7 @@ type layoutContext struct {
 
 	resolver            bo.URLResolver
 	fontConfig          text.FontConfiguration
+	behavior            tree.Behavior // gopdfgo: przełączniki zachowań (tree.HTML.Behavior)
 	TargetCollector     tree.TargetCollector
 	counterStyle        counters.CounterStyle
 	dictionaries        map[text.HyphenDictKey]hyphen.Hyphener
@@ -385,6 +386,7 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 	self := layoutContext{}
 	self.resolver = bo.URLResolver{Fetch: html.UrlFetcher, FetchImage: getImageFromUri}
 	self.fontConfig = fontConfig
+	self.behavior = html.Behavior
 	self.TargetCollector = tree.NewTargetCollector()
 	self.counterStyle = counterStyle
 	self.runningElements = make(map[string]map[int][]Box)

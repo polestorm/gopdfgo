@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/go-text/typesetting/di"
 	"github.com/go-text/typesetting/font"
@@ -43,6 +44,11 @@ type FontConfigurationGotext struct {
 	fontsFeatures map[*font.Font][]Feature // as requested by @font-face
 
 	textLayoutCache map[textKey]FirstLine
+
+	// GenericFamilies (gopdfgo) przypisuje rodzinom generycznym CSS ("serif", "sans-serif", "monospace", ...)
+	// rodziny fontów próbowane w podanej kolejności, zanim zadziała tablica podstawień biblioteki go-text.
+	// Klucze małymi literami. Ustawiane przed pierwszym użyciem konfiguracji.
+	GenericFamilies map[string][]string
 }
 
 func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
@@ -255,9 +261,18 @@ func newAspect(style FontStyle, weight uint16, stretch FontStretch) font.Aspect 
 	return aspect
 }
 
-func newQuery(fd FontDescription) fontscan.Query {
+func (fc *FontConfigurationGotext) newQuery(fd FontDescription) fontscan.Query {
+	families := fd.Family
+	if len(fc.GenericFamilies) != 0 {
+		// gopdfgo: rodziny wskazane dla rodziny generycznej wchodzą na listę tuż przed nią
+		families = make([]string, 0, len(fd.Family)+2)
+		for _, family := range fd.Family {
+			families = append(families, fc.GenericFamilies[strings.ToLower(family)]...)
+			families = append(families, family)
+		}
+	}
 	return fontscan.Query{
-		Families: fd.Family,
+		Families: families,
 		Aspect:   newAspect(fd.Style, fd.Weight, fd.Stretch),
 	}
 }
@@ -274,7 +289,7 @@ func newFeatures(features []Feature) []shaping.FontFeature {
 }
 
 func (fc *FontConfigurationGotext) resolveFace(r rune, font FontDescription) *font.Face {
-	query := newQuery(font)
+	query := fc.newQuery(font)
 	fc.fm.SetQuery(query)
 	return fc.fm.ResolveFace(r)
 }
@@ -484,7 +499,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}
 
 	// select the proper fonts
-	fc.fm.SetQuery(newQuery(style.FontDescription))
+	fc.fm.SetQuery(fc.newQuery(style.FontDescription))
 
 	// segment the input text, with proper lang and size
 	dir := di.DirectionLTR

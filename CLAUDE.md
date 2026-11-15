@@ -22,7 +22,8 @@ Zasady:
 - kod przejęty do `internal/` jest nasz: wolno go budować, testować i uruchamiać. Innych pobranych repozytoriów
   (folio, go-webengine, cokolwiek nowego) nie uruchamiaj bez zgody użytkownika; ich klony i programy pomiarowe
   trzymamy poza gitem w `bench/`;
-- renderowanie w testach i pomiarach czyta zasoby wyłącznie spod `testdata/`, fonty wyłącznie z `testdata/fonts`;
+- renderowanie w testach i pomiarach czyta zasoby wyłącznie spod `testdata/`, fonty wyłącznie z `testdata/fonts`
+  (z podkatalogami; fonty dla rodzin generycznych wskazuje `testdata/fonts/families.json`, ADR 0005);
 - zależności tylko na licencjach MIT, BSD, Apache-2.0, OFL (fonty); LGPL/GPL wykluczone, bo binarka jest statyczna;
   zasoby wyłącznie testowe (nie trafiają do binarki) mogą być też w domenie publicznej lub na CC0 (font Ahem);
 - reftesty porównujemy według ADR 0003: zgodność ścisła albo z dokładnością do krawędzi (`pass-edge`), a każda

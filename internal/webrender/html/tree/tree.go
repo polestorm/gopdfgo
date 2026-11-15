@@ -28,6 +28,18 @@ type HTML struct {
 	UAStyleSheet   CSS
 	FormStyleSheet CSS
 	PHStyleSheet   CSS
+
+	// Behavior (gopdfgo): przełączniki zachowań układu ustawiane przez wywołującego.
+	Behavior Behavior
+}
+
+// Behavior zbiera przełączniki zachowań, w których norma i przeglądarki się różnią.
+// Wartość zerowa to zachowanie domyślne silnika.
+type Behavior struct {
+	// MarginsEscapeHeightLimits: dolny margines ostatniego dziecka zwija się z marginesem rodzica także
+	// wtedy, gdy min-height albo max-height zmieniło wysokość rodzica (dosłownie CSS 2.2 § 10.7).
+	// Domyślnie, jak w Chromium, taki margines zostaje w rodzicu.
+	MarginsEscapeHeightLimits bool
 }
 
 // `baseUrl` is the base used to resolve relative URLs

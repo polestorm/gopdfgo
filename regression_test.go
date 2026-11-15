@@ -1506,3 +1506,35 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 		}
 	}
 }
+
+// Przełącznik z ADR 0006: domyślnie dolny margines dziecka zostaje w pudełku, którego wysokość zmieniło
+// min-height (jak w Chromium); z MarginsEscapeHeightLimits wychodzi poza pudełko (CSS 2.2 § 10.7 dosłownie).
+func TestMarginsEscapeHeightLimits(t *testing.T) {
+	const style = "<style>@page { size: 300px 300px; margin: 0 } body { margin: 0 } div { width: 100px }</style>"
+	const tested = `<div style="min-height:50px;background:#080"><div style="height:40px;margin-bottom:30px"></div></div>` +
+		`<div style="height:50px;background:#080"></div>`
+	expected := map[bool]string{
+		false: `<div style="height:100px;background:#080"></div>`,
+		true: `<div style="height:50px;background:#080"></div>` +
+			`<div style="height:50px;margin-top:30px;background:#080"></div>`,
+	}
+	for escape, want := range expected {
+		dir := t.TempDir()
+		options := Options{Fonts: testFonts(t), MarginsEscapeHeightLimits: escape}
+		got, err := Render(t.Context(), []byte(style+tested), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reference, err := Render(t.Context(), []byte(style+want), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a, b := rasterize(t, got.PDF, dir, "tested"), rasterize(t, reference.PDF, dir, "expected")
+		if len(a) != 1 || len(b) != 1 {
+			t.Fatalf("MarginsEscapeHeightLimits=%v: strony %d i %d", escape, len(a), len(b))
+		}
+		if n := differentPixels(a[0], b[0]); n != 0 {
+			t.Errorf("MarginsEscapeHeightLimits=%v: %d pikseli różni się od wzorca", escape, n)
+		}
+	}
+}

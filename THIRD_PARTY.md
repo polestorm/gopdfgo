@@ -507,6 +507,13 @@ Wspólne dla obu katalogów:
   tabela miała tylko nagłówek). Zmienione oczekiwania testu odziedziczonego `TestTableEmptyBody` (sześć
   przypadków z grupą o wysokości 110 px na stronie 100 px). Reftesty druku
   `rowgroup-page-break-inside-avoid-1` i `-3` zaliczone;
+- `text/engine_gotext.go` (`FontConfigurationGotext.GenericFamilies`, `newQuery`), 2026-11-15: rodziny fontów
+  wskazane dla rodziny generycznej CSS są dopisywane do listy rodzin tuż przed nią; bez wskazania zapytanie
+  o font jest takie jak w źródle (ADR 0005, `Options.GenericFamilies`);
+- `html/tree/tree.go` (`Behavior`, `HTML.Behavior`), `html/layout/layout.go` (`layoutContext.behavior`),
+  `html/layout/block.go`, 2026-11-15: przełącznik `MarginsEscapeHeightLimits` przywraca zachowanie źródła
+  (dolny margines dziecka wychodzi poza pudełko ograniczone przez `min-height` lub `max-height`); domyślne
+  pozostaje zachowanie Chromium (ADR 0006, `Options.MarginsEscapeHeightLimits`);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

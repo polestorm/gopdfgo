@@ -71,6 +71,17 @@ type Options struct {
 	BaseURL string
 	// UserCSS to arkusz użytkownika (niższy priorytet niż arkusze dokumentu), np. domyślny @page.
 	UserCSS string
+	// GenericFamilies wskazuje, których rodzin z Fonts użyć dla rodzin generycznych CSS. Klucz to nazwa
+	// rodziny generycznej ("serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"), wartość to
+	// nazwy rodzin fontów w kolejności prób, np. {"serif": {"Tinos"}}. Dotyczy też fontu domyślnego dokumentu,
+	// bo wartością początkową font-family jest serif. Rodzina generyczna bez wpisu, albo z wpisem, którego
+	// rodzin nie ma w Fonts, jest rozstrzygana jak dotąd (ADR 0005).
+	GenericFamilies map[string][]string
+	// MarginsEscapeHeightLimits przełącza zwijanie marginesów przy min-height i max-height. Domyślnie
+	// (false), jak w Chromium, dolny margines ostatniego dziecka zostaje w pudełku, którego wysokość
+	// zmieniło ograniczenie. Wartość true daje zachowanie z dosłownego tekstu CSS 2.2 § 10.7: margines
+	// zwija się z marginesem rodzica i odsuwa następne pudełko (ADR 0006).
+	MarginsEscapeHeightLimits bool
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -152,6 +163,12 @@ func render(html []byte, opts Options) (result Result, err error) {
 		contents[id] = font.Data
 	}
 	fontConfig := text.NewFontConfigurationGotext(fontMap)
+	if len(opts.GenericFamilies) != 0 {
+		fontConfig.GenericFamilies = map[string][]string{}
+		for generic, families := range opts.GenericFamilies {
+			fontConfig.GenericFamilies[strings.ToLower(strings.TrimSpace(generic))] = families
+		}
+	}
 	for id, data := range contents {
 		fontConfig.RegisterFontContent(id, data)
 	}
@@ -179,6 +196,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
+	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits}
 	var sheets []tree.CSS
 	if opts.UserCSS != "" {
 		sheet, err := tree.NewCSSExt(utils.InputString(opts.UserCSS), opts.BaseURL, fontConfig)

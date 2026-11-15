@@ -717,8 +717,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		clamped := max(min(newBox.Height.V(), newBox.MaxHeight.V()), newBox.MinHeight.V())
 		// gopdfgo: gdy min-height albo max-height zmienia wysokość automatyczną, dolny margines ostatniego
 		// dziecka nie wychodzi poza pudełko (testy WPT margin-collapse-min-height-*, *-height-separates-margin).
-		// W źródle margines przechodził na zewnątrz i odsuwał następne pudełko.
-		if box.Height == pr.AutoF && clamped != newBox.Height.V() && !collapsingThrough {
+		// W źródle margines przechodził na zewnątrz i odsuwał następne pudełko; to zachowanie, zgodne
+		// z dosłownym tekstem CSS 2.2 § 10.7, włącza Behavior.MarginsEscapeHeightLimits (ADR 0006).
+		if box.Height == pr.AutoF && clamped != newBox.Height.V() && !collapsingThrough &&
+			!context.behavior.MarginsEscapeHeightLimits {
 			adjoiningMargins = new([]pr.Float)
 		}
 		newBox.Height = clamped

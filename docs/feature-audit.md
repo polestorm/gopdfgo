@@ -634,8 +634,8 @@ w `testdata/fonts/tinos/`, zarejestrowany w `testdata/THIRD_PARTY.md`. Leży w p
 czytają tylko pliki z samego `testdata/fonts`, a Tinos położony obok fontów Noto zmieniał wyniki mimo tego,
 że rodzina `serif` nadal wybierała Noto Serif: stawał się fontem zastępczym dla znaków spoza Noto Sans
 (pięć testów sondażu mniej; w korpusie cztery dokumenty z innym fontem zastępczym i PDF większe o 0,6%,
-bez zmiany liczby stron i położenia słów). Pomiar z Tinos włącza się na żądanie (`SURVEY_TINOS=1`
-w `tools/survey96e.py`).
+bez zmiany liczby stron i położenia słów). Stan z tego akapitu obowiązywał kilka godzin: po decyzji
+użytkownika fonty z podkatalogów są wczytywane zawsze, a ich rolę wyznacza `families.json` (następna sekcja).
 
 Pełny sondaż z Tinos jako fontem domyślnym (arkusz użytkownika `html { font-family: Tinos }`, stan sprzed
 poprawek tabel z tej sekcji) dał 6862 wobec 6852 z Noto Serif: 30 testów zyskanych, 20 straconych. To mniej,
@@ -646,3 +646,34 @@ font dla `serif`, jest pytaniem 19 w `docs/adr/open-questions.md`.
 Rozpoznane i odłożone w podziale tabel: `rowgroup-page-break-inside-avoid-4`, `-8`
 i `row-page-break-inside-avoid-2` (wzorce zakładają zachowanie jednej przeglądarki przy `break-inside: avoid`
 grupy wyższej niż strona), rodzina `table-fragmentation-00x` (obramowania i odstępy tabeli przy podziale).
+
+## Fonty dla rodzin generycznych i przełącznik marginesów (2026-11-15)
+
+Dwie decyzje użytkownika z 2026-11-15, obie jako opcje bez nazw i zachowań zaszytych w programie:
+
+- **ADR 0005, `Options.GenericFamilies`:** wywołujący wskazuje, których fontów użyć dla `serif`, `sans-serif`
+  i `monospace`. Testy i pomiary biorą przypisanie z `testdata/fonts/families.json`: `serif` to Tinos
+  (metryki Times New Roman), `sans-serif` to Arimo (metryki Arial); oba na OFL-1.1. `monospace` zostaje bez
+  wpisu (Noto Sans Mono).
+- **ADR 0006, `Options.MarginsEscapeHeightLimits`:** domyślnie dolny margines ostatniego dziecka zostaje
+  w pudełku, którego wysokość zmieniło `min-height` albo `max-height` (jak w Chromium); parametr włącza
+  zachowanie z dosłownego tekstu CSS 2.2 § 10.7.
+
+Pełny sondaż ekranowy dla tego samego stanu kodu (sposób pomiaru jak wyżej):
+
+| Konfiguracja fontów | Zaliczone | Ściśle | Krawędziowo |
+|---|---|---|---|
+| Noto Serif jako `serif` (dotychczasowa) | 6855 | 6473 | 382 |
+| Tinos jako `serif` | 6862 | 6481 | 381 |
+| Tinos jako `serif`, Arimo jako `sans-serif` (nowa domyślna pomiarów) | **6863 (75,1%)** | 6481 | 382 |
+
+Względem konfiguracji z Noto nowa zyskuje 31 testów i traci 23. Zyski to głównie `CSS2/css1`
+i `normal-flow` (wzorce zakładające wiersz niższy niż 20 px przy foncie 16 px). Straty to testy pisane pod
+szerszy font (np. `position-relative-035`) oraz testy z pismami, których nie ma żaden font testowy
+(`quotes-0xx` z bengalskim, tajskim itd.), gdzie o wyniku decyduje wybór fontu zastępczego dla znaków
+sąsiadujących z brakującymi. Od tej sekcji liczby sondażu są liczone w nowej konfiguracji.
+
+Reftesty druku w nowej konfiguracji: 194 z 340 (bez zmian). Korpus 21 dokumentów: liczba stron bez zmian;
+słowa przesunięte o ponad 3 pt względem Chromium: `16-typography-fonts` 2 → 0, `03-report-svg-chart` 0 → 2
+(podpisy wykresu w `sans-serif` są teraz w Arimo), pozostałe bez zmian; łączny rozmiar PDF 3 272 939 →
+3 313 433 bajtów (+1,2%), bo w pięciu dokumentach doszedł osadzony Arimo albo Tinos.

@@ -78,7 +78,8 @@ konkretnego odbiorcy.
     działać jak dziś; (c) przebudować układ na strumieniowy także dla tych przypadków (dwa przebiegi).
     Propozycja: (b), po pomiarze na dokumencie 1000 stron i rozpoznaniu, jak rozdzielić układ, rysowanie i zapis PDF.
     Decyzja użytkownika 2026-11-14: odłożone, pomysł zanotowany na przyszłość; pierwszeństwo mają reftesty W3C.
-18. **Dolny margines dziecka w pudełku z `min-height` lub `max-height`.** Tekst CSS 2.2 § 10.7 mówi, że
+18. ~~**Dolny margines dziecka w pudełku z `min-height` lub `max-height`.**~~ Rozstrzygnięte 2026-11-15 przez
+    użytkownika: domyślnie jak w Chromium, drugie zachowanie pod jednym parametrem (ADR 0006). Zapis rozważań: Tekst CSS 2.2 § 10.7 mówi, że
     `min-height` i `max-height` nie wpływają na zwijanie marginesów, więc dolny margines ostatniego dziecka
     powinien zwijać się z marginesem rodzica i odsuwać następne pudełko; tak oczekuje test `margin-collapse-038`
     (2010). Przeglądarki i cztery nowsze testy WPT (`margin-collapse-min-height-001/002`,
@@ -86,7 +87,8 @@ konkretnego odbiorcy.
     wysokość, margines nie wychodzi poza pudełko. Norma i testy są tu sprzeczne. Przyjęte roboczo 2026-11-15:
     zachowanie przeglądarek i nowszych testów (zysk 4 testy, strata 1), bo dokumenty powstają pod podglądem
     w przeglądarce. Do potwierdzenia przez użytkownika; odwrócenie to jeden warunek w `html/layout/block.go`.
-19. **Font dla rodzin generycznych (`serif`, `sans-serif`, `monospace`).** Silnik wybiera font dla rodziny
+19. ~~**Font dla rodzin generycznych (`serif`, `sans-serif`, `monospace`).**~~ Rozstrzygnięte 2026-11-15 przez
+    użytkownika: wariant (b), ADR 0005. Zapis rozważań: Silnik wybiera font dla rodziny
     generycznej według tablicy podstawień biblioteki go-text (odpowiednik fontconfig): przy fontach z
     `testdata/fonts` i Tinos (`testdata/fonts/tinos`) `serif` daje Noto Serif, a bez niego Noto Sans, nigdy Tinos. Przeglądarki dają dla `serif`
     font o metrykach Times i pod to pisana jest część testów WPT. Pomiar 2026-11-15 (pełny sondaż ekranowy,
