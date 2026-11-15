@@ -583,6 +583,14 @@ Wspólne dla obu katalogów:
   - zmienione oczekiwania testów odziedziczonych `TestFlexItemIntrinsicHeightShrink`
     i `TestFlexItemIntrinsicWidthShrink` (renderują bez atrybutów prezentacyjnych, więc element o rozmiarze
     auto jest rozciągany: 10 zamiast 100);
+- tabele, runda 2026-11-15 (druga):
+  - `html/document/draw.go` (`drawStackingContext`, `drawTable`): obramowania zwinięte tabeli są rysowane po
+    tłach i obramowaniach pudełek blokowych leżących w jej komórkach (także tabel zagnieżdżonych), ale przed
+    pudełkami następującymi po tabeli (CSS Tables 3 § 5.3.3); źródło rysowało je razem z tłem tabeli, więc
+    blok albo tabela w komórce zasłaniały obramowanie. Tabela z `visibility: hidden` nie rysuje obramowań
+    zwiniętych;
+  - `html/layout/tables.go`: komórka o wysokości podanej długością jest podstawą wysokości procentowych
+    swoich dzieci (CSS Tables 3 § 3.10.3); w źródle procenty w komórce liczyły się zawsze jak `auto`;
 - wysokości procentowe i `<canvas>`, 2026-11-15:
   - `html/boxes/html.go` (`handleCanvas`): `<canvas>` jest przezroczystym elementem zastępowanym o rozmiarze
     z atrybutów `width` i `height`, domyślnie 300×150 (HTML § 4.12.5); w źródle był pustym pudełkiem liniowym;

@@ -187,8 +187,9 @@ type BoxFields struct {
 	IndefiniteHeight bool
 	// CollapsedThrough: marginesy górny i dolny pudełka zwinęły się przez nie (puste pudełko)
 	CollapsedThrough bool
-	// AnonymousBaseHeight: dla anonimowego pudełka blokowego wysokość pudełka zawierającego jego rodzica,
-	// od której liczą się procentowe wysokości jego dzieci (ustawiane w układzie blokowym)
+	// AnonymousBaseHeight: podstawa procentowych wysokości dzieci pudełka, którego własna wysokość w układzie
+	// to auto: dla anonimowego pudełka blokowego wysokość pudełka zawierającego jego rodzica (ustawiana
+	// w układzie blokowym), dla komórki tabeli jej podana wysokość (ustawiana w układzie tabeli)
 	AnonymousBaseHeight pr.MaybeFloat
 	// SplitBefore, SplitAfter: pudełko liniowe jest dalszym ciągiem (ma dalszy ciąg) pudełka rozdzielonego
 	// przez blok w środku; od tej strony nie ma marginesu, obramowania ani odstępu (CSS 2 §9.2.1.1)

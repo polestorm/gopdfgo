@@ -817,3 +817,22 @@ innych braków siatki (`grid-lanes`, rozmiary ścieżek z proporcji). Cztery str
 (nieobsługiwane; pusty element z `aspect-ratio` ma teraz wysokość i odsłania czerwone tło), obraz
 z `aspect-ratio` jako element zagnieżdżonej siatki (szerokość ograniczana do ścieżki) oraz `<canvas>`
 z rozmiarem procentowym przy wyrównaniu do linii bazowej.
+
+## Tabele: kolejność rysowania obramowań zwiniętych, procenty w komórkach (2026-11-15)
+
+Sondaż ekranowy: **6916 z 9110 (75,9%)**, w tym 6534 ściśle i 382 krawędziowo; poprzednio 6902
+(6520 i 382); zyskane 14, stracone 0, błędów renderowania 0. Reftesty druku: 225 z 340 (bez zmian).
+
+- **Obramowania zwinięte** (`border-collapse: collapse`) są rysowane nad blokami i tabelami leżącymi
+  w komórkach, a pod pudełkami następującymi po tabeli; dotąd blok w komórce zasłaniał obramowanie.
+  Tabela z `visibility: hidden` nie rysuje już obramowań zwiniętych.
+- **Komórka o podanej wysokości** jest podstawą wysokości procentowych swoich dzieci; dotąd `height: 100%`
+  w komórce działało jak `auto`.
+
+W trakcie rundy pierwsza wersja zmiany kolejności rysowania wywoływała panikę dla tabeli z obramowaniami
+zwiniętymi, która ma w komórce `inline-block` albo element pozycjonowany. Testy własne tego nie wykryły;
+wykrył to dopiero sondaż ograniczony do tabel (9 błędów renderowania). Przypadek jest teraz
+w `TestSecondCSS2RoundFixes`, a pełny sondaż po poprawce nie zgłasza błędów renderowania.
+
+W `css-tables` zostaje ok. 30 niezaliczonych: `box-shadow` (właściwość nieobsługiwana), tła kolumn i wierszy
+z obrazem, pismo pionowe, kilka testów linii bazowej i obramowań o ułamkowej szerokości.

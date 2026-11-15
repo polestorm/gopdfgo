@@ -1576,6 +1576,34 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			square,
 		},
 		{
+			"obramowanie zwinięte tabeli leży nad blokiem w komórce",
+			`<table style="border-collapse:collapse"><td style="border:50px solid #080;padding:0"><div style="border:50px solid #f00;margin:-50px"></div></td></table>`,
+			square,
+		},
+		{
+			"obramowanie zwinięte tabeli zewnętrznej leży nad tabelą zagnieżdżoną",
+			`<table style="border-collapse:collapse"><td style="border:50px solid #080;padding:0">` +
+				`<table style="border-collapse:collapse;margin:-50px"><td style="border:50px solid #f00;padding:0"></td></table></td></table>`,
+			square,
+		},
+		{
+			"wysokość procentowa dziecka komórki o podanej wysokości",
+			`<div style="display:table-cell;width:100px;height:100px"><div style="height:100%;background:#080"></div></div>`,
+			square,
+		},
+		{
+			"tabela z obramowaniami zwiniętymi oraz elementem pozycjonowanym i inline-block w komórce (bez paniki)",
+			`<table style="border-collapse:collapse"><td style="border:50px solid #080;padding:0;line-height:0;font-size:0">` +
+				`<div style="position:relative;z-index:1"></div><span style="display:inline-block"></span></td></table>`,
+			square,
+		},
+		{
+			"blok po tabeli leży nad jej obramowaniem zwiniętym",
+			`<table style="border-collapse:collapse"><td style="border:50px solid #f00;padding:0"></td></table>` +
+				`<div style="border:50px solid #080;width:0;margin-top:-100px"></div>`,
+			square,
+		},
+		{
 			"display: contents oddaje dzieci rodzicowi",
 			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
 			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,

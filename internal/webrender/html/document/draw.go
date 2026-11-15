@@ -218,15 +218,53 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 			}
 
 			// Point 4
+			// gopdfgo: obramowania zwinięte tabeli są rysowane po tłach i obramowaniach pudełek blokowych
+			// leżących w jej komórkach, ale przed pudełkami następującymi po tabeli (CSS Tables 3 § 5.3.3,
+			// testy WPT collapsed-borders-painting-order-*, collapsed-border-paint-phase-002). W źródle
+			// były rysowane razem z tłem tabeli, więc blok albo tabela w komórce zasłaniały obramowanie.
+			type openTable struct {
+				box         Box
+				descendants map[*bo.BoxFields]bool // według pól pudełka: nie każda wartość Box jest haszowalna
+			}
+			var openTables []openTable
+			closeTables := func(next Box) {
+				for len(openTables) != 0 {
+					top := openTables[len(openTables)-1]
+					if next != nil && top.descendants[next.Box()] {
+						return
+					}
+					openTables = openTables[:len(openTables)-1]
+					ctx.setMaskBorder(top.box)
+					ctx.drawCollapsedBorders(top.box.(bo.TableBoxITF).Table())
+				}
+			}
 			for _, block := range stackingContext.blockLevelBoxes {
+				closeTables(block)
 				ctx.setMaskBorder(block)
 				if box_, ok := block.(bo.TableBoxITF); ok {
 					ctx.drawTable(box_.Table())
+					if table := box_.Table(); table.Style.GetBorderCollapse() == "collapse" && table.Style.GetVisibility() == "visible" {
+						descendants := map[*bo.BoxFields]bool{}
+						var collect func(Box)
+						collect = func(parent Box) {
+							for _, child := range parent.Box().Children {
+								switch child.(type) {
+								case StackingContext, *StackingContext:
+									continue // osobny kontekst warstw: rysowany poza tą pętlą
+								}
+								descendants[child.Box()] = true
+								collect(child)
+							}
+						}
+						collect(block)
+						openTables = append(openTables, openTable{block, descendants})
+					}
 				} else {
 					ctx.drawBackgroundDefaut(block.Box().Background)
 					ctx.drawBorder(block)
 				}
 			}
+			closeTables(nil)
 
 			// Point 5
 			for _, childContext := range stackingContext.floatContexts {
@@ -469,7 +507,7 @@ func (ctx drawContext) drawTable(table *bo.TableBox) {
 
 	// Draw borders
 	if table.Style.GetBorderCollapse() == "collapse" {
-		ctx.drawCollapsedBorders(table)
+		// obramowania zwinięte rysuje drawStackingContext po wszystkich pudełkach blokowych
 		return
 	}
 

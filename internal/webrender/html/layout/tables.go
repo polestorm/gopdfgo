@@ -228,6 +228,13 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// test_table_break_children_margin.
 				// Pretend that height is not set, keeping computed height as a minimum.
 				cell.ComputedHeight = cell.Height
+				// gopdfgo: komórka o podanej wysokości jest podstawą wysokości procentowych swoich dzieci
+				// (CSS Tables 3 § 3.10.3), choć sama jest układana jak pudełko o wysokości auto. W źródle
+				// procenty w komórce liczyły się zawsze jak auto.
+				cell.AnonymousBaseHeight = nil
+				if specified, ok := cell.Height.(pr.Float); ok && cell.Style.GetHeight().Tag == 0 && cell.Style.GetHeight().Unit != pr.Perc {
+					cell.AnonymousBaseHeight = specified
+				}
 				cell.Height = pr.AutoF
 				originalStyle := cell.Style
 				if cell.Style.GetHeight().Tag != pr.Auto {
