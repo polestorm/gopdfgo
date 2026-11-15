@@ -798,7 +798,7 @@ i jeden test pisma pionowego.
 ## `aspect-ratio`, `<canvas>`, wysokości procentowe (2026-11-15)
 
 Sondaż ekranowy: **6902 z 9110 (75,8%)**, w tym 6520 ściśle i 382 krawędziowo; poprzednio 6891
-(6511 i 380); zyskane 15, stracone 4. Reftesty druku: 224 z 340 (bez zmian).
+(6511 i 380); zyskane 15, stracone 4. Reftesty druku: **225 z 340**, poprzednio 224 (doszedł `page-name-canvas-001-print.html`).
 
 - **`aspect-ratio`:** nowa właściwość. Blok o wysokości `auto` dostaje wysokość z szerokości (z uwzględnieniem
   `box-sizing`, `min-height`, `max-height`; wyższa treść powiększa pudełko), pudełko dopasowujące się do
