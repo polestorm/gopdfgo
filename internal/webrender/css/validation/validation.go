@@ -154,6 +154,7 @@ var (
 		pr.POutlineOffset:           outlineOffset,
 		pr.PAspectRatio:             aspectRatio,
 		pr.PBoxShadow:               boxShadow,
+		pr.PTextShadow:              textShadow,
 		pr.PColumnWidth:             columnWidth,
 		pr.PColumnSpan:              columnSpan,
 		pr.PBoxSizing:               boxSizing,
@@ -2853,6 +2854,20 @@ func boxShadow(tokens []Token, _ string) pr.CssProperty {
 		out = append(out, shadow)
 	}
 	return out
+}
+
+// gopdfgo: “text-shadow“ (CSS Text Decoration 3 § 4): jak box-shadow, ale bez inset i bez rozszerzenia.
+func textShadow(tokens []Token, baseUrl string) pr.CssProperty {
+	shadows, ok := boxShadow(tokens, baseUrl).(pr.BoxShadows)
+	if !ok {
+		return nil
+	}
+	for _, shadow := range shadows {
+		if shadow.Inset || shadow.Spread.Value != 0 {
+			return nil
+		}
+	}
+	return shadows
 }
 
 // gopdfgo: “aspect-ratio“ (CSS Sizing 4 § 5.1): auto || <liczba> [ / <liczba> ]. Wynik to stosunek szerokości

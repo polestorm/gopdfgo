@@ -322,6 +322,9 @@ func ParseColor(token Token) Color {
 		// (także ułamkowe) w rgb(), kąt z jednostką w hsl(), słowo none jako zero; rgba() i hsla() to
 		// aliasy. Źródło przyjmowało tylko składnię z przecinkami, całkowite składowe rgb() i hue bez jednostki.
 		name := utils.AsciiLower(token.Name)
+		if name == "color-mix" {
+			return parseColorMix(token.Arguments)
+		}
 		switch name {
 		case "rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch":
 		default:
@@ -599,4 +602,148 @@ func hslToRgb(_hue utils.Fl, saturation, lightness utils.Fl) (utils.Fl, utils.Fl
 	}
 	m1 = float64(lightness*2) - m2
 	return hueToRgb(m1, m2, hue+1./3), hueToRgb(m1, m2, hue), hueToRgb(m1, m2, hue-1./3)
+}
+
+// linearSRGBToOKLab: odwrotność oklabToLinearSRGB.
+func linearSRGBToOKLab(r, g, b float64) (float64, float64, float64) {
+	l := math.Cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b)
+	m := math.Cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b)
+	s := math.Cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b)
+	return 0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+		1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+		0.0259040371*l + 0.7827717662*m - 0.8086757660*s
+}
+
+func srgbToLinear(v utils.Fl) float64 {
+	f := float64(v)
+	if f <= 0.04045 {
+		return f / 12.92
+	}
+	return math.Pow((f+0.055)/1.055, 2.4)
+}
+
+// parseColorMix (gopdfgo): color-mix(in <przestrzeń>, <barwa> <procent>?, <barwa> <procent>?)
+// z CSS Color 5 § 3. Obsługiwane przestrzenie: srgb, srgb-linear, oklab i oklch (krótsza droga po
+// kącie barwy); pozostałe są odrzucane. currentColor w argumentach nie jest obsługiwany, bo wynik
+// musiałby powstać dopiero przy obliczaniu stylu.
+func parseColorMix(arguments []Token) Color {
+	var parts [][]Token
+	for _, part := range SplitOnComma(RemoveWhitespace(arguments)) {
+		parts = append(parts, RemoveWhitespace(part))
+	}
+	if len(parts) != 3 || len(parts[0]) < 2 {
+		return Color{}
+	}
+	keyword := func(t Token) string {
+		if ident, ok := t.(Ident); ok {
+			return utils.AsciiLower(ident.Value)
+		}
+		return ""
+	}
+	if keyword(parts[0][0]) != "in" {
+		return Color{}
+	}
+	space := keyword(parts[0][1])
+	switch {
+	case space == "oklch" && len(parts[0]) == 4 && keyword(parts[0][2]) == "shorter" && keyword(parts[0][3]) == "hue":
+	case len(parts[0]) == 2 && (space == "srgb" || space == "srgb-linear" || space == "oklab" || space == "oklch"):
+	default:
+		return Color{}
+	}
+	var colors [2]RGBA
+	var weights [2]float64
+	var hasWeight [2]bool
+	for i, part := range parts[1:] {
+		found := false
+		for _, t := range part {
+			if p, ok := t.(Percentage); ok {
+				if hasWeight[i] || p.ValueF < 0 || p.ValueF > 100 {
+					return Color{}
+				}
+				weights[i], hasWeight[i] = float64(p.ValueF)/100, true
+				continue
+			}
+			c := ParseColor(t)
+			if c.Type != ColorRGBA || found {
+				return Color{}
+			}
+			colors[i], found = c.RGBA, true
+		}
+		if !found {
+			return Color{}
+		}
+	}
+	switch {
+	case !hasWeight[0] && !hasWeight[1]:
+		weights = [2]float64{0.5, 0.5}
+	case !hasWeight[0]:
+		weights[0] = 1 - weights[1]
+	case !hasWeight[1]:
+		weights[1] = 1 - weights[0]
+	}
+	sum := weights[0] + weights[1]
+	if sum == 0 {
+		return Color{}
+	}
+	// suma poniżej 100% zmniejsza krycie wyniku
+	alphaScale := min(sum, 1)
+	w0, w1 := weights[0]/sum, weights[1]/sum
+
+	// składowe w przestrzeni mieszania
+	var comps [2][3]float64
+	for i, c := range colors {
+		switch space {
+		case "srgb":
+			comps[i] = [3]float64{float64(c.R), float64(c.G), float64(c.B)}
+		case "srgb-linear":
+			comps[i] = [3]float64{srgbToLinear(c.R), srgbToLinear(c.G), srgbToLinear(c.B)}
+		default:
+			l, a, b := linearSRGBToOKLab(srgbToLinear(c.R), srgbToLinear(c.G), srgbToLinear(c.B))
+			if space == "oklch" {
+				comps[i] = [3]float64{l, math.Hypot(a, b), math.Atan2(b, a)}
+			} else {
+				comps[i] = [3]float64{l, a, b}
+			}
+		}
+	}
+	a0, a1 := float64(colors[0].A), float64(colors[1].A)
+	alpha := a0*w0 + a1*w1
+	var mixed [3]float64
+	if alpha != 0 {
+		for k := range mixed {
+			if space == "oklch" && k == 2 {
+				// kąt barwy: krótsza droga, bez przemnażania przez krycie; barwa bezbarwna przejmuje kąt drugiej
+				h0, h1 := comps[0][2], comps[1][2]
+				if comps[0][1] < 1e-5 {
+					h0 = h1
+				} else if comps[1][1] < 1e-5 {
+					h1 = h0
+				}
+				if h1-h0 > math.Pi {
+					h0 += 2 * math.Pi
+				} else if h1-h0 < -math.Pi {
+					h1 += 2 * math.Pi
+				}
+				mixed[k] = h0*w0 + h1*w1
+				continue
+			}
+			mixed[k] = (comps[0][k]*a0*w0 + comps[1][k]*a1*w1) / alpha
+		}
+	}
+	out := RGBA{A: utils.Fl(alpha * alphaScale)}
+	switch space {
+	case "srgb":
+		clamp := func(v float64) utils.Fl { return utils.Fl(min(1, max(0, v))) }
+		out.R, out.G, out.B = clamp(mixed[0]), clamp(mixed[1]), clamp(mixed[2])
+	case "srgb-linear":
+		out.R, out.G, out.B = srgbGamma(mixed[0]), srgbGamma(mixed[1]), srgbGamma(mixed[2])
+	default:
+		l, a, b := mixed[0], mixed[1], mixed[2]
+		if space == "oklch" {
+			a, b = mixed[1]*math.Cos(mixed[2]), mixed[1]*math.Sin(mixed[2])
+		}
+		r, g, bl := oklabToLinearSRGB(l, a, b)
+		out.R, out.G, out.B = srgbGamma(r), srgbGamma(g), srgbGamma(bl)
+	}
+	return Color{Type: ColorRGBA, RGBA: out}
 }

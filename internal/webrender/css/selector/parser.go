@@ -488,6 +488,15 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		if !p.consumeParenthesis() {
 			return out, "", errExpectedParenthesis
 		}
+		if name == "has" {
+			// gopdfgo: selektory względne w :has() (Selectors 4 § 4.5): „> a”, „+ a”, „~ a”
+			if relative, isRelative, relErr := p.parseRelativeHas(); isRelative {
+				if relErr != nil {
+					return out, "", relErr
+				}
+				return relative, "", nil
+			}
+		}
 		sel, parseErr := p.parseSelectorGroup()
 		if parseErr != nil {
 			return out, "", parseErr
@@ -551,12 +560,22 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		if err != nil {
 			return out, "", err
 		}
+		last := name == "nth-last-child" || name == "nth-last-of-type"
+		ofType := name == "nth-of-type" || name == "nth-last-of-type"
+		// gopdfgo: :nth-child(an+b of S) (Selectors 4 § 14.3.1): liczone są tylko rodzeństwo pasujące do S
+		var of SelectorGroup
+		p.skipWhitespace()
+		if !ofType && strings.HasPrefix(p.s[p.i:], "of") && p.i+2 < len(p.s) && (p.s[p.i+2] == ' ' || p.s[p.i+2] == '\t' || p.s[p.i+2] == '\n') {
+			p.i += 2
+			of, err = p.parseSelectorGroup()
+			if err != nil {
+				return out, "", err
+			}
+		}
 		if !p.consumeClosingParenthesis() {
 			return out, "", errExpectedClosingParenthesis
 		}
-		last := name == "nth-last-child" || name == "nth-last-of-type"
-		ofType := name == "nth-of-type" || name == "nth-last-of-type"
-		out = nthPseudoClassSelector{a: a, b: b, last: last, ofType: ofType}
+		out = nthPseudoClassSelector{a: a, b: b, last: last, ofType: ofType, of: of}
 
 	case "first-child":
 		out = nthPseudoClassSelector{a: 0, b: 1, ofType: false, last: false}
@@ -576,7 +595,8 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		out = emptyElementPseudoClassSelector{}
 	case "root":
 		out = rootPseudoClassSelector{}
-	case "link":
+	case "link", "any-link":
+		// gopdfgo: :any-link (Selectors 4 § 9.1); bez historii odwiedzin to to samo co :link
 		out = linkPseudoClassSelector{}
 	case "lang":
 		if !p.consumeParenthesis() {
@@ -604,7 +624,7 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		out = disabledPseudoClassSelector{}
 	case "checked":
 		out = checkedPseudoClassSelector{}
-	case "visited", "hover", "active", "focus", "target":
+	case "visited", "hover", "active", "focus", "target", "focus-visible", "focus-within":
 		// Not applicable in a static context: never match.
 		out = neverMatchSelector{value: ":" + name}
 	case "after", "backdrop", "before", "cue", "first-letter", "first-line",
@@ -899,4 +919,47 @@ func (p *parser) parseSelectorGroup() (SelectorGroup, error) {
 		result = append(result, c)
 	}
 	return result, nil
+}
+
+// parseRelativeHas (gopdfgo) rozbiera argument :has(), gdy zaczyna się od kombinatora. Każda pozycja
+// listy to kombinator i selektor złożony bez własnych kombinatorów; dłuższych nie przyjmujemy, bo
+// dopasowanie nie umiałoby zakotwiczyć ich początku w elemencie odniesienia. Druga wartość mówi, czy
+// argument w ogóle zaczyna się od kombinatora (jeśli nie, parser wraca do zwykłej listy selektorów).
+func (p *parser) parseRelativeHas() (Sel, bool, error) {
+	start := p.i
+	p.skipWhitespace()
+	if p.i >= len(p.s) || !strings.ContainsRune(">+~", rune(p.s[p.i])) {
+		p.i = start
+		return nil, false, nil
+	}
+	var out relativeHasSelector
+	for {
+		p.skipWhitespace()
+		if p.i >= len(p.s) {
+			return nil, true, errExpectedClosingParenthesis
+		}
+		combinator := byte(' ')
+		if strings.ContainsRune(">+~", rune(p.s[p.i])) {
+			combinator = p.s[p.i]
+			p.i++
+		}
+		sel, err := p.parseSelector()
+		if err != nil {
+			return nil, true, err
+		}
+		if _, isCombined := sel.(combinedSelector); isCombined && combinator != ' ' {
+			return nil, true, errors.New("unsupported complex relative selector in :has()")
+		}
+		out.parts = append(out.parts, relativeHasPart{combinator, sel})
+		p.skipWhitespace()
+		if p.i < len(p.s) && p.s[p.i] == ',' {
+			p.i++
+			continue
+		}
+		break
+	}
+	if !p.consumeClosingParenthesis() {
+		return nil, true, errExpectedClosingParenthesis
+	}
+	return out, true, nil
 }

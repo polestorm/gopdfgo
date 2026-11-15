@@ -1,6 +1,7 @@
 package document
 
 import (
+	"math"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
@@ -39,9 +40,43 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	}
 
 	x, y := pr.Fl(textbox.PositionX), pr.Fl(textbox.PositionY+textbox.Baseline.V())
-	ctx.dst.State().SetColorRgba(textbox.Style.GetColor().RGBA, false)
-
 	textbox.TextLayout.ApplyJustification()
+
+	// gopdfgo: text-shadow (CSS Text Decoration 3 § 4). Cienie leżą pod tekstem, pierwszy z listy na
+	// wierzchu. PDF nie ma rozmycia, więc cień rozmyty przybliżamy kopiami tekstu na dwóch okręgach
+	// wokół przesunięcia, każda o ułamku krycia; cień ostry to jedna kopia.
+	shadows := textbox.Style.GetTextShadow()
+	for index := len(shadows) - 1; index >= 0; index-- {
+		shadow := shadows[index]
+		shadowColor := shadow.Color.RGBA
+		if shadow.Color.Type == parser.ColorCurrentColor {
+			shadowColor = textbox.Style.GetColor().RGBA
+		}
+		if shadowColor.A == 0 {
+			continue
+		}
+		sx, sy := x+pr.Fl(shadow.X.Value), y+pr.Fl(shadow.Y.Value)
+		blur := pr.Fl(shadow.Blur.Value)
+		if blur <= 0 {
+			ctx.dst.State().SetColorRgba(shadowColor, false)
+			ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, sx, sy)
+			continue
+		}
+		const copies = 8
+		faint := shadowColor
+		faint.A = shadowColor.A / 6
+		ctx.dst.State().SetColorRgba(faint, false)
+		ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, sx, sy)
+		for _, radius := range [2]pr.Fl{blur * 0.25, blur * 0.5} {
+			for k := 0; k < copies; k++ {
+				angle := 2 * math.Pi * float64(k) / copies
+				ctx.drawFirstLine(textbox, textOverflow, blockEllipsis,
+					sx+radius*pr.Fl(math.Cos(angle)), sy+radius*pr.Fl(math.Sin(angle)))
+			}
+		}
+	}
+
+	ctx.dst.State().SetColorRgba(textbox.Style.GetColor().RGBA, false)
 	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y)
 
 	if decoration&pr.LineThrough != 0 {

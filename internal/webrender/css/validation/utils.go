@@ -67,16 +67,17 @@ func getImage(_token Token, baseUrl string) (pr.Image, error) {
 	}
 	arguments := pa.SplitOnComma(pa.RemoveWhitespace(token.Arguments))
 	name := utils.AsciiLower(token.Name)
+	arguments = withoutInterpolationSpace(arguments)
+	if len(arguments) == 0 {
+		return nil, nil
+	}
 	switch name {
 	case "linear-gradient", "repeating-linear-gradient":
 		direction, colorStops := parseLinearGradientParameters(arguments)
 		if len(colorStops) > 0 {
-			parsedColorsStop := make([]pr.ColorStop, len(colorStops))
-			for index, stop := range colorStops {
-				parsedColorsStop[index], err = parseColorStop(stop)
-				if err != nil {
-					return nil, err
-				}
+			parsedColorsStop, err := parseColorStops(colorStops)
+			if err != nil {
+				return nil, err
 			}
 			return pr.LinearGradient{
 				Direction:  direction,
@@ -93,12 +94,9 @@ func getImage(_token Token, baseUrl string) (pr.Image, error) {
 			result.colorStops = arguments
 		}
 		if len(result.colorStops) > 0 {
-			parsedColorsStop := make([]pr.ColorStop, len(result.colorStops))
-			for index, stop := range result.colorStops {
-				parsedColorsStop[index], err = parseColorStop(stop)
-				if err != nil {
-					return nil, err
-				}
+			parsedColorsStop, err := parseColorStops(result.colorStops)
+			if err != nil {
+				return nil, err
 			}
 			return pr.RadialGradient{
 				ColorStops: parsedColorsStop,
@@ -223,6 +221,84 @@ func parseRadialGradientParameters(arguments [][]Token) radialGradientParameters
 		}
 	}
 	return out
+}
+
+// gopdfgo: przestrzeń interpolacji z CSS Images 4 („in oklch”, „in hsl longer hue”) w pierwszym
+// argumencie gradientu jest przyjmowana i pomijana: barwy interpolujemy zawsze w sRGB. Źródło odrzucało
+// cały gradient.
+func withoutInterpolationSpace(arguments [][]Token) [][]Token {
+	if len(arguments) == 0 {
+		return arguments
+	}
+	first := arguments[0]
+	for index, token := range first {
+		if getKeyword(token) != "in" || index+1 >= len(first) || getKeyword(first[index+1]) == "" {
+			continue
+		}
+		end := index + 2
+		if end+1 < len(first) && getKeyword(first[end+1]) == "hue" {
+			end += 2
+		}
+		kept := append(append([]Token{}, first[:index]...), first[end:]...)
+		if len(kept) == 0 {
+			return arguments[1:]
+		}
+		return append([][]Token{kept}, arguments[1:]...)
+	}
+	return arguments
+}
+
+// gopdfgo: lista przystanków gradientu z CSS Images 4: przystanek o dwóch pozycjach („red 0 50%”)
+// to dwa przystanki tej samej barwy, a sama pozycja między przystankami to wskazówka przejścia.
+// Wskazówkę przybliżamy przystankiem o barwie pośredniej w podanym miejscu (norma każe wygiąć
+// krzywą przejścia wykładniczo; środek przejścia wypada tam, gdzie trzeba, kształt jest odcinkami
+// liniowy). Źródło odrzucało gradient z którymkolwiek z tych zapisów.
+func parseColorStops(stops [][]Token) ([]pr.ColorStop, error) {
+	out := make([]pr.ColorStop, 0, len(stops))
+	var hints []int // indeksy w out przystanków wstawionych za wskazówki
+	for index, stop := range stops {
+		switch len(stop) {
+		case 1:
+			if position := getLength(stop[0], true, true); !position.IsNone() {
+				// wskazówka: nie może stać na początku, na końcu ani obok innej wskazówki
+				if index == 0 || index == len(stops)-1 || len(stops[index+1]) == 1 && !getLength(stops[index+1][0], true, true).IsNone() {
+					return nil, ErrInvalidValue
+				}
+				hints = append(hints, len(out))
+				out = append(out, pr.ColorStop{Position: position})
+				continue
+			}
+		case 3:
+			first, err := parseColorStop(stop[:2])
+			if err != nil {
+				return nil, err
+			}
+			second := getLength(stop[2], true, true)
+			if second.IsNone() {
+				return nil, ErrInvalidValue
+			}
+			out = append(out, first, pr.ColorStop{Color: first.Color, Position: second})
+			continue
+		}
+		parsed, err := parseColorStop(stop)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, parsed)
+	}
+	for _, index := range hints {
+		before, after := out[index-1].Color.RGBA, out[index+1].Color.RGBA
+		// średnia na składowych przemnożonych przez krycie, jak w interpolacji gradientu
+		alpha := (before.A + after.A) / 2
+		mixed := pa.RGBA{A: alpha}
+		if alpha != 0 {
+			mixed.R = (before.R*before.A + after.R*after.A) / (2 * alpha)
+			mixed.G = (before.G*before.A + after.G*after.A) / (2 * alpha)
+			mixed.B = (before.B*before.A + after.B*after.A) / (2 * alpha)
+		}
+		out[index].Color = pr.Color{Type: pa.ColorRGBA, RGBA: mixed}
+	}
+	return out, nil
 }
 
 func parseColorStop(tokens []Token) (pr.ColorStop, error) {

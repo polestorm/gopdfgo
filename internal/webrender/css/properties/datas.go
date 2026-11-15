@@ -173,6 +173,7 @@ var (
 		PTextAlignAll,
 		PTextAlignLast,
 		PTextIndent,
+		PTextShadow,
 		PTextTransform,
 		PTextUnderlineOffset,
 		PVisibility,

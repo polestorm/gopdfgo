@@ -116,3 +116,12 @@ konkretnego odbiorcy.
     Pomiar 2026-11-13: w sondażu ekranowym Ahem występuje w 1703 z 9135 testów; 1088 z nich przechodzi mimo
     braku fontu, 610 nie przechodzi (5 błędów). Sprostowanie z 2026-11-14: font nie był brakujący, testy
     ładują go przez `@font-face`; te 610 testów to rzeczywiste różnice albo różnice krawędziowe.
+
+## 20. Względem czego oceniać `width` i `height` w `@media`?
+
+ADR 0007 przyjmuje stałe medium odniesienia (A4 w pionie, pudełko strony). Do rozstrzygnięcia:
+
+- czy brać rozmiar z `@page` dokumentu (wymaga wstępnego przejścia po arkuszach) i czy pudełko strony,
+  czy obszar treści (tak robi Chromium i tak czyta się Media Queries 4 § 4.1);
+- czy dać parametr w `Options` (np. szerokość medium), żeby wydruk mógł udawać okno o podanej szerokości.
+

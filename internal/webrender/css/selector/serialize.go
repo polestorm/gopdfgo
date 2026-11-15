@@ -73,7 +73,7 @@ func (c regexpPseudoClassSelector) String() string {
 }
 
 func (c nthPseudoClassSelector) String() string {
-	if c.a == 0 && c.b == 1 { // special cases
+	if c.a == 0 && c.b == 1 && c.of == nil { // special cases
 		s := ":first-"
 		if c.last {
 			s = ":last-"
@@ -100,7 +100,21 @@ func (c nthPseudoClassSelector) String() string {
 	if c.b < 0 { // avoid +-8 invalid syntax
 		s = strconv.Itoa(c.b)
 	}
+	if c.of != nil {
+		return fmt.Sprintf(":%s(%dn%s of %s)", name, c.a, s, c.of.String())
+	}
 	return fmt.Sprintf(":%s(%dn%s)", name, c.a, s)
+}
+
+func (c relativeHasSelector) String() string {
+	parts := make([]string, len(c.parts))
+	for i, part := range c.parts {
+		parts[i] = part.sel.String()
+		if part.combinator != ' ' {
+			parts[i] = string(part.combinator) + " " + parts[i]
+		}
+	}
+	return ":has(" + strings.Join(parts, ", ") + ")"
 }
 
 func (c onlyChildPseudoClassSelector) String() string {

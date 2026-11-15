@@ -147,6 +147,7 @@ var (
 		pr.PTabSize:       tabSize,
 		pr.PTransform:     transforms,
 		pr.PBoxShadow:     boxShadows,
+		pr.PTextShadow:    boxShadows,
 		pr.PVerticalAlign: verticalAlign,
 		pr.PWordSpacing:   wordSpacing,
 		pr.PTextAlignAll:  textAlignAll,

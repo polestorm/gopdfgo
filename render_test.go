@@ -25,7 +25,7 @@ func TestRenderRequiresFonts(t *testing.T) {
 }
 
 func TestRenderReportsWarnings(t *testing.T) {
-	html := `<p style="frobnicate: 1px; text-shadow: 1px 1px red">tekst</p>`
+	html := `<p style="frobnicate: 1px; clip-path: inset(50%)">tekst</p>`
 	result, err := Render(context.Background(), []byte(html), Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestRenderReportsWarnings(t *testing.T) {
 		joined = append(joined, warning.Message)
 	}
 	all := strings.Join(joined, "\n")
-	for _, want := range []string{"frobnicate", "text-shadow"} {
+	for _, want := range []string{"frobnicate", "clip-path"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("brak ostrzeżenia o %q; ostrzeżenia:\n%s", want, all)
 		}

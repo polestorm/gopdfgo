@@ -899,3 +899,39 @@ każe dopasować go do treści), rozciąganie elementu siatki gubiło informacj�
 a `overflow-y: scroll` było pomijane, choć `overflow: scroll` przycina.
 
 Reftesty druku (`testdata/wpt`, 340 testów, porównanie ścisłe): **228 zaliczonych** (poprzednio 225), bez strat.
+
+## Paczka: `@media` z cechami, `text-shadow`, gradienty, `color-mix()`, selektory (2026-11-15)
+
+Paczka wzięła się z sondy ostrzeżeń: jeden arkusz z ok. 150 konstrukcjami spotykanymi w zwykłych
+dokumentach, renderowany z wypisaniem wszystkiego, co silnik odrzucił. Najpoważniejszy brak nie był na
+liście kandydatów: reguła `@media` z jakąkolwiek cechą była odrzucana w całości.
+
+| Obszar | Co doszło | Norma |
+|---|---|---|
+| `@media` | cechy z `min-`/`max-`, zakresy, `and`/`or`/`not`, `only`; atrybut `media`; medium odniesienia A4 w pionie | Media Queries 4, ADR 0007 |
+| `text-shadow` | cień ostry i rozmyty (17 kopii), wiele cieni, dziedziczenie | CSS Text Decoration 3 § 4 |
+| gradienty | przystanek o dwóch pozycjach, wskazówka przejścia, `in <przestrzeń>` | CSS Images 4 |
+| barwy | `color-mix()` w `srgb`, `srgb-linear`, `oklab`, `oklch` | CSS Color 5 § 3 |
+| selektory | `:nth-child(… of S)`, `:has(> a)`, `:has(+ a)`, `:has(~ a)`, `:any-link`, `:focus-visible`, `:focus-within` | Selectors 4 |
+
+Zagnieżdżanie reguł (`.a { & p { … } }`, także bez `&`) działało już wcześniej; doszły testy, które to pilnują.
+
+Ograniczenia:
+
+- `width` i `height` w `@media` nie zależą od `@page { size }` (pytanie 20 w `open-questions.md`);
+- wskazówka przejścia w gradiencie daje przejście odcinkami liniowe, a przestrzeń interpolacji jest
+  pomijana (zawsze sRGB);
+- `:has()` z kombinatorem na początku przyjmuje tylko selektor złożony bez dalszych kombinatorów
+  (`:has(> a)`, nie `:has(> a b)`);
+- `color-mix()` nie przyjmuje `currentColor` ani przestrzeni `hsl`, `lab`, `lch`, `xyz`;
+- cień tekstu nie obejmuje podkreślenia.
+
+Nadal odrzucane z ostrzeżeniem (z tej samej sondy): `conic-gradient()`, składnia barw względnych
+(`rgb(from …)`), `round()`/`abs()`, `translate`/`rotate`/`scale` jako osobne właściwości, `clip-path`,
+`text-wrap`, `background-blend-mode`, `@container`, `@property`, `::selection`.
+
+Wynik (2026-11-15): sondaż ekranowy bez zmian, **6976 z 9110** (ściśle 6593, krawędziowo 383), zero strat
+i zero zysków; mierzone obszary WPT tych konstrukcji nie ćwiczą. Reftesty druku bez zmian: 228 z 340.
+Paczka jest sprawdzana testami własnymi: `TestMediaQueriesWithFeatures` (32 zapytania, każde także jako
+atrybut `media`), `TestModernSyntaxEquivalents` (38 par), `TestColorFunctionsConvertToSRGB`,
+`TestTextShadowOffsetCopy`.

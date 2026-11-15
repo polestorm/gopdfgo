@@ -1746,6 +1746,28 @@ func TestModernSyntaxEquivalents(t *testing.T) {
 		{"@supports and/or", `@supports ((display: grid) and (gap: 1em)) or (frobnicate: 1) { p { color: green } }`, `p { color: green }`},
 		{"@supports selector()", `@supports selector(:where(p)) { p { color: green } }`, `p { color: green }`},
 		{"word-break: keep-all", `p { word-break: keep-all }`, `p { word-break: normal }`},
+		{":has z kombinatorem dziecka", `.a:has(> p) { color: green } .a:has(> span) { color: red }`, `.a { color: green }`},
+		{":has z rodzeństwem bez dopasowania", `p:has(+ p) { color: red }`, `p { }`},
+		{":nth-child(of S)", `p:nth-child(1 of p) { color: green } p:nth-child(2 of p) { color: red }`, `p { color: green }`},
+		{":nth-last-child(of S)", `p:nth-last-child(1 of .a p, p) { color: green }`, `p { color: green }`},
+		{":any-link bez odnośników", `p { color: green } :any-link { color: red } p:focus-visible { color: red }`, `p { color: green }`},
+		{"gradient z dwiema pozycjami", `.a { background: linear-gradient(to right, red 0 50%, blue 50% 100%) }`,
+			`.a { background: linear-gradient(to right, red 0, red 50%, blue 50%, blue 100%) }`},
+		{"gradient ze wskazówką", `.a { background: linear-gradient(90deg, red, 30%, blue) }`,
+			`.a { background: linear-gradient(90deg, red, rgb(127.5 0 127.5) 30%, blue) }`},
+		{"gradient z przestrzenią interpolacji", `.a { background: linear-gradient(in oklch, red, blue) }`,
+			`.a { background: linear-gradient(red, blue) }`},
+		{"gradient z kierunkiem i przestrzenią", `.a { background: linear-gradient(to right in srgb, red, blue) }`,
+			`.a { background: linear-gradient(to right, red, blue) }`},
+		{"gradient powtarzany z dwiema pozycjami", `.a { background: repeating-linear-gradient(45deg, red 0 2px, blue 2px 4px) }`,
+			`.a { background: repeating-linear-gradient(45deg, red 0, red 2px, blue 2px, blue 4px) }`},
+		{"color-mix", `p { color: color-mix(in srgb, red, blue) }`, `p { color: rgb(127.5 0 127.5) }`},
+		{"text-shadow none", `p { text-shadow: none }`, `p { }`},
+		{"text-shadow przezroczysty", `p { text-shadow: 1px 1px transparent }`, `p { }`},
+		{"text-shadow dziedziczony", `.a { text-shadow: 2px 3px red }`, `p { text-shadow: 2px 3px red }`},
+		{"zagnieżdżanie z &", `.a { & p { color: green } }`, `.a p { color: green }`},
+		{"zagnieżdżanie bez &", `.a { p { color: green } }`, `.a p { color: green }`},
+		{"zagnieżdżanie z & na końcu", `p { .a & { color: green } }`, `.a p { color: green }`},
 	}
 	options := Options{Fonts: testFonts(t)}
 	for _, c := range cases {
@@ -1833,5 +1855,28 @@ func TestGridPositionedAndComparisonFunctions(t *testing.T) {
 		if n := differentPixels(tested[0], expected[0]); n != 0 {
 			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
 		}
+	}
+}
+
+// text-shadow (CSS Text Decoration 3 § 4): cień ostry to kopia tekstu przesunięta o podany wektor,
+// narysowana pod tekstem. Sprawdzamy to obrazem: czerwony cień o przesunięciu większym niż tekst
+// daje ten sam obraz co czerwony tekst w miejscu cienia pod czarnym tekstem.
+func TestTextShadowOffsetCopy(t *testing.T) {
+	const style = "<style>@page { size: 300px 200px; margin: 0 } body { margin: 0; font: 20px/1 Ahem } " +
+		"p { margin: 0; position: absolute; left: 10px; top: 10px }</style>"
+	dir := t.TempDir()
+	tested := rasterize(t, renderString(t, style+`<p style="text-shadow: 100px 50px red">XX</p>`).PDF, dir, "tested")
+	expected := rasterize(t, renderString(t, style+`<p style="left:110px;top:60px;color:red">XX</p><p>XX</p>`).PDF, dir, "expected")
+	if len(tested) != 1 || len(expected) != 1 {
+		t.Fatalf("strony %d i %d", len(tested), len(expected))
+	}
+	if n := differentPixels(tested[0], expected[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+	// cień rozmyty musi zostawić ślad poza obrysem tekstu
+	blurred := rasterize(t, renderString(t, style+`<p style="text-shadow: 0 0 10px red">XX</p>`).PDF, dir, "blurred")
+	plain := rasterize(t, renderString(t, style+`<p>XX</p>`).PDF, dir, "plain")
+	if n := differentPixels(blurred[0], plain[0]); n == 0 {
+		t.Error("cień rozmyty nie zmienił obrazu")
 	}
 }

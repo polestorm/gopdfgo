@@ -745,7 +745,8 @@ func TestLinearGradient(t *testing.T) {
 	invalid(t, "blue 10deg")
 	invalid(t, "blue 4")
 	invalid(t, "soylent-green 4px")
-	invalid(t, "red 4px 2px")
+	// gopdfgo: "red 4px 2px" to w CSS Images 4 poprawny przystanek o dwóch pozycjach; źródło oczekiwało odrzucenia
+	invalid(t, "red 4px 2px 1px")
 
 	invalid(t, "18deg")
 
@@ -827,7 +828,8 @@ func TestRadialGradient(t *testing.T) {
 	invalid(t, "blue 10deg")
 	invalid(t, "blue 4")
 	invalid(t, "soylent-green 4px")
-	invalid(t, "red 4px 2px")
+	// gopdfgo: "red 4px 2px" to w CSS Images 4 poprawny przystanek o dwóch pozycjach; źródło oczekiwało odrzucenia
+	invalid(t, "red 4px 2px 1px")
 
 	invalid(t, "circle")
 	invalid(t, "square, blue")

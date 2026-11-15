@@ -976,10 +976,8 @@ func findStylesheets(wrapperElement *utils.HTMLNode, deviceMediaType string, url
 		if mediaAttr == "" {
 			mediaAttr = "all"
 		}
-		media := strings.Split(mediaAttr, ",")
-		for i, s := range media {
-			media[i] = strings.TrimSpace(s)
-		}
+		// gopdfgo: atrybut media to pełna lista zapytań, nie tylko typy medium
+		media := parseMediaQuery(pa.Tokenize([]byte(mediaAttr), true))
 		if !evaluateMediaQuery(media, deviceMediaType) {
 			continue
 		}

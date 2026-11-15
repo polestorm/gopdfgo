@@ -164,9 +164,105 @@ type nthPseudoClassSelector struct {
 	abstractPseudoClass
 	a, b         int
 	last, ofType bool
+	of           SelectorGroup // gopdfgo: „of S”; nil, gdy liczone są wszystkie elementy
 }
 
+// Specificity (gopdfgo): pseudoklasa plus waga najbardziej szczegółowego selektora z „of S”.
+func (s nthPseudoClassSelector) Specificity() Specificity {
+	var most Specificity
+	for _, sel := range s.of {
+		if spe := sel.Specificity(); most.Less(spe) {
+			most = spe
+		}
+	}
+	return most.Add(Specificity{0, 1, 0})
+}
+
+// matchOf (gopdfgo) liczy pozycję n wśród rodzeństwa pasującego do „of S”.
+func (s nthPseudoClassSelector) matchOf(n *html.Node) bool {
+	if n.Type != html.ElementNode || !s.of.Match(n) {
+		return false
+	}
+	position, count := -1, 0
+	for c := structuralParent(n).FirstChild; c != nil; c = c.NextSibling {
+		if c.Type != html.ElementNode || !s.of.Match(c) {
+			continue
+		}
+		count++
+		if c == n {
+			position = count
+		}
+	}
+	if position == -1 {
+		return false
+	}
+	if s.last {
+		position = count - position + 1
+	}
+	position -= s.b
+	if s.a == 0 {
+		return position == 0
+	}
+	return position%s.a == 0 && position/s.a >= 0
+}
+
+// relativeHasSelector (gopdfgo): :has() z selektorami względnymi.
+type relativeHasPart struct {
+	combinator byte // ' ', '>', '+' albo '~'
+	sel        Sel
+}
+
+type relativeHasSelector struct {
+	parts []relativeHasPart
+}
+
+func (s relativeHasSelector) Match(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	for _, part := range s.parts {
+		switch part.combinator {
+		case ' ':
+			if hasDescendantMatch(n, part.sel) {
+				return true
+			}
+		case '>':
+			if hasChildMatch(n, part.sel) {
+				return true
+			}
+		case '+', '~':
+			for c := n.NextSibling; c != nil; c = c.NextSibling {
+				if c.Type != html.ElementNode {
+					continue
+				}
+				if part.sel.Match(c) {
+					return true
+				}
+				if part.combinator == '+' {
+					break
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s relativeHasSelector) Specificity() Specificity {
+	var most Specificity
+	for _, part := range s.parts {
+		if spe := part.sel.Specificity(); most.Less(spe) {
+			most = spe
+		}
+	}
+	return most
+}
+
+func (relativeHasSelector) PseudoElement() string { return "" }
+
 func (s nthPseudoClassSelector) Match(n *html.Node) bool {
+	if s.of != nil {
+		return s.matchOf(n)
+	}
 	if s.a == 0 {
 		if s.last {
 			return simpleNthLastChildMatch(s.b, s.ofType, n)

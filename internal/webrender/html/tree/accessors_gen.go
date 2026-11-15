@@ -992,6 +992,16 @@ func (s *AnonymousStyle) GetBoxShadow() pr.BoxShadows {
 }
 func (s *AnonymousStyle) SetBoxShadow(v pr.BoxShadows) { s.propsCache.setKnown(pr.PBoxShadow, v) }
 
+func (s *ComputedStyle) GetTextShadow() pr.BoxShadows {
+	return s.Get(pr.PTextShadow.Key()).(pr.BoxShadows)
+}
+func (s *ComputedStyle) SetTextShadow(v pr.BoxShadows) { s.propsCache.setKnown(pr.PTextShadow, v) }
+
+func (s *AnonymousStyle) GetTextShadow() pr.BoxShadows {
+	return s.Get(pr.PTextShadow.Key()).(pr.BoxShadows)
+}
+func (s *AnonymousStyle) SetTextShadow(v pr.BoxShadows) { s.propsCache.setKnown(pr.PTextShadow, v) }
+
 func (s *ComputedStyle) GetBoxSizing() pr.String  { return s.Get(pr.PBoxSizing.Key()).(pr.String) }
 func (s *ComputedStyle) SetBoxSizing(v pr.String) { s.propsCache.setKnown(pr.PBoxSizing, v) }
 

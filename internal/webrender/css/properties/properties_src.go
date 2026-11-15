@@ -138,6 +138,7 @@ const (
 	POutlineOffset // gopdfgo: CSS UI 4 § 3.2
 	PAspectRatio   // gopdfgo: CSS Sizing 4 § 5.1; 0 oznacza auto
 	PBoxShadow     // gopdfgo: CSS Backgrounds 3 § 6.1
+	PTextShadow    // gopdfgo: CSS Text Decoration 3 § 4; dziedziczona
 	PBoxSizing
 
 	// The following properties are all background related,

@@ -627,6 +627,27 @@ Wspólne dla obu katalogów:
 - `html/boxes/build.go` i `boxes_test.go`, 2026-11-15: `%s` → `%v` dla `pr.Display`. Od zmiany `Display`
   na strukturę (`display: contents`) `go vet` odrzucał pakiet i jego testy się nie budowały; po poprawce
   przechodzą;
+- `html/tree/media_query.go` (przepisany), `html/tree/style.go`, 2026-11-15, Media Queries 4, ADR 0007:
+  zapytania o medium z cechami (`min-width`, `max-width`, zakresy `width >= …`, `orientation`,
+  `prefers-color-scheme`, `resolution`, `hover` i inne), warunki `and`/`or`/`not`, `only`, zaprzeczenie typu.
+  Cechy oceniane względem stałego medium odniesienia (A4 w pionie). Błędne albo nieznane zapytanie jest
+  fałszywe samo, bez unieważniania listy. Atrybut `media` w `<link>` i `<style>` przechodzi tę samą ocenę.
+  Źródło znało tylko typy medium i odrzucało całą regułę `@media` z cechą;
+- `text-shadow` (CSS Text Decoration 3 § 4), 2026-11-15: nowa właściwość dziedziczona `PTextShadow`
+  (`css/properties`, pliki generowane, `datas.go`), walidacja `textShadow`, rysowanie w
+  `html/document/draw_text.go`. Cień ostry to kopia tekstu pod tekstem; rozmyty przybliżamy 17 kopiami
+  o częściowym kryciu na dwóch okręgach. Cienia nie dostają dekoracje tekstu (podkreślenie);
+- `css/validation/utils.go` (`parseColorStops`, `withoutInterpolationSpace`), 2026-11-15, CSS Images 4:
+  przystanek gradientu o dwóch pozycjach, wskazówka przejścia (przybliżona przystankiem barwy pośredniej)
+  i przestrzeń interpolacji `in …` (przyjmowana, interpolacja zostaje w sRGB). Źródło odrzucało cały gradient.
+  Zmienione oczekiwanie w testach odziedziczonych `TestLinearGradient` i `TestRadialGradient`:
+  `red 4px 2px` jest poprawne (dwie pozycje), odrzucane ma być `red 4px 2px 1px`;
+- `css/parser/colors.go` (`parseColorMix`), 2026-11-15, CSS Color 5 § 3: `color-mix()` w przestrzeniach
+  `srgb`, `srgb-linear`, `oklab`, `oklch`; bez `currentColor` w argumentach;
+- `css/selector/parser.go`, `pseudo_classes.go`, `serialize.go`, 2026-11-15, Selectors 4:
+  `:nth-child(an+b of S)` i `:nth-last-child(… of S)`; `:has()` z selektorem względnym (`> a`, `+ a`, `~ a`,
+  tylko selektor złożony bez dalszych kombinatorów); `:any-link`; `:focus-visible` i `:focus-within`
+  jako nigdy niepasujące, tak jak `:focus`;
 - `html/layout/flex.go`, 2026-11-15: kontener `inline-flex` bez elementu wyznaczającego linię bazową ma ją
   syntetyzowaną z dolnej krawędzi marginesu (CSS Align 3 § 9.1); źródło przyjmowało górę pudełka
   (testy WPT `flexbox-baseline-empty-001a`, `-001b`);

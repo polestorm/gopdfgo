@@ -25,6 +25,13 @@ func TestColorFunctionsConvertToSRGB(t *testing.T) {
 		{"hwb(0 100% 100%)", 127.5, 127.5, 127.5},
 		{"rgb(0 128 0 / 0.5)", 0, 128, 0},
 		{"hsl(120deg 100% 25.098%)", 0, 128, 0},
+		{"color-mix(in srgb, red, blue)", 127.5, 0, 127.5},
+		{"color-mix(in srgb, red 25%, blue)", 63.75, 0, 191.25},
+		{"color-mix(in srgb, red, blue 75%)", 63.75, 0, 191.25},
+		{"color-mix(in srgb, rgb(0 128 0) 100%, red 0%)", 0, 128, 0},
+		{"color-mix(in oklab, white, black)", 99, 99, 99},
+		{"color-mix(in oklch, white, white)", 255, 255, 255},
+		{"color-mix(in srgb-linear, white, black)", 188, 188, 188},
 	}
 	for _, c := range cases {
 		tokens := parser.Tokenize([]byte(c.css), true)
@@ -44,7 +51,8 @@ func TestColorFunctionsConvertToSRGB(t *testing.T) {
 			}
 		}
 	}
-	for _, invalid := range []string{"lab(50%, 0, 0)", "oklch(0.5 0.1)", "lch(50% 10 20px)"} {
+	for _, invalid := range []string{"lab(50%, 0, 0)", "oklch(0.5 0.1)", "lch(50% 10 20px)",
+		"color-mix(red, blue)", "color-mix(in srgb, red)", "color-mix(in frob, red, blue)", "color-mix(in srgb, red 0%, blue 0%)"} {
 		tokens := parser.Tokenize([]byte(invalid), true)
 		if color := parser.ParseColor(tokens[0]); color.Type == parser.ColorRGBA {
 			t.Errorf("%s: przyjęto niepoprawny zapis", invalid)
