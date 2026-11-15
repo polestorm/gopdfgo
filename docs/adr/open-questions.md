@@ -78,6 +78,14 @@ konkretnego odbiorcy.
     działać jak dziś; (c) przebudować układ na strumieniowy także dla tych przypadków (dwa przebiegi).
     Propozycja: (b), po pomiarze na dokumencie 1000 stron i rozpoznaniu, jak rozdzielić układ, rysowanie i zapis PDF.
     Decyzja użytkownika 2026-11-14: odłożone, pomysł zanotowany na przyszłość; pierwszeństwo mają reftesty W3C.
+18. **Dolny margines dziecka w pudełku z `min-height` lub `max-height`.** Tekst CSS 2.2 § 10.7 mówi, że
+    `min-height` i `max-height` nie wpływają na zwijanie marginesów, więc dolny margines ostatniego dziecka
+    powinien zwijać się z marginesem rodzica i odsuwać następne pudełko; tak oczekuje test `margin-collapse-038`
+    (2010). Przeglądarki i cztery nowsze testy WPT (`margin-collapse-min-height-001/002`,
+    `min-height-separates-margin`, `max-height-separates-margin`) oczekują odwrotnie: gdy ograniczenie zmienia
+    wysokość, margines nie wychodzi poza pudełko. Norma i testy są tu sprzeczne. Przyjęte roboczo 2026-11-15:
+    zachowanie przeglądarek i nowszych testów (zysk 4 testy, strata 1), bo dokumenty powstają pod podglądem
+    w przeglądarce. Do potwierdzenia przez użytkownika; odwrócenie to jeden warunek w `html/layout/block.go`.
 
 15. **Współbieżność i zmienne globalne.** `Render` wykonuje jedno renderowanie naraz, bo silnik zgłasza ostrzeżenia
     przez globalne `logger.WarningLogger` (80 wywołań w 25 plikach), a limit czasu nie przerywa pracy. Decyzja

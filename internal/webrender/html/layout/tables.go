@@ -577,7 +577,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 	// Layout row groups, rows and cells.
 	positionY := table.ContentBoxY()
-	if skipStack == nil {
+	// gopdfgo: tabela bez wierszy nie ma odstępów między komórkami, więc jej wysokość to zero
+	// (test WPT css-tables/caption-relative-positioning); źródło dodawało jeden odstęp pionowy.
+	if skipStack == nil && len(table.Children) != 0 {
 		positionY += borderSpacingY
 	}
 

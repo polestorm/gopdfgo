@@ -290,6 +290,12 @@ func inlineReplacedBoxWidthHeight(box Box, containingBlock containingBlock) {
 		replacedBoxHeight_(box, nil, nil)
 		minMaxAutoReplaced(box.Box())
 	} else {
+		// gopdfgo: przy szerokości automatycznej i podanej wysokości najpierw wysokość z min/max-height,
+		// żeby szerokość wynikała z wysokości już ograniczonej (CSS 2 §10.7); w źródle szerokość liczono
+		// z wysokości sprzed ograniczenia.
+		if style.GetWidth().Tag == pr.Auto {
+			replacedBoxHeight(box, nil, nil)
+		}
 		replacedBoxWidth(box, nil, containingBlock)
 		replacedBoxHeight(box, nil, nil)
 	}
@@ -307,6 +313,9 @@ func blockReplacedBoxLayout(context *layoutContext, box_ bo.ReplacedBoxITF, cont
 		box.MarginLeft, box.MarginRight = computedMarginsL, computedMarginsR
 		blockLevelWidth_(box_, nil, containingBlock)
 	} else {
+		if box.Style.GetWidth().Tag == pr.Auto { // jak w inlineReplacedBoxWidthHeight
+			replacedBoxHeight(box_, nil, nil)
+		}
 		blockReplacedWidth(box_, nil, containingBlock)
 		replacedBoxHeight(box_, nil, nil)
 	}

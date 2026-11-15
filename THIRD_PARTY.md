@@ -434,7 +434,67 @@ Wspólne dla obu katalogów:
   znaków dostaje niezerową korektę. Odrzucone warianty (pełny sondaż 6779 wobec 6787 dla przyjętego):
   korekty ułamkowe bez siatki (pliki większe o 2,9%) oraz zaokrąglanie narastające w pomiarze tekstu (psuło
   zgodność tekstu dzielonego na fragmenty). Koszt przyjętego: cztery testy `CSS2/css1` z fontem Ahem, w których
-  krawędź znaku leży dokładnie na granicy piksela, przeszły z klasy „z dokładnością do krawędzi” do niezaliczonych;
+  krawędź znaku leży dokładnie na granicy piksela, przeszły z klasy „z dokładnością do krawędzi” do niezaliczonych.
+  Poprawka z 2026-11-15: początek tekstu jest zaokrąglany na siatce w górę, a korekta w dół, więc znak nigdy
+  nie stoi przed swoim położeniem z układu (odchyłka od 0 do 0,001 rozmiaru fontu w prawo). Przy zaokrąglaniu
+  do najbliższej znak z granicy piksela trafiał 0,005 px przed nią i rasteryzator zostawiał szczelinę między
+  sąsiednimi znakami. Pełny sondaż: 5 testów zyskanych (w tym cztery stracone poprzednio), żadnego straconego,
+  11 więcej zaliczeń ścisłych; rozmiar PDF korpusu bez zmian (+0,04%);
+- układ blokowy i liniowy CSS 2 (runda 2026-11-15):
+  - `html/layout/block.go`: gdy `min-height` albo `max-height` zmienia wysokość automatyczną pudełka, dolny
+    margines ostatniego dziecka nie wychodzi poza pudełko i nie odsuwa następnego; źródło przenosiło go na
+    zewnątrz. Zachowanie przeglądarek i nowszych testów WPT (`margin-collapse-min-height-001/002`,
+    `min-height-separates-margin`, `max-height-separates-margin`). Starszy test `margin-collapse-038` oczekuje
+    przeciwnie i teraz nie przechodzi; tekst CSS 2.2 § 10.7 („nie wpływają na zwijanie marginesów”) jest po jego
+    stronie, zob. pytanie 18 w `docs/adr/open-questions.md`;
+  - `html/layout/block.go`: wysokość podana wprost jest ograniczana przez `min-height` i `max-height` przed
+    ułożeniem dzieci, więc procentowe wysokości dzieci liczą się od wysokości używanej (CSS 2 § 10.5, § 10.7);
+    źródło ograniczało ją dopiero po ułożeniu dzieci;
+  - `html/layout/block.go`, `boxes.BoxFields.CollapsedThrough`: marginesy pustego pudełka z `clear`, które
+    dostało clearance, zwijają się ze sobą i z marginesami następnych pudełek, licząc od górnej krawędzi
+    marginesu, a wynik nie zwija się z dolnym marginesem rodzica (CSS 2 § 8.3.1); źródło liczyło górny margines
+    dwukrotnie i wypuszczało margines poza rodzica. Gdy clearance dostaje pierwsze dziecko w przepływie, pudełko
+    rodzica nie jest już przesuwane o zwinięty margines drugi raz na końcu układu;
+  - `html/layout/block.go` (`allCollapsedThrough`): marginesy pudełka zwijają się przez nie także wtedy, gdy
+    ma dzieci w przepływie, o ile marginesy wszystkich tych dzieci też się zwijają (CSS 2 § 8.3.1); źródło
+    uznawało to tylko dla pudełek bez dzieci, więc pusty blok w pustym bloku rozdzielał marginesy
+    (test WPT `anonymous-table-cell-margin-collapsing`);
+  - `html/boxes/boxes.go` (`EstablishesFormattingContext`): podpis tabeli zakłada kontekst formatowania
+    blokowego (CSS 2 § 17.4), więc marginesy jego dzieci zostają w podpisie;
+  - `html/layout/replaced.go`: przy szerokości automatycznej i podanej wysokości elementu zastępowanego
+    najpierw stosowane są `min-height` i `max-height`, a szerokość wynika z wysokości już ograniczonej
+    (CSS 2 § 10.7); źródło liczyło szerokość z wysokości sprzed ograniczenia;
+  - `html/layout/inline.go` (`splitInlineBox`, `skipsOnlyLeadingSpaces`): pudełko liniowe, którego tekst
+    zaczyna się od zwijanej spacji, zachowuje lewy margines, obramowanie i odstęp; źródło uznawało pominięcie
+    spacji za kontynuację z poprzedniego wiersza i usuwało je;
+  - `html/layout/inline.go` (`splitInlineBox`): lewy margines, obramowanie i odstęp pudełka liniowego
+    zmniejszają miejsce na jego treść w wierszu; w źródle pierwszy wiersz takiego pudełka wystawał poza blok
+    o ten odstęp (kierunek `ltr`; `rtl` bez zmian);
+  - `html/boxes/build.go` (`innerBlockInInline`), `boxes.BoxFields.SplitBefore/SplitAfter`,
+    `html/layout/inline.go`: fragmenty pudełka liniowego rozdzielonego przez blok w środku nie mają marginesu,
+    obramowania ani odstępu od strony rozdzielenia (CSS 2 § 9.2.1.1); źródło rysowało je przy każdym fragmencie;
+  - `html/layout/inline.go` (`isPhantomLinebox`): o tym, czy wiersz bez treści ma zerową wysokość, decydują
+    tylko marginesy, obramowania i odstępy w osi wiersza (CSS Inline 3 § 2.1), i tylko od stron, których
+    fragment nie stracił; w źródle wiersz przestawał być pusty także przez obramowanie górne lub dolne;
+- `html/tree/html5_ua.css`, `html/tree/computed_values.go` (`textAlignAll`), `css/validation/validation.go`:
+  komórka nagłówkowa `th` jest domyślnie wyśrodkowana, a gdy `text-align` jej rodzica ma wartość inną niż
+  początkowa, dziedziczy wyrównanie (HTML, Rendering § 15.3.9). Arkusz przeglądarki używa do tego wewnętrznej
+  wartości `-internal-center`, rozstrzyganej przy obliczaniu `text-align-all` i `text-align-last`. W źródle
+  `th` nie było środkowane wcale (runda 2026-11-15, test WPT `th-text-align`);
+- liczniki list (runda 2026-11-15):
+  - `html/boxes/build.go` (`implicitListItemIncrement`, `updateCounters`, `reversedCounterStart`): element listy
+    zwiększa licznik `list-item` zawsze, gdy `counter-increment` go nie wymienia, także przy `none` i przy innych
+    licznikach (CSS Lists 3 § 4.6); źródło robiło to tylko przy braku deklaracji. Zmienione oczekiwania testów
+    odziedziczonych `TestCounters2` (lista wewnętrzna 1, 2, 3 zamiast 1, 1, 2) i `TestCounters6` („1.” zamiast „0.”);
+  - `html/tree/style.go`: elementy `li` w `<ol reversed>` nie dostają już deklaracji `counter-increment:
+    list-item -1` z atrybutu; przyrost −1 wynika z tego, że licznik jest odwrócony, więc lista, której autor
+    zastąpił `counter-reset` zwykłym licznikiem, liczy w górę (testy WPT `li-value-reversed-024`, `-025`);
+  - `css/validation` (`isReservedCounterName`): nazwą licznika nie może być słowo kluczowe wspólne dla całego
+    CSS, `default` ani `none`, bez rozróżniania wielkości liter, także w `counter()` i `counters()`; źródło
+    sprawdzało tylko `counter-reset` i `counter-increment` i tylko trzy słowa (test WPT `counter-invalid`);
+- `html/layout/tables.go` (`tableLayout`): tabela bez wierszy nie dostaje pionowego odstępu między komórkami,
+  więc ma zerową wysokość treści; źródło dodawało jeden odstęp (runda 2026-11-15, test WPT
+  `caption-relative-positioning`);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

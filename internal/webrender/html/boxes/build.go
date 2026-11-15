@@ -934,18 +934,19 @@ func updateCounters(state *tree.PageState, style pr.ElementStyle, reversedStart 
 		// "auto" is the initial value but is not valid in stylesheet:
 		// there was no counter-increment declaration for this element.
 		// (Or the winning value was "initial".)
-		// https://drafts.csswg.org/css-lists-3/#declaring-a-list-item
-		if style.GetDisplay().Has(pr.ListItem) {
-			// gopdfgo: w liczniku odwróconym przyrost domyślny to -1
-			// (CSS Lists 3 § 4.6); źródło zawsze dodawało 1
-			step := 1
-			if state.IsCounterReversed("list-item") {
-				step = -1
-			}
-			counterIncrement = pr.SIntStrings{Values: pr.IntStrings{{String: "list-item", Int: step}}}
-		} else {
-			counterIncrement = pr.SIntStrings{}
+		counterIncrement = pr.SIntStrings{}
+	}
+	// https://drafts.csswg.org/css-lists-3/#declaring-a-list-item
+	// gopdfgo: element listy zwiększa licznik list-item zawsze, gdy counter-increment go nie wymienia
+	// (także przy "none" i przy innych licznikach), a w liczniku odwróconym przyrost domyślny to -1
+	// (CSS Lists 3 § 4.6); źródło dodawało 1 tylko przy braku deklaracji.
+	if implicitListItemIncrement(style) {
+		step := 1
+		if state.IsCounterReversed("list-item") {
+			step = -1
 		}
+		values := append(pr.IntStrings{}, counterIncrement.Values...)
+		counterIncrement = pr.SIntStrings{Values: append(values, pr.IntString{String: "list-item", Int: step})}
 	}
 	for _, ci := range counterIncrement.Values {
 		values := counterValues[ci.String]
@@ -973,6 +974,20 @@ func updateCounters(state *tree.PageState, style pr.ElementStyle, reversedStart 
 	return nested
 }
 
+// implicitListItemIncrement podaje, czy element listy zwiększa licznik list-item domyślnie,
+// czyli czy jego counter-increment tego licznika nie wymienia (CSS Lists 3 § 4.6).
+func implicitListItemIncrement(style pr.ElementStyle) bool {
+	if !style.GetDisplay().Has(pr.ListItem) {
+		return false
+	}
+	for _, ci := range style.GetCounterIncrement().Values {
+		if ci.String == "list-item" {
+			return false
+		}
+	}
+	return true
+}
+
 // reversedCounterStart wyznacza wartość początkową licznika odwróconego bez
 // podanej wartości według CSS Lists 3 § 4.4.2 („Instantiating counters”):
 // przegląda elementy w zasięgu licznika (element, jego potomków, następne
@@ -998,12 +1013,10 @@ func reversedCounterStart(origin *utils.HTMLNode, styleFor styleForI, name strin
 			}
 		}
 		increment, counts := 0, false
-		if increments := style.GetCounterIncrement(); increments.K == pr.Auto {
-			if name == "list-item" && style.GetDisplay().Has(pr.ListItem) {
-				increment, counts = -1, true // przyrost domyślny w liczniku odwróconym
-			}
+		if name == "list-item" && implicitListItemIncrement(style) {
+			increment, counts = -1, true // przyrost domyślny w liczniku odwróconym
 		} else {
-			for _, ci := range increments.Values {
+			for _, ci := range style.GetCounterIncrement().Values {
 				if ci.String == name {
 					increment, counts = increment+ci.Int, true
 				}
@@ -2207,13 +2220,22 @@ func innerBlockInInline(box Box, skipStack tree.ResumeStack) (Box, Box, tree.Res
 		if blockLevelBox != nil {
 			resumeAt = tree.ResumeStack{index: resumeAt}
 			box = CopyWithChildren(box, newChildren)
+			// gopdfgo: fragmenty pudełka liniowego rozdzielonego przez blok pamiętają, z której strony
+			// zostały ucięte; w źródle każdy fragment rysował pełne obramowanie i odstępy.
+			if InlineT.IsInstance(box) {
+				box.Box().SplitBefore = !isStart
+				box.Box().SplitAfter = true
+			}
 			hasBroken = true
 			break
 		}
 	}
 	if !hasBroken {
-		if changed || skip > 0 {
+		if changed || skip > 0 || !isStart {
 			box = CopyWithChildren(box, newChildren)
+			if InlineT.IsInstance(box) && !isStart {
+				box.Box().SplitBefore = true
+			}
 		}
 	}
 

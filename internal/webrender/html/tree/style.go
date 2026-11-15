@@ -1325,10 +1325,9 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 					fmt.Sprintf("counter-reset:list-item %d", start-1))})
 			}
 		case atom.Li:
+			// przyrost -1 w liście odwróconej wynika z samego licznika (boxes.updateCounters), nie z atrybutu:
+			// gdy autor zastąpi counter-reset listy zwykłym licznikiem, elementy liczą w górę
 			var declarations []string
-			if parent := element.Parent; parent != nil && parent.DataAtom == atom.Ol && (*utils.HTMLNode)(parent).HasAttr("reversed") {
-				declarations = append(declarations, "counter-increment:list-item -1")
-			}
 			if value, ok := parseListInteger(element.Get("value")); ok {
 				// licznik ustawiany po zwiększeniu, więc element dostaje dokładnie tę wartość
 				declarations = append(declarations, fmt.Sprintf("counter-set:list-item %d", value))

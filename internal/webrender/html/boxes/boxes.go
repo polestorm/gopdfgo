@@ -185,6 +185,11 @@ type BoxFields struct {
 	// o nieokreślonym rozmiarze głównym; nie jest podstawą wysokości
 	// procentowych potomków (CSS Flexbox 1 § 9.8)
 	IndefiniteHeight bool
+	// CollapsedThrough: marginesy górny i dolny pudełka zwinęły się przez nie (puste pudełko)
+	CollapsedThrough bool
+	// SplitBefore, SplitAfter: pudełko liniowe jest dalszym ciągiem (ma dalszy ciąg) pudełka rozdzielonego
+	// przez blok w środku; od tej strony nie ma marginesu, obramowania ani odstępu (CSS 2 §9.2.1.1)
+	SplitBefore, SplitAfter bool
 
 	// gopdfgo: ramka fieldset z legendą. LegendPrepared: style ramki i legendy zostały już dostosowane;
 	// BorderGapX i BorderGapWidth: odcinek górnego obramowania przerwany pod legendą.
@@ -587,7 +592,10 @@ func EstablishesFormattingContext(box_ Box) bool {
 		box.IsColumn ||
 		(BlockContainerT.IsInstance(box_) && !BlockT.IsInstance(box_)) ||
 		(BlockT.IsInstance(box_) && box.Style.GetOverflow() != "visible" && box.Style.GetOverflow() != "clip") ||
-		box.Style.GetDisplay().Has(pr.FlowRoot))
+		box.Style.GetDisplay().Has(pr.FlowRoot) ||
+		// gopdfgo: podpis tabeli zakłada kontekst formatowania blokowego (CSS 2 §17.4), więc marginesy
+		// jego dzieci nie wychodzą poza podpis; w źródle podpis nie był tu uwzględniony.
+		TableCaptionT.IsInstance(box_))
 }
 
 // Start and end page values for named pages

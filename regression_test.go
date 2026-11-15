@@ -1356,3 +1356,141 @@ table { border-collapse: collapse; width: 400px } td { border: 1px solid black; 
 		t.Errorf("%d pikseli różni się od wzorca", n)
 	}
 }
+
+// Poprawki układu blokowego i liniowego, list i tabel z rundy CSS 2 (2026-11-15); każdy przypadek
+// ma dać ten sam obraz co wzorzec zbudowany z prostszych konstrukcji.
+func TestSecondCSS2RoundFixes(t *testing.T) {
+	const style = "<style>@page { size: 300px 300px; margin: 0 } body { margin: 0 } " +
+		".sq { display: inline-block; width: 20px; height: 20px; background: #080; vertical-align: top }</style>"
+	const square = `<div style="width:100px;height:100px;background:#080"></div>`
+	const image = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%23080'/%3E%3C/svg%3E`
+	cases := []struct{ name, tested, expected string }{
+		{
+			"min-height zatrzymuje dolny margines dziecka",
+			`<div style="width:100px;min-height:50px;background:#080"><div style="height:49px;margin-bottom:10px"></div></div>` +
+				`<div style="width:100px;height:50px;background:#080"></div>`,
+			square,
+		},
+		{
+			"max-height zatrzymuje dolny margines dziecka",
+			`<div style="width:100px;max-height:50px;background:#080"><div style="height:51px;margin-bottom:10px"></div></div>` +
+				`<div style="width:100px;height:50px;background:#080"></div>`,
+			square,
+		},
+		{
+			"szerokość obrazu z wysokości po max-height",
+			`<img style="display:block;height:200px;max-height:100px" src="` + image + `">`,
+			`<img style="display:block;width:100px;height:100px" src="` + image + `">`,
+		},
+		{
+			"szerokość obrazu z wysokości po min-height",
+			`<img style="display:block;height:0;min-height:100px" src="` + image + `">`,
+			`<img style="display:block;width:100px;height:100px" src="` + image + `">`,
+		},
+		{
+			"lewy odstęp pudełka liniowego zaczynającego się od spacji",
+			`<div><span style="padding-left:40px"> <b class="sq"></b></span></div>`,
+			`<div><span style="padding-left:40px"><b class="sq"></b></span></div>`,
+		},
+		{
+			"lewy odstęp pudełka liniowego zmniejsza miejsce w wierszu",
+			`<div style="width:100px;font-size:10px;line-height:20px"><span style="padding-left:40px"><b class="sq"></b> <b class="sq"></b> <b class="sq"></b> <b class="sq"></b></span></div>`,
+			`<div style="width:100px;font-size:10px;line-height:20px"><span style="padding-left:40px"><b class="sq"></b> <b class="sq"></b><br><b class="sq"></b> <b class="sq"></b></span></div>`,
+		},
+		{
+			"wysokość procentowa od wysokości po max-height",
+			`<div style="width:100px;height:200px;max-height:100px"><div style="height:100%;background:#080"></div></div>`,
+			square,
+		},
+		{
+			"marginesy dzieci zostają w podpisie tabeli",
+			`<table style="border-spacing:0"><caption style="width:100px;background:#080">` +
+				`<div style="margin:10px;height:35px"></div><div style="margin:10px;height:35px"></div></caption></table>`,
+			`<table style="border-spacing:0"><caption style="width:100px;height:100px;background:#080"></caption></table>`,
+		},
+		{
+			"margines po pustym pudełku z clear zostaje w rodzicu",
+			`<p style="margin:0 0 16px;height:10px"></p><div style="width:100px;background:#080">` +
+				`<div style="float:left;height:1px"></div><div style="clear:left"></div><div style="margin-top:99px"></div></div>`,
+			`<p style="margin:0 0 16px;height:10px"></p>` + square,
+		},
+		{
+			"marginesy pustego pudełka z clear zwijają się z następnymi",
+			`<div style="border-top:1px solid #080;width:100px;background:#080"><div style="float:left;width:50px;height:100px"></div>` +
+				`<div style="clear:left;margin:40px 0 80px"></div><div style="margin-bottom:140px"></div></div>`,
+			`<div style="width:100px;height:201px;background:#080"></div>`,
+		},
+	}
+	const band = "border:5px solid #00f;border-left:none;border-right:none;"
+	const inner = `<span style="display:block;height:20px;background:#080"></span>`
+	cases = append(cases, []struct{ name, tested, expected string }{
+		{
+			"fragment pudełka liniowego po bloku nie powtarza lewego odstępu",
+			`<span style="` + band + `padding-left:10px"> ` + inner + ` </span>`,
+			`<span style="` + band + `padding-left:10px"></span>` + inner,
+		},
+		{
+			"fragment przed blokiem bez odstępu w osi wiersza nie zajmuje wiersza",
+			`<span style="` + band + `padding-right:10px"> ` + inner + ` </span>`,
+			inner + `<span style="` + band + `padding-right:10px"></span>`,
+		},
+		{
+			"th jest domyślnie wyśrodkowane",
+			`<table><tr><th style="width:200px"><b class="sq"></b></th></tr></table>`,
+			`<table><tr><td style="width:200px;font-weight:bold;text-align:center"><b class="sq"></b></td></tr></table>`,
+		},
+		{
+			"th dziedziczy wyrównanie ustawione wyżej",
+			`<table style="text-align:right"><tr><th style="width:200px"><b class="sq"></b></th></tr></table>`,
+			`<table><tr><td style="width:200px;font-weight:bold;text-align:right"><b class="sq"></b></td></tr></table>`,
+		},
+		{
+			"th wyśrodkowane, gdy wyżej podano wartość początkową",
+			`<table style="text-align:start"><tr><th style="width:200px"><b class="sq"></b></th></tr></table>`,
+			`<table><tr><td style="width:200px;font-weight:bold;text-align:center"><b class="sq"></b></td></tr></table>`,
+		},
+		{
+			"marginesy zwijają się przez pusty blok z pustym dzieckiem",
+			`<div style="display:flow-root;width:100px;background:#080"><div style="margin:50px 0"><div style="margin:50px 0"></div></div>` +
+				`<div style="margin:50px 0"></div></div><div style="width:100px;height:50px;background:#080"></div>`,
+			square,
+		},
+		{
+			"tabela bez wierszy ma zerową wysokość",
+			`<table></table>` + square,
+			square,
+		},
+		{
+			"skróty logiczne obramowań",
+			`<div style="width:50px;height:20px;border-inline:10px solid #00f;border-block-width:5px 7px;border-block-style:solid;border-block-color:#080"></div>`,
+			`<div style="width:50px;height:20px;border-left:10px solid #00f;border-right:10px solid #00f;border-top:5px solid #080;border-bottom:7px solid #080"></div>`,
+		},
+		{
+			"counter() z zastrzeżoną nazwą unieważnia deklarację",
+			`<style>div::after { content: " x " counter(inherit) }</style><div>7</div>`,
+			`<div>7</div>`,
+		},
+		{
+			"lista reversed z własnym counter-reset liczy w górę",
+			`<ol reversed style="counter-reset: list-item 3"><li>a<li>b</ol>`,
+			`<ol start="4"><li>a<li>b</ol>`,
+		},
+		{
+			"counter-increment: none nie wyłącza numeracji listy",
+			`<ol><li>a<li style="counter-increment: none">b<li>c</ol>`,
+			`<ol><li>a<li>b<li>c</ol>`,
+		},
+	}...)
+	for _, c := range cases {
+		dir := t.TempDir()
+		tested := rasterize(t, renderString(t, style+c.tested).PDF, dir, "tested")
+		expected := rasterize(t, renderString(t, style+c.expected).PDF, dir, "expected")
+		if len(tested) != 1 || len(expected) != 1 {
+			t.Errorf("%s: strony %d i %d", c.name, len(tested), len(expected))
+			continue
+		}
+		if n := differentPixels(tested[0], expected[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
+		}
+	}
+}

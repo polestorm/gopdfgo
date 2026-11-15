@@ -162,7 +162,9 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 	// kilkoma kolejnymi pudełkami.
 	if fontSize > 0 && scaleX == 1 && angle == 0 {
 		units := x * 1000 / fontSize
-		snapped := pr.Fl(math.Round(float64(units)))
+		// w górę, nie do najbliższej: znak stojący dokładnie na granicy piksela nie może trafić
+		// tuż przed nią, bo rasteryzator zostawia wtedy szczelinę między sąsiednimi znakami
+		snapped := pr.Fl(math.Ceil(float64(units) - 1e-3))
 		kerningCarry = snapped - units
 		x = snapped * fontSize / 1000
 	}
@@ -248,7 +250,7 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			// o setne części piksela na kilkanaście znaków, co przesuwało
 			// wygładzanie krawędzi wszystkiego, co stoi za dłuższym tekstem.
 			wanted := pr.Fl(outFont.Extents[outGlyph.Glyph].Width) - gAdvance*1000/fontSize + outGlyph.Offset + kerningCarry
-			outGlyph.Kerning = int(math.Round(float64(wanted)))
+			outGlyph.Kerning = int(math.Floor(float64(wanted) + 1e-3)) // reszta nieujemna: znak nie wyprzedza siatki w lewo
 			kerningCarry = wanted - pr.Fl(outGlyph.Kerning)
 			// advance
 			outGlyph.XAdvance = xAdvance

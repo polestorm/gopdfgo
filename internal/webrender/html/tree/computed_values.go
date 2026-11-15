@@ -147,6 +147,8 @@ var (
 		pr.PTransform:     transforms,
 		pr.PVerticalAlign: verticalAlign,
 		pr.PWordSpacing:   wordSpacing,
+		pr.PTextAlignAll:  textAlignAll,
+		pr.PTextAlignLast: textAlignAll,
 		pr.PBookmarkLabel: bookmarkLabel,
 		pr.PStringSet:     stringSet,
 		pr.PLink:          link,
@@ -1032,6 +1034,23 @@ func verticalAlign(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPropert
 		}
 	}
 	return out
+}
+
+// gopdfgo: wartość wewnętrzna "-internal-center" z arkusza przeglądarki dla th. Według HTML
+// (Rendering § 15.3.9) komórka nagłówkowa jest wyśrodkowana tylko wtedy, gdy text-align rodzica
+// ma wartość początkową; inaczej dziedziczy wyrównanie. W źródle th nie było środkowane wcale.
+// Obsługuje obie właściwości skrótu text-align (text-align-all i text-align-last).
+func textAlignAll(computer *ComputedStyle, name pr.KnownProp, value pr.CssProperty) pr.CssProperty {
+	if s, ok := value.(pr.String); ok && s == "-internal-center" {
+		if parent := computer.parentStyle; parent != nil && parent.GetTextAlignAll() != "start" {
+			if name == pr.PTextAlignLast {
+				return parent.GetTextAlignLast()
+			}
+			return parent.GetTextAlignAll()
+		}
+		return pr.String("center")
+	}
+	return value
 }
 
 // Compute the “word-spacing“ property.

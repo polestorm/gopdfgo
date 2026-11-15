@@ -486,6 +486,9 @@ func checkCounterFunction(token Token) (prop pr.ContentProperty) {
 			return
 		}
 		out.Name = string(ident.Value)
+		if isReservedCounterName(out.Name) {
+			return
+		}
 
 		if name == "counters" {
 			str, ok := args[0].(pa.String)

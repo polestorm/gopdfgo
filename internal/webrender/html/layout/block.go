@@ -397,6 +397,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		}
 	}
 
+	// gopdfgo: podana wysokość jest od razu ograniczana przez min-height i max-height, bo to od wysokości
+	// używanej liczą się procentowe wysokości dzieci (CSS 2 §10.5, §10.7); w źródle ograniczenie następowało
+	// dopiero po ułożeniu dzieci.
+	if isStart && box.Height != pr.AutoF && box.MinHeight != nil && box.MaxHeight != nil &&
+		box.MinHeight != pr.AutoF && box.MaxHeight != pr.AutoF {
+		box.Height = max(min(box.Height.V(), box.MaxHeight.V()), box.MinHeight.V())
+	}
+
 	skip := 0
 	firstLetterStyle := box.FirstLetterStyle
 	// gopdfgo: treść wylewająca się z bloku o podanej wysokości jest kontynuowana na następnej stronie,
@@ -629,10 +637,20 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		if box.Height != pr.AutoF {
 			// not adjoining. (positionY is not used afterwards.)
 			adjoiningMargins = new([]pr.Float)
+		} else if box.MinHeight == pr.Float(0) && box.BorderTopWidth == pr.Float(0) && box.PaddingTop == pr.Float(0) &&
+			box.BorderBottomWidth == pr.Float(0) && box.PaddingBottom == pr.Float(0) &&
+			!bo.EstablishesFormattingContext(box_) && allCollapsedThrough(newChildren) &&
+			getClearance(context, box, collapseMargin(*adjoiningMargins)) == nil {
+			// gopdfgo: marginesy pudełka zwijają się przez nie także wtedy, gdy ma dzieci, o ile marginesy
+			// wszystkich dzieci w przepływie też się zwijają (CSS 2 § 8.3.1); źródło uznawało to tylko
+			// dla pudełek bez dzieci, więc pusty blok w pustym bloku rozdzielał marginesy.
+			collapsingThrough = true
 		}
 	}
 
-	if pr.Is(box.BorderBottomWidth) || pr.Is(box.PaddingBottom) ||
+	// gopdfgo: margines zwinięty z marginesami pustego pudełka z clearance nie zwija się z dolnym
+	// marginesem rodzica (CSS 2 §8.3.1); w źródle wychodził poza rodzica.
+	if pr.Is(box.BorderBottomWidth) || pr.Is(box.PaddingBottom) || endsWithClearedEmptyBox(newChildren) ||
 		bo.EstablishesFormattingContext(box_) || box.IsForRootElement || box.IsTableWrapper {
 		positionY += collapseMargin(*adjoiningMargins)
 		adjoiningMargins = new([]pr.Float)
@@ -640,6 +658,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	newBox_ := bo.CopyWithChildren(box_, newChildren)
 	newBox := newBox_.Box()
+	newBox.CollapsedThrough = collapsingThrough
 	newBox_.RemoveDecoration(newBox, !isStart, boxIsFragmented && !discard)
 
 	if newBox.Height == pr.AutoF {
@@ -695,7 +714,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	} else if discard || !boxIsFragmented {
 		// After finishBlockFormattingContext which may increment
 		// newBox.Height
-		newBox.Height = max(min(newBox.Height.V(), newBox.MaxHeight.V()), newBox.MinHeight.V())
+		clamped := max(min(newBox.Height.V(), newBox.MaxHeight.V()), newBox.MinHeight.V())
+		// gopdfgo: gdy min-height albo max-height zmienia wysokość automatyczną, dolny margines ostatniego
+		// dziecka nie wychodzi poza pudełko (testy WPT margin-collapse-min-height-*, *-height-separates-margin).
+		// W źródle margines przechodził na zewnątrz i odsuwał następne pudełko.
+		if box.Height == pr.AutoF && clamped != newBox.Height.V() && !collapsingThrough {
+			adjoiningMargins = new([]pr.Float)
+		}
+		newBox.Height = clamped
 	} else if bottomSpace > -pr.Inf && !newBox.IsColumn {
 		// Make the box fill the blank space at the bottom of the page
 		// https://www.w3.org/TR/css-break-3/#box-splitting
@@ -723,6 +749,43 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		resumeAt: resumeAt, nextPage: nextPage,
 		adjoiningMargins: *adjoiningMargins, collapsingThrough: collapsingThrough,
 	}, maxLines
+}
+
+// allCollapsedThrough podaje, czy marginesy wszystkich dzieci w przepływie zwijają się przez nie
+// i żadne z nich nie dostało clearance.
+func allCollapsedThrough(children []Box) bool {
+	for _, child := range children {
+		box := child.Box()
+		if !box.IsInNormalFlow() {
+			continue
+		}
+		if !box.CollapsedThrough {
+			return false
+		}
+		// clearance oddziela górny margines dziecka od marginesów rodzica
+		if bl, ok := child.(bo.BlockLevelBoxITF); ok && bl.BlockLevel().Clearance != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// endsWithClearedEmptyBox podaje, czy końcowe marginesy przyległe obejmują marginesy pudełka
+// z clearance, przez które marginesy się zwijają.
+func endsWithClearedEmptyBox(children []Box) bool {
+	for _, child := range reversedBoxes(children) {
+		box := child.Box()
+		if !box.IsInNormalFlow() {
+			continue
+		}
+		if !box.CollapsedThrough {
+			return false
+		}
+		if bl, ok := child.(bo.BlockLevelBoxITF); ok && bl.BlockLevel().Clearance != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func findLastInFlowChild(children []Box) Box {
@@ -1067,10 +1130,15 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 				}
 
 				collapsedMargin := collapseMargin(*adjoiningMargins)
-				box.PositionY += collapsedMargin - box.MarginTop.V()
 				// Count box.MarginTop as we emptied adjoiningMargins
-				adjoiningMargins = new([]pr.Float)
+				// gopdfgo: położenie treści liczone jest już z marginesem zwiniętym, ale samo pudełko
+				// zostaje nieprzesunięte, bo przesuwa je koniec układu pudełka (thisBoxAdjoiningMargins,
+				// wspólne z przodkami); w źródle pudełko było przesuwane tu i drugi raz na końcu.
+				shift := collapsedMargin - box.MarginTop.V()
+				box.PositionY += shift
 				positionY = box.ContentBoxY()
+				box.PositionY -= shift
+				adjoiningMargins = new([]pr.Float)
 			}
 		}
 	}
@@ -1152,6 +1220,12 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 
 		if newChild_ != nil && newChild_.BlockLevel().Clearance != nil {
 			positionY = newChild.BorderBoxY() + newChild.BorderHeight()
+			if collapsingThrough {
+				// gopdfgo: marginesy pustego pudełka z clearance zwijają się ze sobą i z marginesami
+				// następnych pudełek; zwinięty margines liczy się od górnej krawędzi marginesu,
+				// nie od krawędzi obramowania (CSS 2 §8.3.1). W źródle górny margines liczył się dwukrotnie.
+				positionY = newChild.PositionY
+			}
 		}
 	}
 

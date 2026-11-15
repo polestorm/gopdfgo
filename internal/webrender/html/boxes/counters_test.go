@@ -76,11 +76,13 @@ func TestCounters2(t *testing.T) {
 					{"li", BlockT, BC{C: []SerBox{
 						{"li", LineT, BC{C: []SerBox{{"li::marker", InlineT, BC{C: []SerBox{{"li::marker", TextT, BC{Text: "1. "}}}}}}}},
 					}}},
-					{"li", BlockT, BC{C: []SerBox{
-						{"li", LineT, BC{C: []SerBox{{"li::marker", InlineT, BC{C: []SerBox{{"li::marker", TextT, BC{Text: "1. "}}}}}}}},
-					}}},
+					// gopdfgo: counter-increment: none nie wymienia licznika list-item, więc przyrost
+					// domyślny zostaje (CSS Lists 3 § 4.6); źródło oczekiwało 1, 1, 2
 					{"li", BlockT, BC{C: []SerBox{
 						{"li", LineT, BC{C: []SerBox{{"li::marker", InlineT, BC{C: []SerBox{{"li::marker", TextT, BC{Text: "2. "}}}}}}}},
+					}}},
+					{"li", BlockT, BC{C: []SerBox{
+						{"li", LineT, BC{C: []SerBox{{"li::marker", InlineT, BC{C: []SerBox{{"li::marker", TextT, BC{Text: "3. "}}}}}}}},
 					}}},
 				}}},
 			}}},
@@ -186,6 +188,8 @@ func TestCounters5(t *testing.T) {
 	})
 }
 
+// gopdfgo: oczekiwanie zmienione z "0." na "1.": counter-increment: c nie wymienia licznika list-item,
+// więc element listy zwiększa go domyślnie (CSS Lists 3 § 4.6).
 func TestCounters6(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
@@ -194,7 +198,7 @@ func TestCounters6(t *testing.T) {
       <p style="counter-increment: c;
                 display: list-item; list-style: inside decimal">`), []SerBox{
 		{"p", BlockT, BC{C: []SerBox{
-			{"p", LineT, BC{C: []SerBox{{"p::marker", InlineT, BC{C: []SerBox{{"p::marker", TextT, BC{Text: "0. "}}}}}}}},
+			{"p", LineT, BC{C: []SerBox{{"p::marker", InlineT, BC{C: []SerBox{{"p::marker", TextT, BC{Text: "1. "}}}}}}}},
 		}}},
 	})
 }

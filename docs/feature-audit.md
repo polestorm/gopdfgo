@@ -568,3 +568,49 @@ i przesunięcie początku tekstu o ułamek jednostki zmienia wygładzanie (wcze�
 W korpusie 21 dokumentów zmiana nie przesunęła żadnego słowa względem Chromium ani nie zmieniła liczby stron;
 zmienia się wygładzanie krawędzi znaków na każdej stronie. Przy okazji naprawiono kolumnę procentową tabeli
 przy komórce z `colspan` (osobny wpis w `THIRD_PARTY.md`).
+
+## Druga runda podstaw CSS 2: marginesy, pudełka liniowe, `th`, listy (2026-11-15)
+
+Pełny sondaż ekranowy: **6852 z 9135 (75,0%)**, w tym 6470 ściśle i 382 krawędziowo; poprzednio 6787
+(6404 i 383). Zyskanych 66 (`CSS2/normal-flow` 15, `css1` 11, `floats-clear` 9, `css-tables` 7, pozostałe po kilka),
+stracony 1, 0 błędów renderowania i przekroczeń limitu czasu. Reftesty druku
+bez zmian: 192 z 340 (wszystkie ściśle). Pomiar: `tools/survey96e.py` poza repozytorium, 9135 reftestów WPT
+z obszarów `CSS2`, `css-content`, `css-flexbox`, `css-grid`, `css-lists`, `css-multicol`, `css-tables`, strona
+800×600 px, reguła z ADR 0003.
+
+Poprawki, które dotyczą też zwykłych dokumentów do druku:
+
+- **`th` nie było środkowane.** Komórki nagłówkowe tabel wychodziły wyrównane do lewej. Teraz są wyśrodkowane,
+  a gdy wyżej ustawiono `text-align`, dziedziczą je, tak jak w przeglądarkach (HTML, Rendering § 15.3.9).
+- **Lewy odstęp elementu liniowego.** Tekst w `<span>` z `padding-left`, `border-left` albo `margin-left`
+  wystawał w pierwszym wierszu poza blok o szerokość tego odstępu; odstęp znikał też całkiem, gdy tekst
+  elementu zaczynał się od spacji.
+- **Element liniowy z blokiem w środku** rysował lewe i prawe obramowanie przy każdym fragmencie, a pusty
+  fragment przed blokiem zajmował cały wiersz.
+- **`min-height` i `max-height`:** procentowa wysokość dziecka liczy się od wysokości po ograniczeniu;
+  szerokość obrazu z podaną wysokością wynika z wysokości po ograniczeniu; dolny margines ostatniego dziecka
+  nie wychodzi poza pudełko, którego wysokość zmieniło ograniczenie (zob. pytanie 18).
+- **Marginesy:** pusty blok z pustymi dziećmi przepuszcza marginesy; marginesy dzieci zostają w podpisie tabeli;
+  marginesy pustego elementu z `clear` zwijają się według CSS 2 § 8.3.1; tabela bez wierszy ma zerową wysokość.
+- **Listy:** `counter-increment` na `li` (także `none`) nie wyłącza już numeracji; `<ol reversed>` z własnym
+  `counter-reset` liczy w górę; `counter(inherit)` i podobne nazwy są odrzucane.
+- **Skróty logiczne obramowań:** `border-inline`, `border-block` oraz ich warianty `-width`, `-style`, `-color`.
+- **Położenie znaków:** początek tekstu i korekty odstępów zaokrąglane w jedną stronę, dzięki czemu znaki
+  stojące na granicy piksela nie zostawiają szczelin (wróciły cztery testy `CSS2/css1` stracone w poprzedniej
+  rundzie).
+
+Strata: `margin-collapse-038`, test z 2010 r. sprzeczny z czterema nowszymi testami zyskanymi w tej rundzie
+(pytanie 18 w `docs/adr/open-questions.md`).
+
+Korpus 21 dokumentów (`tools/corpuscmp.py`, binarka z 2026-11-14 wobec bieżącej): liczba stron bez zmian
+w każdym dokumencie; liczba słów przesuniętych o ponad 3 pt względem wydruku Chromium spadła w `17-tables`
+z 2 do 0 i w `21-mixed-report` z 4 do 2, w pozostałych bez zmian; łączny rozmiar PDF 3 271 726 → 3 272 939
+bajtów (+0,04%).
+
+Rozpoznane i odłożone: kolumny zadeklarowane przez `<col>` ponad liczbę komórek w wierszu
+(`col-definite-size-001`), `calc()` z procentem w szerokości kolumny, pozycja statyczna elementu
+pozycjonowanego przy `direction: rtl`, ujemny clearance (`negative-clearance-*`), znaczniki pseudoelementów
+`::before` z `display: list-item`, zasięg licznika na następne rodzeństwo (`counter-list-item-2`, sprzeczny
+z bieżącym tekstem CSS Lists 3 § 4.3). Część testów `CSS2` zależy od metryk fontu: wzorce zakładają wiersz
+niższy niż 20 px przy foncie 16 px (Times), a Noto Serif z `testdata/fonts` daje 21,8 px
+(np. `inlines-017`, `block-replaced-height-002`, `c5509-ipadn-l-003`); to cecha środowiska pomiaru, nie silnika.

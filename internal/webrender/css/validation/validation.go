@@ -1702,6 +1702,18 @@ func reversedCounters(tokens []Token) ([]pr.IntString, bool) {
 	return results, found
 }
 
+// isReservedCounterName: nazwa licznika to <custom-ident> bez słów kluczowych wspólnych dla całego CSS,
+// "default" i "none" (CSS Lists 3 § 4, CSS Values 4 § 4.2).
+// gopdfgo: źródło odrzucało tylko none, initial i inherit, z rozróżnianiem wielkości liter,
+// a w funkcjach counter() i counters() nie sprawdzało nazwy wcale.
+func isReservedCounterName(name string) bool {
+	switch utils.AsciiLower(name) {
+	case "none", "initial", "inherit", "unset", "revert", "revert-layer", "default":
+		return true
+	}
+	return false
+}
+
 // “counter-increment“ && “counter-reset“ properties validation.
 func counter(tokens []Token, defaultInteger int) ([]pr.IntString, error) {
 	if getSingleKeyword(tokens) == "none" {
@@ -1722,7 +1734,7 @@ func counter(tokens []Token, defaultInteger int) ([]pr.IntString, error) {
 			return nil, nil // expected a keyword here
 		}
 		counterName := ident.Value
-		if counterName == "none" || counterName == "initial" || counterName == "inherit" {
+		if isReservedCounterName(string(counterName)) {
 			return nil, fmt.Errorf("invalid counter name: %s", counterName)
 		}
 		token = iter.Next()
@@ -2678,7 +2690,8 @@ func tableLayout(tokens []Token, _ string) pr.CssProperty {
 func textAlignAll(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
-	case "left", "right", "center", "justify", "start", "end":
+	case "left", "right", "center", "justify", "start", "end",
+		"-internal-center": // gopdfgo: wartość arkusza przeglądarki dla th (tree.textAlignAll)
 		return pr.String(keyword)
 	default:
 		return nil
@@ -2691,7 +2704,8 @@ func textAlignAll(tokens []Token, _ string) pr.CssProperty {
 func textAlignLast(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
-	case "auto", "left", "right", "center", "justify", "start", "end":
+	case "auto", "left", "right", "center", "justify", "start", "end",
+		"-internal-center": // jak w textAlignAll
 		return pr.String(keyword)
 	default:
 		return nil

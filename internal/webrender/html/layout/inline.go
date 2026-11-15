@@ -329,6 +329,35 @@ func skipFirstWhitespace(box Box, skipStack tree.ResumeStack) (tree.ResumeStack,
 	return nil, false
 }
 
+// skipsOnlyLeadingSpaces podaje, czy “skipStack“ omija wyłącznie zwijane spacje
+// na samym początku pudełka (wynik skipFirstWhitespace), a nie treść z poprzedniego wiersza.
+func skipsOnlyLeadingSpaces(box Box, skipStack tree.ResumeStack) bool {
+	for skipStack != nil {
+		index, next := skipStack.Unpack()
+		if textBox, ok := box.(*bo.TextBox); ok {
+			ws := textBox.Style.GetWhiteSpace()
+			if ws != pr.Normal && ws != pr.Nowrap && ws != pr.PreLine {
+				return false
+			}
+			if index > len(textBox.Text) {
+				return false
+			}
+			for _, c := range textBox.Text[:index] {
+				if c != ' ' {
+					return false
+				}
+			}
+			return true
+		}
+		children := box.Box().Children
+		if index != 0 || !IsLine(box) || len(children) == 0 {
+			return false
+		}
+		box, skipStack = children[0], next
+	}
+	return true
+}
+
 // Remove in place space characters at the end of a line.
 // This also reduces the width of the inline parents of the modified text.
 func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
@@ -822,9 +851,11 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 	box := box_.Box()
 
 	initialSkipStack := skipStack
-	isStart := skipStack == nil
+	// gopdfgo: pominięcie samych zwijanych spacji z początku wiersza nie czyni fragmentu kontynuacją;
+	// w źródle pudełko liniowe zaczynające się od spacji traciło lewy margines, obramowanie i odstęp.
+	isStart := (skipStack == nil || skipsOnlyLeadingSpaces(box_, skipStack)) && !box.SplitBefore
 	var skip int
-	if !isStart {
+	if skipStack != nil {
 		skip, skipStack = skipStack.Unpack()
 	}
 
@@ -844,7 +875,24 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 
 	leftSpacing := box.PaddingLeft.V() + box.MarginLeft.V() + box.BorderLeftWidth.V()
 	rightSpacing := box.PaddingRight.V() + box.MarginRight.V() + box.BorderRightWidth.V()
+	if clone := box.Style.GetBoxDecorationBreak() == "clone"; !clone {
+		// strona ucięta przez blok w środku pudełka (ustawiane w boxes.innerBlockInInline)
+		ltr := box.Style.GetDirection() == pr.Ltr
+		if (box.SplitBefore && ltr) || (box.SplitAfter && !ltr) {
+			leftSpacing = 0
+		}
+		if (box.SplitAfter && ltr) || (box.SplitBefore && !ltr) {
+			rightSpacing = 0
+		}
+	}
 	contentBoxLeft := positionX
+	// gopdfgo: dzieci są układane od positionX i dopiero na końcu przesuwane o lewy margines, obramowanie
+	// i odstęp pudełka, więc miejsce w wierszu trzeba o nie zmniejszyć; w źródle pierwszy wiersz
+	// pudełka liniowego z lewym odstępem wystawał o ten odstęp poza blok.
+	if !bo.LineT.IsInstance(box_) && box.Style.GetDirection() == pr.Ltr &&
+		(isStart || box.Style.GetBoxDecorationBreak() == "clone") && maxX < pr.Inf {
+		maxX -= leftSpacing
+	}
 
 	if box.Style.GetPosition().String == "relative" {
 		absoluteBoxes = &[]*AbsolutePlaceholder{}
@@ -994,7 +1042,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 	}
 
-	isEnd := resumeAt == nil
+	isEnd := resumeAt == nil && !box.SplitAfter
 	toCopy := make([]Box, len(children))
 	for i, boxChild := range children {
 		toCopy[i] = boxChild.box
@@ -1539,13 +1587,23 @@ func isPhantomLinebox(linebox *bo.BoxFields) bool {
 			if !isPhantomLinebox(child) {
 				return false
 			}
-			for side := pr.KnownProp(0); side < 4; side++ {
-				m := getDimOrS(child, pr.PMarginBottom+side*5).Value
-				b := getDimOrS(child, pr.PBorderBottomWidth+side*5).Value
-				p := getDimOrS(child, pr.PPaddingBottom+side*5).Value
-				if m != 0 || b != 0 || p != 0 {
-					return false
-				}
+			// gopdfgo: liczą się tylko marginesy, obramowania i odstępy w osi wiersza (CSS Inline 3 § 2.1,
+			// "non-zero inline-axis margins, padding, or borders"), i tylko po stronach, których fragment
+			// nie stracił przez blok w środku. W źródle wiersz przestawał być pusty także przez
+			// obramowanie górne lub dolne.
+			ltr := child.Style.GetDirection() == pr.Ltr
+			skipLeft := (child.SplitBefore && ltr) || (child.SplitAfter && !ltr)
+			skipRight := (child.SplitAfter && ltr) || (child.SplitBefore && !ltr)
+			if child.Style.GetBoxDecorationBreak() == "clone" {
+				skipLeft, skipRight = false, false
+			}
+			if !skipLeft && (getDimOrS(child, pr.PMarginLeft).Value != 0 ||
+				getDimOrS(child, pr.PBorderLeftWidth).Value != 0 || getDimOrS(child, pr.PPaddingLeft).Value != 0) {
+				return false
+			}
+			if !skipRight && (getDimOrS(child, pr.PMarginRight).Value != 0 ||
+				getDimOrS(child, pr.PBorderRightWidth).Value != 0 || getDimOrS(child, pr.PPaddingRight).Value != 0) {
+				return false
 			}
 		} else if isCollapsibleSpace(child_) {
 			// gopdfgo: wiersz z samymi zwijalnymi odstępami nie ma tekstu (odstępy na początku i końcu
