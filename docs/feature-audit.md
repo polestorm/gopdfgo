@@ -546,3 +546,25 @@ bez testów. W testach przejętych zmieniono lub dodano ok. 414 wierszy.
 
 **Rozmiar binarki** `cmd/gopdfgo` (macOS arm64, go1.26.6, `CGO_ENABLED=0 -trimpath -ldflags='-s -w'`):
 21,60 MB; ze stanu `4320f84` 21,52 MB (+0,08 MB). Bez usuwania symboli: 28,16 MB.
+
+## Położenie znaków w zapisanym tekście (2026-11-15)
+
+Pełny sondaż ekranowy: **6787 z 9135 (74,3%)**, w tym 6404 ściśle i 383 krawędziowo; poprzednio 6762.
+Zyskanych 30 (treść generowana 9, `box-display` 7, listy 6, elementy pływające 3, pozycjonowanie 2,
+`css-content` 2, tabele 1), straconych 5, 0 błędów renderowania i przekroczeń limitu czasu. Wynik powtórzony
+w dwóch przebiegach bez żadnej różnicy.
+
+Przyczyna była jedna: korekty odstępów między znakami zapisywane w PDF były obcinane w tę samą stronę przy
+każdym znaku, więc narysowany tekst rozjeżdżał się z szerokością wyznaczoną w układzie o ok. 0,03 px na
+kilkanaście znaków. Układ był poprawny, ale wszystko, co stało za dłuższym tekstem (drugi element w wierszu,
+treść `::after`, komórka tabeli), miało inaczej wygładzone krawędzie niż ten sam tekst zapisany jednym
+ciągiem. Liczba testów zaliczonych ściśle wzrosła o 52, a zaliczonych tylko z dokładnością do krawędzi
+spadła o 27.
+
+Pięć strat: cztery testy `CSS2/css1` z fontem Ahem, w których krawędź znaku leży dokładnie na granicy piksela
+i przesunięcie początku tekstu o ułamek jednostki zmienia wygładzanie (wcześniej zaliczane krawędziowo), oraz
+`content-056` (21 różnych pikseli przy progu 20). Sprawdzone warianty i ich wyniki są w `THIRD_PARTY.md`.
+
+W korpusie 21 dokumentów zmiana nie przesunęła żadnego słowa względem Chromium ani nie zmieniła liczby stron;
+zmienia się wygładzanie krawędzi znaków na każdej stronie. Przy okazji naprawiono kolumnę procentową tabeli
+przy komórce z `colspan` (osobny wpis w `THIRD_PARTY.md`).

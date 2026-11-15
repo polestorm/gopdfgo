@@ -147,12 +147,25 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 		lastFont      *font.Font
 		lastFontChars *backend.FontChars
 		xAdvance      pr.Fl
+		kerningCarry  pr.Fl // reszta z zaokrąglenia korekt, zob. niżej
 	)
 
 	fontSize := style.FontDescription.Size
 
 	output.FontSize = fontSize
 	output.ScaleX = scaleX
+	// gopdfgo: początek tekstu ustawiamy na siatce tysięcznych firetu liczonej
+	// od początku strony (przesunięcie najwyżej o pół takiej jednostki, czyli
+	// 0,0005 rozmiaru fontu), a jego odchyłkę od pozycji z układu wliczamy
+	// w przenoszoną resztę. Dzięki temu każdy znak ląduje w tym samym punkcie
+	// siatki niezależnie od tego, czy tekst jest jednym fragmentem, czy
+	// kilkoma kolejnymi pudełkami.
+	if fontSize > 0 && scaleX == 1 && angle == 0 {
+		units := x * 1000 / fontSize
+		snapped := pr.Fl(math.Round(float64(units)))
+		kerningCarry = snapped - units
+		x = snapped * fontSize / 1000
+	}
 	output.X, output.Y = x, y
 	output.Angle = angle
 	output.Text = textRunes
@@ -228,7 +241,15 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			}
 
 			// Kerning, word spacing, letter spacing
-			outGlyph.Kerning = int(pr.Fl(outFont.Extents[outGlyph.Glyph].Width) - gAdvance*1000/fontSize + outGlyph.Offset)
+			// gopdfgo: korekta jest liczbą całkowitą w tysięcznych firetu, więc
+			// resztę z zaokrąglenia przenosimy na następny znak. Źródło obcinało
+			// ułamek przy każdym znaku w tę samą stronę i błąd narastał wzdłuż
+			// wiersza: tekst rysowany rozjeżdżał się z szerokością z układu
+			// o setne części piksela na kilkanaście znaków, co przesuwało
+			// wygładzanie krawędzi wszystkiego, co stoi za dłuższym tekstem.
+			wanted := pr.Fl(outFont.Extents[outGlyph.Glyph].Width) - gAdvance*1000/fontSize + outGlyph.Offset + kerningCarry
+			outGlyph.Kerning = int(math.Round(float64(wanted)))
+			kerningCarry = wanted - pr.Fl(outGlyph.Kerning)
 			// advance
 			outGlyph.XAdvance = xAdvance
 			xAdvance += gAdvance*1000/fontSize + outGlyph.Offset - pr.Fl(outGlyph.Kerning)

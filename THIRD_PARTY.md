@@ -424,6 +424,16 @@ Wspólne dla obu katalogów:
   rozpinającej swój udział procentowy, zanim reszta trafi do pozostałych kolumn; źródło oddawało całość kolumnom
   bez procentu, więc kolumna `width: 90%` obok pustej kolumny kurczyła się do kilku pikseli, gdy tabela miała
   wiersz z `colspan` (test WPT `table-colspan-percent-auto`);
+- położenie znaków w zapisanym tekście (runda 2026-11-14), `text/draw/draw_gotext.go`: korekta odstępu po
+  znaku w operatorze `TJ` (liczba całkowita w tysięcznych firetu) jest zaokrąglana, a reszta przechodzi na
+  następny znak; początek tekstu jest ustawiany na siatce tych jednostek liczonej od początku strony
+  (przesunięcie do 0,0005 rozmiaru fontu). Źródło obcinało korektę w stronę zera przy każdym znaku, więc błąd
+  narastał wzdłuż wiersza i tekst narysowany rozjeżdżał się z szerokością wyznaczoną w układzie (ok. 0,03 px
+  na kilkanaście znaków). Skutek: ten sam tekst wygląda identycznie w jednym fragmencie i w kilku kolejnych
+  pudełkach. Rozmiar plików PDF bez zmian. Odrzucone warianty (pełny sondaż 6779 wobec 6787 dla przyjętego):
+  korekty ułamkowe bez siatki (pliki większe o 2,9%) oraz zaokrąglanie narastające w pomiarze tekstu (psuło
+  zgodność tekstu dzielonego na fragmenty). Koszt przyjętego: cztery testy `CSS2/css1` z fontem Ahem, w których
+  krawędź znaku leży dokładnie na granicy piksela, przeszły z klasy „z dokładnością do krawędzi” do niezaliczonych;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
