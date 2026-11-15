@@ -38,6 +38,8 @@ type FontConfiguration interface {
 	heightx(style *TextStyle) pr.Fl
 	// returns the height and baseline of a line containing a single space (" ")
 	spaceHeight(style *TextStyle) (height, baseline pr.Float)
+	// gopdfgo: zalecany przez font odstęp między wierszami (lineGap), w pikselach
+	lineGap(style *TextStyle) pr.Float
 
 	splitFirstLine(hyphenCache map[HyphenDictKey]hyphen.Hyphener, text []rune, style *TextStyle,
 		maxWidth pr.MaybeFloat, minimum, isLineStart bool) FirstLine

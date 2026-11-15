@@ -3,6 +3,7 @@ package pdf
 import (
 	"encoding/binary"
 	"fmt"
+	"sort"
 
 	"github.com/go-text/typesetting/font"
 	ot "github.com/go-text/typesetting/font/opentype"
@@ -99,6 +100,7 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 	}
 
 	var glyfNew, locaNew, postNew []byte
+	maxGlyphs := 0 // liczba glifów po ucięciu tabeli loca
 	if ld.HasTable(locaTag) && ld.HasTable(glyfTag) {
 		// load 'locaT' and 'glyf' tables
 		locaT, err := ld.RawTable(locaTag)
@@ -126,6 +128,7 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 
 		loca, glyfNew = subsetGlyf(loca, glyfRaw, glyphs)
 		locaNew = writeLoca(loca, isLong)
+		maxGlyphs = len(loca) - 1
 	}
 	if ld.HasTable(postTag) {
 		raw, err := ld.RawTable(postTag)
@@ -143,16 +146,32 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 		postNew = writePost(raw, names)
 	}
 
+	// gopdfgo: przy konturach TrueType font w PDF jest adresowany wyłącznie numerami glifów
+	// (CIDFontType2 z Identity-H), więc zostają tylko tabele potrzebne do rysowania (ISO 32000-1
+	// § 9.9, tab. 126), a tabele indeksowane numerem glifu są ucinane za ostatnim użytym glifem.
+	// Źródło kopiowało w całości hmtx, cmap, GDEF i resztę: podzbiór Noto Sans z kilkudziesięcioma
+	// glifami miał 37-44 kB, z czego 28 kB to hmtx i cmap.
+	var trimmed map[ot.Tag][]byte
+	if locaNew != nil {
+		// font o nietypowych tabelach zostaje przy samym podzbiorze konturów
+		trimmed, _ = trimGlyphIndexedTables(ld, maxp, maxGlyphs)
+		if trimmed != nil {
+			trimmed[ot.MustNewTag("cmap")] = buildCmap(keptChars(ld, glyphs))
+		}
+	}
+
 	origTablesTags := ld.Tables()
 	tables := make([]ot.Table, 0, len(origTablesTags))
 	for _, tag := range origTablesTags {
-		if ignoreTable(tag) {
+		if ignoreTable(tag) || (trimmed != nil && !keptInTrueTypeSubset[tag]) {
 			continue
 		}
 
 		table := ot.Table{Tag: tag}
 
-		if tag == glyfTag && glyfNew != nil {
+		if content, ok := trimmed[tag]; ok {
+			table.Content = content
+		} else if tag == glyfTag && glyfNew != nil {
 			table.Content = glyfNew
 		} else if tag == locaTag && locaNew != nil {
 			table.Content = locaNew
@@ -284,4 +303,107 @@ func writePostNames20(names tables.PostNames20) []byte {
 		out = append(out, name...)
 	}
 	return out
+}
+
+// Tabele zostające w podzbiorze fontu o konturach TrueType.
+var keptInTrueTypeSubset = map[ot.Tag]bool{
+	ot.MustNewTag("head"): true, ot.MustNewTag("hhea"): true, maxpTag: true, ot.MustNewTag("hmtx"): true,
+	locaTag: true, glyfTag: true, postTag: true, ot.MustNewTag("name"): true, ot.MustNewTag("OS/2"): true,
+	ot.MustNewTag("cvt "): true, ot.MustNewTag("fpgm"): true, ot.MustNewTag("prep"): true,
+	ot.MustNewTag("gasp"): true, ot.MustNewTag("cmap"): true,
+}
+
+// keptChars zwraca odwzorowanie znak → glif z tabeli cmap fontu, ograniczone do zostających glifów.
+func keptChars(ld *ot.Loader, glyphs glyphSet) map[rune]ot.GID {
+	out := map[rune]ot.GID{}
+	raw, err := ld.RawTable(ot.MustNewTag("cmap"))
+	if err != nil {
+		return out
+	}
+	table, _, err := tables.ParseCmap(raw)
+	if err != nil {
+		return out
+	}
+	cmap, _, err := font.ProcessCmap(table, 0)
+	if err != nil {
+		return out
+	}
+	for it := cmap.Iter(); it.Next(); {
+		r, gid := it.Char()
+		if _, kept := glyphs[gid]; kept {
+			out[r] = gid
+		}
+	}
+	return out
+}
+
+// buildCmap składa tabelę cmap z jedną podtabelą formatu 12 (platforma 3, kodowanie 10) dla podanych
+// znaków. Glify wybiera się w PDF numerami, więc czytnik zgodny z normą tej tabeli nie potrzebuje, ale
+// CoreGraphics (podgląd macOS) rysuje tekst minimalnie inaczej, gdy font jej nie ma albo jest pusta,
+// a część czytników odrzuca font TrueType bez cmap. Kolejność grup jest rosnąca po kodzie znaku.
+func buildCmap(chars map[rune]ot.GID) []byte {
+	codes := make([]rune, 0, len(chars))
+	for r := range chars {
+		codes = append(codes, r)
+	}
+	sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
+	type group struct{ start, end, gid uint32 }
+	var groups []group
+	for _, r := range codes {
+		code, gid := uint32(r), uint32(chars[r])
+		if n := len(groups); n != 0 && groups[n-1].end+1 == code && groups[n-1].gid+(code-groups[n-1].start) == gid {
+			groups[n-1].end = code
+			continue
+		}
+		groups = append(groups, group{code, code, gid})
+	}
+	out := make([]byte, 12+16+12*len(groups))
+	binary.BigEndian.PutUint16(out[2:], 1)   // jedna podtabela
+	binary.BigEndian.PutUint16(out[4:], 3)   // platforma Windows
+	binary.BigEndian.PutUint16(out[6:], 10)  // pełny Unicode
+	binary.BigEndian.PutUint32(out[8:], 12)  // przesunięcie podtabeli
+	binary.BigEndian.PutUint16(out[12:], 12) // format 12
+	binary.BigEndian.PutUint32(out[16:], uint32(16+12*len(groups)))
+	binary.BigEndian.PutUint32(out[24:], uint32(len(groups)))
+	for i, g := range groups {
+		at := 28 + 12*i
+		binary.BigEndian.PutUint32(out[at:], g.start)
+		binary.BigEndian.PutUint32(out[at+4:], g.end)
+		binary.BigEndian.PutUint32(out[at+8:], g.gid)
+	}
+	return out
+}
+
+// trimGlyphIndexedTables zwraca nowe maxp, hhea i hmtx dla fontu uciętego do numGlyphs glifów.
+func trimGlyphIndexedTables(ld *ot.Loader, maxp []byte, numGlyphs int) (map[ot.Tag][]byte, error) {
+	hheaTag, hmtxTag := ot.MustNewTag("hhea"), ot.MustNewTag("hmtx")
+	hhea, err := ld.RawTable(hheaTag)
+	if err != nil {
+		return nil, err
+	}
+	hmtx, err := ld.RawTable(hmtxTag)
+	if err != nil {
+		return nil, err
+	}
+	if len(maxp) < 6 || len(hhea) < 36 || numGlyphs <= 0 || numGlyphs > 0xFFFF {
+		return nil, fmt.Errorf("invalid maxp or hhea table")
+	}
+	oldGlyphs := int(binary.BigEndian.Uint16(maxp[4:]))
+	oldMetrics := int(binary.BigEndian.Uint16(hhea[34:]))
+	if numGlyphs > oldGlyphs || oldMetrics > oldGlyphs || len(hmtx) < 4*oldMetrics+2*(oldGlyphs-oldMetrics) {
+		return nil, fmt.Errorf("inconsistent hmtx table")
+	}
+	newMetrics := min(oldMetrics, numGlyphs)
+	// pełne wpisy (szerokość i odsadka), potem same odsadki glifów o wspólnej szerokości
+	newHmtx := append([]byte{}, hmtx[:4*newMetrics]...)
+	if numGlyphs > newMetrics {
+		newHmtx = append(newHmtx, hmtx[4*oldMetrics:4*oldMetrics+2*(numGlyphs-newMetrics)]...)
+	}
+	newMaxp := append([]byte{}, maxp...)
+	binary.BigEndian.PutUint16(newMaxp[4:], uint16(numGlyphs))
+	newHhea := append([]byte{}, hhea...)
+	binary.BigEndian.PutUint16(newHhea[34:], uint16(newMetrics))
+	return map[ot.Tag][]byte{
+		maxpTag: newMaxp, hheaTag: newHhea, hmtxTag: newHmtx,
+	}, nil
 }

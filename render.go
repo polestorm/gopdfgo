@@ -82,6 +82,10 @@ type Options struct {
 	// zmieniło ograniczenie. Wartość true daje zachowanie z dosłownego tekstu CSS 2.2 § 10.7: margines
 	// zwija się z marginesem rodzica i odsuwa następne pudełko (ADR 0006).
 	MarginsEscapeHeightLimits bool
+	// MonospaceFontSize to rozmiar w pikselach, jaki ma font-size: medium, gdy font-family jest samym
+	// słowem monospace (<pre>, <code>, <kbd>, <samp>, <tt>). Zero oznacza 13, jak w przeglądarkach;
+	// 16 wyłącza tę regułę i daje pismo tej samej wielkości co reszta tekstu (ADR 0008).
+	MonospaceFontSize float64
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -196,7 +200,8 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
-	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits}
+	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
+		MonospaceFontSize: opts.MonospaceFontSize}
 	var sheets []tree.CSS
 	if opts.UserCSS != "" {
 		sheet, err := tree.NewCSSExt(utils.InputString(opts.UserCSS), opts.BaseURL, fontConfig)

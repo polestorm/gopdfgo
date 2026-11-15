@@ -353,6 +353,17 @@ func (fc *FontConfigurationGotext) spaceHeight(style *TextStyle) (height, baseli
 	return height, baseline
 }
 
+// lineGap (gopdfgo) zwraca odstęp międzywierszowy pierwszego dostępnego fontu, zaokrąglony do całych
+// pikseli tak jak wydłużenia (zob. roundMetric).
+func (fc *FontConfigurationGotext) lineGap(style *TextStyle) pr.Float {
+	face := fc.resolveFace(' ', style.FontDescription)
+	if face == nil || face.Upem() == 0 {
+		return 0
+	}
+	extents, _ := face.FontHExtents()
+	return max(0, roundMetric(pr.Float(extents.LineGap)*pr.Float(style.FontDescription.Size)/pr.Float(face.Upem())))
+}
+
 func (fc *FontConfigurationGotext) widthSpace(style *TextStyle) pr.Fl {
 	glyphs, _, sizeFactor := fc.shapeRune(' ', style.FontDescription, style.FontFeatures)
 

@@ -935,3 +935,74 @@ i zero zysków; mierzone obszary WPT tych konstrukcji nie ćwiczą. Reftesty dru
 Paczka jest sprawdzana testami własnymi: `TestMediaQueriesWithFeatures` (32 zapytania, każde także jako
 atrybut `media`), `TestModernSyntaxEquivalents` (38 par), `TestColorFunctionsConvertToSRGB`,
 `TestTextShadowOffsetCopy`.
+
+## Paczka: faktura z xml.pro wobec Chromium, fonty w PDF, interlinia, `monospace` (2026-11-16)
+
+Pierwszy prawdziwy dokument spoza korpusu: strona faktury KSeF z `goksefgo/ksefview`, którą xml.pro
+drukuje przez Chromium (i opcjonalnie przez gopdfgo). Obraz był zgodny z Chromium od razu; porównanie
+plików i ramek słów odsłoniło trzy błędy niewidoczne w pikselach.
+
+| Co | Przed | Po | Chromium |
+|---|---|---|---|
+| rozmiar pliku faktury | 199 kB | 32 kB | 43 kB |
+| osadzone kopie Noto Sans | 8 (jedna na rozmiar pisma) | 2 (zwykły, gruby) | 2 |
+| `Ascent` w opisie fontu | 50 905 | 1069 | 1069 |
+| ramka słowa „Faktura”, `yMin` | 36,82 pt | 34,91 pt | 34,65 pt |
+| rozstaw wierszy, Tinos 14 px, `line-height: normal` | 15 px | 16 px | 16 px |
+| szerokość słowa „code” w `<code>` | 38,7 px | 32,0 px | 32,0 px |
+| korpus 21 dokumentów, suma rozmiarów | 3316 kB | 992 kB | — |
+
+Pomiary z 2026-11-16: rozmiary `ls`/`du`, opis fontu odczytany z pliku, ramki `pdftotext -bbox`,
+Chromium bezgłowy z tymi samymi plikami fontów przez `@font-face`. Pliki do obejrzenia:
+`bench/compare/invoice/` (poza gitem).
+
+Co zmieniono:
+
+- **Jeden font na krój.** Klucz pamięci fontów zawierał rozmiar pisma, więc każdy rozmiar osadzał
+  własny podzbiór. Nazwa podzbioru nie zależy już od rozmiaru (wcześniej mogła zależeć od tego,
+  co proces renderował wcześniej).
+- **Podzbiór TrueType** zawiera tylko tabele potrzebne do rysowania; `hmtx` i `maxp` ucięte za ostatnim
+  użytym glifem, `cmap` zbudowana od nowa z zostających glifów. Pusta `cmap` zmieniała rysowanie
+  w CoreGraphics (1333 bajty obrazu) i w Ghostscripcie (3109 pikseli), brak wpisu dla ligatury „fi”
+  jeszcze 37 pikseli w Ghostscripcie; z odwzorowaniem przeniesionym z oryginału obraz jest
+  identyczny w poppler, Ghostscripcie i CoreGraphics.
+- **Opis fontu** (`Ascent`, `Descent`, `FontBBox`) liczony w tysięcznych firetu. Nie zmienia obrazu,
+  ale `pdftotext` i czytniki ekranowe liczą z niego ramki tekstu: po poprawce zgadzają się
+  z Chromium do 0,3 pt.
+- **`line-height: normal` z odstępem międzywierszowym fontu** (CSS Inline 3 § 4.2). Dotyczy krojów
+  z niezerowym `lineGap`, czyli Tinos i Arimo; Noto Sans ma zero.
+- **Pismo `monospace` 13 px** jak w przeglądarkach, z parametrem `MonospaceFontSize` (ADR 0008).
+- **`quotes: auto`**: język dopasowany według BCP 47 i brany z rodzica; poprzednio wynik dla `fr-CH`
+  zależał od losowej kolejności mapy.
+- **Układ pod testy W3C**: szerokość wewnętrzna kontenera flex w kolumnie z zawijaniem; linia bazowa
+  powiększająca wiersz siatki (drugi przebieg układu).
+
+Wynik (2026-11-16, pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003): **7002 z 9110 (76,9%)**,
+ściśle 6616, krawędziowo 386, niezaliczone 2108; poprzednio 6976 (ściśle 6593). Zyskane 27 (tabele CSS 2: 8,
+flex 8, siatka 6, `css-content` 4, CSS 1: 1), stracony 1: `before-after-table-parts-001` (tabela
+z treścią generowaną i obrazami; po zmianie wysokości wierszy różnica przekracza próg).
+Reftesty druku: 228 z 340, bez zmian w zaliczonych.
+
+Sprawdzone i odrzucone: zaokrąglanie górnej połowy interlinii także przy podanym `line-height`. Dawało
+7 zaliczeń ścisłych więcej w sondażu, ale oddalało tekst od wydruku Chromium o ok. 0,3 pt w pięciu
+z sześciu zmierzonych dokumentów korpusu, więc zaokrąglany jest tylko odstęp przy `line-height: normal`.
+
+### Co pomiar ramek pokazał w korpusie
+
+Dopóki `Ascent` w opisie fontu był błędny, miara „słowa przesunięte względem Chromium” mierzyła
+częściowo ten błąd. Po poprawce (mediana odchylenia w pionie, pt; słowa przesunięte o ponad 3 pt):
+
+| Dokument | Mediana | 90. centyl | Ponad 3 pt |
+|---|---|---|---|
+| `21-mixed-report` | 0,11 | 0,36 | 0 z 848 |
+| `04-qms-procedure` | 0,74 | 13,19 | 8 z 2619 |
+| `17-tables` | 1,32 | 2,59 | 13 z 175 |
+| `20-invoice` | 2,52 | 5,42 | 350 z 826 |
+| `08-flex` | 3,61 | 10,71 | 121 z 189 |
+| `02-register-table` | 5,57 | 20,75 | 2015 z 2844 |
+| `10-preformatted` | 16,95 | 127,37 | 37 z 149 |
+
+Liczba stron zgadza się z Chromium w 19 z 21 dokumentów (wyjątki: `06-margin-boxes`, `11-edge-cases`,
+oba znane). Odchylenia w tabelach, flex i tekście preformatowanym narastają w dół strony, czyli są
+to różnice wysokości wierszy, nie pojedyncze przesunięcia. To następny cel: znaleźć, skąd bierze się
+dryf w `02-register-table`, `10-preformatted` i `20-invoice`.

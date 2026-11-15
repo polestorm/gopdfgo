@@ -1093,11 +1093,11 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 	lineHeight, baseline := text.StrutLayout(box.Style, context)
 	newBox.Baseline = baseline
 	newBox.Height = text.ContentAreaHeight(box.Style, context)
-	halfLeading := (lineHeight - newBox.Height.V()) / 2.
+	leadingTop, leadingBottom := text.SplitLeading(lineHeight-newBox.Height.V(), box.Style.GetLineHeight().Tag == pr.Normal)
 	// Set margins to the half leading but also compensate for borders and
 	// paddings. We want marginHeight() == lineHeight
-	newBox.MarginTop = halfLeading - newBox.BorderTopWidth.V() - newBox.PaddingTop.V()
-	newBox.MarginBottom = halfLeading - newBox.BorderBottomWidth.V() - newBox.PaddingBottom.V()
+	newBox.MarginTop = leadingTop - newBox.BorderTopWidth.V() - newBox.PaddingTop.V()
+	newBox.MarginBottom = leadingBottom - newBox.BorderBottomWidth.V() - newBox.PaddingBottom.V()
 
 	if newBox.Style.GetPosition().String == "relative" {
 		for _, absoluteBox := range *absoluteBoxes {
@@ -1275,9 +1275,9 @@ func splitTextBox(context *layoutContext, box *bo.TextBox, availableWidth pr.May
 		//  of the line box."
 		// Set margins so that marginHeight() == lineHeight
 		lineHeight, _ := text.StrutLayout(box.Style, context)
-		halfLeading := (lineHeight - height) / 2.
-		box.MarginTop = halfLeading
-		box.MarginBottom = halfLeading
+		leadingTop, leadingBottom := text.SplitLeading(lineHeight-height, box.Style.GetLineHeight().Tag == pr.Normal)
+		box.MarginTop = leadingTop
+		box.MarginBottom = leadingBottom
 		// form the top of the content box
 		box.Baseline = v.Baseline + box.MarginTop.V() // form the top of the margin box
 	} else {

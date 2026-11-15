@@ -56,6 +56,9 @@ type StyleFor struct {
 	// gopdfgo: obszar pierwszej strony dla jednostek vw/vh; wspólny dla kopii StyleFor
 	viewport *viewport
 
+	// gopdfgo: stosunek rozmiaru pisma monospace do zwykłego (ADR 0008), 1 wyłącza regułę
+	monospaceScale pr.Float
+
 	// gopdfgo: kaskady pseudoelementów, z których styl obliczony powstaje
 	// dopiero na żądanie (zob. Get), oraz to, czego do tego potrzeba
 	pseudoCascades  map[*utils.HTMLNode][]sharedCascade
@@ -135,6 +138,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		sheets:         sheets,
 		textContext:    textContext,
 		viewport:       &viewport{html: html},
+		monospaceScale: monospaceScaleOf(html),
 
 		pseudoCascades:  map[*utils.HTMLNode][]sharedCascade{},
 		share:           newShareContext(),
@@ -387,6 +391,7 @@ func (sf *StyleFor) setComputedStyles(element, parent Element,
 		rootStyle_, pseudoType, baseUrl, targetCollector, sf.textContext, sf.share)
 	if computed, ok := style.(*ComputedStyle); ok {
 		computed.viewport = sf.viewport
+		computed.monospaceScale = sf.monospaceScale
 	}
 	sf.computedStyles[key] = style
 }
@@ -588,6 +593,9 @@ type ComputedStyle struct {
 	specified  pr.SpecifiedAttributes
 
 	viewport *viewport // gopdfgo: dla jednostek vw/vh
+
+	monospaceScale  pr.Float // gopdfgo: zob. StyleFor.monospaceScale; 0 jak 1
+	keywordFontSize int8     // gopdfgo: pamięć fontSizeFromKeyword: 0 nieznane, 1 tak, -1 nie
 }
 
 func newComputedStyle(parentStyle pr.ElementStyle, cascaded cascadedStyle,
@@ -661,6 +669,7 @@ func (c *ComputedStyle) isRootElement() bool { return c.parentStyle == nil }
 func (c *ComputedStyle) Copy() pr.ElementStyle {
 	out := newComputedStyle(c.parentStyle, c.cascaded, c.element, c.pseudoType, c.rootStyle, c.baseUrl, c.textContext, c.share)
 	out.viewport = c.viewport
+	out.monospaceScale = c.monospaceScale
 	out.propsCache.updateWith(c.propsCache)
 	return out
 }
@@ -752,6 +761,12 @@ func (c *ComputedStyle) Get(key pr.PropKey) pr.CssProperty {
 	if v, has := c.propsCache.get(key); has {
 		return v
 	}
+	if key.KnownProp == pr.PFontSize && key.Var == "" {
+		// zależy od rodziny fontu i rozmiaru rodzica; wynik zostaje przy tym stylu
+		out := c.monospaceFontSize(c.compute(key))
+		c.propsCache.Set(key, out)
+		return out
+	}
 
 	// gopdfgo: wynik trafia do wspólnej tablicy tylko wtedy, gdy w trakcie
 	// obliczania nie sięgnięto po nic właściwego jednemu elementowi
@@ -806,6 +821,98 @@ func (c *ComputedStyle) compute(key pr.PropKey) pr.CssProperty {
 		out = fn(c, key.KnownProp, out)
 	}
 	return out
+}
+
+// Rozmiar pisma monospace (gopdfgo, ADR 0008). W przeglądarkach font-size: medium znaczy 13 px, gdy
+// font-family to samo słowo monospace, i 16 px w pozostałych przypadkach; dotyczy to każdego rozmiaru
+// wywiedzionego ze słowa kluczowego, także odziedziczonego albo podanego względem rodzica (em, %).
+// Żadna norma tego nie opisuje, ale <pre> i <code> mają przez to w każdej przeglądarce pismo 13 px,
+// a dokumenty są pod to układane. Źródło dawało 16 px.
+
+func monospaceScaleOf(html *HTML) pr.Float {
+	size := html.Behavior.MonospaceFontSize
+	if size <= 0 {
+		size = 13
+	}
+	return pr.Float(size) / pr.InitialValues.GetFontSize().Value
+}
+
+func isMonospaceOnly(family pr.Strings) bool {
+	return len(family) == 1 && utils.AsciiLower(family[0]) == "monospace"
+}
+
+// fontSizeFromKeyword mówi, czy rozmiar pisma elementu wywodzi się ze słowa kluczowego (medium, large…),
+// a nie z podanej długości. Wartość początkowa to medium, więc dokument bez font-size spełnia warunek.
+func (c *ComputedStyle) fontSizeFromKeyword() bool {
+	if c.keywordFontSize != 0 {
+		return c.keywordFontSize > 0
+	}
+	parent := func() bool {
+		switch p := c.parentStyle.(type) {
+		case nil:
+			return true
+		case *ComputedStyle:
+			return p.fontSizeFromKeyword()
+		case *AnonymousStyle:
+			if grand, ok := p.parentStyle.(*ComputedStyle); ok {
+				return grand.fontSizeFromKeyword()
+			}
+		}
+		return false
+	}
+	result := false
+	casc, has := c.cascaded[pr.PFontSize.Key()]
+	switch value := casc.value.(type) {
+	case nil:
+		result = parent()
+	case pr.TaggedDim:
+		switch {
+		case pr.XxSmall <= value.Tag && value.Tag <= pr.XxLarge:
+			result = true
+		case value.Tag == pr.Larger || value.Tag == pr.Smaller,
+			value.Calc == nil && (value.Unit == pr.Perc || value.Unit == pr.Em):
+			result = parent()
+		}
+	default:
+		if !has || casc.value == pr.Inherit {
+			result = parent()
+		} else if casc.value == pr.Initial {
+			result = true
+		}
+	}
+	c.keywordFontSize = -1
+	if result {
+		c.keywordFontSize = 1
+	}
+	return result
+}
+
+// monospaceFontSize przelicza obliczony rozmiar pisma przy przejściu między rodziną monospace
+// a każdą inną.
+func (c *ComputedStyle) monospaceFontSize(size pr.CssProperty) pr.CssProperty {
+	scale := c.monospaceScale
+	dim, ok := size.(pr.TaggedDim)
+	if scale == 0 || scale == 1 || !ok || !c.fontSizeFromKeyword() {
+		return size
+	}
+	own := isMonospaceOnly(c.GetFontFamily())
+	inherited := false
+	if c.parentStyle != nil {
+		inherited = isMonospaceOnly(c.parentStyle.GetFontFamily())
+	}
+	if casc, has := c.cascaded[pr.PFontSize.Key()]; has {
+		if value, isDim := casc.value.(pr.TaggedDim); (isDim && pr.XxSmall <= value.Tag && value.Tag <= pr.XxLarge) || casc.value == pr.Initial {
+			// słowo kluczowe podane wprost: rozmiar nie zależy od rodzica
+			inherited = false
+		}
+	}
+	switch {
+	case own && !inherited:
+		dim.Value *= scale
+	case !own && inherited:
+		dim.Value /= scale
+	}
+	return dim
 }
 
 // AnonymousStyle provides on demand access of computed properties,

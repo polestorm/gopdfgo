@@ -1021,6 +1021,28 @@ func findBoxIndex(l []Box, v Box) int {
 func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack, containingBlock containingBlock,
 	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
 ) (Box, blockLayout) {
+	// gopdfgo: wyrównanie do linii bazowej powiększa wiersz, gdy elementy po przesunięciu przestają się
+	// w nim mieścić (CSS Grid 1 § 11.5 i CSS Align 3 § 9.3: do wkładu elementu w rozmiar ścieżki
+	// dolicza się odsunięcie od wspólnej linii bazowej). Linie bazowe znamy dopiero po ułożeniu
+	// elementów, więc pierwszy przebieg mierzy, o ile wiersze są za niskie, a drugi układa siatkę
+	// z powiększonymi wierszami. Pudełka pozycjonowane zebrane w pierwszym przebiegu są odrzucane.
+	absoluteCount, fixedCount := len(*absoluteBoxes), len(*fixedBoxes)
+	out, layout, rowExtra := gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
+		absoluteBoxes, fixedBoxes, nil)
+	if len(rowExtra) == 0 {
+		return out, layout
+	}
+	*absoluteBoxes, *fixedBoxes = (*absoluteBoxes)[:absoluteCount], (*fixedBoxes)[:fixedCount]
+	out, layout, _ = gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
+		absoluteBoxes, fixedBoxes, rowExtra)
+	return out, layout
+}
+
+// gridLayoutPass układa siatkę; rowExtra to dodatki do wysokości wierszy z poprzedniego przebiegu
+// (nil w pierwszym). Trzeci wynik to dodatki, których wymaga wyrównanie do linii bazowej.
+func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack, containingBlock containingBlock,
+	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, rowExtra map[int]pr.Float,
+) (Box, blockLayout, map[int]pr.Float) {
 	context.createBlockFormattingContext()
 
 	// gopdfgo: dzieci pozycjonowane bezwzględnie nie są elementami siatki (CSS Grid 1 § 9): nie biorą udziału
@@ -1592,6 +1614,13 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	rowsSizes := resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
 		'y', rowGap, box_, columnsSizes)
 
+	for row, extra := range rowExtra {
+		if row < len(rowsSizes) {
+			rowsSizes[row][0] += extra
+			rowsSizes[row][1] = max(rowsSizes[row][1], rowsSizes[row][0])
+		}
+	}
+
 	// 3.3 Re-resolve the sizes of the grid columns with min-/max-content.
 	// TODO: Re-resolve.
 
@@ -1723,7 +1752,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		// TODO: Check that page is not empty.
 		if context.overflowsPage(bottomSpace, rowY-skipHeight) {
 			if i == 0 {
-				return nil, blockLayout{nil, nil, tree.PageBreak{Break: "any"}, false}
+				return nil, blockLayout{nil, nil, tree.PageBreak{Break: "any"}, false}, nil
 			}
 			// gopdfgo: wiersz, od którego zaczynamy tę stronę, nie mieści się na pustej stronie. Zostawiamy
 			// go tutaj (wystaje), bo wznowienie od niego samego dawało nieskończenie wiele stron
@@ -1982,8 +2011,31 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		return item.Box().MarginHeight()
 	}
 	rowBaseline := map[int]pr.Float{}
+	rowBelow := map[int]pr.Float{}
 	for _, item := range baselineItems {
-		rowBaseline[item.row] = max(rowBaseline[item.row], itemBaseline(item.box))
+		above := itemBaseline(item.box)
+		rowBaseline[item.row] = max(rowBaseline[item.row], above)
+		rowBelow[item.row] = max(rowBelow[item.row], item.box.Box().MarginHeight()-above)
+	}
+	// o ile wiersz o rozmiarze wyznaczanym z treści jest za niski dla wyrównanych elementów
+	var neededExtra map[int]pr.Float
+	if rowExtra == nil && skipStack == nil && resumedRow == -1 {
+		for row, above := range rowBaseline {
+			if row >= len(rowsSizes) || row >= len(rowSizingFunctions) {
+				continue
+			}
+			switch rowSizingFunctions[row][1].Tag {
+			case pr.Auto, pr.MinContent, pr.MaxContent:
+			default:
+				continue
+			}
+			if extra := above + rowBelow[row] - rowsSizes[row][0]; extra > 0.01 {
+				if neededExtra == nil {
+					neededExtra = map[int]pr.Float{}
+				}
+				neededExtra[row] = extra
+			}
+		}
 	}
 	for _, item := range baselineItems {
 		if shift := rowBaseline[item.row] - itemBaseline(item.box); shift > 0 {
@@ -2115,7 +2167,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		traceLogger.DumpTree(box_, "after gridLayout")
 	}
 
-	return box_, blockLayout{resumeAt, nil, tree.PageBreak{Break: "any"}, false}
+	return box_, blockLayout{resumeAt, nil, tree.PageBreak{Break: "any"}, false}, neededExtra
 }
 
 // pySlice zwraca s[start:end] według reguł wycinków Pythona: indeks ujemny liczy się od końca,

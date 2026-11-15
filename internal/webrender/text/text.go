@@ -128,13 +128,14 @@ type StrutLayoutKey struct {
 	fontLanguageOverride fontLanguageOverride
 	fontStretch          FontStretch
 	fontStyle            FontStyle
+	contentArea          bool // gopdfgo: wysokość obszaru treści, bez odstępu międzywierszowego
 }
 
 // StrutLayout returns a tuple of the used value of `line-height` and the baseline.
 // The baseline is given from the top edge of line height.
 // [context] is mandatory for the text layout.
 func StrutLayout(style_ pr.StyleAccessor, context TextLayoutContext) (lineHeight, baseline pr.Float) {
-	return strutLayout(style_, context, style_.GetLineHeight())
+	return strutLayout(style_, context, style_.GetLineHeight(), false)
 }
 
 // ContentAreaHeight zwraca wysokość obszaru treści pudełka liniowego: sumę wydłużenia górnego i dolnego
@@ -143,11 +144,29 @@ func StrutLayout(style_ pr.StyleAccessor, context TextLayoutContext) (lineHeight
 // gopdfgo: w źródle pudełko liniowe miało wysokość równą rozmiarowi fontu, więc tło i obramowanie
 // elementów liniowych były niższe niż w przeglądarkach.
 func ContentAreaHeight(style_ pr.StyleAccessor, context TextLayoutContext) pr.Float {
-	height, _ := strutLayout(style_, context, pr.TaggedDim{Tag: pr.Normal})
+	height, _ := strutLayout(style_, context, pr.TaggedDim{Tag: pr.Normal}, true)
 	return height
 }
 
-func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV pr.TaggedDim) (lineHeight, baseline pr.Float) {
+// SplitLeading (gopdfgo) dzieli interlinię na część nad i pod obszarem treści (CSS Inline 3 § 4.3:
+// połowa z każdej strony, bez określenia dokładności).
+//
+// Przy podanym line-height podział jest dokładnie po połowie, jak w źródle: pomiar na korpusie
+// dokumentów (2026-11-16, ramki słów względem wydruku Chromium) pokazał, że zaokrąglanie oddala
+// tekst od Chromium o ok. 0,3 pt. Przy line-height: normal interlinią jest odstęp międzywierszowy
+// fontu, liczony w całych pikselach; tam górna część jest zaokrąglana w dół, żeby linia bazowa
+// została na siatce pikseli także przy nieparzystym odstępie.
+func SplitLeading(leading pr.Float, normal bool) (top, bottom pr.Float) {
+	if !normal {
+		return leading / 2, leading / 2
+	}
+	top = pr.Float(math.Floor(float64(leading) / 2))
+	return top, leading - top
+}
+
+// strutLayout: contentArea pomija odstęp międzywierszowy fontu, który należy do wysokości wiersza,
+// a nie do obszaru treści.
+func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV pr.TaggedDim, contentArea bool) (lineHeight, baseline pr.Float) {
 	style := NewTextStyle(style_, false)
 
 	fontSize := style.Size
@@ -164,6 +183,7 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 		fontLanguageOverride: style.FontLanguageOverride,
 		fontStretch:          style.Stretch,
 		fontStyle:            style.Style,
+		contentArea:          contentArea,
 	}
 
 	cache := context.StrutLayoutsCache()
@@ -175,12 +195,23 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 
 	if lineHeightV.Tag == pr.Normal {
 		lineHeight = height
+		if !contentArea {
+			// gopdfgo: line-height: normal obejmuje odstęp międzywierszowy fontu (CSS Inline 3 § 4.2:
+			// „zaleca się użycie metryki line gap”), rozłożony nad i pod wierszem tak jak interlinia
+			// przy podanym line-height (zob. SplitLeading). Źródło go pomijało, więc wiersze pisane fontem
+			// z niezerowym odstępem (Tinos, Arimo) były niższe niż w przeglądarkach.
+			gap := context.Fonts().lineGap(style)
+			lineHeight += gap
+			top, _ := SplitLeading(gap, true)
+			baseline += top
+		}
 	} else {
 		lineHeight = lineHeightV.Value
 		if lineHeightV.Unit == pr.Scalar {
 			lineHeight *= pr.Float(fontSize)
 		}
-		baseline = baseline + (lineHeight-height)/2
+		top, _ := SplitLeading(lineHeight-height, false)
+		baseline = baseline + top
 	}
 
 	cache[key] = [2]pr.Float{lineHeight, baseline}

@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
@@ -1022,8 +1023,109 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") && box.Box().Style.GetFlexWrap() == "nowrap" {
 		return adjust(box, outer, sum, true, true)
 	} else {
+		if wrapped, ok := columnWrapContentWidth(context, box, minContentWidth); ok {
+			return adjust(box, outer, wrapped, true, true)
+		}
 		return adjust(box, outer, max, true, true)
 	}
+}
+
+// columnWrapContentWidth (gopdfgo): szerokość wewnętrzna kontenera flex w kolumnie z zawijaniem
+// i o podanej wysokości to suma szerokości jego linii (kolumn) wraz z odstępami, a nie szerokość
+// najszerszego elementu (CSS Flexbox 1 § 9.9.1: rozmiar wyznacza układ przy danym ograniczeniu).
+// Elementy dzielimy na linie według ich rozmiaru w osi głównej: flex-basis, potem height, z ograniczeniem
+// min-height i max-height. Gdy któryś element nie ma podanej wysokości, wynik jest nieokreślony
+// (ok == false) i wołający zostaje przy najszerszym elemencie.
+func columnWrapContentWidth(context *layoutContext, box Box, itemWidth func(*layoutContext, Box, bool) pr.Float) (pr.Float, bool) {
+	style := box.Box().Style
+	if !strings.HasPrefix(string(style.GetFlexDirection()), "column") || style.GetFlexWrap() == "nowrap" {
+		return 0, false
+	}
+	pixels := func(d pr.TaggedDim) (pr.Float, bool) {
+		if d.Tag != 0 || d.Unit != pr.Px || d.Calc != nil {
+			return 0, false
+		}
+		return d.Value, true
+	}
+	limit, ok := pixels(style.GetHeight())
+	if !ok {
+		// przy wysokości auto linie łamie max-height
+		if limit, ok = pixels(style.GetMaxHeight()); !ok {
+			return 0, false
+		}
+	}
+	if style.GetBoxSizing() == "border-box" {
+		for _, d := range [...]pr.TaggedDim{style.GetPaddingTop(), style.GetPaddingBottom(), style.GetBorderTopWidth(), style.GetBorderBottomWidth()} {
+			v, _ := pixels(d)
+			limit -= v
+		}
+	}
+	rowGap, _ := pixels(style.GetRowGap())
+	columnGap, _ := pixels(style.GetColumnGap())
+
+	var total, lineWidth, lineHeight pr.Float
+	lines, inLine := 0, 0
+	// kolejność elementów według order, stabilnie
+	var items []Box
+	for _, child := range box.Box().Children {
+		if child.Box().IsFlexItem {
+			items = append(items, child)
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].Box().Style.GetOrder() < items[j].Box().Style.GetOrder()
+	})
+	for _, child := range items {
+		cs := child.Box().Style
+		var frame pr.Float
+		for _, d := range [...]pr.TaggedDim{cs.GetPaddingTop(), cs.GetPaddingBottom(), cs.GetBorderTopWidth(), cs.GetBorderBottomWidth()} {
+			v, _ := pixels(d)
+			frame += v
+		}
+		size, known := pixels(cs.GetFlexBasis())
+		if !known {
+			size, known = pixels(cs.GetHeight())
+		}
+		if !known {
+			return 0, false
+		}
+		borderBox := cs.GetBoxSizing() == "border-box"
+		if v, has := pixels(cs.GetMaxHeight()); has && size > v {
+			size = v
+		}
+		if v, has := pixels(cs.GetMinHeight()); has && size < v {
+			size = v
+		}
+		if borderBox {
+			size = max(size, frame)
+		} else {
+			size += frame
+		}
+		for _, d := range [...]pr.TaggedDim{cs.GetMarginTop(), cs.GetMarginBottom()} {
+			v, _ := pixels(d)
+			size += v
+		}
+		width := itemWidth(context, child, true)
+		if inLine > 0 && lineHeight+rowGap+size > limit {
+			total += lineWidth
+			lines++
+			lineWidth, lineHeight, inLine = 0, 0, 0
+		}
+		if inLine > 0 {
+			lineHeight += rowGap
+		}
+		lineHeight += size
+		lineWidth = max(lineWidth, width)
+		inLine++
+	}
+	if inLine > 0 {
+		total += lineWidth
+		lines++
+	}
+	if lines == 0 {
+		return 0, false
+	}
+	return total + pr.Float(lines-1)*columnGap, true
 }
 
 // Return the max-content width for an “FlexContainerBox“.
@@ -1043,6 +1145,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") {
 		return adjust(box, outer, sum, true, true)
 	} else {
+		if wrapped, ok := columnWrapContentWidth(context, box, maxContentWidth); ok {
+			return adjust(box, outer, wrapped, true, true)
+		}
 		return adjust(box, outer, max, true, true)
 	}
 }

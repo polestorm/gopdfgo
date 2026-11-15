@@ -820,9 +820,37 @@ func ContentToBoxes(style pr.ElementStyle, parentBox Box, quoteDepth []int, coun
 	cssToken := "content"
 	boxList := computeContentList(
 		style.GetContent().Contents, parentBox, counterValues, cssToken, parseAgain,
-		targetCollector, cs, resolver, quoteDepth, style.GetQuotes(), style.GetLang(),
+		targetCollector, cs, resolver, quoteDepth, style.GetQuotes(), quoteLanguage(parentBox, style.GetLang()),
 		context, page)
 	return boxList
+}
+
+// quoteLanguage (gopdfgo): przy quotes: auto znaki cudzysłowu dobiera się według języka rodzica
+// elementu, nie samego elementu (CSS Content 3 § 4.1): <q lang="fr"> w tekście angielskim dostaje
+// cudzysłowy angielskie. Źródło brało język elementu. Gdy element nie ma własnego atrybutu lang,
+// jego język jest językiem rodzica i zostaje wartość ze stylu.
+func quoteLanguage(pseudo Box, own pr.TaggedString) pr.TaggedString {
+	element := pseudo.Box().Element
+	if element == nil || pseudo.Box().PseudoType == "" {
+		return own
+	}
+	langOf := func(node *html.Node) (string, bool) {
+		for _, attr := range node.Attr {
+			if attr.Key == "lang" {
+				return attr.Val, true
+			}
+		}
+		return "", false
+	}
+	if _, has := langOf(element); !has {
+		return own
+	}
+	for node := element.Parent; node != nil; node = node.Parent {
+		if lang, has := langOf(node); has {
+			return pr.TaggedString{Tag: own.Tag, S: lang}
+		}
+	}
+	return pr.TaggedString{}
 }
 
 // Parse the content-list value of “stringName“ for “string-set“.

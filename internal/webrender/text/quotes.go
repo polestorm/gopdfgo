@@ -2,6 +2,7 @@ package text
 
 import (
 	"strings"
+	"sync"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 )
@@ -133,15 +134,33 @@ var langQuotes = map[string][2]pr.Strings{
 }
 
 func GetLangQuotes(lang string) (open, close pr.Strings) {
-	// TODO: maybe use lang package
-	if quotes, ok := langQuotes[lang]; ok {
-		return quotes[0], quotes[1]
-	}
-	// Revert to find long names before short ones
-	for key, value := range langQuotes {
-		if key != "" && strings.HasPrefix(lang, key) {
-			return value[0], value[1]
+	// gopdfgo: dopasowanie znacznika języka według BCP 47: bez rozróżniania wielkości liter, łącznik
+	// i podkreślenie równoważne, a przy braku wpisu odcinane są kolejne podznaczniki od końca
+	// („fr-CH-x” → „fr-CH” → „fr”). Źródło szukało dokładnego klucza z tabeli CLDR (z podkreśleniem
+	// i wielkimi literami), a potem dowolnego klucza będącego przedrostkiem, przeglądając mapę
+	// w losowej kolejności: „fr-CH” dawało raz cudzysłowy francuskie, raz szwajcarskie, a „FR” domyślne.
+	tag := normalizeLangTag(lang)
+	for tag != "" {
+		if quotes, ok := normalizedLangQuotes()[tag]; ok {
+			return quotes[0], quotes[1]
 		}
+		cut := strings.LastIndexByte(tag, '-')
+		if cut == -1 {
+			break
+		}
+		tag = tag[:cut]
 	}
 	return langQuotes[""][0], langQuotes[""][1]
 }
+
+func normalizeLangTag(lang string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(lang), "_", "-"))
+}
+
+var normalizedLangQuotes = sync.OnceValue(func() map[string][2]pr.Strings {
+	out := make(map[string][2]pr.Strings, len(langQuotes))
+	for key, value := range langQuotes {
+		out[normalizeLangTag(key)] = value
+	}
+	return out
+})

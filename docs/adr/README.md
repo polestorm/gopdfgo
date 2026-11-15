@@ -5,6 +5,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 
 | # | Decyzja | Status |
 |---|---|---|
+| 0008 | Pismo `monospace` bez podanego rozmiaru ma 13 px jak w przeglądarkach; `Options.MonospaceFontSize` zmienia albo wyłącza regułę | przyjęta |
 | 0007 | Cechy w `@media` (`min-width`, `orientation`, …) oceniane względem stałego medium odniesienia: A4 w pionie, niezależnie od `@page` | przyjęta, do rewizji (pytanie 20) |
 | 0006 | Dolny margines dziecka przy `min-height`/`max-height` zostaje w pudełku jak w Chromium; `Options.MarginsEscapeHeightLimits` włącza zachowanie z dosłownego tekstu CSS 2.2 | przyjęta |
 | 0005 | Fonty dla rodzin generycznych (`serif`, `sans-serif`, `monospace`) wskazuje wywołujący przez `Options.GenericFamilies`; bez wskazania bez zmian | przyjęta |

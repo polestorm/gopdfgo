@@ -759,10 +759,14 @@ func TestEmptyInlineAutoMargins(t *testing.T) {
 	block := unpack1(body)
 	span := unpack1(block)
 	// gopdfgo: pudełko liniowe ma wysokość obszaru treści fontu (CSS Inline 3 § 4.1), więc przy
-	// line-height: normal połowa interlinii wynosi zero (w źródle wysokość była rozmiarem fontu).
-	tu.AssertEqual(t, span.Box().MarginTop, Fl(0))
+	// line-height: normal interlinia to odstęp międzywierszowy fontu (zero dla fontu bez odstępu;
+	// w źródle wysokość była rozmiarem fontu), a jej górna część jest zaokrąglana w dół do pikseli.
+	// Font jest tu systemowy, więc sprawdzamy tylko ten podział.
+	top, bottom := span.Box().MarginTop.V(), span.Box().MarginBottom.V()
+	if top < 0 || top > bottom || bottom-top > 1 || top != Fl(int(top)) {
+		t.Errorf("interlinia nad %v i pod %v", top, bottom)
+	}
 	tu.AssertEqual(t, span.Box().MarginRight, Fl(0))
-	tu.AssertEqual(t, span.Box().MarginBottom, Fl(0))
 	tu.AssertEqual(t, span.Box().MarginLeft, Fl(0))
 }
 

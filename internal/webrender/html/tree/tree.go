@@ -40,6 +40,9 @@ type Behavior struct {
 	// wtedy, gdy min-height albo max-height zmieniło wysokość rodzica (dosłownie CSS 2.2 § 10.7).
 	// Domyślnie, jak w Chromium, taki margines zostaje w rodzicu.
 	MarginsEscapeHeightLimits bool
+	// MonospaceFontSize: rozmiar w pikselach, jaki ma font-size: medium, gdy font-family to samo
+	// monospace. Zero oznacza 13 px, jak w przeglądarkach; 16 wyłącza tę regułę (ADR 0008).
+	MonospaceFontSize float64
 }
 
 // `baseUrl` is the base used to resolve relative URLs

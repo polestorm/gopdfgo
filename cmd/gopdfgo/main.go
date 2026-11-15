@@ -32,6 +32,8 @@ func main() {
 	quiet := flag.Bool("quiet", false, "nie wypisuj ostrzeżeń")
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
+	monospaceSize := flag.Float64("monospace-size", 0,
+		"rozmiar pisma (px) dla font-family: monospace bez podanego font-size; 0 oznacza 13 jak w przeglądarkach, 16 wyłącza regułę")
 	generic := map[string][]string{}
 	for name, usage := range map[string]string{"serif": "serif", "sans-serif": "sans-serif", "monospace": "monospace"} {
 		flag.Func(name, "rodziny fontów dla rodziny generycznej "+usage+", po przecinku, np. \"Tinos\"", func(value string) error {
@@ -48,13 +50,13 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *timeout, *quiet); err != nil {
+	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *monospaceSize, *timeout, *quiet); err != nil {
 		fmt.Fprintln(os.Stderr, "gopdfgo:", err)
 		os.Exit(1)
 	}
 }
 
-func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape bool, timeout time.Duration, quiet bool) error {
+func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape bool, monospaceSize float64, timeout time.Duration, quiet bool) error {
 	html, err := os.ReadFile(in)
 	if err != nil {
 		return err
@@ -115,7 +117,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
-		MarginsEscapeHeightLimits: marginsEscape})
+		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize})
 	if err != nil {
 		return err
 	}

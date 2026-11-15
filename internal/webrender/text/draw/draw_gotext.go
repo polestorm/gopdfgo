@@ -24,11 +24,14 @@ type gotextFont struct {
 	size int
 }
 
-// gopdfgo: jeden obiekt fontu na parę (krój, rozmiar). Backend rozpoznaje fonty po
-// wartości interfejsu, więc nowy wskaźnik dla każdego ciągu tekstu osadzał font wielokrotnie.
+// gopdfgo: jeden obiekt fontu na krój, niezależnie od rozmiaru pisma. Backend rozpoznaje fonty po
+// wartości interfejsu, więc nowy wskaźnik dla każdego ciągu tekstu osadzał font wielokrotnie, a klucz
+// z rozmiarem osadzał osobny podzbiór tego samego kroju dla każdego rozmiaru użytego w dokumencie
+// (faktura z ośmioma rozmiarami pisma: osiem kopii Noto Sans, 199 kB zamiast ok. 60 kB). Wszystko, co
+// trafia do opisu fontu w PDF (szerokości, obrysy, wydłużenia), jest w tysięcznych firetu, czyli od
+// rozmiaru nie zależy.
 type fontKey struct {
 	face *font.Face
-	size int
 }
 
 var (
@@ -39,11 +42,13 @@ var (
 func sharedFont(face *font.Face, id font.FontID, size int) *gotextFont {
 	fontCacheLock.Lock()
 	defer fontCacheLock.Unlock()
-	key := fontKey{face, size}
+	key := fontKey{face}
 	if f, ok := fontCache[key]; ok {
 		return f
 	}
-	f := &gotextFont{face, id, size}
+	// rozmiar zerowy: obiekt jest wspólny dla wszystkich rozmiarów i dla kolejnych dokumentów w procesie,
+	// więc nazwa podzbioru w PDF nie może zależeć od tego, który rozmiar trafił się pierwszy
+	f := &gotextFont{face, id, 0}
 	fontCache[key] = f
 	return f
 }
@@ -60,9 +65,10 @@ func (f *gotextFont) Description() backend.FontDescription {
 		Style:  fontStyle(meta.Aspect.Style),
 		Weight: int(meta.Aspect.Weight),
 	}
-	if f.size != 0 {
-		out.Ascent = extents.Ascender * 1000 / utils.Fl(f.size)
-		out.Descent = extents.Descender * 1000 / utils.Fl(f.size)
+	// gopdfgo: wydłużenia w tysięcznych firetu; źródło dzieliło jednostki fontu przez rozmiar pisma
+	if upem := utils.Fl(f.face.Upem()); upem != 0 {
+		out.Ascent = extents.Ascender * 1000 / upem
+		out.Descent = extents.Descender * 1000 / upem
 	}
 
 	out.IsOpentype = true
@@ -210,19 +216,24 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 				// Ink bounding box and logical widths in font
 				if _, in := outFont.Extents[outGlyph.Glyph]; !in {
 					extents, _ := face.GlyphExtents(glyph)
-					x1, y1, x2, y2 := extents.XBearing, -extents.YBearing-extents.Height,
-						extents.XBearing+extents.Width, -extents.YBearing
-					if int(x1) < outFont.Bbox[0] {
-						outFont.Bbox[0] = int(x1 * 1000 / fontSize)
+					// gopdfgo: oś y fontu rośnie w górę, YBearing to góra obrysu, a Height jest ujemne;
+					// źródło odwracało znaki i góra obrysu fontu wychodziła zerowa
+					x1, y1, x2, y2 := extents.XBearing, extents.YBearing+extents.Height,
+						extents.XBearing+extents.Width, extents.YBearing
+					// gopdfgo: obrys fontu w tysięcznych firetu. Źródło porównywało jednostki fontu
+					// z wartością już przeliczoną i dzieliło przez rozmiar pisma zamiast przez upem.
+					perMille := 1000 / pr.Fl(face.Upem())
+					if v := int(x1 * perMille); v < outFont.Bbox[0] {
+						outFont.Bbox[0] = v
 					}
-					if int(y1) < outFont.Bbox[1] {
-						outFont.Bbox[1] = int(y1 * 1000 / fontSize)
+					if v := int(y1 * perMille); v < outFont.Bbox[1] {
+						outFont.Bbox[1] = v
 					}
-					if int(x2) > outFont.Bbox[2] {
-						outFont.Bbox[2] = int(x2 * 1000 / fontSize)
+					if v := int(x2 * perMille); v > outFont.Bbox[2] {
+						outFont.Bbox[2] = v
 					}
-					if int(y2) > outFont.Bbox[3] {
-						outFont.Bbox[3] = int(y2 * 1000 / fontSize)
+					if v := int(y2 * perMille); v > outFont.Bbox[3] {
+						outFont.Bbox[3] = v
 					}
 					// gopdfgo: Width to szerokość logiczna (posunięcie), nie szerokość obrysu, w tysięcznych
 					// firetu wg jednostek fontu. Trafia do tablicy /W w PDF; z szerokością obrysu każdy glif

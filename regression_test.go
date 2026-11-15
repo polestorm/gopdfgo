@@ -153,7 +153,10 @@ func TestColumnSpannerWidth(t *testing.T) {
 // Numeracja list według HTML i CSS Lists 3: atrybuty start, reversed, value oraz zasięg licznika
 // utworzonego przez element, którego rodzic ma już licznik o tej nazwie.
 func TestListNumbering(t *testing.T) {
-	const style = "<style>@page { size: 400px 400px; margin: 10px } body { margin: 0; font-size: 14px }</style>"
+	// line-height: 2, bo pdftotext ustala kolejność czytania z ramek słów: przy line-height: normal ramki
+	// kolejnych wierszy Noto Sans stykają się (wydłużenia 1,362 em wobec wiersza 19 px) i lista
+	// zagnieżdżona wychodzi w innej kolejności, tak samo w wydruku Chromium
+	const style = "<style>@page { size: 400px 400px; margin: 10px } body { margin: 0; font-size: 14px; line-height: 2 }</style>"
 	cases := []struct{ name, html, want string }{
 		{"start", `<ol start="5"><li>a<li>b</ol>`, "5. a 6. b"},
 		{"value", `<ol><li>a<li value="7">b<li>c</ol>`, "1. a 7. b 8. c"},
@@ -1838,6 +1841,30 @@ func TestGridPositionedAndComparisonFunctions(t *testing.T) {
 			`<div class="k" style="width:20px;height:20px"></div><div class="k" style="width:80px;height:20px"></div>`,
 		},
 		{
+			"kontener flex w kolumnie z zawijaniem: szerokość max-content to suma kolumn",
+			`<div class="k" style="display:flex;flex-flow:column wrap;height:100px;width:max-content">` +
+				`<div style="width:50px;flex:0 0 100px;min-height:0"></div><div style="width:30px;flex:0 0 100px;min-height:0"></div></div>`,
+			`<div class="k" style="width:80px;height:100px"></div>`,
+		},
+		{
+			"kolumna z zawijaniem: linie według order i max-height, z odstępem kolumn",
+			`<div class="k" style="display:flex;flex-flow:column wrap;max-height:100px;width:max-content;column-gap:10px">` +
+				`<div style="width:50px;height:90px;flex:none;min-height:0"></div>` +
+				`<div style="width:50px;height:100px;flex:none;min-height:0;order:2"></div>` +
+				`<div style="width:50px;height:10px;flex:none;min-height:0;order:1"></div></div>`,
+			`<div class="k" style="width:110px;height:100px"></div>`,
+		},
+		{
+			"linia bazowa powiększa wiersz siatki",
+			`<div style="display:grid;grid-template-columns:50px 50px;align-items:baseline;font:10px/1 Ahem;color:#080;width:100px">` +
+				`<div>X</div><div style="font-size:20px">X</div><div class="k" style="grid-column:1/3;height:10px"></div></div>`,
+			// mały znak stoi na linii bazowej dużego (8 px niżej), wiersz ma 20 px, drugi wiersz zaczyna się pod nim
+			`<div style="position:relative;font:10px/1 Ahem;color:#080;height:30px">` +
+				`<div style="position:absolute;top:8px;left:0">X</div>` +
+				`<div style="position:absolute;top:0;left:50px;font-size:20px">X</div>` +
+				`<div class="k" style="position:absolute;top:20px;left:0;width:100px;height:10px"></div></div>`,
+		},
+		{
 			"oklch i lab jako tło",
 			`<div style="width:50px;height:50px;background:oklch(51.975% 0.17686 142.495)"></div>` +
 				`<div style="width:50px;height:50px;background:lab(46.2775% -47.5621 48.5837)"></div>`,
@@ -1878,5 +1905,83 @@ func TestTextShadowOffsetCopy(t *testing.T) {
 	plain := rasterize(t, renderString(t, style+`<p>XX</p>`).PDF, dir, "plain")
 	if n := differentPixels(blurred[0], plain[0]); n == 0 {
 		t.Error("cień rozmyty nie zmienił obrazu")
+	}
+}
+
+// Jeden krój to jeden osadzony font, bez względu na liczbę rozmiarów pisma. Błąd wyszedł na fakturze
+// z xml.pro: osiem rozmiarów pisma dawało osiem kopii Noto Sans i plik 199 kB zamiast 69 kB.
+func TestOneEmbeddedFontPerFace(t *testing.T) {
+	var body strings.Builder
+	for _, size := range []int{8, 9, 10, 11, 12, 14, 18, 24} {
+		fmt.Fprintf(&body, `<p style="font-size:%dpx">Zwykły tekst <b>i gruby</b></p>`, size)
+	}
+	result := renderString(t, `<style>body { font-family: "Noto Sans" }</style>`+body.String())
+	single := renderString(t, `<style>body { font-family: "Noto Sans" }</style><p>Zwykły tekst <b>i gruby</b></p>`)
+	want := bytes.Count(single.PDF, []byte("/FontFile2"))
+	if n := bytes.Count(result.PDF, []byte("/FontFile2")); n != want || n == 0 {
+		t.Errorf("osadzonych fontów: %d, a w dokumencie o jednym rozmiarze pisma %d", n, want)
+	}
+	// wynik nie może zależeć od tego, co proces renderował wcześniej
+	renderString(t, `<p style="font-size:40px;font-family:'Noto Sans'">inny rozmiar jako pierwszy</p>`)
+	again := renderString(t, `<style>body { font-family: "Noto Sans" }</style>`+body.String())
+	if !bytes.Equal(result.PDF, again.PDF) {
+		t.Error("ten sam dokument dał inny plik po renderowaniu innego dokumentu")
+	}
+}
+
+// ADR 0008: pismo monospace bez podanego rozmiaru ma 13 px; parametr MonospaceFontSize: 16 wyłącza regułę.
+// Każda para ma dać ten sam dokument.
+func TestMonospaceFontSize(t *testing.T) {
+	cases := []struct {
+		name, tested, expected string
+		size                   float64
+	}{
+		{"code w akapicie", `<p>a <code>kod</code> b</p>`, `<p>a <span style="font:13px monospace">kod</span> b</p>`, 0},
+		{"pre", `<pre style="margin:0">kod</pre>`, `<div style="font:13px monospace;white-space:pre">kod</div>`, 0},
+		{"em względem rodzica", `<div style="font-family:monospace"><span style="font-size:2em">x</span></div>`,
+			`<div style="font:13px monospace"><span style="font-size:26px">x</span></div>`, 0},
+		{"wyjście z monospace", `<div style="font-family:monospace">a<span style="font-family:serif">x</span></div>`,
+			`<div style="font:13px monospace">a<span style="font:16px serif">x</span></div>`, 0},
+		{"lista rodzin to nie samo monospace", `<div style="font-family:monospace, serif">x</div>`,
+			`<div style="font:16px monospace, serif">x</div>`, 0},
+		{"rozmiar podany długością", `<div style="font-size:16px"><code>x</code></div>`,
+			`<div style="font-size:16px"><span style="font:16px monospace">x</span></div>`, 0},
+		{"słowo kluczowe na elemencie", `<code style="font-size:large">x</code>`,
+			`<span style="font:15.6px monospace">x</span>`, 0},
+		{"reguła wyłączona", `<p>a <code>kod</code> b</p>`, `<p>a <span style="font:16px monospace">kod</span> b</p>`, 16},
+	}
+	for _, c := range cases {
+		options := Options{Fonts: testFonts(t), MonospaceFontSize: c.size}
+		tested, err := Render(t.Context(), []byte(c.tested), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := Render(t.Context(), []byte(c.expected), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(tested.PDF, expected.PDF) {
+			t.Errorf("%s: %q dało inny dokument niż %q", c.name, c.tested, c.expected)
+		}
+	}
+}
+
+// quotes: auto: język dopasowany według BCP 47 i brany z rodzica elementu (CSS Content 3 § 4.1).
+func TestAutoQuotesByLanguage(t *testing.T) {
+	cases := []struct{ html, want string }{
+		{`<p lang="fr-CH"><q>un <q>deux</q></q></p>`, "«un ‹deux›»"},
+		{`<p lang="FR"><q>un</q></p>`, "«un»"},
+		{`<p lang="fr_CA"><q>un <q>deux</q></q></p>`, "«un ”deux“»"},
+		{`<p lang="pl"><q>raz <q>dwa</q></q></p>`, "„raz «dwa»”"},
+		{`<p lang="en"><q>one <q lang="pl">two</q></q></p>`, "“one ‘two’”"},
+		{`<p lang="xx-Unknown"><q>one</q></p>`, "“one”"},
+	}
+	for _, c := range cases {
+		for range 3 { // wynik nie może zależeć od kolejności przeglądania mapy
+			if got := string(extractText(t, renderString(t, c.html).PDF)); got != c.want {
+				t.Errorf("%s: %q, oczekiwane %q", c.html, got, c.want)
+				break
+			}
+		}
 	}
 }

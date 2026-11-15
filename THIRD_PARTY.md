@@ -648,6 +648,45 @@ Wspólne dla obu katalogów:
   `:nth-child(an+b of S)` i `:nth-last-child(… of S)`; `:has()` z selektorem względnym (`> a`, `+ a`, `~ a`,
   tylko selektor złożony bez dalszych kombinatorów); `:any-link`; `:focus-visible` i `:focus-within`
   jako nigdy niepasujące, tak jak `:focus`;
+- `text/draw/draw_gotext.go`, 2026-11-15: jeden osadzony font na krój zamiast jednego na parę (krój,
+  rozmiar pisma); nazwa podzbioru nie zależy już od rozmiaru. W opisie fontu (ISO 32000-1 § 9.8.1,
+  wartości w tysięcznych firetu) `Ascent`, `Descent` i `FontBBox` liczone przez `upem`; źródło dzieliło
+  jednostki fontu przez rozmiar pisma (Ascent rzędu 50 000 zamiast 1069) i odwracało oś y obrysu.
+  Skutek: korpus 21 dokumentów 3316 kB → 2020 kB (pomiar `du`, 2026-11-15), obraz bez zmian, a ramki
+  słów z `pdftotext -bbox` zgadzają się z wydrukiem Chromium do 0,3 pt (wcześniej 2 pt w pionie);
+- `html/layout/preferred.go` (`columnWrapContentWidth`), 2026-11-15, CSS Flexbox 1 § 9.9.1: szerokość
+  wewnętrzna kontenera flex w kolumnie z zawijaniem i o podanej wysokości (albo `max-height`) to suma
+  szerokości jego linii z odstępami; źródło brało szerokość najszerszego elementu. Działa, gdy każdy
+  element ma podany rozmiar w osi głównej (`flex-basis` albo `height`); w pozostałych przypadkach
+  zostaje zachowanie źródła;
+- `html/layout/grid.go` (`gridLayout` → `gridLayoutPass`), 2026-11-15, CSS Grid 1 § 11.5, CSS Align 3 § 9.3:
+  wyrównanie do linii bazowej powiększa wiersz o rozmiarze wyznaczanym z treści, gdy przesunięte
+  elementy się w nim nie mieszczą. Robione drugim przebiegiem układu siatki z dodatkami do wierszy
+  zmierzonymi w pierwszym;
+- `text/text.go` (`strutLayout`), `text/engine_gotext.go` (`lineGap`), `text/fonts.go`, 2026-11-15,
+  CSS Inline 3 § 4.2: `line-height: normal` obejmuje odstęp międzywierszowy fontu (lineGap);
+  obszar treści pudełka liniowego go nie obejmuje. Odstęp dzieli `text.SplitLeading`: górna część
+  zaokrąglona w dół do pikseli, reszta pod spodem, więc linia bazowa zostaje na siatce pikseli. Przy
+  podanym `line-height` interlinia jest nadal dzielona dokładnie po połowie (zaokrąglanie oddalało tekst
+  od wydruku Chromium o ok. 0,3 pt, pomiar na korpusie 2026-11-16). Źródło odstęp
+  pomijało: tekst 14 px krojem Tinos miał wiersze co 15 px, w Chromium co 16 px (teraz zgodnie).
+  Zmieniona asercja w `TestEmptyInlineAutoMargins` (połowa interlinii zależy od fontu);
+- `goweasyprint/pdf/text_font_subset.go`, 2026-11-15, ISO 32000-1 § 9.9: podzbiór fontu TrueType zawiera
+  tylko tabele potrzebne do rysowania (`head`, `hhea`, `maxp`, `hmtx`, `loca`, `glyf`, `post`, `name`,
+  `OS/2`, `cvt `, `fpgm`, `prep`, `gasp`, `cmap`); `hmtx` i `maxp` są ucinane za ostatnim użytym glifem,
+  a `cmap` jest budowana od nowa (format 12) z samych zostających glifów. Źródło kopiowało `hmtx`,
+  `cmap` i `GDEF` w całości. Pusta `cmap` zmieniała rysowanie w CoreGraphics i Ghostscripcie, stąd
+  odwzorowanie przeniesione z oryginału. Faktura z xml.pro: 199 kB → 32 kB (Chromium: 43 kB), obraz
+  identyczny w poppler, Ghostscripcie i CoreGraphics;
+- `html/tree/style.go` (`monospaceFontSize`, `fontSizeFromKeyword`), `html/tree/tree.go`
+  (`Behavior.MonospaceFontSize`), 2026-11-16, ADR 0008: rozmiar pisma wywiedziony ze słowa kluczowego
+  jest przeliczany 13/16 dla rodziny będącej samym `monospace`, jak w przeglądarkach; źródło dawało 16 px;
+- `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
+  rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
+  Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz
+  będący przedrostkiem, więc `fr-CH` dawało raz cudzysłowy francuskie, raz szwajcarskie (niedeterminizm);
+- `html/boxes/build.go` (`quoteLanguage`), 2026-11-16, CSS Content 3 § 4.1: przy `quotes: auto` znaki
+  cudzysłowu dobiera język rodzica elementu; źródło brało język samego elementu;
 - `html/layout/flex.go`, 2026-11-15: kontener `inline-flex` bez elementu wyznaczającego linię bazową ma ją
   syntetyzowaną z dolnej krawędzi marginesu (CSS Align 3 § 9.1); źródło przyjmowało górę pudełka
   (testy WPT `flexbox-baseline-empty-001a`, `-001b`);
