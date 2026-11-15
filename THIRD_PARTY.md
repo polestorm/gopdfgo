@@ -514,6 +514,19 @@ Wspólne dla obu katalogów:
   `html/layout/block.go`, 2026-11-15: przełącznik `MarginsEscapeHeightLimits` przywraca zachowanie źródła
   (dolny margines dziecka wychodzi poza pudełko ograniczone przez `min-height` lub `max-height`); domyślne
   pozostaje zachowanie Chromium (ADR 0006, `Options.MarginsEscapeHeightLimits`);
+- `html/layout/tables.go` (`tableLayout`), podział tabel między strony, runda 2026-11-15:
+  - podana wysokość tabeli nie jest stosowana do fragmentów tabeli podzielonej między strony (każdy fragment
+    ma wysokość swoich wierszy); źródło stosowało ją do każdego fragmentu z osobna, więc fragment wystawał
+    poza stronę, a tabela rosła z każdą stroną. Uproszczenie: nadmiar podanej wysokości ponad wiersze nie
+    przechodzi na kolejne strony;
+  - obramowanie i odstęp wewnętrzny tabeli nie są powtarzane na kolejnych stronach także wtedy, gdy tabela
+    ma powtarzany nagłówek lub stopkę (`box-decoration-break: slice`); źródło w takim przypadku powtarzało
+    je na każdej stronie bez rezerwowania miejsca;
+  - przy `box-decoration-break: clone` wiersze zostawiają miejsce na dolny odstęp i obramowanie tabeli
+    na każdej stronie; źródło go nie rezerwowało i dekoracja wychodziła na margines;
+  - po wierszu przerwanym na granicy strony odstęp między komórkami jest przed powtarzaną stopką, a nie
+    za nią; źródło dosuwało stopkę do przerwanego wiersza.
+  Reftesty druku `table-fragmentation-001b…003d` (dziesięć testów) zaliczone;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

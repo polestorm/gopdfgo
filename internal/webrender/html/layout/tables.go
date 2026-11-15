@@ -22,8 +22,18 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	hasHeader := len(table.Children) != 0 && table.Children[0].Box().IsHeader
 	hasFooter := len(table.Children) != 0 && table.Children[len(table.Children)-1].Box().IsFooter
 	collapse := table.Style.GetBorderCollapse() == "collapse"
-	removeStartDecoration := skipStack != nil && !hasHeader
+	// gopdfgo: obramowanie i odstęp wewnętrzny tabeli nie są powtarzane na kolejnych stronach także wtedy,
+	// gdy tabela ma powtarzany nagłówek lub stopkę (box-decoration-break: slice; powtarza je dopiero clone).
+	// Źródło przy nagłówku i stopce powtarzało dekorację na każdej stronie, nie rezerwując na nią miejsca,
+	// więc dolne obramowanie wychodziło na margines strony.
+	removeStartDecoration := skipStack != nil
 	table_.RemoveDecoration(&table.BoxFields, removeStartDecoration, false)
+	// gopdfgo: przy box-decoration-break: clone każdy fragment ma dolny odstęp i obramowanie tabeli,
+	// więc wiersze muszą zostawić na nie miejsce (tak samo jak w blockContainerLayout); źródło tego
+	// nie rezerwowało i dolna dekoracja wychodziła na margines strony.
+	if table.Style.GetBoxDecorationBreak() == "clone" {
+		bottomSpace += table.PaddingBottom.V() + table.BorderBottomWidth.V()
+	}
 
 	// Set border spacings.
 	var borderSpacingX, borderSpacingY pr.Float
@@ -674,8 +684,16 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
 			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
-				footer.Translate(0, endPositionY-footer.Box().PositionY, false)
-				endPositionY += footerHeight
+				if resumeAt != nil {
+					// gopdfgo: po wierszu przerwanym na granicy strony odstęp jest przed powtarzaną stopką,
+					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza
+					endPositionY += borderSpacingY
+					footer.Translate(0, endPositionY-footer.Box().PositionY, false)
+					endPositionY += footerHeight - borderSpacingY
+				} else {
+					footer.Translate(0, endPositionY-footer.Box().PositionY, false)
+					endPositionY += footerHeight
+				}
 				return header, newTableChildren, footer, endPositionY, resumeAt, nextPage
 			} else {
 				// We could not fit any content, drop the footer
@@ -714,8 +732,16 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
 			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
-				footer.Translate(0, endPositionY-footer.Box().PositionY, false)
-				endPositionY += footerHeight
+				if resumeAt != nil {
+					// gopdfgo: po wierszu przerwanym na granicy strony odstęp jest przed powtarzaną stopką,
+					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza
+					endPositionY += borderSpacingY
+					footer.Translate(0, endPositionY-footer.Box().PositionY, false)
+					endPositionY += footerHeight - borderSpacingY
+				} else {
+					footer.Translate(0, endPositionY-footer.Box().PositionY, false)
+					endPositionY += footerHeight
+				}
 				return header, newTableChildren, footer, endPositionY, resumeAt, nextPage
 			} else {
 				// We could not fit any content, drop the footer
@@ -791,7 +817,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	for i, v := range table.ColumnGroups {
 		table.ColumnGroups[i] = v.Copy().(*bo.TableColumnGroupBox)
 	}
-	removeEndDecoration := resumeAt != nil && !hasFooter
+	removeEndDecoration := resumeAt != nil
 	table_.RemoveDecoration(&table.BoxFields, removeStartDecoration, removeEndDecoration)
 	if collapse {
 		table.SkippedRows = skippedRows
@@ -812,6 +838,13 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 	if minHeight, ok := table.MinHeight.(pr.Float); ok {
 		th = max(th, minHeight)
+	}
+	// gopdfgo: fragment tabeli podzielonej między strony ma wysokość swoich wierszy. Podana wysokość
+	// dotyczy całej tabeli, a źródło stosowało ją do każdego fragmentu z osobna, więc fragment wystawał
+	// poza stronę, a tabela rosła z każdą stroną (testy druku table-fragmentation-00x). Uproszczenie:
+	// nadmiar podanej wysokości ponad wiersze nie jest przenoszony na kolejne strony.
+	if resumeAt != nil || skipStack != nil {
+		th = 0
 	}
 	if resumeAt == nil && th > 0 {
 		if extra := th - (positionY - table.ContentBoxY()); extra > 0 {

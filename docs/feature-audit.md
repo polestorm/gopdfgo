@@ -694,3 +694,21 @@ z których 15 było zaliczonych, a 10 nie. Wynik dla tego samego stanu kodu: **6
 6466 ściśle i 382 krawędziowo (przed wyłączeniem 6863 z 9135). Wśród 340 reftestów druku nie ma ani jednego
 takiego testu, więc ich lista się nie zmienia. Reguła nie obejmuje znaków generowanych przez style liczników
 (`list-style-type: georgian` itp.), których nie ma w źródle testu.
+
+## Podział tabel między strony (2026-11-15)
+
+Reftesty druku: **204 z 340** (wszystkie ściśle), poprzednio 194. Sondaż ekranowy bez zmian (6848 z 9110;
+sprawdzony na ćwiartce 1/4, 2287 testów, bez zysków i strat, bo zmiany dotyczą tylko podziału stron).
+
+Cztery poprawki w `tableLayout`, wszystkie widoczne w zwykłych wydrukach z tabelą dłuższą niż strona:
+
+- tabela z podaną wysokością (`height`) nie wystaje już poza stronę i nie rośnie z każdą stroną;
+- obramowanie i odstęp wewnętrzny tabeli nie są powtarzane na każdej stronie, gdy tabela ma `thead` lub
+  `tfoot` (dotąd dolne obramowanie wychodziło wtedy na margines strony);
+- przy `box-decoration-break: clone` wiersze zostawiają miejsce na dolne obramowanie tabeli;
+- powtarzana stopka stoi przy dolnej krawędzi strony, z odstępem od przerwanego wiersza.
+
+W tematyce podziału tabel zostaje 20 niezaliczonych: 13 to testy flex zaliczone do tej grupy przez klasyfikację
+(`multi-line-row-flex-fragmentation-*`, m.in. `break-before: page` na elemencie flex), 4 testy `CSS2/pagination`
+z `break-inside: avoid` grupy wyższej niż strona, 2 testy wysokości procentowych komórek
+(`table-cell-percent-height-*`) i `fixedpos-in-footer-forced-break`.
