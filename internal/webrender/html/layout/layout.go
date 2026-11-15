@@ -100,6 +100,17 @@ func initializePageMaker(context *layoutContext, rootBox bo.BoxFields) {
 		CounterScopes: []utils.Set{utils.NewSet("pages")}, // counterScopes
 	}
 
+	// gopdfgo: liczniki założone na elemencie głównym są widoczne w kontekście strony, więc
+	// counter-increment w @page zwiększa licznik dokumentu, a nie zakłada własnego od zera
+	// (testy druku css-page/margin-boxes/content-010 i 011). W źródle kontekst strony zaczynał bez nich.
+	for _, reset := range rootBox.Style.GetCounterReset().Values {
+		if reset.String == "pages" || reset.String == "page" || reset.Reversed {
+			continue
+		}
+		pageState.CounterValues[reset.String] = []int{reset.Int}
+		pageState.CounterScopes[0].Add(reset.String)
+	}
+
 	// Initial values
 	remakeState := tree.RemakeState{}
 	context.pageMaker = append(context.pageMaker, tree.PageMaker{

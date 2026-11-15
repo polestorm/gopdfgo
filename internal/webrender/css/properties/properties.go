@@ -184,10 +184,11 @@ var InitialValues = Properties{
 	PTransform:       Transforms{}, // computed value for "none"
 
 	// User Interface 3/4 (REC/WD): https://www.w3.org/TR/css-ui-4/
-	PAppearance:   String("none"),
-	POutlineColor: CurrentColor, // invert is not supported
-	POutlineStyle: String("none"),
-	POutlineWidth: TaggedDim{Dimension: Dimension{Value: 3}}, // computed value for "medium"
+	PAppearance:    String("none"),
+	POutlineColor:  CurrentColor, // invert is not supported
+	POutlineStyle:  String("none"),
+	POutlineWidth:  TaggedDim{Dimension: Dimension{Value: 3}}, // computed value for "medium"
+	POutlineOffset: ZeroPixels.Tagged(),                       // gopdfgo
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

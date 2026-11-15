@@ -531,6 +531,23 @@ Wspólne dla obu katalogów:
   Reftesty druku `table-fragmentation-001b…003d` (dziesięć testów) zaliczone;
 - `html/tree/html5_ua.css`, 2026-11-15: `caption { text-align: center }` (HTML, Rendering § 15.3.9); w źródle
   podpis tabeli był wyrównany do lewej (reftest druku `table-page-break-inside-avoid-8`);
+- `display: contents` (CSS Display 3 § 2.5), runda 2026-11-15: `css/properties/types.go` (`Display.Contents`),
+  `css/validation/validation.go` (`display`), `html/boxes/build.go` (`elementToBox`,
+  `keepsBoxWithDisplayContents`): element nie tworzy pudełka, a jego dzieci i pseudoelementy przechodzą do
+  rodzica; elementy zastępowane i formularzowe zachowują pudełko. Źródło odrzucało tę wartość jako nieznaną
+  (testy WPT `css-tables/display-contents-001…003`);
+- strony i pola marginesowe, runda 2026-11-15:
+  - nowa właściwość `outline-offset` (CSS UI 4 § 3.2): `css/properties` (`POutlineOffset`, pliki generowane
+    przez `css/properties/cmd`), `css/validation` (`outlineOffset`), `html/tree/computed_values.go`,
+    `html/document/draw_border.go` (`drawOutline`); źródło jej nie znało i zgłaszało ostrzeżenie;
+  - `html/tree/style.go` (`viewport.size`): obszar strony dla jednostek `vw`, `vh`, `vmin`, `vmax` to strona
+    bez marginesów, obramowania i odstępu wewnętrznego, z procentami liczonymi od rozmiaru strony
+    (CSS Page 3 § 5.3); wcześniejsza wersja odejmowała tylko marginesy podane długością;
+  - `html/layout/layout.go`: liczniki założone przez `counter-reset` elementu głównego są widoczne
+    w kontekście strony, więc `counter-increment` w `@page` zwiększa licznik dokumentu; w źródle kontekst
+    strony zaczynał bez nich i liczył od zera;
+  - `html/layout/pages.go`: `counter-reset` w polu marginesowym zastępuje licznik strony o tej samej nazwie
+    zamiast zakładać licznik zagnieżdżony;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

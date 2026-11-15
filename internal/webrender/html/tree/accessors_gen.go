@@ -964,6 +964,18 @@ func (s *AnonymousStyle) GetOutlineWidth() pr.TaggedDim {
 }
 func (s *AnonymousStyle) SetOutlineWidth(v pr.TaggedDim) { s.propsCache.setKnown(pr.POutlineWidth, v) }
 
+func (s *ComputedStyle) GetOutlineOffset() pr.TaggedDim {
+	return s.Get(pr.POutlineOffset.Key()).(pr.TaggedDim)
+}
+func (s *ComputedStyle) SetOutlineOffset(v pr.TaggedDim) { s.propsCache.setKnown(pr.POutlineOffset, v) }
+
+func (s *AnonymousStyle) GetOutlineOffset() pr.TaggedDim {
+	return s.Get(pr.POutlineOffset.Key()).(pr.TaggedDim)
+}
+func (s *AnonymousStyle) SetOutlineOffset(v pr.TaggedDim) {
+	s.propsCache.setKnown(pr.POutlineOffset, v)
+}
+
 func (s *ComputedStyle) GetBoxSizing() pr.String  { return s.Get(pr.PBoxSizing.Key()).(pr.String) }
 func (s *ComputedStyle) SetBoxSizing(v pr.String) { s.propsCache.setKnown(pr.PBoxSizing, v) }
 

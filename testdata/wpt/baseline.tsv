@@ -71,9 +71,9 @@ pass	margin-boxes	css/css-page/margin-boxes/content-006-print.html
 pass	margin-boxes	css/css-page/margin-boxes/content-007-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-008-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-009-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/content-010-print.html	strona 1: różne piksele 26
-fail	margin-boxes	css/css-page/margin-boxes/content-011-print.html	strona 1: różne piksele 117
-fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 1: różne piksele 284
+pass	margin-boxes	css/css-page/margin-boxes/content-010-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/content-011-print.html	
+fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 1: różne piksele 238
 pass	margin-boxes	css/css-page/margin-boxes/content-013-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-002-print.html	
@@ -213,13 +213,13 @@ pass	page-margins	css/css-page/page-box-000-print.html
 pass	page-margins	css/css-page/page-box-001-print.html	
 pass	page-margins	css/css-page/page-box-002-print.html	
 pass	page-margins	css/css-page/page-box-003-print.html	
-fail	page-margins	css/css-page/page-box-004-print.html	strony 9 vs 6
+pass	page-margins	css/css-page/page-box-004-print.html	
 pass	page-margins	css/css-page/page-box-005-print.html	
 pass	page-margins	css/css-page/page-box-006-print.html	
-fail	page-margins	css/css-page/page-box-007-print.html	strony 2 vs 1
+pass	page-margins	css/css-page/page-box-007-print.html	
 fail	page-margins	css/css-page/page-box-008-print.html	strona 1: różne piksele 268689
-fail	page-margins	css/css-page/page-box-009-print.html	strony 3 vs 1
-fail	page-margins	css/css-page/page-box-010-print.html	strona 1: różne piksele 26722
+fail	page-margins	css/css-page/page-box-009-print.html	strona 1: różne piksele 171287
+pass	page-margins	css/css-page/page-box-010-print.html	
 pass	page-margins	css/css-page/page-box-011-print.html	
 pass	page-margins	css/css-page/page-margin-001-print.html	
 fail	page-margins	css/css-page/page-margin-002-print.html	strona 1: różne piksele 20172

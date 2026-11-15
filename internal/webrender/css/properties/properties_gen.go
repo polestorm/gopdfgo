@@ -296,6 +296,9 @@ func (s Properties) SetOutlineStyle(v String) { s[POutlineStyle] = v }
 func (s Properties) GetOutlineWidth() TaggedDim  { return s[POutlineWidth].(TaggedDim) }
 func (s Properties) SetOutlineWidth(v TaggedDim) { s[POutlineWidth] = v }
 
+func (s Properties) GetOutlineOffset() TaggedDim  { return s[POutlineOffset].(TaggedDim) }
+func (s Properties) SetOutlineOffset(v TaggedDim) { s[POutlineOffset] = v }
+
 func (s Properties) GetBoxSizing() String  { return s[PBoxSizing].(String) }
 func (s Properties) SetBoxSizing(v String) { s[PBoxSizing] = v }
 
@@ -858,6 +861,9 @@ type StyleAccessor interface {
 	GetOutlineWidth() TaggedDim
 	SetOutlineWidth(v TaggedDim)
 
+	GetOutlineOffset() TaggedDim
+	SetOutlineOffset(v TaggedDim)
+
 	GetBoxSizing() String
 	SetBoxSizing(v String)
 
@@ -1223,6 +1229,7 @@ var propsNames = [...]string{
 	POutlineColor:            "outline-color",
 	POutlineStyle:            "outline-style",
 	POutlineWidth:            "outline-width",
+	POutlineOffset:           "outline-offset",
 	PBoxSizing:               "box-sizing",
 	PBackgroundColor:         "background-color",
 	PBackgroundImage:         "background-image",
@@ -1412,6 +1419,7 @@ var PropsFromNames = map[string]KnownProp{
 	"outline-color":              POutlineColor,
 	"outline-style":              POutlineStyle,
 	"outline-width":              POutlineWidth,
+	"outline-offset":             POutlineOffset,
 	"box-sizing":                 PBoxSizing,
 	"background-color":           PBackgroundColor,
 	"background-image":           PBackgroundImage,

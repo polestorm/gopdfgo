@@ -448,7 +448,15 @@ func makeMarginBoxes(context *layoutContext, page *bo.PageBox, state tree.PageSt
 			marginState := state.Copy()
 			// quoteDepth, counterValues, counterScopes = marginState
 			// TODO: check this, probably useless
-			marginState.CounterScopes = append(marginState.CounterScopes, utils.NewSet())
+			// gopdfgo: counter-reset w polu marginesowym zastępuje licznik strony o tej samej nazwie,
+			// zamiast zakładać licznik zagnieżdżony (counters() daje wtedy jedną wartość)
+			replaced := utils.NewSet()
+			for _, reset := range box.Style.GetCounterReset().Values {
+				if len(marginState.CounterValues[reset.String]) != 0 {
+					replaced.Add(reset.String)
+				}
+			}
+			marginState.CounterScopes = append(marginState.CounterScopes, replaced)
 			bo.UpdateCounters(&marginState, box.Style)
 			box.Children = bo.ContentToBoxes(
 				box.Style, box, marginState.QuoteDepth, marginState.CounterValues,

@@ -135,6 +135,7 @@ const (
 	POutlineColor
 	POutlineStyle
 	POutlineWidth
+	POutlineOffset // gopdfgo: CSS UI 4 § 3.2
 	PBoxSizing
 
 	// The following properties are all background related,

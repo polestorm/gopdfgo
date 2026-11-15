@@ -99,6 +99,7 @@ var (
 		pr.PPaddingBottom:           length,
 		pr.PPaddingLeft:             length,
 		pr.PTextIndent:              length,
+		pr.POutlineOffset:           length,
 		pr.PHyphenateLimitZone:      length,
 		pr.PFlexBasis:               length,
 		pr.PTextUnderlineOffset:     length,

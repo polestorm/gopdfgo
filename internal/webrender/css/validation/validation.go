@@ -151,6 +151,7 @@ var (
 		pr.PMaskBorderMode:          maskBorderMode,
 		pr.PColumnRuleWidth:         borderWidth,
 		pr.POutlineWidth:            borderWidth,
+		pr.POutlineOffset:           outlineOffset,
 		pr.PColumnWidth:             columnWidth,
 		pr.PColumnSpan:              columnSpan,
 		pr.PBoxSizing:               boxSizing,
@@ -1866,6 +1867,10 @@ func display(tokens []Token, _ string) pr.CssProperty {
 	case pr.InlineBlock:
 		return pr.Display{Outside: pr.Inline, Inside: pr.FlowRoot}
 	}
+	// gopdfgo: display: contents; źródło odrzucało tę wartość jako nieznaną
+	if len(tokens) == 1 && getKeyword(tokens[0]) == "contents" {
+		return pr.Display{Outside: pr.Inline, Inside: pr.Flow, Contents: true}
+	}
 
 	var outside, inside, listItem pr.Keyword
 	for _, token := range tokens {
@@ -2775,6 +2780,18 @@ func textDecorationThickness(tokens []Token, _ string) pr.CssProperty {
 		return pr.TaggedDim{Tag: pr.FromFont}
 	}
 	return nil
+}
+
+// gopdfgo: “outline-offset“ (CSS UI 4 § 3.2): długość, także ujemna; źródło tej właściwości nie znało.
+func outlineOffset(tokens []Token, _ string) pr.CssProperty {
+	if len(tokens) != 1 {
+		return nil
+	}
+	l := getLength(tokens[0], true, false)
+	if l.IsNone() {
+		return nil
+	}
+	return l.Tagged()
 }
 
 // @validator()

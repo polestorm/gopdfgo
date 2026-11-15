@@ -1483,6 +1483,16 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			`<table style="width:200px"><caption style="text-align:center"><b class="sq"></b></caption><tr><td></td></tr></table>`,
 		},
 		{
+			"display: contents oddaje dzieci rodzicowi",
+			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
+			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,
+		},
+		{
+			"outline-offset odsuwa obrys",
+			`<div style="margin:20px;width:50px;height:50px;outline:5px solid #080;outline-offset:10px"></div>`,
+			`<div style="margin:5px;width:70px;height:70px;border:5px solid #080"></div>`,
+		},
+		{
 			"counter() z zastrzeżoną nazwą unieważnia deklarację",
 			`<style>div::after { content: " x " counter(inherit) }</style><div>7</div>`,
 			`<div>7</div>`,

@@ -20,6 +20,7 @@ import (
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 // Turn an element tree with associated CSS style (computed values)
@@ -359,8 +360,25 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 			targetCollector, cs, nil, nil)
 		box.Box().Children = append([]Box{marker}, box.Box().Children...)
 	}
+	// gopdfgo: display: contents (CSS Display 3 § 2.5): element nie tworzy pudełka, a jego dzieci
+	// i pseudoelementy przechodzą do rodzica. Pudełko liniowe zbudowane wyżej służyło tylko do tego,
+	// żeby teksty odziedziczyły styl elementu. Elementy zastępowane i formularzowe zostają pudełkami.
+	if display.Contents && !keepsBoxWithDisplayContents(element) {
+		return box.Box().Children
+	}
 	// Specific handling for the element. (eg. replaced element)
 	return handleElement(element, box, resolver, baseUrl)
+}
+
+// keepsBoxWithDisplayContents: elementy, dla których display: contents nie znaczy "tylko dzieci"
+// (CSS Display 3, dodatek B wymienia je jako traktowane osobno); tu zachowują zwykłe pudełko.
+func keepsBoxWithDisplayContents(element *utils.HTMLNode) bool {
+	switch element.DataAtom {
+	case atom.Img, atom.Svg, atom.Br, atom.Wbr, atom.Input, atom.Select, atom.Textarea, atom.Button,
+		atom.Canvas, atom.Video, atom.Audio, atom.Object, atom.Embed, atom.Iframe, atom.Meter, atom.Progress:
+		return true
+	}
+	return false
 }
 
 // Yield the box for ::before or ::after pseudo-element.

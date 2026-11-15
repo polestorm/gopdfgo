@@ -719,3 +719,24 @@ zmian na ćwiartce 2/4 (2302 testy). Poprawka do rundy: commit `36b81fc` pogorsz
 (`TestTables_9`, `TestTables_22`: obramowania zwinięte przy powtarzanym nagłówku), bo przed zapisem
 uruchomione były tylko testy pakietu układu, a nie rysowania; następny commit przywraca tam zachowanie źródła.
 W tematyce podziału tabel zostaje 19 niezaliczonych.
+
+## Strony, pola marginesowe, `outline-offset`, `display: contents` (2026-11-15)
+
+Reftesty druku: **210 z 340** (wszystkie ściśle), poprzednio 205. Sondaż ekranowy: **6851 z 9110 (75,2%)**,
+w tym 6469 ściśle i 382 krawędziowo; poprzednio 6848 (6466 i 382); zyskane 3, stracone 0.
+
+- **Liczniki stron** widzą liczniki założone przez `counter-reset` na elemencie głównym, więc
+  `counter-increment` w `@page` kontynuuje licznik dokumentu zamiast liczyć od zera (`content-010`, `-011`).
+- **Jednostki `vw`, `vh`:** obszar strony jest liczony bez obramowania i odstępu wewnętrznego strony, także
+  podanych w procentach (`page-box-004`, `-007`).
+- **`outline-offset`:** nowa właściwość, także dla obrysu strony (`page-box-010`).
+- **`display: contents`:** element nie tworzy pudełka, a jego dzieci przechodzą do rodzica; dotąd deklaracja
+  była odrzucana i element zostawał zwykłym blokiem. Zysk w sondażu to trzy testy `css-tables/display-contents-*`;
+  pozostałe testy z tą wartością albo przechodziły już wcześniej, albo zależą od innych braków.
+
+Pozostałe niezaliczone testy `css-page` (ok. 50) w większości nie dotyczą samych stron: wzorce pól
+marginesowych są zbudowane z flex, grid i pozycjonowania (`alignment-001`, `dimensions-*`, `auto-margins-*`),
+a reszta to `z-index` pól marginesowych, `page-orientation`, piony (`writing-mode`), elementy pływające
+i pozycjonowane dzielone między strony o różnych rozmiarach oraz właściwości eksperymentalne
+(`safe-printable-inset`). Licznik założony w `@page` i ograniczony do jednej strony (`content-012`)
+nie jest obsługiwany.

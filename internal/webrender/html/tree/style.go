@@ -97,15 +97,30 @@ func (v *viewport) size() (pr.Float, pr.Float) {
 	if style == nil {
 		return 0, 0
 	}
-	pixels := func(d pr.TaggedDim) pr.Float {
-		if d.Unit == pr.Px || d.Unit == pr.Scalar {
-			return d.Value
-		}
-		return 0
-	}
 	size := style.GetSize()
-	v.width = size[0].Value - pixels(style.GetMarginLeft()) - pixels(style.GetMarginRight())
-	v.height = size[1].Value - pixels(style.GetMarginTop()) - pixels(style.GetMarginBottom())
+	// gopdfgo: obszar strony to strona bez marginesów, obramowania i odstępu wewnętrznego; procenty liczą się
+	// od szerokości strony dla boków i od wysokości dla góry i dołu (CSS Page 3 § 5.3). Wcześniej odejmowane
+	// były tylko marginesy podane długością.
+	side := func(margin, padding pr.TaggedDim, border pr.Float, reference pr.Float) pr.Float {
+		resolve := func(d pr.TaggedDim) pr.Float {
+			switch {
+			case d.Tag != 0:
+				return 0
+			case d.Unit == pr.Perc:
+				return d.Value*reference/100 + d.Offset
+			case d.Unit == pr.Px || d.Unit == pr.Scalar:
+				return d.Value
+			}
+			return 0
+		}
+		return resolve(margin) + resolve(padding) + border
+	}
+	v.width = size[0].Value -
+		side(style.GetMarginLeft(), style.GetPaddingLeft(), style.GetBorderLeftWidth().Value, size[0].Value) -
+		side(style.GetMarginRight(), style.GetPaddingRight(), style.GetBorderRightWidth().Value, size[0].Value)
+	v.height = size[1].Value -
+		side(style.GetMarginTop(), style.GetPaddingTop(), style.GetBorderTopWidth().Value, size[1].Value) -
+		side(style.GetMarginBottom(), style.GetPaddingBottom(), style.GetBorderBottomWidth().Value, size[1].Value)
 	v.done = true
 	return v.width, v.height
 }

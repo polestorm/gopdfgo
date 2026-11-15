@@ -727,9 +727,12 @@ func (ctx drawContext) drawOutline(box_ Box) {
 	style := box.Style.GetOutlineStyle()
 	if box.Style.GetVisibility() == "visible" && width_.Value != 0 && color.A != 0 {
 		width := width_.Value
+		// gopdfgo: outline-offset odsuwa obrys od krawędzi obramowania; ujemny nie zwija obrysu poniżej zera
+		offset := box.Style.GetOutlineOffset().Value
+		offset = max(offset, -min(box.BorderWidth(), box.BorderHeight())/2)
 		outlineBox := pr.Rectangle{
-			box.BorderBoxX() - width, box.BorderBoxY() - width,
-			box.BorderWidth() + 2*width, box.BorderHeight() + 2*width,
+			box.BorderBoxX() - width - offset, box.BorderBoxY() - width - offset,
+			box.BorderWidth() + 2*(width+offset), box.BorderHeight() + 2*(width+offset),
 		}
 		for _, side := range sides {
 			ctx.dst.OnNewStack(func() {

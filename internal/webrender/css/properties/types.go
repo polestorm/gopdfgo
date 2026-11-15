@@ -43,6 +43,11 @@ type SContent struct {
 
 type Display struct {
 	Outside, Inside, ListItem Keyword
+
+	// Contents (gopdfgo): display: contents (CSS Display 3 § 2.5). Element nie tworzy własnego pudełka,
+	// jego dzieci i pseudoelementy trafiają do rodzica; Outside i Inside mają wtedy wartości pudełka
+	// liniowego, którego styl dziedziczą teksty.
+	Contents bool
 }
 
 // Decorations zero value means "none"
