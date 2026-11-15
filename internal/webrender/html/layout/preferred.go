@@ -464,16 +464,38 @@ func percentageContribution(box bo.BoxFields) pr.Float {
 	var minWidth, width pr.Float
 	maxWidth := pr.Inf
 	miw, maw, w := box.Style.GetMinWidth(), box.Style.GetMaxWidth(), box.Style.GetWidth()
-	if miw.Tag != pr.Auto && miw.Unit == pr.Perc {
+	if miw.Tag != pr.Auto && miw.Unit == pr.Perc && miw.Offset == 0 {
 		minWidth = miw.Value
 	}
-	if maw.Tag != pr.Auto && maw.Unit == pr.Perc {
+	if maw.Tag != pr.Auto && maw.Unit == pr.Perc && maw.Offset == 0 {
 		maxWidth = maw.Value
 	}
-	if w.Tag != pr.Auto && w.Unit == pr.Perc {
+	// gopdfgo: szerokość mieszana, calc() z procentem i długością, liczy się w tabeli jak auto
+	// (CSS Tables 3 § 3.8.3); źródło brało z niej sam procent.
+	if w.Tag != pr.Auto && w.Unit == pr.Perc && w.Offset == 0 {
 		width = w.Value
 	}
 	return max(minWidth, min(width, maxWidth))
+}
+
+// definiteColumnWidth podaje szerokość kolumny wynikającą z samych długości w width, min-width
+// i max-width elementu <col> (procenty i calc() z procentem liczą się jak brak wartości); zero, gdy
+// kolumna nie ma takiej szerokości.
+func definiteColumnWidth(style pr.ElementStyle) pr.Float {
+	length := func(d pr.TaggedDim) (pr.Float, bool) {
+		if d.Tag != 0 || d.Unit == pr.Perc || d.Calc != nil {
+			return 0, false
+		}
+		return d.Value, true
+	}
+	width, _ := length(style.GetWidth())
+	if maxWidth, ok := length(style.GetMaxWidth()); ok {
+		width = min(width, maxWidth)
+	}
+	if minWidth, ok := length(style.GetMinWidth()); ok {
+		width = max(width, minWidth)
+	}
+	return width
 }
 
 type tableContentWidths struct {
@@ -511,6 +533,22 @@ func tableAndColumnsPreferredWidths(context *layoutContext, box_ Box, outer bool
 			rowNumber += 1
 		}
 	}
+	// gopdfgo: kolumna zadeklarowana elementem <col> o szerokości podanej długością istnieje także wtedy,
+	// gdy żaden wiersz nie ma w niej komórki (CSS 2 § 17.2.1: liczba kolumn to większa z liczb kolumn
+	// zadeklarowanych i wynikających z komórek; test WPT css-tables/col-definite-size-001). W źródle
+	// liczbę kolumn wyznaczały same komórki.
+	cellGridWidth := gridWidth
+	if gridHeight > 0 {
+		columnNumber := 0
+		for _, columnGroup := range table.ColumnGroups {
+			for _, column := range columnGroup.Children {
+				columnNumber++
+				if columnNumber > gridWidth && definiteColumnWidth(column.Box().Style) > 0 {
+					gridWidth = columnNumber
+				}
+			}
+		}
+	}
 	// zippedGrid = list(zip(*grid)), which is the transpose of grid
 	grid, zippedGrid := make([][]Box, gridHeight), make([][]Box, gridWidth)
 	for i := range grid {
@@ -534,8 +572,8 @@ func tableAndColumnsPreferredWidths(context *layoutContext, box_ Box, outer bool
 	var totalHorizontalBorderSpacing pr.Float
 	if table.Style.GetBorderCollapse() == "separate" && gridWidth > 0 {
 		var tot pr.Float = 1
-		for _, column := range zippedGrid {
-			any := false
+		for i, column := range zippedGrid {
+			any := i >= cellGridWidth // kolumna istniejąca tylko dzięki <col>
 			for _, b := range column {
 				if b != nil {
 					any = true

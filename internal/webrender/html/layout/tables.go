@@ -747,6 +747,29 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		}
 	}
 
+	// gopdfgo: nagłówek albo stopka, które nie mieszczą się w całości nawet na pustej stronie, przestają być
+	// powtarzane i płyną jak zwykła grupa wierszy (z podziałem między strony). W źródle taka grupa była
+	// po cichu pomijana i jej treść znikała z dokumentu.
+	if pageIsEmpty && skipStack == nil {
+		demoted := false
+		if hasHeader {
+			if group, groupResume, _ := groupLayout(table.Children[0], positionY, bottomSpace, false, nil); group == nil || groupResume != nil {
+				table.Children[0].Box().IsHeader = false
+				demoted = true
+			}
+		}
+		if hasFooter {
+			last := table.Children[len(table.Children)-1]
+			if group, groupResume, _ := groupLayout(last, positionY, bottomSpace, false, nil); group == nil || groupResume != nil {
+				last.Box().IsFooter = false
+				demoted = true
+			}
+		}
+		if demoted {
+			return tableLayout(context, table_, bottomSpace, skipStack, pageIsEmpty, absoluteBoxes, fixedBoxes)
+		}
+	}
+
 	header, newTableChildren, footer, positionY, resumeAt, nextPage := allGroupsLayout()
 	if newTableChildren == nil {
 		if resumeAt != nil {

@@ -1461,6 +1461,18 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			square,
 		},
 		{
+			"kolumna zadeklarowana przez col istnieje bez komórek",
+			`<table style="border-spacing:10px;background:#080"><col style="width:40px"><col style="width:40px"><col style="width:40px">` +
+				`<tr><td style="padding:0;height:20px"></td></tr></table>`,
+			`<table style="border-spacing:10px;background:#080"><tr><td style="padding:0;height:20px;width:40px"></td>` +
+				`<td style="padding:0;width:40px"></td><td style="padding:0;width:40px"></td></tr></table>`,
+		},
+		{
+			"calc z procentem w szerokości kolumny działa jak auto",
+			`<table style="border-spacing:0;background:#080"><col style="width:calc(100px + 1%)"><tr><td style="padding:0"><b class="sq"></b></td></tr></table>`,
+			`<table style="border-spacing:0;background:#080"><tr><td style="padding:0"><b class="sq"></b></td></tr></table>`,
+		},
+		{
 			"skróty logiczne obramowań",
 			`<div style="width:50px;height:20px;border-inline:10px solid #00f;border-block-width:5px 7px;border-block-style:solid;border-block-color:#080"></div>`,
 			`<div style="width:50px;height:20px;border-left:10px solid #00f;border-right:10px solid #00f;border-top:5px solid #080;border-bottom:7px solid #080"></div>`,

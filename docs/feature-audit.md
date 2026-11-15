@@ -614,3 +614,35 @@ pozycjonowanego przy `direction: rtl`, ujemny clearance (`negative-clearance-*`)
 z bieżącym tekstem CSS Lists 3 § 4.3). Część testów `CSS2` zależy od metryk fontu: wzorce zakładają wiersz
 niższy niż 20 px przy foncie 16 px (Times), a Noto Serif z `testdata/fonts` daje 21,8 px
 (np. `inlines-017`, `block-replaced-height-002`, `c5509-ipadn-l-003`); to cecha środowiska pomiaru, nie silnika.
+
+## Tabele: kolumny z `<col>`, za wysoki nagłówek; font Tinos w testach (2026-11-15)
+
+Pełny sondaż ekranowy: **6855 z 9135 (75,0%)**, w tym 6473 ściśle i 382 krawędziowo; poprzednio 6852
+(6470 i 382); zyskane 3, stracone 0. Reftesty druku: **194 z 340** (wszystkie ściśle), poprzednio 192. Sposób pomiaru jak w poprzedniej
+sekcji.
+
+- **Nagłówek albo stopka tabeli wyższe niż strona znikały z dokumentu.** `thead` i `tfoot` są powtarzane na
+  każdej stronie, a grupa, która nie mieściła się na pustej stronie, była po cichu pomijana, także wtedy, gdy
+  tabela miała tylko nagłówek. Teraz taka grupa płynie jak zwykłe wiersze i jest dzielona między strony.
+  Trzy przypadki doszły do `TestNoContentLostAcrossPages`.
+- **Kolumny zadeklarowane przez `<col>`** o szerokości podanej długością istnieją także bez komórek,
+  a `calc()` łączące procent z długością liczy się w szerokościach tabeli jak `auto` (trzy testy
+  `col-definite-*`).
+
+**Tinos.** Do repozytorium doszedł Tinos 1.340 (cztery odmiany, OFL-1.1; metryki Times New Roman),
+w `testdata/fonts/tinos/`, zarejestrowany w `testdata/THIRD_PARTY.md`. Leży w podkatalogu, bo testy i pomiary
+czytają tylko pliki z samego `testdata/fonts`, a Tinos położony obok fontów Noto zmieniał wyniki mimo tego,
+że rodzina `serif` nadal wybierała Noto Serif: stawał się fontem zastępczym dla znaków spoza Noto Sans
+(pięć testów sondażu mniej; w korpusie cztery dokumenty z innym fontem zastępczym i PDF większe o 0,6%,
+bez zmiany liczby stron i położenia słów). Pomiar z Tinos włącza się na żądanie (`SURVEY_TINOS=1`
+w `tools/survey96e.py`).
+
+Pełny sondaż z Tinos jako fontem domyślnym (arkusz użytkownika `html { font-family: Tinos }`, stan sprzed
+poprawek tabel z tej sekcji) dał 6862 wobec 6852 z Noto Serif: 30 testów zyskanych, 20 straconych. To mniej,
+niż sugerowały pojedyncze przypadki: testy CSS 2 nie są pisane pod jeden font, część przechodzi tylko z fontem
+szerszym niż Times, a część strat wynika z samego sposobu ustawienia fontu. Sposób, w jaki silnik ma wybierać
+font dla `serif`, jest pytaniem 19 w `docs/adr/open-questions.md`.
+
+Rozpoznane i odłożone w podziale tabel: `rowgroup-page-break-inside-avoid-4`, `-8`
+i `row-page-break-inside-avoid-2` (wzorce zakładają zachowanie jednej przeglądarki przy `break-inside: avoid`
+grupy wyższej niż strona), rodzina `table-fragmentation-00x` (obramowania i odstępy tabeli przy podziale).

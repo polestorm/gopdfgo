@@ -3057,20 +3057,20 @@ func TestTableEmptyBody(t *testing.T) {
 		{[][]string{nil, {"Header", "Footer"}}, 45, 45, "<p>content</p>"},
 		{[][]string{nil, {"Header", "Footer"}}, 85, 5, "<p>content</p>"},
 		{[][]string{{"Header", "Footer"}}, 30, 30, "<p>content</p>"},
-		{[][]string{nil, {"Header"}}, 30, 110, "<p>content</p>"},
+		{[][]string{nil, {"Footer"}}, 30, 110, "<p>content</p>"},
 		{[][]string{nil, {"Header", "Footer"}}, 30, 60, "<p>content</p>"},
-		{[][]string{nil, {"Footer"}}, 110, 30, "<p>content</p>"},
+		{[][]string{nil, {"Header"}}, 110, 30, "<p>content</p>"},
 
-		// We try to render the header and footer on the same page, but it does not
-		// fit. So we try to render the header or the footer on the next one, but
-		// nothing fit either.
-		{[][]string{nil, nil}, 110, 110, "<p>content</p>"},
+		// gopdfgo: nagłówek albo stopka wyższe niż strona nie są już pomijane, tylko płyną jak zwykła
+		// grupa wierszy; wtedy to one są treścią, dla której ustępuje druga, powtarzana grupa.
+		// Źródło oczekiwało, że za wysoka grupa zniknie (w ostatnim przypadku obie, czyli pusta tabela).
+		{[][]string{nil, {"Header"}, {"Footer"}}, 110, 110, "<p>content</p>"},
 
 		{[][]string{{"Header", "Footer"}}, 30, 30, ""},
-		{[][]string{{"Header"}}, 30, 110, ""},
+		{[][]string{{"Footer"}}, 30, 110, ""},
 		{[][]string{{"Header", "Footer"}}, 30, 60, ""},
-		{[][]string{{"Footer"}}, 110, 30, ""},
-		{[][]string{nil}, 110, 110, ""},
+		{[][]string{{"Header"}}, 110, 30, ""},
+		{[][]string{{"Header"}, {"Footer"}}, 110, 110, ""},
 	} {
 		html := fmt.Sprintf(`
       <style>

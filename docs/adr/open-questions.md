@@ -86,6 +86,18 @@ konkretnego odbiorcy.
     wysokość, margines nie wychodzi poza pudełko. Norma i testy są tu sprzeczne. Przyjęte roboczo 2026-11-15:
     zachowanie przeglądarek i nowszych testów (zysk 4 testy, strata 1), bo dokumenty powstają pod podglądem
     w przeglądarce. Do potwierdzenia przez użytkownika; odwrócenie to jeden warunek w `html/layout/block.go`.
+19. **Font dla rodzin generycznych (`serif`, `sans-serif`, `monospace`).** Silnik wybiera font dla rodziny
+    generycznej według tablicy podstawień biblioteki go-text (odpowiednik fontconfig): przy fontach z
+    `testdata/fonts` i Tinos (`testdata/fonts/tinos`) `serif` daje Noto Serif, a bez niego Noto Sans, nigdy Tinos. Przeglądarki dają dla `serif`
+    font o metrykach Times i pod to pisana jest część testów WPT. Pomiar 2026-11-15 (pełny sondaż ekranowy,
+    Tinos 1.340 ustawiony jako font domyślny arkuszem użytkownika `html { font-family: Tinos }`): 6862 wobec
+    6852 z Noto Serif, 30 testów zyskanych i 20 straconych. Część strat to skutek samego sposobu ustawienia
+    (test z `* { font: inherit }` albo jawnym `serif` dostaje Noto, a jego wzorzec Tinos), część to testy pisane
+    pod szerszy font. Warianty: (a) zostawić Noto Serif jako font domyślny pomiarów; (b) dodać do `Options`
+    wskazanie fontów dla rodzin generycznych (przydatne też użytkownikom biblioteki, którzy chcą sami
+    zdecydować, czym jest `serif`) i mierzyć z Tinos; (c) zmienić kolejność podstawień w silniku na stałe.
+    Propozycja: (b). Do decyzji użytkownika; do tego czasu pomiary zostają na Noto Serif, żeby liczby były
+    porównywalne z poprzednimi.
 
 15. **Współbieżność i zmienne globalne.** `Render` wykonuje jedno renderowanie naraz, bo silnik zgłasza ostrzeżenia
     przez globalne `logger.WarningLogger` (80 wywołań w 25 plikach), a limit czasu nie przerywa pracy. Decyzja

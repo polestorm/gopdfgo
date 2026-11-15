@@ -495,6 +495,18 @@ Wspólne dla obu katalogów:
 - `html/layout/tables.go` (`tableLayout`): tabela bez wierszy nie dostaje pionowego odstępu między komórkami,
   więc ma zerową wysokość treści; źródło dodawało jeden odstęp (runda 2026-11-15, test WPT
   `caption-relative-positioning`);
+- `html/layout/preferred.go` (`tableAndColumnsPreferredWidths`, `definiteColumnWidth`, `percentageContribution`),
+  runda 2026-11-15: kolumna zadeklarowana elementem `<col>` o szerokości wynikającej z długości w `width`,
+  `min-width` i `max-width` istnieje także wtedy, gdy żaden wiersz nie ma w niej komórki, i dostaje swój odstęp
+  (CSS 2 § 17.2.1; źródło liczyło kolumny tylko z komórek); `calc()` łączące procent z długością liczy się
+  w szerokościach tabeli jak `auto` (CSS Tables 3 § 3.8.3; źródło brało sam procent i rozciągało tabelę).
+  Testy WPT `col-definite-size-001`, `col-definite-min-size-001`, `col-definite-max-size-001`;
+- `html/layout/tables.go` (`tableLayout`), runda 2026-11-15: `thead` albo `tfoot`, które nie mieszczą się
+  w całości nawet na pustej stronie, przestają być grupą powtarzaną i płyną jak zwykła grupa wierszy,
+  z podziałem między strony. Źródło po cichu pomijało taką grupę i jej treść znikała z dokumentu (także gdy
+  tabela miała tylko nagłówek). Zmienione oczekiwania testu odziedziczonego `TestTableEmptyBody` (sześć
+  przypadków z grupą o wysokości 110 px na stronie 100 px). Reftesty druku
+  `rowgroup-page-break-inside-avoid-1` i `-3` zaliczone;
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;
