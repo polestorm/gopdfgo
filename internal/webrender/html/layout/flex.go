@@ -473,7 +473,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					child.MainOuterExtra += child.MarginBottom.V()
 				}
 			}
-		} else if base, ok := ratioBaseSize(child_, box, parentBox, main); ok {
+		} else if base, ok := ratioBaseSize(child_, box, parentBox, main, basisIsContent); ok {
 			// gopdfgo: 3.B element z proporcjami, podstawą content i określonym rozmiarem poprzecznym
 			// (tu: rozciągnięty do określonego rozmiaru kontenera jednowierszowego) ma rozmiar bazowy
 			// wyliczony z rozmiaru poprzecznego i proporcji (CSS Flexbox 1 § 9.2 krok 3B). W źródle ten
@@ -805,9 +805,16 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				child.Width = child.TargetMainSize
 			} else {
 				child.Height = child.TargetMainSize
-				// wysokość podana wprost pozostaje określona
+				// wysokość podana wprost pozostaje określona, o ile to ona wyznacza rozmiar główny, czyli
+				// flex-basis to auto; przy flex-basis: content albo podanej długości rozmiar wynika z układu
+				// flex i w kontenerze o nieokreślonej wysokości jest nieokreślony (CSS Flexbox 1 § 9.8)
 				specified := child.Style.GetHeight()
-				child.IndefiniteHeight = mainIsIndefinite && (specified.Tag == pr.Auto || specified.Unit == pr.Perc)
+				basis := child.Style.GetFlexBasis()
+				// element całkowicie nieelastyczny z flex-basis podanym długością ma rozmiar określony
+				inflexible := basis.Tag == 0 && basis.Unit != pr.Perc &&
+					child.Style.GetFlexGrow() == 0 && child.Style.GetFlexShrink() == 0
+				child.IndefiniteHeight = mainIsIndefinite && !inflexible &&
+					(specified.Tag == pr.Auto || specified.Unit == pr.Perc || basis.Tag != pr.Auto)
 			}
 		}
 	}
@@ -1737,7 +1744,8 @@ func forcedBreakBetweenFlexLines(context *layoutContext, previous, next flexLine
 // ratioBaseSize podaje rozmiar bazowy elementu zastępowanego z proporcjami, który zostanie rozciągnięty
 // w osi poprzecznej do określonego rozmiaru kontenera jednowierszowego (CSS Flexbox 1 § 9.2 krok 3B
 // i § 9.9.2: taki rozmiar poprzeczny jest określony).
-func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownProp) (pr.Float, bool) {
+// basisIsContent: flex-basis: content pomija rozmiar podany w osi głównej.
+func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownProp, basisIsContent bool) (pr.Float, bool) {
 	replaced, ok := item.(bo.ReplacedBoxITF)
 	if !ok || container.Style.GetFlexWrap() != "nowrap" {
 		return 0, false
@@ -1758,7 +1766,7 @@ func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownPr
 	if main == pr.PWidth {
 		// wysokość po rozwiązaniu box-sizing i nadana z zewnątrz (parentBox), nie surowa ze stylu
 		height, definite := parentBox.Height.(pr.Float)
-		if !definite || container.IndefiniteHeight || child.Style.GetHeight().Tag != pr.Auto || child.Style.GetWidth().Tag != pr.Auto ||
+		if !definite || container.IndefiniteHeight || child.Style.GetHeight().Tag != pr.Auto || (child.Style.GetWidth().Tag != pr.Auto && !basisIsContent) ||
 			child.MarginTop == pr.AutoF || child.MarginBottom == pr.AutoF {
 			return 0, false
 		}
@@ -1768,7 +1776,7 @@ func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownPr
 		return max(cross, 0) * ratio.V(), true
 	}
 	width, definite := container.Width.(pr.Float)
-	if !definite || child.Style.GetWidth().Tag != pr.Auto || child.Style.GetHeight().Tag != pr.Auto ||
+	if !definite || child.Style.GetWidth().Tag != pr.Auto || (child.Style.GetHeight().Tag != pr.Auto && !basisIsContent) ||
 		child.MarginLeft == pr.AutoF || child.MarginRight == pr.AutoF {
 		return 0, false
 	}

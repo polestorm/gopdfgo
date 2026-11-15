@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
+	"math"
 	"slices"
 	"strings"
 
@@ -435,6 +436,29 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		box.Height = max(min(box.Height.V(), box.MaxHeight.V()), box.MinHeight.V())
 	}
 
+	// gopdfgo: aspect-ratio (CSS Sizing 4 § 5.1): pudełko o wysokości auto i znanej szerokości dostaje
+	// wysokość z proporcji (dla pudełka wskazanego przez box-sizing), ograniczoną przez min-height
+	// i max-height. Treść wyższa niż ta wysokość powiększa pudełko, o ile overflow to visible (minimum
+	// automatyczne, § 5.1.1); zob. koniec funkcji.
+	heightFromRatio := false
+	if ratio := pr.Float(math.Abs(float64(box.Style.GetAspectRatio()))); isStart && ratio > 0 && box.Height == pr.AutoF && !box.IsTableWrapper && !bo.TableT.IsInstance(box_) {
+		if width, ok := box.Width.(pr.Float); ok && width != pr.Inf {
+			height := width / ratio
+			if box.Style.GetBoxSizing() == "border-box" {
+				borderWidth := width + box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
+				height = borderWidth/ratio - box.PaddingTop.V() - box.PaddingBottom.V() - box.BorderTopWidth.V() - box.BorderBottomWidth.V()
+			}
+			height = max(height, 0)
+			if minHeight, ok := box.MinHeight.(pr.Float); ok {
+				height = max(height, minHeight)
+			}
+			if maxHeight, ok := box.MaxHeight.(pr.Float); ok {
+				height = min(height, maxHeight)
+			}
+			box.Height, heightFromRatio = height, true
+		}
+	}
+
 	skip := 0
 	firstLetterStyle := box.FirstLetterStyle
 	// gopdfgo: treść wylewająca się z bloku o podanej wysokości jest kontynuowana na następnej stronie,
@@ -706,6 +730,11 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			newBox.Height = pr.Float(0)
 		} else {
 			newBox.Height = positionY - newBox.ContentBoxY()
+		}
+	} else if heightFromRatio && newBox.Style.GetOverflow() == "visible" && resumeAt == nil && positionY < pr.Inf {
+		// treść wyższa niż wysokość z proporcji
+		if content := positionY - newBox.ContentBoxY(); content > newBox.Height.V() {
+			newBox.Height = min(content, newBox.MaxHeight.V())
 		}
 	}
 
@@ -1137,6 +1166,14 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 	}
 
 	newContainingBlock := box
+	if _, anonymous := child.Style.(*tree.AnonymousStyle); anonymous && bo.BlockT.IsInstance(child_) && child.Style.GetHeight().Tag == pr.Auto {
+		// gopdfgo: zob. BoxFields.AnonymousBaseHeight; w źródle procentowa wysokość obrazu obok bloku
+		// liczyła się od anonimowego bloku o wysokości auto, czyli jak auto
+		_, child.AnonymousBaseHeight = box.ContainingBlock()
+		if child.AnonymousBaseHeight == pr.AutoF {
+			child.AnonymousBaseHeight = nil
+		}
+	}
 
 	if !newContainingBlock.IsTableWrapper {
 		resolveSizesBox(context, child_, newContainingBlock)

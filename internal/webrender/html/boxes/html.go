@@ -1,6 +1,8 @@
 package boxes
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -23,6 +25,7 @@ var htmlHandlers = map[string]handlerFunction{
 	"colgroup": handleColgroup,
 	"col":      handleCol,
 	"svg":      handleSVG,
+	"canvas":   handleCanvas,
 }
 
 // HandleElement handle HTML elements that need special care.
@@ -33,6 +36,25 @@ func handleElement(element *utils.HTMLNode, box Box, resolver URLResolver, baseU
 		return ls
 	}
 	return []Box{box}
+}
+
+// handleCanvas (gopdfgo): <canvas> bez skryptów to przezroczysty element zastępowany o rozmiarze z atrybutów
+// width i height, domyślnie 300 na 150 (HTML § 4.12.5); tło, obramowanie i rozmiary z CSS działają jak dla
+// obrazu. W źródle był zwykłym pustym pudełkiem liniowym, więc nie zajmował miejsca.
+func handleCanvas(element *utils.HTMLNode, box Box, resolver URLResolver, _ string) []Box {
+	dimension := func(name string, fallback int) int {
+		if value, err := strconv.Atoi(strings.TrimSpace(element.Get(name))); err == nil && value >= 0 {
+			return value
+		}
+		return fallback
+	}
+	source := fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d"></svg>`,
+		dimension("width", 300), dimension("height", 150))
+	img, err := images.NewSVGImage(strings.NewReader(source), "", resolver.Fetch)
+	if err != nil {
+		return []Box{box}
+	}
+	return []Box{makeReplacedBox(element, box, img)}
 }
 
 // Wrap an image in a replaced box.

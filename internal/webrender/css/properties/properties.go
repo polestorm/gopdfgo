@@ -189,6 +189,7 @@ var InitialValues = Properties{
 	POutlineStyle:  String("none"),
 	POutlineWidth:  TaggedDim{Dimension: Dimension{Value: 3}}, // computed value for "medium"
 	POutlineOffset: ZeroPixels.Tagged(),                       // gopdfgo
+	PAspectRatio:   Float(0),                                  // gopdfgo: auto
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

@@ -138,6 +138,7 @@ func replacedBoxWidth_(box_ Box, _ *layoutContext, containingBlock containingBlo
 	}
 	box := box__.Replaced()
 	intrinsicWidth, intrinsicHeight, ratio := box.Replacement.GetIntrinsicSize(box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
+	intrinsicWidth, intrinsicHeight, ratio = applyPreferredRatio(box.Style, intrinsicWidth, intrinsicHeight, ratio)
 
 	// This algorithm simply follows the different points of the specification
 	// https://www.w3.org/TR/CSS21/visudet.html#inline-replaced-width
@@ -185,6 +186,7 @@ func replacedBoxHeight_(box_ Box, _ *layoutContext, _ containingBlock) (bool, pr
 	// https://www.w3.org/TR/CSS21/visudet.html#inline-replaced-height
 	_, intrinsicHeight, ratio := box.Replacement.GetIntrinsicSize(
 		box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
+	_, intrinsicHeight, ratio = applyPreferredRatio(box.Style, nil, intrinsicHeight, ratio)
 
 	// Test pr.Auto on the computed width, not the used width
 	if box.Height == pr.AutoF && box.Width == pr.AutoF {
@@ -205,6 +207,29 @@ func replacedBoxHeight_(box_ Box, _ *layoutContext, _ containingBlock) (bool, pr
 	}
 
 	return false, 0
+}
+
+// applyPreferredRatio (gopdfgo): aspect-ratio na elemencie zastępowanym (CSS Sizing 4 § 5.1). Proporcja
+// podana bez auto zastępuje proporcję obrazu; "auto <proporcja>" działa tylko wtedy, gdy obraz własnej
+// nie ma. Rozmiar wewnętrzny w jednej osi jest wtedy uzupełniany z drugiej według nowej proporcji.
+func applyPreferredRatio(style pr.ElementStyle, width, height, ratio pr.MaybeFloat) (pr.MaybeFloat, pr.MaybeFloat, pr.MaybeFloat) {
+	preferred := style.GetAspectRatio()
+	if preferred == 0 || (preferred < 0 && pr.Is(ratio)) {
+		return width, height, ratio
+	}
+	if preferred < 0 {
+		preferred = -preferred
+	}
+	if style.GetWidth().Tag != pr.Auto || style.GetHeight().Tag != pr.Auto {
+		// rozmiar wewnętrzny nie uczestniczy: brakujący wymiar wynika z podanego i z proporcji
+		return nil, nil, preferred
+	}
+	if pr.Is(width) {
+		height = width.V() / preferred
+	} else if pr.Is(height) {
+		width = height.V() * preferred
+	}
+	return width, height, preferred
 }
 
 // Resolve min/max constraints on replaced elements

@@ -794,3 +794,26 @@ W podziale flex zostaje 13 niezaliczonych reftestów druku: przenoszenie `break-
 na kontener (`082a…d`), marginesy i wyrównanie elementów przesuwanych na następną stronę (`075`, `076`, `042`),
 `064`, dwa warianty `069` (kolumna z odwróconą kolejnością), elementy pływające w elemencie flex (2)
 i jeden test pisma pionowego.
+
+## `aspect-ratio`, `<canvas>`, wysokości procentowe (2026-11-15)
+
+Sondaż ekranowy: **6902 z 9110 (75,8%)**, w tym 6520 ściśle i 382 krawędziowo; poprzednio 6891
+(6511 i 380); zyskane 15, stracone 4. Reftesty druku: 224 z 340 (bez zmian).
+
+- **`aspect-ratio`:** nowa właściwość. Blok o wysokości `auto` dostaje wysokość z szerokości (z uwzględnieniem
+  `box-sizing`, `min-height`, `max-height`; wyższa treść powiększa pudełko), pudełko dopasowujące się do
+  treści dostaje szerokość z podanej wysokości, a na obrazie proporcja podana bez `auto` zastępuje proporcję
+  obrazu.
+- **`<canvas>`** jest przezroczystym elementem zastępowanym o rozmiarze z atrybutów (domyślnie 300×150);
+  dotąd nie zajmował miejsca.
+- **Wysokość procentowa obrazu stojącego obok bloku** liczy się od rodzica, a nie od anonimowego bloku
+  (dotąd `height: 100%` działało wtedy jak `auto`).
+- **Wnuki elementu flex:** wysokość elementu wyznaczona przez `flex-basis` w kontenerze o nieokreślonej
+  wysokości nie jest podstawą procentów, chyba że element jest całkowicie nieelastyczny i ma `flex-basis`
+  podane długością.
+
+Z 70 niezaliczonych testów używających `aspect-ratio` większość (55) to testy grid, które zależą jeszcze od
+innych braków siatki (`grid-lanes`, rozmiary ścieżek z proporcji). Cztery straty to testy grid: dwa z `grid-lanes`
+(nieobsługiwane; pusty element z `aspect-ratio` ma teraz wysokość i odsłania czerwone tło), obraz
+z `aspect-ratio` jako element zagnieżdżonej siatki (szerokość ograniczana do ścieżki) oraz `<canvas>`
+z rozmiarem procentowym przy wyrównaniu do linii bazowej.

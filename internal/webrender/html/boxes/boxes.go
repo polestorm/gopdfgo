@@ -187,6 +187,9 @@ type BoxFields struct {
 	IndefiniteHeight bool
 	// CollapsedThrough: marginesy górny i dolny pudełka zwinęły się przez nie (puste pudełko)
 	CollapsedThrough bool
+	// AnonymousBaseHeight: dla anonimowego pudełka blokowego wysokość pudełka zawierającego jego rodzica,
+	// od której liczą się procentowe wysokości jego dzieci (ustawiane w układzie blokowym)
+	AnonymousBaseHeight pr.MaybeFloat
 	// SplitBefore, SplitAfter: pudełko liniowe jest dalszym ciągiem (ma dalszy ciąg) pudełka rozdzielonego
 	// przez blok w środku; od tej strony nie ma marginesu, obramowania ani odstępu (CSS 2 §9.2.1.1)
 	SplitBefore, SplitAfter bool
@@ -282,6 +285,16 @@ func (box *BoxFields) AllChildren() []Box {
 
 // ContainingBlock implements an interface required for layout.
 func (box *BoxFields) ContainingBlock() (width, height pr.MaybeFloat) {
+	if box.IndefiniteHeight {
+		// gopdfgo: wysokość wyznaczona przez układ flex w kontenerze o nieokreślonej wysokości nie jest
+		// podstawą procentów dzieci (CSS Flexbox 1 § 9.8); liczą się one jak od auto
+		return box.Width, pr.AutoF
+	}
+	if box.Height == pr.AutoF && box.AnonymousBaseHeight != nil {
+		// gopdfgo: anonimowe pudełko blokowe jest pomijane przy rozwiązywaniu procentów (CSS 2 § 9.2.1.1):
+		// podstawą jest wysokość najbliższego przodka, który anonimowy nie jest
+		return box.Width, box.AnonymousBaseHeight
+	}
 	return box.Width, box.Height
 }
 

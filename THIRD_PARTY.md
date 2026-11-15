@@ -583,6 +583,21 @@ Wspólne dla obu katalogów:
   - zmienione oczekiwania testów odziedziczonych `TestFlexItemIntrinsicHeightShrink`
     i `TestFlexItemIntrinsicWidthShrink` (renderują bez atrybutów prezentacyjnych, więc element o rozmiarze
     auto jest rozciągany: 10 zamiast 100);
+- wysokości procentowe i `<canvas>`, 2026-11-15:
+  - `html/boxes/html.go` (`handleCanvas`): `<canvas>` jest przezroczystym elementem zastępowanym o rozmiarze
+    z atrybutów `width` i `height`, domyślnie 300×150 (HTML § 4.12.5); w źródle był pustym pudełkiem liniowym;
+  - `html/boxes/boxes.go` (`ContainingBlock`, `AnonymousBaseHeight`), `html/layout/block.go`: anonimowe pudełko
+    blokowe jest pomijane przy rozwiązywaniu wysokości procentowych (CSS 2 § 9.2.1.1); w źródle obraz
+    z `height: 100%` stojący obok bloku liczył procent od anonimowego bloku, czyli jak `auto`;
+  - `html/layout/flex.go`, `html/boxes/boxes.go`: wysokość elementu flex wyznaczona przez `flex-basis`
+    w kontenerze o nieokreślonej wysokości nie jest podstawą procentów jego dzieci (CSS Flexbox 1 § 9.8);
+- `aspect-ratio` (CSS Sizing 4 § 5.1), 2026-11-15: nowa właściwość dla pudełek niezastępowanych:
+  `css/properties` (`PAspectRatio`, pliki generowane), `css/validation` (`aspectRatio`),
+  `html/layout/block.go` (wysokość z szerokości przy `height: auto`, z uwzględnieniem `box-sizing`,
+  `min-height`/`max-height` i treści wyższej niż wynik), `html/layout/preferred.go` (`ratioContentWidth`:
+  szerokość treści z podanej wysokości dla pudełek dopasowujących się do treści), `html/layout/replaced.go`
+  (`applyPreferredRatio`: na elemencie zastępowanym proporcja podana bez `auto` zastępuje proporcję obrazu,
+  a `auto <proporcja>` działa tylko dla obrazu bez własnej). Źródło tej właściwości nie znało;
 - `display: contents` (CSS Display 3 § 2.5), runda 2026-11-15: `css/properties/types.go` (`Display.Contents`),
   `css/validation/validation.go` (`display`), `html/boxes/build.go` (`elementToBox`,
   `keepsBoxWithDisplayContents`): element nie tworzy pudełka, a jego dzieci i pseudoelementy przechodzą do

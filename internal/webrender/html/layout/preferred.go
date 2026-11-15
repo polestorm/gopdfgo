@@ -35,6 +35,9 @@ func shrinkToFit(context *layoutContext, box Box, availableContentWidth pr.Float
 // This is the width by breaking at every line-break opportunity.
 // [outer] defaults to true
 func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
+	if width, ok := ratioContentWidth(box); ok {
+		return adjust(box, outer, width, true, true)
+	}
 	if box.Box().IsTableWrapper {
 		return tableAndColumnsPreferredWidths(context, box, outer).tableMinContentWidth
 	} else if bo.TableCellT.IsInstance(box) {
@@ -56,10 +59,29 @@ func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	}
 }
 
+// ratioContentWidth (gopdfgo): szerokość treści pudełka niezastępowanego z aspect-ratio, szerokością auto
+// i wysokością podaną długością wynika z proporcji (CSS Sizing 4 § 5.1); dotyczy pudełek dopasowujących się
+// do treści: elementów flex i grid, pływających, pozycjonowanych, inline-block.
+func ratioContentWidth(box Box) (pr.Float, bool) {
+	if _, isReplaced := box.(bo.ReplacedBoxITF); isReplaced || !bo.BlockContainerT.IsInstance(box) || box.Box().IsTableWrapper {
+		return 0, false
+	}
+	style := box.Box().Style
+	ratio := pr.Float(math.Abs(float64(style.GetAspectRatio())))
+	height := style.GetHeight()
+	if ratio <= 0 || style.GetWidth().Tag != pr.Auto || height.Tag != 0 || height.Unit != pr.Px || height.Calc != nil {
+		return 0, false
+	}
+	return height.Value * ratio, true
+}
+
 // Return the max-content width for “box“.
 // This is the width by only breaking at forced line breaks.
 // outer=true
 func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
+	if width, ok := ratioContentWidth(box); ok {
+		return adjust(box, outer, width, true, true)
+	}
 	rep, isReplaced := box.(bo.ReplacedBoxITF)
 	if box.Box().IsTableWrapper {
 		return tableAndColumnsPreferredWidths(context, box, outer).tableMaxContentWidth
@@ -928,6 +950,7 @@ func replacedMinContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		} else {
 			image := box.Replacement
 			iwidth, iheight, iratio := image.GetIntrinsicSize(box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
+			iwidth, iheight, iratio = applyPreferredRatio(box.Style, iwidth, iheight, iratio) // gopdfgo: aspect-ratio
 			if pr.Is(iratio) && !pr.Is(iwidth) && !pr.Is(iheight) {
 				w = 0
 			} else {
@@ -967,6 +990,7 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 
 		image := box.Replacement
 		iwidth, iheight, ratio := image.GetIntrinsicSize(box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
+		iwidth, iheight, ratio = applyPreferredRatio(box.Style, iwidth, iheight, ratio) // gopdfgo: aspect-ratio
 		w, _ = DefaultImageSizing(iwidth, iheight, ratio, pr.AutoF, h, 300, 150)
 
 	} else if width.Unit == pr.Perc {

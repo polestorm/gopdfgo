@@ -976,6 +976,12 @@ func (s *AnonymousStyle) SetOutlineOffset(v pr.TaggedDim) {
 	s.propsCache.setKnown(pr.POutlineOffset, v)
 }
 
+func (s *ComputedStyle) GetAspectRatio() pr.Float  { return s.Get(pr.PAspectRatio.Key()).(pr.Float) }
+func (s *ComputedStyle) SetAspectRatio(v pr.Float) { s.propsCache.setKnown(pr.PAspectRatio, v) }
+
+func (s *AnonymousStyle) GetAspectRatio() pr.Float  { return s.Get(pr.PAspectRatio.Key()).(pr.Float) }
+func (s *AnonymousStyle) SetAspectRatio(v pr.Float) { s.propsCache.setKnown(pr.PAspectRatio, v) }
+
 func (s *ComputedStyle) GetBoxSizing() pr.String  { return s.Get(pr.PBoxSizing.Key()).(pr.String) }
 func (s *ComputedStyle) SetBoxSizing(v pr.String) { s.propsCache.setKnown(pr.PBoxSizing, v) }
 

@@ -1528,6 +1528,54 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			square,
 		},
 		{
+			"aspect-ratio wyznacza wysokość bloku",
+			`<div style="width:100px;aspect-ratio:1/1;background:#080"></div>`,
+			square,
+		},
+		{
+			"aspect-ratio z box-sizing: border-box",
+			`<div style="width:100px;aspect-ratio:1;box-sizing:border-box;border:10px solid #080;background:#080"></div>`,
+			square,
+		},
+		{
+			"aspect-ratio wyznacza szerokość pudełka dopasowanego do treści",
+			`<div style="float:left;height:100px;aspect-ratio:1/1;background:#080"></div>`,
+			square,
+		},
+		{
+			"aspect-ratio na elemencie grid",
+			`<div style="display:grid;grid-template-columns:100px"><div style="aspect-ratio:1/1;background:#080"></div></div>`,
+			square,
+		},
+		{
+			"treść wyższa niż wysokość z aspect-ratio powiększa pudełko",
+			`<div style="width:100px;aspect-ratio:2/1;background:#080"><div style="height:100px"></div></div>`,
+			square,
+		},
+		{
+			"aspect-ratio na obrazie zastępuje proporcję obrazu",
+			`<img style="display:block;width:100px;aspect-ratio:1/1" src="data:image/svg+xml,%3Csvg viewBox='0 0 200 100' width='200' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='200' height='100' fill='%23080'/%3E%3C/svg%3E">` +
+				`<div style="height:20px;background:#00f"></div>`,
+			`<img style="display:block;width:100px;height:100px" src="data:image/svg+xml,%3Csvg viewBox='0 0 200 100' width='200' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='200' height='100' fill='%23080'/%3E%3C/svg%3E">` +
+				`<div style="height:20px;background:#00f"></div>`,
+		},
+		{
+			"canvas zajmuje miejsce według atrybutów",
+			`<canvas width="100" height="100" style="display:block;background:#080"></canvas>`,
+			square,
+		},
+		{
+			"procentowa wysokość obrazu obok bloku liczy się od rodzica, nie od anonimowego bloku",
+			`<div style="width:100px;height:100px"><div></div><canvas width="10" height="10" style="height:100%;width:100px;background:#080"></canvas></div>`,
+			square,
+		},
+		{
+			"procent wnuka elementu flex o wysokości z flex-basis liczy się jak auto",
+			`<div style="display:flex;flex-direction:column"><div style="flex:1 1 content;height:100px;min-height:0">` +
+				`<div style="height:100px;width:100px;background:#080"></div><div style="height:100%;width:100px;background:#f00"></div></div></div>`,
+			square,
+		},
+		{
 			"display: contents oddaje dzieci rodzicowi",
 			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
 			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,

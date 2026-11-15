@@ -152,6 +152,7 @@ var (
 		pr.PColumnRuleWidth:         borderWidth,
 		pr.POutlineWidth:            borderWidth,
 		pr.POutlineOffset:           outlineOffset,
+		pr.PAspectRatio:             aspectRatio,
 		pr.PColumnWidth:             columnWidth,
 		pr.PColumnSpan:              columnSpan,
 		pr.PBoxSizing:               boxSizing,
@@ -2780,6 +2781,54 @@ func textDecorationThickness(tokens []Token, _ string) pr.CssProperty {
 		return pr.TaggedDim{Tag: pr.FromFont}
 	}
 	return nil
+}
+
+// gopdfgo: “aspect-ratio“ (CSS Sizing 4 § 5.1): auto || <liczba> [ / <liczba> ]. Wynik to stosunek szerokości
+// do wysokości; 0 oznacza auto (także proporcję zdegenerowaną), wartość ujemna to "auto <proporcja>".
+// Źródło tej właściwości nie znało.
+func aspectRatio(tokens []Token, _ string) pr.CssProperty {
+	var numbers []pr.Float
+	auto, slash := false, false
+	for _, token := range tokens {
+		switch t := token.(type) {
+		case pa.Ident:
+			if utils.AsciiLower(string(t.Value)) != "auto" || auto {
+				return nil
+			}
+			auto = true
+		case pa.Number:
+			if t.ValueF < 0 || len(numbers) == 2 || (len(numbers) == 1 && !slash) {
+				return nil
+			}
+			numbers = append(numbers, pr.Float(t.ValueF))
+		case pa.Literal:
+			if t.Value != "/" || slash || len(numbers) != 1 {
+				return nil
+			}
+			slash = true
+		default:
+			return nil
+		}
+	}
+	var ratio pr.Float
+	switch {
+	case len(numbers) == 0 && auto:
+		return pr.Float(0)
+	case len(numbers) == 1 && !slash:
+		ratio = numbers[0]
+	case len(numbers) == 2:
+		if numbers[1] == 0 {
+			return pr.Float(0)
+		}
+		ratio = numbers[0] / numbers[1]
+	default:
+		return nil
+	}
+	if auto {
+		// "auto <proporcja>": elementy zastępowane z własną proporcją ją zachowują; zapis ze znakiem minus
+		return -ratio
+	}
+	return ratio
 }
 
 // gopdfgo: “outline-offset“ (CSS UI 4 § 3.2): długość, także ujemna; źródło tej właściwości nie znało.
