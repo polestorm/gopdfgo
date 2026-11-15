@@ -836,3 +836,10 @@ w `TestSecondCSS2RoundFixes`, a pełny sondaż po poprawce nie zgłasza błędó
 
 W `css-tables` zostaje ok. 30 niezaliczonych: `box-shadow` (właściwość nieobsługiwana), tła kolumn i wierszy
 z obrazem, pismo pionowe, kilka testów linii bazowej i obramowań o ułamkowej szerokości.
+
+Uzupełnienie (2026-11-15): pusty kontener `inline-flex` stoi na linii bazowej wiersza (linia bazowa
+syntetyzowana z dolnej krawędzi marginesu), co zalicza trzy kolejne testy flex. Sondaż ekranowy:
+**6919 z 9110 (75,9%)**, ściśle 6537, krawędziowo 382; zmierzone sondażem obszarów `css-flexbox`
+i `css-grid/alignment` (1108 testów, bez strat), pozostałe obszary z poprzedniego pełnego przebiegu.
+We flex zostaje w wyrównaniu do linii bazowej: `last baseline` (nieobsługiwane), połączenie z `wrap-reverse`
+i pismo pionowe.

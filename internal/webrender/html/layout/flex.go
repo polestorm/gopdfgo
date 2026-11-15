@@ -1597,14 +1597,21 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	// TODO: Use real algorithm, see https://www.w3.org/TR/css-flexbox-1/#flex-baselines.
 	if bo.InlineFlexT.IsInstance(box_) {
+		// gopdfgo: kontener bez elementu wyznaczającego linię bazową ma ją syntetyzowaną z dolnej krawędzi
+		// marginesu (CSS Align 3 § 9.1, kontekst liniowy); źródło przyjmowało górę pudełka, więc pusty
+		// inline-flex wisiał pod linią bazową wiersza.
+		synthesized := pr.Float(0)
+		if _, ok := box.Height.(pr.Float); ok {
+			synthesized = box.MarginHeight()
+		}
 		if main == pr.PWidth { // and main text direction is horizontal
 			if len(flexLines) != 0 {
 				box.Baseline = flexLines[0].lowerBaseline
 			} else {
-				box.Baseline = pr.Float(0)
+				box.Baseline = synthesized
 			}
 		} else {
-			box.Baseline = pr.Float(0)
+			box.Baseline = synthesized
 			for _, child := range box.Children {
 				if child.Box().IsInNormalFlow() {
 					var val pr.MaybeFloat
@@ -1614,7 +1621,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					if val != nil {
 						box.Baseline = val.V()
 					} else {
-						box.Baseline = pr.Float(0)
+						box.Baseline = synthesized
 					}
 					break
 				}

@@ -583,6 +583,9 @@ Wspólne dla obu katalogów:
   - zmienione oczekiwania testów odziedziczonych `TestFlexItemIntrinsicHeightShrink`
     i `TestFlexItemIntrinsicWidthShrink` (renderują bez atrybutów prezentacyjnych, więc element o rozmiarze
     auto jest rozciągany: 10 zamiast 100);
+- `html/layout/flex.go`, 2026-11-15: kontener `inline-flex` bez elementu wyznaczającego linię bazową ma ją
+  syntetyzowaną z dolnej krawędzi marginesu (CSS Align 3 § 9.1); źródło przyjmowało górę pudełka
+  (testy WPT `flexbox-baseline-empty-001a`, `-001b`);
 - tabele, runda 2026-11-15 (druga):
   - `html/document/draw.go` (`drawStackingContext`, `drawTable`): obramowania zwinięte tabeli są rysowane po
     tłach i obramowaniach pudełek blokowych leżących w jej komórkach (także tabel zagnieżdżonych), ale przed

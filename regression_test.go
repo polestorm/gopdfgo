@@ -1604,6 +1604,11 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			square,
 		},
 		{
+			"pusty inline-flex stoi na linii bazowej wiersza",
+			`<div style="font-size:40px;line-height:100px">A<div style="display:inline-flex;width:20px;height:20px;background:#080"></div></div>`,
+			`<div style="font-size:40px;line-height:100px">A<div style="display:inline-block;width:20px;height:20px;background:#080"></div></div>`,
+		},
+		{
 			"display: contents oddaje dzieci rodzicowi",
 			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
 			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,
