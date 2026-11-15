@@ -13,4 +13,7 @@ Stan na 2026-11-12. Wszystko poza `documents/` (własne) pochodzi z poniższych 
 | `fonts/arimo/Arimo-*.ttf` | https://github.com/googlefonts/Arimo (`fonts/ttf/`) | commit `22e482e2ce0ebb2e6f88ba49d029d60f558d5d67` (2026-11-05), odmiany statyczne; pobrane 2026-11-15 | OFL-1.1, tekst w `fonts/arimo/OFL.txt` (z tego samego commita) | metryki Arial. Font dla rodziny `sans-serif` w testach i pomiarach, przypisany w `fonts/families.json` |
 | `regression/endless-line-slicing.html` | https://github.com/web-platform-tests/wpt (`css/css-grid/grid-lanes/item-placement/grid-lanes-item-placement-006-ref.html`) | `ab97c0179bd24410d26704863acc83e85c05e432` | domena publiczna (CC0, nagłówek pliku) | przypadek regresji: wiersz o nieskończonej wysokości |
 
+`fonts/coverage.txt` i `fonts/families.json` są własne: pierwszy generuje `go run ./tools/fontcoverage testdata/fonts testdata/wpt/fonts/Ahem.ttf`,
+drugi przypisuje fonty rodzinom generycznym (ADR 0005).
+
 Nie skopiowano (brak licencji albo ograniczenia): `zopyx/print-css-rocks`, próbka `book` z weasyprint-samples.

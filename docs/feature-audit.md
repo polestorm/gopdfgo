@@ -677,3 +677,20 @@ Reftesty druku w nowej konfiguracji: 194 z 340 (bez zmian). Korpus 21 dokumentó
 słowa przesunięte o ponad 3 pt względem Chromium: `16-typography-fonts` 2 → 0, `03-report-svg-chart` 0 → 2
 (podpisy wykresu w `sans-serif` są teraz w Arimo), pozostałe bez zmian; łączny rozmiar PDF 3 272 939 →
 3 313 433 bajtów (+1,2%), bo w pięciu dokumentach doszedł osadzony Arimo albo Tinos.
+
+## Testy z pismami spoza fontów testowych poza pomiarem (2026-11-15)
+
+Decyzja użytkownika z 2026-11-15: biblioteka w tej wersji nie musi obsługiwać pism egzotycznych, więc testy,
+które ich wymagają, nie wchodzą do pomiaru. Reguła jest mechaniczna: `tools/fontcoverage` zapisuje
+w `testdata/fonts/coverage.txt` znaki, dla których którykolwiek font testowy (Noto Sans, Noto Serif,
+Noto Sans Mono, Tinos, Arimo, Ahem) ma glif, a `testdata/wpt/select.py` (`uncovered_letters`) pomija test,
+gdy w rysowanym tekście testu albo jego wzorców jest litera spoza tego zbioru (bengalski, tajski, chiński,
+arabski, gruziński itd.; hebrajski, grecki i cyrylica zostają, bo fonty je mają). Liczy się tekst poza
+znacznikami i napisy w arkuszach; nazwy klas i selektory w innych pismach nie są rysowane i testu nie
+wykluczają. Po wymianie fontów wystarczy wygenerować `coverage.txt` ponownie.
+
+Sondaż ekranowy: pominiętych 25 testów z 9135 (`css-content` 14, `CSS2/generated-content` 6, `css-lists` 5),
+z których 15 było zaliczonych, a 10 nie. Wynik dla tego samego stanu kodu: **6848 z 9110 (75,2%)**, w tym
+6466 ściśle i 382 krawędziowo (przed wyłączeniem 6863 z 9135). Wśród 340 reftestów druku nie ma ani jednego
+takiego testu, więc ich lista się nie zmienia. Reguła nie obejmuje znaków generowanych przez style liczników
+(`list-style-type: georgian` itp.), których nie ma w źródle testu.

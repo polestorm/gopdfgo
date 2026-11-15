@@ -16,6 +16,7 @@ Warstwy:
                    w kolumnach); tylko w manifeście, pliki zostają w klonie
 """
 import os
+import unicodedata
 import re
 import shutil
 import subprocess
@@ -167,6 +168,52 @@ def has_script(root, files):
     return any(path.endswith('.js') for path in files)
 
 
+def load_coverage(path):
+    """Zbiór znaków, dla których fonty testowe mają glif (plik z tools/fontcoverage)."""
+    covered = set()
+    with open(path) as handle:
+        for line in handle:
+            first, last = line.strip().split('-')
+            covered.update(range(int(first, 16), int(last, 16) + 1))
+    return covered
+
+
+UNRENDERED = re.compile(r'<!--.*?-->|<title\b.*?</title>|<script\b.*?</script>', re.S | re.I)
+STYLE_ELEMENT = re.compile(r'<style\b[^>]*>(.*?)</style>', re.S | re.I)
+CSS_STRING = re.compile(r'"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)*\'')
+TAG = re.compile(r'<[^>]*>')
+CHAR_REFERENCE = re.compile(r'&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));')
+
+
+def rendered_text(path, text):
+    """Przybliżenie tekstu, który trafia do obrazu: treść poza znacznikami oraz napisy w arkuszach
+    (np. content: "..."). Nazwy klas, identyfikatory i selektory w innych pismach nie są rysowane."""
+    if path.endswith('.css'):
+        return ' '.join(CSS_STRING.findall(text))
+    text = UNRENDERED.sub('', text)
+    strings = [found for sheet in STYLE_ELEMENT.findall(text) for found in CSS_STRING.findall(sheet)]
+    text = TAG.sub(' ', STYLE_ELEMENT.sub(' ', text))
+    return text + ' ' + ' '.join(strings)
+
+
+def uncovered_letters(root, files, covered):
+    """Litery w treści testu albo jego wzorców, których nie ma żaden font testowy.
+
+    Test z takimi literami (bengalski, tajski, chiński, arabski...) sprawdza w praktyce dobór fontu
+    zastępczego, a nie układ; decyzją z 2026-11-15 takie testy są poza zakresem pomiaru.
+    """
+    found = set()
+    for path in files:
+        if not path.endswith(TEST_EXTENSIONS + ('.svg', '.css')):
+            continue
+        text = rendered_text(path, read_text(os.path.join(root, path)))
+        text = CHAR_REFERENCE.sub(lambda m: chr(min(int(m.group(1), 16) if m.group(1) else int(m.group(2)), 0x10FFFF)), text)
+        for char in set(text):
+            if ord(char) > 0x7F and ord(char) not in covered and unicodedata.category(char).startswith('L'):
+                found.add(char)
+    return found
+
+
 def is_print_test(path):
     return '-print.' in os.path.basename(path) or '/print/' in path
 
@@ -206,7 +253,8 @@ def walk_tests(root, top):
 
 def main():
     root, out = sys.argv[1], sys.argv[2]
-    cache, rows, copied, skipped = {}, [], set(), {'script': 0, 'missing': 0}
+    cache, rows, copied, skipped = {}, [], set(), {'script': 0, 'missing': 0, 'script-coverage': 0}
+    covered = load_coverage(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fonts', 'coverage.txt'))
     seen = set()
 
     def consider(path, tier):
@@ -226,6 +274,9 @@ def main():
             return
         if missing:
             skipped['missing'] += 1
+            return
+        if uncovered_letters(root, needed, covered):
+            skipped['script-coverage'] += 1
             return
         seen.add(path)
         kind = ';'.join(sorted({rel for rel, _ in matches})) or 'manual'
