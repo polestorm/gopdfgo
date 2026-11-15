@@ -85,6 +85,7 @@ sup { vertical-align: super }
 address, cite, dfn, em, i, var { font-style: italic }
 b, strong, th { font-weight: bold }
 th { text-align: -internal-center }
+caption { text-align: center }
 code, kbd, listing, plaintext, pre, samp, tt, xmp { font-family: monospace }
 h1 { font-size: 2em; font-weight: bold }
 h2 { font-size: 1.5em; font-weight: bold }

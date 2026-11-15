@@ -1478,6 +1478,11 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			`<div style="width:50px;height:20px;border-left:10px solid #00f;border-right:10px solid #00f;border-top:5px solid #080;border-bottom:7px solid #080"></div>`,
 		},
 		{
+			"podpis tabeli jest wyśrodkowany",
+			`<table style="width:200px"><caption><b class="sq"></b></caption><tr><td></td></tr></table>`,
+			`<table style="width:200px"><caption style="text-align:center"><b class="sq"></b></caption><tr><td></td></tr></table>`,
+		},
+		{
 			"counter() z zastrzeżoną nazwą unieważnia deklarację",
 			`<style>div::after { content: " x " counter(inherit) }</style><div>7</div>`,
 			`<div>7</div>`,

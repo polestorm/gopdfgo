@@ -521,12 +521,16 @@ Wspólne dla obu katalogów:
     przechodzi na kolejne strony;
   - obramowanie i odstęp wewnętrzny tabeli nie są powtarzane na kolejnych stronach także wtedy, gdy tabela
     ma powtarzany nagłówek lub stopkę (`box-decoration-break: slice`); źródło w takim przypadku powtarzało
-    je na każdej stronie bez rezerwowania miejsca;
+    je na każdej stronie bez rezerwowania miejsca. Wyjątek: przy `border-collapse: collapse` zostaje
+    zachowanie źródła, bo tam „obramowanie” tabeli to połowa obramowania skrajnych komórek
+    (testy odziedziczone `TestTables_9`, `TestTables_22`);
   - przy `box-decoration-break: clone` wiersze zostawiają miejsce na dolny odstęp i obramowanie tabeli
     na każdej stronie; źródło go nie rezerwowało i dekoracja wychodziła na margines;
   - po wierszu przerwanym na granicy strony odstęp między komórkami jest przed powtarzaną stopką, a nie
     za nią; źródło dosuwało stopkę do przerwanego wiersza.
   Reftesty druku `table-fragmentation-001b…003d` (dziesięć testów) zaliczone;
+- `html/tree/html5_ua.css`, 2026-11-15: `caption { text-align: center }` (HTML, Rendering § 15.3.9); w źródle
+  podpis tabeli był wyrównany do lewej (reftest druku `table-page-break-inside-avoid-8`);
 - `encoding.go` (kod własny): znacznik kolejności bajtów na początku dokumentu HTML jest zdejmowany, a UTF-16
   dekodowany, zanim dokument trafi do parsera; przedtem U+FEFF stawał się tekstem przed pierwszym elementem
   i przesuwał treść o jeden wiersz;

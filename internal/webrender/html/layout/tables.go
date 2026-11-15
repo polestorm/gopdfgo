@@ -26,7 +26,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// gdy tabela ma powtarzany nagłówek lub stopkę (box-decoration-break: slice; powtarza je dopiero clone).
 	// Źródło przy nagłówku i stopce powtarzało dekorację na każdej stronie, nie rezerwując na nią miejsca,
 	// więc dolne obramowanie wychodziło na margines strony.
-	removeStartDecoration := skipStack != nil
+	// W modelu obramowań zwiniętych "obramowanie" tabeli to połowa obramowania skrajnych komórek, więc
+	// przy powtarzanym nagłówku lub stopce zostaje, jak w źródle.
+	removeStartDecoration := skipStack != nil && !(collapse && hasHeader)
 	table_.RemoveDecoration(&table.BoxFields, removeStartDecoration, false)
 	// gopdfgo: przy box-decoration-break: clone każdy fragment ma dolny odstęp i obramowanie tabeli,
 	// więc wiersze muszą zostawić na nie miejsce (tak samo jak w blockContainerLayout); źródło tego
@@ -817,7 +819,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	for i, v := range table.ColumnGroups {
 		table.ColumnGroups[i] = v.Copy().(*bo.TableColumnGroupBox)
 	}
-	removeEndDecoration := resumeAt != nil
+	removeEndDecoration := resumeAt != nil && !(collapse && hasFooter)
 	table_.RemoveDecoration(&table.BoxFields, removeStartDecoration, removeEndDecoration)
 	if collapse {
 		table.SkippedRows = skippedRows

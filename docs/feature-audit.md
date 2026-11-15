@@ -712,3 +712,10 @@ W tematyce podziału tabel zostaje 20 niezaliczonych: 13 to testy flex zaliczone
 (`multi-line-row-flex-fragmentation-*`, m.in. `break-before: page` na elemencie flex), 4 testy `CSS2/pagination`
 z `break-inside: avoid` grupy wyższej niż strona, 2 testy wysokości procentowych komórek
 (`table-cell-percent-height-*`) i `fixedpos-in-footer-forced-break`.
+
+Uzupełnienie z tego samego dnia: `caption` jest domyślnie wyśrodkowany (HTML, Rendering § 15.3.9; dotąd
+do lewej), co zaliczyło `table-page-break-inside-avoid-8`; reftesty druku **205 z 340**. Sondaż ekranowy bez
+zmian na ćwiartce 2/4 (2302 testy). Poprawka do rundy: commit `36b81fc` pogorszył dwa testy odziedziczone
+(`TestTables_9`, `TestTables_22`: obramowania zwinięte przy powtarzanym nagłówku), bo przed zapisem
+uruchomione były tylko testy pakietu układu, a nie rysowania; następny commit przywraca tam zachowanie źródła.
+W tematyce podziału tabel zostaje 19 niezaliczonych.
