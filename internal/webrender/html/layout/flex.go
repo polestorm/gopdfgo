@@ -437,6 +437,17 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 			} else {
 				flexBasis = resolved
+				// gopdfgo: flex-basis podaje rozmiar pudełka wskazanego przez box-sizing (CSS Flexbox 1
+				// § 7.2.1); źródło traktowało go zawsze jak rozmiar treści, więc element z box-sizing:
+				// border-box i flex-basis był szerszy o obramowanie i odstęp wewnętrzny.
+				if basis, ok := resolved.(pr.Float); ok && child.Style.GetBoxSizing() == "border-box" {
+					if main == pr.PWidth {
+						basis -= child.PaddingLeft.V() + child.PaddingRight.V() + child.BorderLeftWidth.V() + child.BorderRightWidth.V()
+					} else {
+						basis -= child.PaddingTop.V() + child.PaddingBottom.V() + child.BorderTopWidth.V() + child.BorderBottomWidth.V()
+					}
+					flexBasis = max(basis, 0)
+				}
 			}
 		}
 
@@ -1424,8 +1435,24 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	var lineOverflow []Box               // elementy bieżącej linii wystające poza stronę, które same się nie dzielą
 	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
 	for lineIndex, line := range flexLines {
-		for _, v := range line.line {
+		// gopdfgo: wymuszony podział strony między liniami kontenera wierszowego: break-before na elemencie
+		// tej linii albo break-after na elemencie poprzedniej (CSS Flexbox 1 § 12, CSS Break 3 § 3.1).
+		// Źródło ignorowało te właściwości na elementach flex.
+		if lineIndex > 0 && len(box.Children) > flexItemsBefore && context.flexMeasuring == 0 && bottomSpace > -pr.Inf &&
+			main == pr.PWidth && forcedBreakBetweenFlexLines(context, flexLines[lineIndex-1], line) {
+			resumeAt = tree.ResumeStack{line.line[0].index: nil}
+			break
+		}
+		for position, v := range line.line {
 			i, child := v.index, v.box.Box()
+			// gopdfgo: w kolumnie bez zawijania wymuszony podział strony wypada między elementami (jak wyżej
+			// między liniami); w kolumnie z zawijaniem żądanie podziału dotyczy linii, nie strony
+			if position > 0 && main == pr.PHeight && box.Style.GetFlexWrap() == "nowrap" && len(box.Children) > flexItemsBefore && context.flexMeasuring == 0 &&
+				bottomSpace > -pr.Inf && (forcePageBreak(string(child.Style.GetBreakBefore()), context) ||
+				forcePageBreak(string(line.line[position-1].box.Box().Style.GetBreakAfter()), context)) {
+				resumeAt = tree.ResumeStack{i: nil}
+				break
+			}
 			if child.IsFlexItem {
 				// TODO: Don't use block_level_layout_switch.
 				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, pickSkip(i, childSkipStack), box,
@@ -1691,6 +1718,22 @@ func parallelLineState(stack tree.ResumeStack) map[int]tree.ResumeStack {
 }
 
 // finishedFlexItem zwraca pustą kopię elementu flex, którego treść skończyła się na poprzedniej stronie.
+// forcedBreakBetweenFlexLines podaje, czy między dwiema kolejnymi liniami kontenera wierszowego jest
+// wymuszony podział strony.
+func forcedBreakBetweenFlexLines(context *layoutContext, previous, next flexLine) bool {
+	for _, v := range previous.line {
+		if forcePageBreak(string(v.box.Box().Style.GetBreakAfter()), context) {
+			return true
+		}
+	}
+	for _, v := range next.line {
+		if forcePageBreak(string(v.box.Box().Style.GetBreakBefore()), context) {
+			return true
+		}
+	}
+	return false
+}
+
 // ratioBaseSize podaje rozmiar bazowy elementu zastępowanego z proporcjami, który zostanie rozciągnięty
 // w osi poprzecznej do określonego rozmiaru kontenera jednowierszowego (CSS Flexbox 1 § 9.2 krok 3B
 // i § 9.9.2: taki rozmiar poprzeczny jest określony).

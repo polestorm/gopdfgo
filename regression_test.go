@@ -1523,6 +1523,11 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			`<div style="display:flex"><div style="padding:0 30px;background:#ccc"><b class="sq"></b></div></div>`,
 		},
 		{
+			"flex-basis z box-sizing: border-box obejmuje obramowanie",
+			`<div style="display:flex;width:300px"><div style="flex:0 0 100px;box-sizing:border-box;border:10px solid #080;height:100px;background:#080"></div></div>`,
+			square,
+		},
+		{
 			"display: contents oddaje dzieci rodzicowi",
 			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
 			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,
@@ -1590,6 +1595,35 @@ func TestMarginsEscapeHeightLimits(t *testing.T) {
 		}
 		if n := differentPixels(a[0], b[0]); n != 0 {
 			t.Errorf("MarginsEscapeHeightLimits=%v: %d pikseli różni się od wzorca", escape, n)
+		}
+	}
+}
+
+// Wymuszony podział strony na elementach flex i grid (CSS Flexbox 1 § 12, CSS Grid 2 § 11): break-before
+// i break-after dzielą kontener między liniami wiersza, elementami kolumny i wierszami siatki.
+func TestForcedBreaksInFlexAndGrid(t *testing.T) {
+	const style = "<style>@page { size: 300px 200px; margin: 10px } div > div { height: 20px }</style>"
+	cases := []struct {
+		name, html string
+		pages      int
+	}{
+		{"kolumna flex, break-before", `<div style="display:flex;flex-direction:column"><div>a</div><div style="break-before:page">b</div><div>c</div></div>`, 2},
+		{"kolumna flex, break-after i break-before", `<div style="display:flex;flex-direction:column"><div style="break-after:page">a</div><div>b</div><div style="break-before:page">c</div></div>`, 3},
+		{"wiersz flex z zawijaniem", `<div style="display:flex;flex-wrap:wrap"><div style="width:50%">a</div><div style="width:50%">b</div><div style="width:50%;break-before:page">c</div><div style="width:50%">d</div></div>`, 2},
+		{"grid, break-before", `<div style="display:grid"><div>a</div><div style="break-before:page">b</div><div>c</div></div>`, 2},
+		{"grid dwukolumnowy, break-after", `<div style="display:grid;grid-template-columns:1fr 1fr"><div>a</div><div>b</div><div style="break-after:page">c</div><div>d</div><div>e</div><div>f</div></div>`, 2},
+		{"bez wymuszenia", `<div style="display:flex;flex-direction:column"><div>a</div><div>b</div></div><div style="display:grid"><div>c</div><div>d</div></div>`, 1},
+	}
+	for _, c := range cases {
+		result := renderString(t, style+c.html)
+		if result.Pages != c.pages {
+			t.Errorf("%s: stron %d, oczekiwano %d", c.name, result.Pages, c.pages)
+		}
+		text := string(extractText(t, result.PDF))
+		for _, letter := range []string{"a", "b", "c"} {
+			if !strings.Contains(text, letter) {
+				t.Errorf("%s: brak tekstu %q po podziale", c.name, letter)
+			}
 		}
 	}
 }

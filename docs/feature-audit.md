@@ -771,3 +771,26 @@ Rozpoznane i odłożone we flex: właściwość `aspect-ratio` (nieobsługiwana;
 kontener flex pozycjonowany bezwzględnie z wysokością wynikającą z `top` i `bottom`, tabela z podaną
 szerokością i mniejszym `flex-basis`, `break-before: page` na elemencie flex, wysokości procentowe wnuków
 (`percentage-heights-*`), pismo pionowe (`flexbox-writing-mode-*`), `text-wrap: balance`.
+
+## Podział flex i grid między strony (2026-11-15)
+
+Reftesty druku: **224 z 340** (wszystkie ściśle), poprzednio 210. Sondaż ekranowy: **6891 z 9110 (75,6%)**,
+w tym 6511 ściśle i 380 krawędziowo; poprzednio 6895 (6515 i 380); zyskane 0, stracone 4.
+
+- **`break-before` i `break-after` na elementach flex i grid** wymuszają podział strony: między liniami
+  kontenera wierszowego, między elementami kolumny bez zawijania i między wierszami siatki. Dotąd były
+  ignorowane, więc np. sekcje raportu ułożone w kolumnie flex nie dało się zacząć od nowej strony.
+- **`flex-basis` z `box-sizing: border-box`** obejmuje obramowanie i odstęp wewnętrzny; dotąd element był
+  o nie szerszy.
+- **Nazwy stron (`page`) elementów flex i grid** nie przechodzą na kontener i nie wymuszają podziału.
+
+Cztery straty w sondażu ekranowym to testy `flexbox-break-request-*` (`horiz-001a/b`, `vert-002a/b`), które zakładają medium bez stron (żądanie
+podziału ma tam tylko zacząć nową linię kontenera). Pomiar renderuje każdy test jako dokument stronicowany,
+więc żądanie podziału przenosi treść na następną stronę, tak jak wymagają tego testy druku
+`multi-line-row-flex-fragmentation-081a…d`; obu grup nie da się zaliczyć tym samym sposobem pomiaru.
+Rozpoczynanie nowej linii przez żądanie podziału w kontenerze z zawijaniem nie jest zaimplementowane.
+
+W podziale flex zostaje 13 niezaliczonych reftestów druku: przenoszenie `break-before` pierwszego elementu
+na kontener (`082a…d`), marginesy i wyrównanie elementów przesuwanych na następną stronę (`075`, `076`, `042`),
+`064`, dwa warianty `069` (kolumna z odwróconą kolejnością), elementy pływające w elemencie flex (2)
+i jeden test pisma pionowego.

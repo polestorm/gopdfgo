@@ -1715,6 +1715,32 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			break
 		}
 	}
+	// gopdfgo: wymuszony podział strony między wierszami siatki: break-before na elemencie wiersza albo
+	// break-after na elemencie poprzedniego (CSS Grid 2 § 11, CSS Break 3 § 3.1). Źródło ignorowało te
+	// właściwości na elementach siatki.
+	if rowSkip == nil && bottomSpace > -pr.Inf && context.flexMeasuring == 0 {
+		forcedRow := -1
+		for _, child := range children {
+			_, y, _, height := childrenPositions[child].unpack()
+			if y > skipRow && forcePageBreak(string(child.Box().Style.GetBreakBefore()), context) && (forcedRow == -1 || y < forcedRow) {
+				forcedRow = y
+			}
+			if after := y + height; after > skipRow && after < len(rowsSizes) &&
+				forcePageBreak(string(child.Box().Style.GetBreakAfter()), context) && (forcedRow == -1 || after < forcedRow) {
+				forcedRow = after
+			}
+		}
+		if forcedRow != -1 && (!hasBroken || forcedRow < resumeRow) {
+			resumeRow, resumeAt, hasBroken = forcedRow, tree.ResumeStack{forcedRow: nil}, true
+			thisPageChildren = thisPageChildren[:0]
+			for _, child := range children {
+				_, y, _, _ := childrenPositions[child].unpack()
+				if skipRow <= y && y < forcedRow {
+					thisPageChildren = append(thisPageChildren, child)
+				}
+			}
+		}
+	}
 	if !hasBroken {
 		for _, child := range children {
 			_, y, _, _ := childrenPositions[child].unpack()

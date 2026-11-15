@@ -548,6 +548,18 @@ Wspólne dla obu katalogów:
 - `html/layout/grid.go`, runda flex 2026-11-15: linia bazowa kontenera `inline-grid`, którego pierwszy element
   nie ma wiersza tekstu, jest syntetyzowana z dolnej krawędzi obramowania elementu (CSS Align 3 § 9.1);
   źródło przyjmowało górę kontenera;
+- `html/boxes/boxes.go` (`PageValues`), 2026-11-15: nazwy stron (`page`) elementów kontenera flex lub grid nie
+  przechodzą na kontener i nie wymuszają podziału (CSS Page 3 § 6.1); w źródle przechodziły (reftesty druku
+  `page-name-flex-001`, `-002`, `-004`);
+- podział flex i grid między strony, runda 2026-11-15:
+  - `html/layout/flex.go` (`forcedBreakBetweenFlexLines`): `break-before` i `break-after` na elementach flex
+    wymuszają podział strony między liniami kontenera wierszowego i między elementami kolumny;
+  - `html/layout/grid.go`: to samo między wierszami siatki;
+    źródło ignorowało te właściwości na elementach flex i grid (reftesty druku
+    `multi-line-row-flex-fragmentation-081a…d`);
+  - `html/layout/flex.go`: `flex-basis` podaje rozmiar pudełka wskazanego przez `box-sizing`
+    (CSS Flexbox 1 § 7.2.1); źródło traktowało go zawsze jak rozmiar treści
+    (`multi-line-row-flex-fragmentation-063`);
 - tabele jako elementy flex, runda 2026-11-15:
   - `css/properties/datas.go` (`TableWrapperBoxProperties`): `flex-basis`, `flex-grow`, `flex-shrink`,
     `align-self`, `justify-self`, `order` i położenie w siatce (`grid-row-*`, `grid-column-*`) przechodzą

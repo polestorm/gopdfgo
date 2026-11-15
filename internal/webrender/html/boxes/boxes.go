@@ -604,6 +604,12 @@ func EstablishesFormattingContext(box_ Box) bool {
 func (b *BoxFields) PageValues() (pr.Page, pr.Page) {
 	start := b.Style.GetPage()
 	end := start
+	// gopdfgo: właściwość page dotyczy pudełek blokowych w normalnym przepływie (CSS Page 3 § 6.1); elementy
+	// kontenera flex lub grid do nich nie należą, więc ich nazwy stron nie przechodzą na kontener i nie
+	// wymuszają podziału. W źródle przechodziły.
+	if inside := b.Style.GetDisplay().Inside; inside == pr.Flex || inside == pr.Grid {
+		return start, end
+	}
 	var fistChild, lastChild Box
 	for _, child := range b.Children {
 		if child.Box().IsInNormalFlow() {
