@@ -1764,7 +1764,10 @@ func TestFlexItemIntrinsicWidthShrink(t *testing.T) {
 	body := unpack1(html)
 	div := unpack1(body)
 	svg := unpack1(div)
-	tu.AssertEqual(t, svg.Box().Width, Fl(100))
+	// gopdfgo: jak w TestFlexItemIntrinsicHeightShrink: bez atrybutów prezentacyjnych width="100" nie jest
+	// właściwością CSS, więc element o szerokości auto jest rozciągany do szerokości kolumny; źródło
+	// oczekiwało 100.
+	tu.AssertEqual(t, svg.Box().Width, Fl(10))
 }
 
 func TestFlexItemIntrinsicHeightShrink(t *testing.T) {
@@ -1780,7 +1783,11 @@ func TestFlexItemIntrinsicHeightShrink(t *testing.T) {
 	body := unpack1(html)
 	div := unpack1(body)
 	svg := unpack1(div)
-	tu.AssertEqual(t, svg.Box().Height, Fl(100))
+	// gopdfgo: ten test renderuje bez atrybutów prezentacyjnych, więc height="100" nie jest tu właściwością
+	// CSS i element o wysokości auto jest rozciągany do wysokości wiersza (CSS Flexbox 1 § 9.4 krok 11);
+	// automatyczne minimum w osi poprzecznej to zero (§ 4.5). Źródło oczekiwało 100. Z atrybutami
+	// prezentacyjnymi (tak renderuje gopdfgo.Render) wysokość zostaje 100, zob. TestSecondCSS2RoundFixes.
+	tu.AssertEqual(t, svg.Box().Height, Fl(10))
 }
 
 func TestFlexWrapInFlex(t *testing.T) {
@@ -1837,7 +1844,9 @@ func TestFlexGrowInFlexColumn(t *testing.T) {
 	html := unpack1(page)
 	body := unpack1(html)
 	main := unpack1(body)
-	_, div, _ := unpack3(main)
+	// gopdfgo: element liniowy będący elementem flex sam staje się blokiem (CSS Display 3 § 2.7), więc
+	// <main> ma jedno dziecko; w źródle był opakowany w blok i rozcięty na trzy części wokół <div>.
+	div := unpack1(main)
 	assertEquals(t, body.Box().Height, div.Box().Height, Fl(5))
 	assertEquals(t, body.Box().Width, div.Box().Width, Fl(10))
 	tu.AssertEqual(t, body.Box().MarginWidth(), Fl(14))

@@ -531,6 +531,46 @@ Wspólne dla obu katalogów:
   Reftesty druku `table-fragmentation-001b…003d` (dziesięć testów) zaliczone;
 - `html/tree/html5_ua.css`, 2026-11-15: `caption { text-align: center }` (HTML, Rendering § 15.3.9); w źródle
   podpis tabeli był wyrównany do lewej (reftest druku `table-page-break-inside-avoid-8`);
+- `utils/urls.go` (`DefaultUrlFetcher`, `unescape`), runda flex 2026-11-15: w adresie `data:` bez base64 spacje
+  są częścią danych, a znak `%` bez dwóch cyfr szesnastkowych zostaje dosłownie (WHATWG URL, percent-decode);
+  źródło usuwało wszystkie odstępy i odrzucało adres z gołym `%`, więc SVG wpisane wprost w `src`
+  (np. z `width='100%'`) nie było wczytywane;
+- `html/boxes/build.go` (`blockify`), runda flex 2026-11-15: pudełko liniowe będące elementem flex lub grid
+  samo staje się blokiem (CSS Display 3 § 2.7), a jego dzieci przechodzą do tego bloku; źródło opakowywało
+  je w blok o tym samym stylu, więc odstępy wewnętrzne, obramowanie i tło były stosowane dwukrotnie
+  (`<span style="padding: 0 2em">` we flex miał tekst odsunięty o 4em). Zmienione oczekiwanie struktury
+  w teście odziedziczonym `TestFlexGrowInFlexColumn`;
+- `html/layout/flex.go`, runda flex 2026-11-15: rozmiar poprzeczny linii jednowierszowej i rozciąganie
+  `align-content: stretch` biorą wysokość treści kontenera po rozwiązaniu `box-sizing` i procentów; źródło
+  brało surową wartość `height` ze stylu, więc w kontenerze `border-box` elementy były rozciągane za wysoko;
+- `html/layout/preferred.go` (`replacedMaxContentWidth`), runda flex 2026-11-15: szerokość procentowa elementu
+  zastępowanego liczy się w szerokości max-content jak `auto` (CSS Sizing 3 § 5.2.1); źródło dawało zero;
+- `html/layout/grid.go`, runda flex 2026-11-15: linia bazowa kontenera `inline-grid`, którego pierwszy element
+  nie ma wiersza tekstu, jest syntetyzowana z dolnej krawędzi obramowania elementu (CSS Align 3 § 9.1);
+  źródło przyjmowało górę kontenera;
+- tabele jako elementy flex, runda 2026-11-15:
+  - `css/properties/datas.go` (`TableWrapperBoxProperties`): `flex-basis`, `flex-grow`, `flex-shrink`,
+    `align-self`, `justify-self`, `order` i położenie w siatce (`grid-row-*`, `grid-column-*`) przechodzą
+    z tabeli na pudełko opakowujące, bo to ono jest elementem kontenera; źródło zostawiało je na tabeli,
+    więc dla tabel były ignorowane;
+  - `html/layout/block.go`, `html/layout/tables.go` (`tableWrapperWidthForced`): tabela przyjmuje szerokość
+    i wysokość wyznaczone przez układ flex (rozmiar docelowy, rozciągnięcie); źródło liczyło szerokość od
+    nowa z samej tabeli, a wysokość dostawało tylko pudełko opakowujące;
+  - `html/layout/flex.go`: o rozciąganiu tabeli w poprzek decyduje rozmiar podany w stylu tabeli, nie pudełka
+    opakowującego;
+- obrazy jako elementy flex, runda 2026-11-15:
+  - `html/layout/flex.go`: automatyczne minimum (`min-width: auto`, `min-height: auto`) liczone jest tylko
+    w osi głównej (CSS Flexbox 1 § 4.5); źródło liczyło je dla szerokości zawsze, a dla wysokości elementów
+    zastępowanych także w wierszu, przez co obraz rozciągany w poprzek był skalowany odwrotnie do proporcji
+    (np. 400×200 zamiast 100×100 w kontenerze o wysokości 100 px);
+  - `html/layout/flex.go` (`ratioBaseSize`): element zastępowany z proporcjami, rozciągany do określonego
+    rozmiaru poprzecznego kontenera jednowierszowego, ma rozmiar bazowy z proporcji (§ 9.2 krok 3B);
+    w źródle krok był pominięty;
+  - `html/tree/style.go`: `width` i `height` elementu `<svg>` w HTML są atrybutami prezentacyjnymi
+    (SVG 2 § 8.3);
+  - zmienione oczekiwania testów odziedziczonych `TestFlexItemIntrinsicHeightShrink`
+    i `TestFlexItemIntrinsicWidthShrink` (renderują bez atrybutów prezentacyjnych, więc element o rozmiarze
+    auto jest rozciągany: 10 zamiast 100);
 - `display: contents` (CSS Display 3 § 2.5), runda 2026-11-15: `css/properties/types.go` (`Display.Contents`),
   `css/validation/validation.go` (`display`), `html/boxes/build.go` (`elementToBox`,
   `keepsBoxWithDisplayContents`): element nie tworzy pudełka, a jego dzieci i pseudoelementy przechodzą do

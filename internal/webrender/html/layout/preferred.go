@@ -952,7 +952,10 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		h pr.MaybeFloat
 		w pr.Float
 	)
-	if width.Tag == pr.Auto {
+	// gopdfgo: szerokość procentowa liczy się w szerokości max-content jak auto (CSS Sizing 3 § 5.2.1:
+	// zerowany jest tylko udział min-content); źródło zerowało oba, więc obraz o szerokości 100% w elemencie
+	// dopasowującym się do treści (element flex, float, inline-block) miał szerokość zero.
+	if width.Tag == pr.Auto || width.Unit == pr.Perc {
 		height := box.Style.GetHeight()
 		if height.Tag == pr.Auto || height.Unit == pr.Perc {
 			h = pr.AutoF

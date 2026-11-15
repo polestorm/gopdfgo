@@ -1483,6 +1483,46 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			`<table style="width:200px"><caption style="text-align:center"><b class="sq"></b></caption><tr><td></td></tr></table>`,
 		},
 		{
+			"obraz data: z SVG wpisanym wprost (spacje i goły znak procentu)",
+			`<img style="display:block" src="data:image/svg+xml,%3Csvg viewBox='0 0 100 100' width='100px' xmlns='http://www.w3.org/2000/svg' %3E%3Crect width='100%' height='100%' fill='%23080' /%3E%3C/svg%3E">`,
+			square,
+		},
+		{
+			"obraz rozciągnięty w wierszu flex zachowuje proporcje",
+			`<div style="display:flex;height:100px"><img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 200' width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='200' height='200' fill='%23080'/%3E%3C/svg%3E"></div>`,
+			square,
+		},
+		{
+			"obraz rozciągnięty w kolumnie flex zachowuje proporcje",
+			`<div style="display:flex;flex-direction:column;width:100px"><img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 200' width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='200' height='200' fill='%23080'/%3E%3C/svg%3E"></div>`,
+			square,
+		},
+		{
+			"svg z atrybutem height nie jest rozciągany w wierszu flex",
+			`<div style="display:flex;height:10px"><svg height="100" width="100" viewBox="0 0 100 100" style="background:#080"></svg></div>`,
+			square,
+		},
+		{
+			"tabela jako element flex przyjmuje flex-basis",
+			`<div style="display:flex"><div style="display:table;height:100px;background:#080;flex:0 0 100px"></div></div>`,
+			square,
+		},
+		{
+			"tabela jako element flex rośnie z flex-grow",
+			`<div style="display:flex;width:100px"><table style="border-spacing:0;height:100px;background:#080;flex-grow:1"><tr><td></td></tr></table></div>`,
+			square,
+		},
+		{
+			"tabela jako element flex jest rozciągana na wysokość",
+			`<div style="display:flex;width:100px;height:100px"><table style="border-spacing:0;background:#080;flex-grow:1"><tr><td></td></tr></table></div>`,
+			square,
+		},
+		{
+			"span jako element flex nie dostaje odstępu dwa razy",
+			`<div style="display:flex"><span style="padding:0 30px;background:#ccc"><b class="sq"></b></span></div>`,
+			`<div style="display:flex"><div style="padding:0 30px;background:#ccc"><b class="sq"></b></div></div>`,
+		},
+		{
 			"display: contents oddaje dzieci rodzicowi",
 			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
 			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,

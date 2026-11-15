@@ -329,7 +329,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 		child.PositionX = positionX
 		child.PositionY = positionY
-		if minWidth := child.Style.GetMinWidth(); minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone {
+		// gopdfgo: automatyczne minimum dotyczy tylko osi głównej (CSS Flexbox 1 § 4.5); w osi poprzecznej
+		// wynosi zero. Źródło liczyło je dla szerokości zawsze, a dla wysokości elementów zastępowanych także
+		// w wierszu, przez co obraz rozciągany w poprzek był skalowany odwrotnie do proporcji.
+		if minWidth := child.Style.GetMinWidth(); main == pr.PWidth && minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone {
 			specifiedSize := child.Width
 			newChild := child_.Copy()
 			if bo.ParentT.IsInstance(child_) {
@@ -369,7 +372,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		// elementów zastępowanych, gdzie układ jest tani, a testy źródłowe na niej polegają. W źródle
 		// liczono ją zawsze: trzeci pełny układ na poziom zagnieżdżenia, koszt 3^n zamiast 2^n.
 		_, childIsReplaced := child_.(bo.ReplacedBoxITF)
-		if (main == pr.PHeight || childIsReplaced) && child.Style.GetMinHeight().Tag == pr.Auto {
+		if main == pr.PHeight && child.Style.GetMinHeight().Tag == pr.Auto {
 			specifiedSize := child.Height
 			newChild := child_.Copy()
 			newChild.Box().Style = child.Style.Copy()
@@ -459,8 +462,36 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					child.MainOuterExtra += child.MarginBottom.V()
 				}
 			}
+		} else if base, ok := ratioBaseSize(child_, box, parentBox, main); ok {
+			// gopdfgo: 3.B element z proporcjami, podstawą content i określonym rozmiarem poprzecznym
+			// (tu: rozciągnięty do określonego rozmiaru kontenera jednowierszowego) ma rozmiar bazowy
+			// wyliczony z rozmiaru poprzecznego i proporcji (CSS Flexbox 1 § 9.2 krok 3B). W źródle ten
+			// krok był pominięty, więc rozciągnięty obraz zachowywał szerokość wewnętrzną i był zniekształcany.
+			child.FlexBaseSize = base
+			if main == pr.PWidth {
+				child.MainOuterExtra = child.BorderLeftWidth.V() + child.BorderRightWidth.V() + child.PaddingLeft.V() + child.PaddingRight.V()
+				if child.MarginLeft != pr.AutoF {
+					child.MainOuterExtra += child.MarginLeft.V()
+				}
+				if child.MarginRight != pr.AutoF {
+					child.MainOuterExtra += child.MarginRight.V()
+				}
+				if child.Style.GetMinWidth().Tag == pr.Auto {
+					child.MinWidth = min(child.MinWidth.V(), base) // minimum automatyczne też wynika z proporcji
+				}
+			} else {
+				child.MainOuterExtra = child.BorderTopWidth.V() + child.BorderBottomWidth.V() + child.PaddingTop.V() + child.PaddingBottom.V()
+				if child.MarginTop != pr.AutoF {
+					child.MainOuterExtra += child.MarginTop.V()
+				}
+				if child.MarginBottom != pr.AutoF {
+					child.MainOuterExtra += child.MarginBottom.V()
+				}
+				if child.Style.GetMinHeight().Tag == pr.Auto {
+					child.MinHeight = min(child.MinHeight.V(), base)
+				}
+			}
 		} else if false {
-			// TODO: 3.B If the flex item has an intrinsic aspect ratio…
 			// TODO: 3.C If the used flex basis is 'content'…
 			// TODO: 3.D Otherwise, if the used flex basis is 'content'…
 		} else {
@@ -823,6 +854,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	// 8 Calculate the cross size of each flex line.
 	crossSize := getAttr(box, cross, "")
+	if height, ok := parentBox.Height.(pr.Float); ok && cross == pr.PHeight && crossSize != pr.AutoF {
+		// gopdfgo: wysokość treści po uwzględnieniu box-sizing; źródło brało tu wysokość pudełka
+		// obramowania, więc elementy kontenera z box-sizing: border-box były rozciągane za wysoko
+		crossSize = height
+	}
 	if len(flexLines) == 1 && crossSize != pr.AutoF {
 		// If the flex container is single-line…
 		flexLines[0].crossSize = crossSize.V()
@@ -903,6 +939,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		var definiteCrossSize pr.MaybeFloat
 		if he := box.Style.GetHeight(); cross == pr.PHeight && he.Tag != pr.Auto {
 			definiteCrossSize = he.Value
+			// gopdfgo: wysokość treści po rozwiązaniu box-sizing i procentów; źródło brało surową wartość
+			// ze stylu, więc w kontenerze z box-sizing: border-box linia była wyższa o obramowanie i odstępy
+			if height, ok := parentBox.Height.(pr.Float); ok {
+				definiteCrossSize = height
+			}
 		} else if cross == pr.PWidth {
 			if bo.FlexT.IsInstance(box_) {
 				if box.Style.GetWidth().Tag == pr.Auto {
@@ -945,7 +986,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			} else if alignSelf.Has(pr.Auto) {
 				alignSelf = alignItems
 			}
-			if alignSelf.Has(pr.Stretch) && getDimOrS(child, cross).Tag == pr.Auto {
+			crossStyle := child
+			if child.IsTableWrapper {
+				// gopdfgo: o tym, czy tabela ma rozmiar auto, decyduje styl tabeli, nie pudełka opakowującego
+				crossStyle = child.GetWrappedTable().Box()
+			}
+			if alignSelf.Has(pr.Stretch) && getDimOrS(crossStyle, cross).Tag == pr.Auto {
 				crossMargins := getCrossMargins(child, cross)
 				if !(crossMargins[0] == pr.AutoF || crossMargins[1] == pr.AutoF) {
 					crossSize := line.crossSize
@@ -1645,6 +1691,50 @@ func parallelLineState(stack tree.ResumeStack) map[int]tree.ResumeStack {
 }
 
 // finishedFlexItem zwraca pustą kopię elementu flex, którego treść skończyła się na poprzedniej stronie.
+// ratioBaseSize podaje rozmiar bazowy elementu zastępowanego z proporcjami, który zostanie rozciągnięty
+// w osi poprzecznej do określonego rozmiaru kontenera jednowierszowego (CSS Flexbox 1 § 9.2 krok 3B
+// i § 9.9.2: taki rozmiar poprzeczny jest określony).
+func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownProp) (pr.Float, bool) {
+	replaced, ok := item.(bo.ReplacedBoxITF)
+	if !ok || container.Style.GetFlexWrap() != "nowrap" {
+		return 0, false
+	}
+	child := item.Box()
+	_, _, ratio := replaced.Replaced().Replacement.GetIntrinsicSize(
+		child.Style.GetImageResolution().Value, child.Style.GetFontSize().Value)
+	if !pr.Is(ratio) || ratio.V() <= 0 {
+		return 0, false
+	}
+	alignSelf := child.Style.GetAlignSelf()
+	if alignSelf.Has(pr.Auto) {
+		alignSelf = container.Style.GetAlignItems()
+	}
+	if !(alignSelf.Has(pr.Stretch) || alignSelf.Has(pr.Normal)) {
+		return 0, false
+	}
+	if main == pr.PWidth {
+		// wysokość po rozwiązaniu box-sizing i nadana z zewnątrz (parentBox), nie surowa ze stylu
+		height, definite := parentBox.Height.(pr.Float)
+		if !definite || container.IndefiniteHeight || child.Style.GetHeight().Tag != pr.Auto || child.Style.GetWidth().Tag != pr.Auto ||
+			child.MarginTop == pr.AutoF || child.MarginBottom == pr.AutoF {
+			return 0, false
+		}
+		cross := height - child.MarginTop.V() - child.MarginBottom.V() - child.PaddingTop.V() - child.PaddingBottom.V() -
+			child.BorderTopWidth.V() - child.BorderBottomWidth.V()
+		cross = max(child.MinHeight.V(), min(cross, child.MaxHeight.V()))
+		return max(cross, 0) * ratio.V(), true
+	}
+	width, definite := container.Width.(pr.Float)
+	if !definite || child.Style.GetWidth().Tag != pr.Auto || child.Style.GetHeight().Tag != pr.Auto ||
+		child.MarginLeft == pr.AutoF || child.MarginRight == pr.AutoF {
+		return 0, false
+	}
+	cross := width - child.MarginLeft.V() - child.MarginRight.V() - child.PaddingLeft.V() - child.PaddingRight.V() -
+		child.BorderLeftWidth.V() - child.BorderRightWidth.V()
+	cross = max(child.MinWidth.V(), min(cross, child.MaxWidth.V()))
+	return max(cross, 0) / ratio.V(), true
+}
+
 // Element rozciągany do wysokości linii (stretched) zostaje widoczny, bez górnego obramowania i odstępu:
 // jego tło i boczne obramowanie ciągną się obok sąsiada, który nadal się dzieli. Pozostałe są niewidoczne
 // i tylko trzymają miejsce.

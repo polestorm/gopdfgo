@@ -160,13 +160,43 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		}
 		return newBox_, result
 	} else if box.IsTableWrapper {
-		tableWrapperWidth(context, box_, bo.MaybePoint{containingBlock.Width, containingBlock.Height})
+		// gopdfgo: tabela będąca elementem flex dostaje szerokość wyznaczoną przez układ flex (rozmiar
+		// docelowy w wierszu, rozciągnięcie w kolumnie); źródło liczyło ją od nowa z samej tabeli, więc
+		// flex-basis, flex-grow i rozciąganie tabeli nie działały.
+		forced, _ := box.Width.(pr.Float)
+		if !box.IsFlexItem || box.Width == pr.AutoF {
+			forced = -1
+		}
+		tableWrapperWidthForced(context, box_, bo.MaybePoint{containingBlock.Width, containingBlock.Height}, forced)
 	}
 	blockLevelWidth(box_, nil, containingBlock)
 	narrowBesideFloats(context, box_, containingBlock, *adjoiningMargins)
 
 	newBox__, result, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+	// gopdfgo: tabela będąca elementem flex o wysokości wyznaczonej przez układ flex (rozmiar docelowy
+	// w kolumnie, rozciągnięcie w wierszu) rośnie do tej wysokości: brakującą różnicę dostaje sama tabela,
+	// podpisy zostają przy swojej. W źródle rosło tylko pudełko opakowujące, a tabela zostawała niska.
+	if forcedHeight, ok := box.Height.(pr.Float); ok && box.IsTableWrapper && box.IsFlexItem &&
+		newBox__ != nil && result.resumeAt == nil && skipStack == nil {
+		var used pr.Float
+		var laidOutTable *bo.BoxFields
+		for _, child := range newBox__.Box().Children {
+			if child.Box().IsInNormalFlow() {
+				used += child.Box().MarginHeight()
+			}
+			if bo.TableT.IsInstance(child) {
+				laidOutTable = child.Box()
+			}
+		}
+		if deficit := forcedHeight - used; deficit > 0.5 && laidOutTable != nil {
+			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
+			table := box.GetWrappedTable().Box()
+			table.Height = laidOutTable.Height.V() + deficit
+			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
+		}
+	}
 	newBox, _ := newBox__.(bo.BlockBoxITF) // blockContainerLayout is type stable
 	// TODO: columns and flex items shouldn't be block boxes, this condition
 	// would then be useless when this is fixed.

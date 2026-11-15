@@ -166,7 +166,14 @@ func DefaultUrlFetcher(urlTarget string) (RemoteRessource, error) {
 	if strings.HasPrefix(strings.ToLower(urlTarget), "data:") {
 		// data url can't contains spaces and the strings comming from css
 		// may contain tabs when separated on several lines with \
-		urlTarget = htmlSpacesRe.ReplaceAllString(urlTarget, "")
+		// gopdfgo: spacje są częścią danych nie zakodowanych w base64 (np. SVG wpisany wprost); norma URL
+		// usuwa z adresu tylko tabulatory i znaki końca wiersza. Źródło usuwało wszystkie odstępy, więc
+		// "<svg viewBox=...>" traciło spacje między atrybutami i obraz nie był wczytywany.
+		if header, _, _ := strings.Cut(urlTarget, ","); strings.Contains(strings.ToLower(header), ";base64") {
+			urlTarget = htmlSpacesRe.ReplaceAllString(urlTarget, "")
+		} else {
+			urlTarget = strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(urlTarget)
+		}
 		data, err := parseDataURL([]byte(urlTarget))
 		if err != nil {
 			return RemoteRessource{}, err
@@ -354,47 +361,18 @@ func unhex(c byte) byte {
 // unescape unescapes a character sequence
 // escaped with Escape(String?).
 func unescape(s []byte) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	reader := bytes.NewReader(s)
-
-	for {
-		r, size, err := reader.ReadRune()
-		if err == io.EOF {
-			break
+	// gopdfgo: dekodowanie procentowe według normy URL (WHATWG URL § 1.3, "percent-decode"): znak %
+	// bez dwóch cyfr szesnastkowych za nim zostaje dosłownie, bajty spoza ASCII przechodzą bez zmian.
+	// Źródło odrzucało taki adres w całości, więc obraz data: z SVG zawierającym np. width='100%'
+	// albo znaki narodowe nie był wczytywany.
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) && isHex(s[i+1]) && isHex(s[i+2]) {
+			out = append(out, unhex(s[i+1])*16+unhex(s[i+2]))
+			i += 2
+			continue
 		}
-		if err != nil {
-			return nil, err
-		}
-		if size > 1 {
-			return nil, fmt.Errorf("rfc2396: non-ASCII char detected")
-		}
-
-		switch r {
-		case '%':
-			eb1, err := reader.ReadByte()
-			if err == io.EOF {
-				return nil, fmt.Errorf("rfc2396: unexpected end of unescape sequence")
-			}
-			if err != nil {
-				return nil, err
-			}
-			if !isHex(eb1) {
-				return nil, fmt.Errorf("rfc2396: invalid char 0x%x in unescape sequence", r)
-			}
-			eb0, err := reader.ReadByte()
-			if err == io.EOF {
-				return nil, fmt.Errorf("rfc2396: unexpected end of unescape sequence")
-			}
-			if err != nil {
-				return nil, err
-			}
-			if !isHex(eb0) {
-				return nil, fmt.Errorf("rfc2396: invalid char 0x%x in unescape sequence", r)
-			}
-			buf.WriteByte(unhex(eb0) + unhex(eb1)*16)
-		default:
-			buf.WriteByte(byte(r))
-		}
+		out = append(out, s[i])
 	}
-	return buf.Bytes(), nil
+	return out, nil
 }

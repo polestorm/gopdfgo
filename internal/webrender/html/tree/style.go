@@ -1322,6 +1322,20 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 					}
 				}
 			}
+		case atom.Svg:
+			// gopdfgo: width i height elementu <svg> osadzonego w HTML są atrybutami prezentacyjnymi
+			// (SVG 2 § 8.3), więc działają jak właściwości CSS: element z height="100" nie jest
+			// rozciągany jak element o wysokości auto. W źródle wyznaczały tylko rozmiar wewnętrzny obrazu.
+			for _, name := range [...]string{"width", "height"} {
+				value := strings.TrimSpace(element.Get(name))
+				if value == "" {
+					continue
+				}
+				if _, err := strconv.ParseFloat(value, 64); err == nil {
+					value += "px"
+				}
+				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, name+":"+value)})
+			}
 		case atom.Ol:
 			// gopdfgo: atrybuty list według HTML (§ 4.4.5, § 4.4.8) i CSS Lists 3. W źródle `start`
 			// obniżał licznik przez counter-increment na samej liście, `reversed` nie był obsługiwany,

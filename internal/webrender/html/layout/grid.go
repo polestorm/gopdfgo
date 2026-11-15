@@ -1892,6 +1892,12 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		newChildren = append(newChildren, newChild)
 		if baseline == nil && y == implicitY1 {
 			baseline = findInFlowBaseline(newChild, false)
+			if baseline == nil {
+				// gopdfgo: element bez wiersza tekstu ma linię bazową syntetyzowaną z dolnej krawędzi
+				// obramowania (CSS Align 3 § 9.1); źródło przyjmowało wtedy górę kontenera, więc
+				// inline-grid z pustymi elementami wisiał pod linią bazową wiersza.
+				baseline = newChild.Box().BorderBoxY() + newChild.Box().BorderHeight()
+			}
 		}
 	}
 

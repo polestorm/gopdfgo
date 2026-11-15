@@ -1463,6 +1463,11 @@ func blockify(box Box, isLayoutFlex bool) Box {
 	} else if replaced, ok := box.(InlineReplacedBoxITF); ok {
 		replacement := replaced.Replaced().Replacement
 		anonymous = BlockReplacedBoxAnonymousFrom(box, replacement)
+	} else if InlineT.IsInstance(box) && !box.Box().IsRunning() {
+		// gopdfgo: pudełko liniowe będące elementem flex lub grid samo staje się blokiem (CSS Display 3
+		// § 2.7): jego dzieci przechodzą do pudełka blokowego o tym samym stylu. Źródło opakowywało je
+		// w blok o tym samym stylu, więc odstępy, obramowanie i tło były stosowane dwukrotnie.
+		anonymous = BlockBoxAnonymousFrom(box, box.Box().Children)
 	} else if InlineLevelT.IsInstance(box) {
 		anonymous = BlockBoxAnonymousFrom(box, []Box{box})
 		if isLayoutFlex {

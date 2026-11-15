@@ -740,3 +740,34 @@ a reszta to `z-index` pól marginesowych, `page-orientation`, piony (`writing-mo
 i pozycjonowane dzielone między strony o różnych rozmiarach oraz właściwości eksperymentalne
 (`safe-printable-inset`). Licznik założony w `@page` i ograniczony do jednej strony (`content-012`)
 nie jest obsługiwany.
+
+## Flex: obrazy, tabele i elementy liniowe jako elementy kontenera (2026-11-15)
+
+Sondaż ekranowy: **6895 z 9110 (75,7%)**, w tym 6515 ściśle i 380 krawędziowo; poprzednio 6851
+(6469 i 382); zyskane 47 (`css-flexbox` 30, `css-grid` 7, `CSS2` 10), stracone 3. Reftesty druku: 210 z 340
+(bez zmian). Korpus 21 dokumentów: liczba stron i położenie słów względem Chromium bez zmian.
+
+Poprawki dotyczące zwykłych dokumentów:
+
+- **Obraz `data:` z SVG wpisanym wprost** nie był wczytywany, gdy dane zawierały spacje albo goły znak `%`
+  (np. `width='100%'`): spacje były usuwane, a adres z `%` bez dwóch cyfr szesnastkowych odrzucany.
+- **`<span>` z `padding`, obramowaniem lub tłem jako element flex albo grid** dostawał je dwukrotnie,
+  bo był opakowywany w blok o tym samym stylu.
+- **Obraz jako element flex** był zniekształcany, gdy kontener miał podaną wysokość (np. 400×200 zamiast
+  100×100): automatyczne minimum było liczone także w osi poprzecznej, a rozmiar z proporcji przy
+  rozciągnięciu nie był liczony wcale.
+- **Tabela jako element flex** ignorowała `flex-basis`, `flex-grow`, `align-self` i rozciąganie: te
+  właściwości zostawały na tabeli zamiast na pudełku, które jest elementem kontenera.
+- **Kontener flex z `box-sizing: border-box`** rozciągał elementy do wysokości pudełka obramowania zamiast
+  do wysokości treści.
+- `width` i `height` elementu `<svg>` podane liczbą albo długością działają jak właściwości CSS.
+
+Trzy straty: `flex-aspect-ratio-cross-size-001` i `flex-abspos-inset-cross-size-001` porównują dwa obrazy,
+które wcześniej były jednakowo błędne, a teraz jeden z nich jest poprawny (drugi wymaga `aspect-ratio`
+albo wysokości kontenera wynikającej z `top` i `bottom`); `table-as-item-percent-width-cell-001`
+to tabela z `flex-basis: content` i komórkami o szerokości 100%, która nie kurczy się do kontenera.
+
+Rozpoznane i odłożone we flex: właściwość `aspect-ratio` (nieobsługiwana; `flex-aspect-ratio-cross-size-001`),
+kontener flex pozycjonowany bezwzględnie z wysokością wynikającą z `top` i `bottom`, tabela z podaną
+szerokością i mniejszym `flex-basis`, `break-before: page` na elemencie flex, wysokości procentowe wnuków
+(`percentage-heights-*`), pismo pionowe (`flexbox-writing-mode-*`), `text-wrap: balance`.

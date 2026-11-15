@@ -209,6 +209,19 @@ var (
 		PTransformOrigin,
 		PVerticalAlign,
 		PZIndex,
+		// gopdfgo: właściwości elementu flex i grid dotyczą pudełka opakowującego tabelę, bo to ono jest
+		// elementem kontenera (CSS Tables 3 § 3.3); źródło zostawiało je na tabeli, więc flex-basis,
+		// flex-grow, align-self i położenie w siatce tabeli były ignorowane
+		PFlexBasis,
+		PFlexGrow,
+		PFlexShrink,
+		PAlignSelf,
+		PJustifySelf,
+		POrder,
+		PGridRowStart,
+		PGridRowEnd,
+		PGridColumnStart,
+		PGridColumnEnd,
 	)
 
 	InitialNotComputed = NewSetK(

@@ -1230,9 +1230,23 @@ func autoTableLayout(context *layoutContext, box_ Box, containingBlock bo.Point)
 
 // Find the width of each column and derive the wrapper width.
 func tableWrapperWidth(context *layoutContext, wrapper_ Box, containingBlock bo.MaybePoint) {
+	tableWrapperWidthForced(context, wrapper_, containingBlock, -1)
+}
+
+// tableWrapperWidthForced: forced >= 0 to szerokość pudełka obramowania tabeli narzucona z zewnątrz
+// (element flex); tabela i tak nie zejdzie poniżej szerokości minimalnej treści.
+func tableWrapperWidthForced(context *layoutContext, wrapper_ Box, containingBlock bo.MaybePoint, forced pr.Float) {
 	wrapper := wrapper_.Box()
 	table := wrapper.GetWrappedTable()
 	resolvePercentages(table, containingBlock)
+	if forced >= 0 {
+		// rozmiar z układu flex dotyczy pudełka wskazanego przez box-sizing tabeli
+		tb := table.Box()
+		if tb.Style.GetBoxSizing() == "border-box" {
+			forced -= tb.PaddingLeft.V() + tb.PaddingRight.V() + tb.BorderLeftWidth.V() + tb.BorderRightWidth.V()
+		}
+		tb.Width = max(forced, 0)
+	}
 
 	// gopdfgo: min-width i max-width tabeli (CSS 2.1 § 10.4, CSS Tables 3
 	// § 3.9.1). Źródło je pomijało: tabela z width: 3in i max-width: 1in
