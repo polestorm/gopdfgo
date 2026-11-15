@@ -430,7 +430,8 @@ Wspólne dla obu katalogów:
   (przesunięcie do 0,0005 rozmiaru fontu). Źródło obcinało korektę w stronę zera przy każdym znaku, więc błąd
   narastał wzdłuż wiersza i tekst narysowany rozjeżdżał się z szerokością wyznaczoną w układzie (ok. 0,03 px
   na kilkanaście znaków). Skutek: ten sam tekst wygląda identycznie w jednym fragmencie i w kilku kolejnych
-  pudełkach. Rozmiar plików PDF bez zmian. Odrzucone warianty (pełny sondaż 6779 wobec 6787 dla przyjętego):
+  pudełkach. Pliki PDF korpusu większe o 1,1% (3,24 MB → 3,27 MB łącznie dla 21 dokumentów), bo więcej
+  znaków dostaje niezerową korektę. Odrzucone warianty (pełny sondaż 6779 wobec 6787 dla przyjętego):
   korekty ułamkowe bez siatki (pliki większe o 2,9%) oraz zaokrąglanie narastające w pomiarze tekstu (psuło
   zgodność tekstu dzielonego na fragmenty). Koszt przyjętego: cztery testy `CSS2/css1` z fontem Ahem, w których
   krawędź znaku leży dokładnie na granicy piksela, przeszły z klasy „z dokładnością do krawędzi” do niezaliczonych;
