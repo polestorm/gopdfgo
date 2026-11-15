@@ -146,6 +146,7 @@ var (
 		pr.PLang:          lang,
 		pr.PTabSize:       tabSize,
 		pr.PTransform:     transforms,
+		pr.PBoxShadow:     boxShadows,
 		pr.PVerticalAlign: verticalAlign,
 		pr.PWordSpacing:   wordSpacing,
 		pr.PTextAlignAll:  textAlignAll,
@@ -316,9 +317,15 @@ func length_(computer *ComputedStyle, value pr.TaggedDim, fontSize pr.Float, pix
 	}
 	if value.Calc != nil {
 		// gopdfgo: calc() sprowadzamy do pikseli albo do procentu z dodatkiem w pikselach
-		result, err := value.Calc.Resolve(func(v pr.Float, unit pr.Unit) pr.Float {
+		toPixels := func(v pr.Float, unit pr.Unit) pr.Float {
 			return length_(computer, pr.Dimension{Value: v, Unit: unit}.Tagged(), fontSize, false).Value
-		})
+		}
+		result, err := value.Calc.Resolve(toPixels)
+		if err != nil && !pixelsOnly && value.Calc.HasPercentage() {
+			// gopdfgo: min(), max() i clamp() z procentem nie sprowadzają się do sumy pikseli i procentu;
+			// wyrażenie zostaje (z długościami w pikselach) i jest liczone w układzie jak procent
+			return pr.Dimension{Unit: pr.Perc, Calc: value.Calc.Freeze(toPixels)}.Tagged()
+		}
 		if err != nil || result.Percent == 0 || pixelsOnly {
 			return asPixels(pr.Dimension{Value: result.Pixels, Unit: pr.Px}.Tagged(), pixelsOnly)
 		}
@@ -1006,6 +1013,19 @@ func transforms(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) 
 			tr.Dimensions = _lengthOrPercentageTuple2(computer, tr.Dimensions)
 		}
 		result[index] = tr
+	}
+	return result
+}
+
+// gopdfgo: długości cieni box-shadow sprowadzone do pikseli.
+func boxShadows(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.BoxShadows)
+	result := make(pr.BoxShadows, len(value))
+	for index, shadow := range value {
+		for _, d := range [...]*pr.Dimension{&shadow.X, &shadow.Y, &shadow.Blur, &shadow.Spread} {
+			*d = length_(computer, d.Tagged(), -1, true).Dimension
+		}
+		result[index] = shadow
 	}
 	return result
 }

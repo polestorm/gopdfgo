@@ -1305,7 +1305,7 @@ func testDisplayNoneRoot(t *testing.T, html string) {
 
 	box := parseAndBuild(t, html)
 	if d := box.Box().Style.GetDisplay(); d != (pr.Display{Outside: pr.Block, Inside: pr.Flow}) {
-		t.Fatalf("unexpected display: %s", d)
+		t.Fatalf("unexpected display: %v", d)
 	}
 	if len(box.Box().Children) != 0 {
 		t.Fatal()

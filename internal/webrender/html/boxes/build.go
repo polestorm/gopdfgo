@@ -167,7 +167,7 @@ func makeBox(style pr.ElementStyle, content []Box, element *utils.HTMLNode, pseu
 	case [2]pr.Keyword{pr.TableCaption}:
 		b = NewTableCaptionBox(style, (*html.Node)(element), pseudoType, content)
 	default:
-		return nil, fmt.Errorf("ignored box %s: display property %s not supported", element.Data, tmp)
+		return nil, fmt.Errorf("ignored box %s: display property %v not supported", element.Data, tmp)
 	}
 	return b, nil
 }

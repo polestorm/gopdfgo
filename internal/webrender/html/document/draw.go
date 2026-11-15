@@ -198,7 +198,9 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 			bo.FlexContainerT.IsInstance(box_) || bo.GridContainerT.IsInstance(box_) || bo.ReplacedT.IsInstance(box_) {
 			ctx.setMaskBorder(box_)
 			// The canvas background was removed by layout_backgrounds.
+			ctx.drawBoxShadows(box_.Box(), false)
 			ctx.drawBackgroundDefaut(box_.Box().Background)
+			ctx.drawBoxShadows(box_.Box(), true)
 			ctx.drawBorder(box_)
 		}
 
@@ -260,7 +262,9 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 						openTables = append(openTables, openTable{block, descendants})
 					}
 				} else {
+					ctx.drawBoxShadows(block.Box(), false)
 					ctx.drawBackgroundDefaut(block.Box().Background)
+					ctx.drawBoxShadows(block.Box(), true)
 					ctx.drawBorder(block)
 				}
 			}
@@ -499,7 +503,9 @@ func (ctx drawContext) drawTable(table *bo.TableBox) {
 				cell := cell.Box()
 				if table.Style.GetBorderCollapse() == "collapse" ||
 					cell.Style.GetEmptyCells() == "show" || !cell.Empty {
+					ctx.drawBoxShadows(cell, false)
 					ctx.drawBackgroundDefaut(cell.Background)
+					ctx.drawBoxShadows(cell, true)
 				}
 			}
 		}
@@ -742,7 +748,9 @@ func (ctx drawContext) drawInlineLevel(page *bo.PageBox, box_ Box, offsetX fl, t
 	} else {
 		ctx.setMaskBorder(box_)
 		box := box_.Box()
+		ctx.drawBoxShadows(box, false)
 		ctx.drawBackgroundDefaut(box.Background)
+		ctx.drawBoxShadows(box, true)
 		ctx.drawBorder(box_)
 		textBox, isTextBox := box_.(*bo.TextBox)
 		replacedBox, isReplacedBox := box_.(bo.ReplacedBoxITF)

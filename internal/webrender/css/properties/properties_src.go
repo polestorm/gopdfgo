@@ -137,6 +137,7 @@ const (
 	POutlineWidth
 	POutlineOffset // gopdfgo: CSS UI 4 § 3.2
 	PAspectRatio   // gopdfgo: CSS Sizing 4 § 5.1; 0 oznacza auto
+	PBoxShadow     // gopdfgo: CSS Backgrounds 3 § 6.1
 	PBoxSizing
 
 	// The following properties are all background related,

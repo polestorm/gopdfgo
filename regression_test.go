@@ -1609,6 +1609,17 @@ func TestSecondCSS2RoundFixes(t *testing.T) {
 			`<div style="font-size:40px;line-height:100px">A<div style="display:inline-block;width:20px;height:20px;background:#080"></div></div>`,
 		},
 		{
+			"box-shadow: cień zewnętrzny z przesunięciem",
+			`<div style="width:80px;height:80px;background:#fff;box-shadow:20px 20px 0 #080"></div>`,
+			`<div style="position:relative;height:100px"><div style="position:absolute;left:20px;top:20px;width:80px;height:80px;background:#080"></div>` +
+				`<div style="position:absolute;width:80px;height:80px;background:#fff"></div></div>`,
+		},
+		{
+			"box-shadow: cień wewnętrzny",
+			`<div style="width:100px;height:100px;background:#fff;box-shadow:inset 0 0 0 10px #080"></div>`,
+			`<div style="box-sizing:border-box;width:100px;height:100px;border:10px solid #080;background:#fff"></div>`,
+		},
+		{
 			"display: contents oddaje dzieci rodzicowi",
 			`<div style="display:flex;gap:10px"><div style="display:contents;color:#080"><b class="sq"></b><b class="sq"></b></div><b class="sq"></b></div>`,
 			`<div style="display:flex;gap:10px"><b class="sq"></b><b class="sq"></b><b class="sq"></b></div>`,
@@ -1705,6 +1716,122 @@ func TestForcedBreaksInFlexAndGrid(t *testing.T) {
 			if !strings.Contains(text, letter) {
 				t.Errorf("%s: brak tekstu %q po podziale", c.name, letter)
 			}
+		}
+	}
+}
+
+// Składnia i selektory z nowszych modułów CSS, częste w zwykłych arkuszach: każda para ma dać ten sam
+// dokument co zapis podstawowy, bez ostrzeżeń o odrzuconej deklaracji.
+func TestModernSyntaxEquivalents(t *testing.T) {
+	const body = `<div class="a"><p>tekst</p></div>`
+	cases := []struct{ name, modern, plain string }{
+		{"rgb ze spacjami i alfą", `.a { color: rgb(0 128 0 / 50%) }`, `.a { color: rgba(0, 128, 0, 0.5) }`},
+		{"rgb z ułamkami", `.a { color: rgb(25.5 51 0) }`, `.a { color: rgb(10%, 20%, 0%) }`},
+		{"hsl z jednostką kąta", `.a { color: hsl(120deg 100% 25%) }`, `.a { color: hsl(120, 100%, 25%) }`},
+		{"hsl w obrotach", `.a { color: hsl(0.5turn 100% 50%) }`, `.a { color: hsl(180, 100%, 50%) }`},
+		{"skrót inset", `.a { position: relative; inset: 5px 10px }`, `.a { position: relative; top: 5px; right: 10px; bottom: 5px; left: 10px }`},
+		{"place-items", `.a { display: grid; place-items: center end }`, `.a { display: grid; align-items: center; justify-items: end }`},
+		{"place-content", `.a { display: flex; place-content: center }`, `.a { display: flex; align-content: center; justify-content: center }`},
+		{"overflow-x: hidden", `.a { overflow-x: hidden }`, `.a { overflow: hidden }`},
+		{"overflow-y: auto jak overflow: auto", `.a { overflow-y: auto }`, `.a { overflow: auto }`},
+		{"overflow-x: visible bez skutku", `.a { overflow-x: visible }`, `.a { }`},
+		{"position: sticky", `.a { position: sticky; top: 0 }`, `.a { position: relative; top: 0 }`},
+		{"float: inline-start", `p { float: inline-start }`, `p { float: left }`},
+		{"logiczny promień narożnika", `.a { border: 2px solid; border-start-start-radius: 8px }`, `.a { border: 2px solid; border-top-left-radius: 8px }`},
+		{":where bez wagi", `.a p { color: green } :where(.a, .b) p { color: red }`, `.a p { color: green }`},
+		{":where dopasowuje", `:where(.a) > p { color: green }`, `.a > p { color: green }`},
+		{"@supports spełnione", `@supports (display: grid) { p { color: green } }`, `p { color: green }`},
+		{"@supports niespełnione", `p { color: green } @supports (frobnicate: 1px) { p { color: red } }`, `p { color: green }`},
+		{"@supports not", `@supports not (frobnicate: 1px) { p { color: green } }`, `p { color: green }`},
+		{"@supports and/or", `@supports ((display: grid) and (gap: 1em)) or (frobnicate: 1) { p { color: green } }`, `p { color: green }`},
+		{"@supports selector()", `@supports selector(:where(p)) { p { color: green } }`, `p { color: green }`},
+		{"word-break: keep-all", `p { word-break: keep-all }`, `p { word-break: normal }`},
+	}
+	options := Options{Fonts: testFonts(t)}
+	for _, c := range cases {
+		modern, err := Render(t.Context(), []byte(`<style>`+c.modern+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plain, err := Render(t.Context(), []byte(`<style>`+c.plain+`</style>`+body), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(modern.PDF, plain.PDF) {
+			t.Errorf("%s: %q dało inny dokument niż %q", c.name, c.modern, c.plain)
+		}
+		for _, warning := range modern.Warnings {
+			if strings.Contains(warning.Message, "Ignored") || strings.Contains(warning.Message, "Unknown rule") ||
+				strings.Contains(warning.Message, "unsupported selector") {
+				t.Errorf("%s: ostrzeżenie %q", c.name, warning.Message)
+			}
+		}
+	}
+}
+
+// Paczka z 2026-11-15: elementy pozycjonowane bezwzględnie w siatce, rozciąganie tylko elementów auto,
+// linia bazowa w wierszu siatki, min()/max()/clamp() z procentami oraz funkcje barw. Każdy przypadek
+// ma dać ten sam obraz co zapis podstawowy.
+func TestGridPositionedAndComparisonFunctions(t *testing.T) {
+	const style = "<style>@page { size: 300px 300px; margin: 0 } body { margin: 0 } " +
+		".g { display: grid; width: 200px; grid-template-columns: 100px 100px; grid-template-rows: 50px 50px } " +
+		".k { background: #080 }</style>"
+	cases := []struct{ name, tested, expected string }{
+		{
+			"element bezwzględny wypełnia wskazany obszar siatki",
+			`<div class="g" style="position:relative"><div class="k" style="position:absolute;grid-column:2;grid-row:2;inset:0"></div></div>`,
+			`<div class="k" style="width:100px;height:50px;margin:50px 0 0 100px"></div>`,
+		},
+		{
+			"element bezwzględny nie zajmuje komórki siatki",
+			`<div class="g" style="position:relative"><div style="position:absolute;width:10px;height:10px"></div>` +
+				`<div class="k"></div></div>`,
+			`<div class="k" style="width:100px;height:50px"></div>`,
+		},
+		{
+			"element bezwzględny bez linii: blok zawierający to pudełko dopełnienia siatki",
+			`<div class="g" style="position:relative;padding:10px"><div class="k" style="position:absolute;inset:0"></div></div>`,
+			`<div class="k" style="width:220px;height:120px"></div>`,
+		},
+		{
+			"element siatki o podanej szerokości nie jest rozciągany",
+			`<div class="g"><div class="k" style="width:40px;height:20px"></div></div>`,
+			`<div class="k" style="width:40px;height:20px"></div>`,
+		},
+		{
+			"element siatki auto wypełnia komórkę",
+			`<div class="g"><div class="k"></div></div>`,
+			`<div class="k" style="width:100px;height:50px"></div>`,
+		},
+		{
+			"min() z procentem zależy od bloku zawierającego",
+			`<div style="width:200px"><div class="k" style="width:min(50%, 150px);height:20px"></div></div>` +
+				`<div style="width:400px"><div class="k" style="width:min(50%, 150px);height:20px"></div></div>`,
+			`<div class="k" style="width:100px;height:20px"></div><div class="k" style="width:150px;height:20px"></div>`,
+		},
+		{
+			"clamp() i max() z procentem",
+			`<div style="width:200px"><div class="k" style="width:clamp(20px, 10%, 50px);height:20px"></div>` +
+				`<div class="k" style="width:max(25%, 80px);height:20px"></div></div>`,
+			`<div class="k" style="width:20px;height:20px"></div><div class="k" style="width:80px;height:20px"></div>`,
+		},
+		{
+			"oklch i lab jako tło",
+			`<div style="width:50px;height:50px;background:oklch(51.975% 0.17686 142.495)"></div>` +
+				`<div style="width:50px;height:50px;background:lab(46.2775% -47.5621 48.5837)"></div>`,
+			`<div style="width:50px;height:100px;background:rgb(0 128 0)"></div>`,
+		},
+	}
+	for _, c := range cases {
+		dir := t.TempDir()
+		tested := rasterize(t, renderString(t, style+c.tested).PDF, dir, "tested")
+		expected := rasterize(t, renderString(t, style+c.expected).PDF, dir, "expected")
+		if len(tested) != 1 || len(expected) != 1 {
+			t.Errorf("%s: strony %d i %d", c.name, len(tested), len(expected))
+			continue
+		}
+		if n := differentPixels(tested[0], expected[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", c.name, n)
 		}
 	}
 }

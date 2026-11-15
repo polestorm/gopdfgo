@@ -27,6 +27,9 @@ var calcCases = []struct{ name, withCalc, plain string }{
 	{"width clamp low", "width: clamp(60px, 1em, 200px)", "width: 60px"},
 	{"width clamp high", "width: clamp(60px, 300px, 200px)", "width: 200px"},
 	{"width min inside calc", "width: calc(min(100px, 300px) + 10px)", "width: 110px"},
+	{"min z procentem", "width: min(50%, 100px)", "width: 100px"},
+	{"clamp z procentem", "width: clamp(10px, 50%, 120px)", "width: 120px"},
+	{"max z procentem", "max-width: max(10%, 80px); width: 500px", "width: 80px"},
 	{"height", "height: calc(10px + 1em)", "height: 30px"},
 	{"min-width", "min-width: calc(50% + 10px); width: 10px", "min-width: 210px; width: 10px"},
 	{"max-width", "max-width: calc(50% - 10px)", "max-width: 190px"},
@@ -116,7 +119,6 @@ func TestCalcRejectsInvalid(t *testing.T) {
 		"width: calc(10px / 0)",           // dzielenie przez zero
 		"width: calc(10px +)",             // brak argumentu
 		"width: calc()",                   // puste
-		"width: min(50%, 100px)",          // procent w min(): jeszcze nieobsługiwane
 		"letter-spacing: calc(10% + 1px)", // procent tam, gdzie właściwość go nie przyjmuje
 	} {
 		result, err := Render(context.Background(), calcDocument(declaration), Options{Fonts: fonts})

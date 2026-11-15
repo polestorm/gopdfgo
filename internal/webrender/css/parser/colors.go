@@ -318,110 +318,255 @@ func ParseColor(token Token) Color {
 			}
 		}
 	case FunctionBlock:
-		args := RemoveWhitespace(token.Arguments)
-		if len(args) == 5 && IsLiteral(args[1], ",") && IsLiteral(args[3], ",") {
-			// comma separated : old syntax
-			args = []Token{args[0], args[2], args[4]}
-		} else if len(args) == 7 && IsLiteral(args[1], ",") && IsLiteral(args[3], ",") && IsLiteral(args[5], ",") {
-			// comma separated : old syntax
-			args = []Token{args[0], args[2], args[4], args[6]}
+		// gopdfgo: składnia CSS Color 4: składowe rozdzielone spacjami, alfa po ukośniku, liczby i procenty
+		// (także ułamkowe) w rgb(), kąt z jednostką w hsl(), słowo none jako zero; rgba() i hsla() to
+		// aliasy. Źródło przyjmowało tylko składnię z przecinkami, całkowite składowe rgb() i hue bez jednostki.
+		name := utils.AsciiLower(token.Name)
+		switch name {
+		case "rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch":
+		default:
+			return Color{}
 		}
-		if len(args) != 0 {
-			switch utils.AsciiLower(token.Name) {
-			case "rgb":
-				rgba, ok := parseRgb(args, 1.)
-				if ok {
-					return Color{Type: ColorRGBA, RGBA: rgba}
-				}
-			case "rgba":
-				if len(args) < 3 {
+		var components, alphaTokens []Token
+		legacy, afterSlash := false, false
+		for _, arg := range RemoveWhitespace(token.Arguments) {
+			switch {
+			case IsLiteral(arg, ","):
+				legacy = true
+			case IsLiteral(arg, "/"):
+				if afterSlash || legacy {
 					return Color{}
 				}
-				alpha, isNotNone := parseAlpha(args[3:])
-				if isNotNone {
-					rgba, ok := parseRgb(args[:3], alpha)
-					if ok {
-						return Color{Type: ColorRGBA, RGBA: rgba}
-					}
-				}
-			case "hsl":
-				rgba, ok := parseHsl(args, 1.)
-				if ok {
-					return Color{Type: ColorRGBA, RGBA: rgba}
-				}
-			case "hsla":
-				if len(args) < 3 {
-					return Color{}
-				}
-				alpha, isNotNone := parseAlpha(args[3:])
-				if isNotNone {
-					rgba, ok := parseHsl(args[:3], alpha)
-					if ok {
-						return Color{Type: ColorRGBA, RGBA: rgba}
-					}
-				}
+				afterSlash = true
+			case afterSlash:
+				alphaTokens = append(alphaTokens, arg)
+			default:
+				components = append(components, arg)
 			}
 		}
+		if legacy {
+			// składnia z przecinkami: przecinek między każdą parą wartości
+			raw := RemoveWhitespace(token.Arguments)
+			if len(raw) != 5 && len(raw) != 7 {
+				return Color{}
+			}
+			for index, arg := range raw {
+				if IsLiteral(arg, ",") != (index%2 == 1) {
+					return Color{}
+				}
+			}
+			if len(components) == 4 {
+				components, alphaTokens = components[:3], components[3:]
+			}
+		}
+		if len(components) != 3 || len(alphaTokens) > 1 {
+			return Color{}
+		}
+		alpha := utils.Fl(1)
+		if len(alphaTokens) == 1 {
+			switch a := alphaTokens[0].(type) {
+			case Number:
+				alpha = a.ValueF
+			case Percentage:
+				alpha = a.ValueF / 100
+			case Ident:
+				if utils.AsciiLower(a.Value) != "none" || legacy {
+					return Color{}
+				}
+				alpha = 0
+			default:
+				return Color{}
+			}
+			alpha = min(1, max(0, alpha))
+		}
+		// składowa jako ułamek zakresu: liczba dzielona przez [scale], procent przez 100
+		component := func(t Token, scale utils.Fl) (utils.Fl, bool) {
+			switch v := t.(type) {
+			case Number:
+				return v.ValueF / scale, true
+			case Percentage:
+				return v.ValueF / 100, true
+			case Ident:
+				if utils.AsciiLower(v.Value) == "none" && !legacy {
+					return 0, true
+				}
+			}
+			return 0, false
+		}
+		if name == "rgb" || name == "rgba" {
+			r, okR := component(components[0], 255)
+			g, okG := component(components[1], 255)
+			b, okB := component(components[2], 255)
+			if !okR || !okG || !okB {
+				return Color{}
+			}
+			if legacy {
+				// w składni z przecinkami wszystkie trzy składowe muszą być tego samego rodzaju
+				_, n0 := components[0].(Number)
+				_, n1 := components[1].(Number)
+				_, n2 := components[2].(Number)
+				if n0 != n1 || n1 != n2 {
+					return Color{}
+				}
+			}
+			return Color{Type: ColorRGBA, RGBA: RGBA{R: r, G: g, B: b, A: alpha}}
+		}
+		// kąt barwy w stopniach: liczba albo wymiar kątowy
+		parseHue := func(t Token) (utils.Fl, bool) {
+			switch h := t.(type) {
+			case Number:
+				return h.ValueF, true
+			case Dimension:
+				switch utils.AsciiLower(h.Unit) {
+				case "deg":
+					return h.ValueF, true
+				case "grad":
+					return h.ValueF * 360 / 400, true
+				case "rad":
+					return h.ValueF * 180 / math.Pi, true
+				case "turn":
+					return h.ValueF * 360, true
+				}
+			case Ident:
+				if utils.AsciiLower(h.Value) == "none" && !legacy {
+					return 0, true
+				}
+			}
+			return 0, false
+		}
+		if name != "hsl" && name != "hsla" {
+			// gopdfgo: hwb(), lab(), lch(), oklab(), oklch() z CSS Color 4, tylko w składni ze spacjami.
+			// Wynik sprowadzamy do sRGB; barwy spoza gamy przycinamy składowa po składowej (norma
+			// zaleca odwzorowanie gamy w OKLCH, którego tu nie robimy).
+			if legacy {
+				return Color{}
+			}
+			var r, g, b float64
+			switch name {
+			case "hwb":
+				hue, okH := parseHue(components[0])
+				white, okW := component(components[1], 100)
+				black, okB := component(components[2], 100)
+				if !okH || !okW || !okB {
+					return Color{}
+				}
+				w, k := float64(min(1, max(0, white))), float64(min(1, max(0, black)))
+				if w+k >= 1 {
+					r, g, b = w/(w+k), w/(w+k), w/(w+k)
+				} else {
+					pr, pg, pb := hslToRgb(hue, 100, 50)
+					r, g, b = float64(pr)*(1-w-k)+w, float64(pg)*(1-w-k)+w, float64(pb)*(1-w-k)+w
+				}
+				return Color{Type: ColorRGBA, RGBA: RGBA{R: utils.Fl(r), G: utils.Fl(g), B: utils.Fl(b), A: alpha}}
+			case "lab", "lch", "oklab", "oklch":
+				ok := name == "oklab" || name == "oklch"
+				polar := name == "lch" || name == "oklch"
+				// zakresy odpowiadające 100%: L 100 (lab) albo 1 (oklab); a, b 125 albo 0,4; C 150 albo 0,4
+				lScale, abScale, cScale := utils.Fl(100), utils.Fl(125), utils.Fl(150)
+				if ok {
+					lScale, abScale, cScale = 1, 0.4, 0.4
+				}
+				l, okL := component(components[0], lScale)
+				if !okL {
+					return Color{}
+				}
+				lightness := float64(min(1, max(0, l)) * lScale)
+				var ca, cb float64
+				if polar {
+					chroma, okC := component(components[1], cScale)
+					hue, okH := parseHue(components[2])
+					if !okC || !okH {
+						return Color{}
+					}
+					c := float64(max(0, chroma) * cScale)
+					ca, cb = c*math.Cos(float64(hue)*math.Pi/180), c*math.Sin(float64(hue)*math.Pi/180)
+				} else {
+					va, okA := component(components[1], abScale)
+					vb, okB := component(components[2], abScale)
+					if !okA || !okB {
+						return Color{}
+					}
+					ca, cb = float64(va*abScale), float64(vb*abScale)
+				}
+				if ok {
+					r, g, b = oklabToLinearSRGB(lightness, ca, cb)
+				} else {
+					r, g, b = labToLinearSRGB(lightness, ca, cb)
+				}
+				return Color{Type: ColorRGBA, RGBA: RGBA{R: srgbGamma(r), G: srgbGamma(g), B: srgbGamma(b), A: alpha}}
+			}
+			return Color{}
+		}
+		hue, okH := parseHue(components[0])
+		if !okH {
+			return Color{}
+		}
+		saturation, okS := component(components[1], 100)
+		lightness, okL := component(components[2], 100)
+		if _, isNumber := components[1].(Number); isNumber && legacy {
+			okS = false
+		}
+		if _, isNumber := components[2].(Number); isNumber && legacy {
+			okL = false
+		}
+		if !okS || !okL {
+			return Color{}
+		}
+		r, g, b := hslToRgb(hue, saturation*100, lightness*100)
+		return Color{Type: ColorRGBA, RGBA: RGBA{R: r, G: g, B: b, A: alpha}}
 	}
 	return Color{}
 }
 
-// If args is a list of a single  NUMBER token,
-// return its value clipped to the 0..1 range
-func parseAlpha(args []Token) (utils.Fl, bool) {
-	// CSS level 4 and 5 allow missing alpha
-	if len(args) == 0 {
-		return 1, true
+// srgbGamma koduje składową liniową sRGB i przycina ją do zakresu [0, 1].
+func srgbGamma(v float64) utils.Fl {
+	if v <= 0.0031308 {
+		v *= 12.92
+	} else {
+		v = 1.055*math.Pow(v, 1/2.4) - 0.055
 	}
-	if len(args) == 1 {
-		token, ok := args[0].(Number)
-		if ok {
-			return min(1., max(0., token.ValueF)), true
-		}
-	}
-	return 0, false
+	return utils.Fl(min(1, max(0, v)))
 }
 
-// If args is a list of 3 NUMBER tokens or 3 PERCENTAGE tokens,
-// return RGB values as a tuple of 3 floats := range 0..1.
-func parseRgb(args []Token, alpha utils.Fl) (RGBA, bool) {
-	if len(args) != 3 {
-		return RGBA{}, false
-	}
-	nR, okR := args[0].(Number)
-	nG, okG := args[1].(Number)
-	nB, okB := args[2].(Number)
-	if okR && okG && okB && nR.IsInt() && nG.IsInt() && nB.IsInt() {
-		return RGBA{R: nR.ValueF / 255, G: nG.ValueF / 255, B: nB.ValueF / 255, A: alpha}, true
-	}
-
-	pR, okR := args[0].(Percentage)
-	pG, okG := args[1].(Percentage)
-	pB, okB := args[2].(Percentage)
-	if okR && okG && okB {
-		return RGBA{R: pR.ValueF / 100, G: pG.ValueF / 100, B: pB.ValueF / 100, A: alpha}, true
-	}
-	return RGBA{}, false
+// oklabToLinearSRGB przelicza OKLab na liniowe sRGB (macierze z CSS Color 4, rozdz. 10).
+func oklabToLinearSRGB(l, a, b float64) (float64, float64, float64) {
+	l_ := l + 0.3963377774*a + 0.2158037573*b
+	m_ := l - 0.1055613458*a - 0.0638541728*b
+	s_ := l - 0.0894841775*a - 1.2914855480*b
+	l_, m_, s_ = l_*l_*l_, m_*m_*m_, s_*s_*s_
+	return 4.0767416621*l_ - 3.3077115913*m_ + 0.2309699292*s_,
+		-1.2684380046*l_ + 2.6097574011*m_ - 0.3413193965*s_,
+		-0.0041960863*l_ - 0.7034186147*m_ + 1.7076147010*s_
 }
 
-// If args is a list of 1 NUMBER token && 2 PERCENTAGE tokens,
-// return RGB values as a tuple of 3 floats := range 0..1.
-func parseHsl(args []Token, alpha utils.Fl) (RGBA, bool) {
-	if len(args) != 3 {
-		return RGBA{}, false
+// labToLinearSRGB przelicza CIE Lab (biel D50) na liniowe sRGB: Lab → XYZ D50 → XYZ D65
+// (adaptacja Bradforda) → sRGB.
+func labToLinearSRGB(l, a, b float64) (float64, float64, float64) {
+	const epsilon, kappa = 216.0 / 24389, 24389.0 / 27
+	fy := (l + 16) / 116
+	fx := a/500 + fy
+	fz := fy - b/200
+	x, z := fx*fx*fx, fz*fz*fz
+	if x <= epsilon {
+		x = (116*fx - 16) / kappa
 	}
-	h, okH := args[0].(Number)
-	s, okS := args[1].(Percentage)
-	l, okL := args[2].(Percentage)
-	if okH && okS && okL && h.IsInt() {
-		r, g, b := hslToRgb(h.Int(), s.ValueF, l.ValueF)
-		return RGBA{R: r, G: g, B: b, A: alpha}, true
+	if z <= epsilon {
+		z = (116*fz - 16) / kappa
 	}
-	return RGBA{}, false
+	y := l / kappa
+	if l > kappa*epsilon {
+		y = fy * fy * fy
+	}
+	x, z = x*0.3457/0.3585, z*(1-0.3457-0.3585)/0.3585
+	x, y, z = 0.9554734527042182*x-0.023098536874261423*y+0.0632593086610217*z,
+		-0.028369706963208136*x+1.0099954580058226*y+0.021041398966943008*z,
+		0.012314001688319899*x-0.020507696433477912*y+1.3303659366080753*z
+	return 3.2409699419045226*x - 1.537383177570094*y - 0.4986107602930034*z,
+		-0.9692436362808796*x + 1.8759675015077202*y + 0.04155505740717559*z,
+		0.05563007969699366*x - 0.20397695888897652*y + 1.0569715142428786*z
 }
 
-// returns (r, g, b) as floats in the 0..1 range
-func hslToRgb(_hue int, saturation, lightness utils.Fl) (utils.Fl, utils.Fl, utils.Fl) {
+func hslToRgb(_hue utils.Fl, saturation, lightness utils.Fl) (utils.Fl, utils.Fl, utils.Fl) {
 	hue := float64(_hue) / 360
 	hue = hue - math.Floor(hue)
 	saturation = min(1., max(0, saturation/100))

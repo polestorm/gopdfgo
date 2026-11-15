@@ -484,7 +484,7 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 	}
 
 	switch name {
-	case "is", "not", "has", "haschild":
+	case "is", "where", "not", "has", "haschild":
 		if !p.consumeParenthesis() {
 			return out, "", errExpectedParenthesis
 		}

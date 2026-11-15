@@ -843,3 +843,59 @@ syntetyzowana z dolnej krawędzi marginesu), co zalicza trzy kolejne testy flex.
 i `css-grid/alignment` (1108 testów, bez strat), pozostałe obszary z poprzedniego pełnego przebiegu.
 We flex zostaje w wyrównaniu do linii bazowej: `last baseline` (nieobsługiwane), połączenie z `wrap-reverse`
 i pismo pionowe.
+
+## Paczka: `box-shadow`, siatka z elementami pozycjonowanymi, nowsza składnia CSS (2026-11-15)
+
+Pierwsza runda prowadzona paczką: kilka poprawek z rozłącznych obszarów, celowane testy po każdej,
+jeden pełny sondaż na końcu.
+
+| Obszar | Co doszło | Norma |
+|---|---|---|
+| `box-shadow` | cień zewnętrzny i wewnętrzny, wiele cieni, promienie narożników, rozmycie przybliżone 12 warstwami | CSS Backgrounds 3 § 6.1 |
+| siatka | dzieci pozycjonowane bezwzględnie poza siatką, blok zawierający z `grid-row`/`grid-column`, pozycja statyczna z `justify-self`/`align-self` | CSS Grid 1 § 9 |
+| siatka | rozciąganie tylko elementów o rozmiarze auto, wspólna linia bazowa w wierszu | CSS Grid 1 § 6.2, CSS Align 3 § 9 |
+| barwy | `rgb()`/`hsl()` ze spacjami i alfą po ukośniku, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` | CSS Color 4 |
+| wartości | `min()`, `max()`, `clamp()` z procentami | CSS Values 4 § 10 |
+| selektory | `:where()` | Selectors 4 § 4.4 |
+| reguły | `@supports` z `selector()`, `not`, `and`, `or` | CSS Conditional 3 § 6 |
+| skróty | `inset`, `place-items`, `place-content`, `place-self`, `overflow-x`/`-y`, logiczne promienie narożników | CSS Logical 1, CSS Align 3, CSS Overflow 3 |
+| wartości zastępcze | `position: sticky`, `float: inline-start`, `word-break: keep-all`, `white-space: break-spaces` | zob. `THIRD_PARTY.md` |
+
+Ograniczenia, o których trzeba wiedzieć:
+
+- barwy `lab()`/`oklch()` spoza gamy sRGB są przycinane składowa po składowej, bez odwzorowania gamy;
+  w PDF trafiają jako DeviceRGB;
+- rozmycie cienia to 12 warstw o stałej przezroczystości, nie rozkład Gaussa; przy dużych promieniach
+  widać schodki, a plik rośnie o 12 ścieżek na cień;
+- linia bazowa w siatce przesuwa elementy, ale nie powiększa ścieżek;
+- `overflow-x`/`overflow-y` ustawiają `overflow` dla obu osi (silnik ma jedną właściwość), więc
+  `overflow-x: auto` na opakowaniu szerokiej tabeli przycina ją tak samo jak `overflow: auto`;
+- `overflow-y: clip` na elemencie wyższym niż strona przycina jak `overflow: hidden` (test druku
+  `monolithic-overflow-028` oczekuje czterech stron, dostaje jedną; nie był zaliczany także wcześniej);
+- `@supports` uznaje deklarację za obsługiwaną, gdy przechodzi walidację, czyli także dla wartości
+  przyjmowanych zastępczo (`position: sticky`).
+
+Przy okazji wyszło, że testy pakietu `html/boxes` nie budowały się od rundy z `display: contents`
+(`go vet` odrzucał `%s` dla struktury `Display`), więc od tamtej pory nie były uruchamiane. Po poprawce
+przechodzą w komplecie; od teraz w wyniku `go test ./internal/...` sprawdzam także wiersze `[build failed]`.
+
+Wynik (2026-11-15, pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003): **6976 z 9110 (76,6%)**,
+ściśle 6593, krawędziowo 383, niezaliczone 2134; poprzednio 6919. Zyskane 63 (siatka 59, flex 3, tabele 1),
+stracone 6:
+
+- `grid-baseline-align-cycles-001`: linia bazowa elementu o wysokości procentowej zależnej od ścieżki
+  (cykl z § 11.5 CSS Grid, którego nie rozwiązujemy);
+- `grid-items-relative-positioned-containing-block-003`: blok zawierający potomka pozycjonowanego
+  względem elementu siatki z `position: relative`;
+- dwa testy `grid-lanes` (funkcja nieobsługiwana; zaliczały się przypadkiem);
+- `column-pseudo-background-color`: test sprawdza `@supports not selector(::column)` i teraz uczciwie
+  pokazuje, że `::column` nie obsługujemy; wcześniej reguła `@supports` była pomijana w całości;
+- `percentage-sizing-of-table-cell-007`: kontener przewijania o wysokości procentowej w komórce tabeli
+  o wysokości auto; zaliczał się, dopóki `overflow-y: scroll` było ignorowane w teście i we wzorcu.
+
+Pierwszy sondaż tej paczki pokazał 17 strat; 11 z nich to były błędy paczki, poprawione przed zapisem:
+element pozycjonowany bezwzględnie bez podanych przesunięć był rozciągany na cały obszar siatki (norma
+każe dopasować go do treści), rozciąganie elementu siatki gubiło informację, że szerokość była auto,
+a `overflow-y: scroll` było pomijane, choć `overflow: scroll` przycina.
+
+Reftesty druku (`testdata/wpt`, 340 testów, porównanie ścisłe): **228 zaliczonych** (poprzednio 225), bez strat.

@@ -153,6 +153,7 @@ var (
 		pr.POutlineWidth:            borderWidth,
 		pr.POutlineOffset:           outlineOffset,
 		pr.PAspectRatio:             aspectRatio,
+		pr.PBoxShadow:               boxShadow,
 		pr.PColumnWidth:             columnWidth,
 		pr.PColumnSpan:              columnSpan,
 		pr.PBoxSizing:               boxSizing,
@@ -1555,6 +1556,10 @@ func clear(tokens []Token, _ string) pr.CssProperty {
 	switch keyword {
 	case "left", "right", "both", "none":
 		return pr.String(keyword)
+	case "inline-start": // gopdfgo: wartości logiczne przy piśmie poziomym od lewej (jak w logical.go)
+		return pr.String("left")
+	case "inline-end":
+		return pr.String("right")
 	default:
 		return nil
 	}
@@ -1919,6 +1924,10 @@ func float(tokens []Token, _ string) pr.CssProperty {
 	switch keyword {
 	case "left", "right", "footnote", "none":
 		return pr.String(keyword)
+	case "inline-start": // gopdfgo: wartości logiczne przy piśmie poziomym od lewej
+		return pr.String("left")
+	case "inline-end":
+		return pr.String("right")
 	default:
 		return nil
 	}
@@ -2606,6 +2615,9 @@ func wordBreak(tokens []Token, _ string) pr.CssProperty {
 	switch keyword {
 	case "normal", "break-all":
 		return pr.String(keyword)
+	case "keep-all":
+		// gopdfgo: keep-all różni się od normal tylko dla pism CJK, których ta wersja nie łamie osobno
+		return pr.String("normal")
 	default:
 		return nil
 	}
@@ -2641,6 +2653,10 @@ func position(tokens []Token, _ string) pr.CssProperty {
 	switch keyword {
 	case "static", "relative", "absolute", "fixed":
 		return pr.BoolString{String: keyword}
+	case "sticky":
+		// gopdfgo: bez przewijania element przyklejany zostaje na swoim miejscu i działa jak relative
+		// (CSS Positioned Layout 3 § 3.4); źródło odrzucało tę wartość
+		return pr.BoolString{String: "relative"}
 	default:
 		return nil
 	}
@@ -2783,6 +2799,62 @@ func textDecorationThickness(tokens []Token, _ string) pr.CssProperty {
 	return nil
 }
 
+// gopdfgo: “box-shadow“ (CSS Backgrounds 3 § 6.1): none albo lista cieni po przecinku; każdy cień to
+// opcjonalne inset, 2 do 4 długości (przesunięcie x, y, rozmycie, rozszerzenie) i opcjonalny kolor,
+// w dowolnej kolejności grup. Źródło tej właściwości nie znało.
+func boxShadow(tokens []Token, _ string) pr.CssProperty {
+	if getSingleKeyword(tokens) == "none" {
+		return pr.BoxShadows{}
+	}
+	var out pr.BoxShadows
+	for _, part := range pa.SplitOnComma(tokens) {
+		shadow := pr.BoxShadow{Color: pr.Color{Type: pa.ColorCurrentColor}}
+		var lengths []pr.Dimension
+		hasColor, lengthsDone := false, false
+		for _, token := range part {
+			if _, isSpace := token.(pa.Whitespace); isSpace {
+				continue
+			}
+			if getKeyword(token) == "inset" {
+				if shadow.Inset {
+					return nil
+				}
+				shadow.Inset = true
+				lengthsDone = len(lengths) != 0
+				continue
+			}
+			if length := getLength(token, true, false); !length.IsNone() {
+				if lengthsDone || len(lengths) == 4 {
+					return nil
+				}
+				lengths = append(lengths, length)
+				continue
+			}
+			color := pa.ParseColor(token)
+			if color.IsNone() || hasColor {
+				return nil
+			}
+			shadow.Color, hasColor = pr.Color(color), true
+			lengthsDone = len(lengths) != 0
+		}
+		if len(lengths) < 2 {
+			return nil
+		}
+		shadow.X, shadow.Y = lengths[0], lengths[1]
+		if len(lengths) > 2 {
+			if lengths[2].Value < 0 {
+				return nil
+			}
+			shadow.Blur = lengths[2]
+		}
+		if len(lengths) > 3 {
+			shadow.Spread = lengths[3]
+		}
+		out = append(out, shadow)
+	}
+	return out
+}
+
 // gopdfgo: “aspect-ratio“ (CSS Sizing 4 § 5.1): auto || <liczba> [ / <liczba> ]. Wynik to stosunek szerokości
 // do wysokości; 0 oznacza auto (także proporcję zdegenerowaną), wartość ujemna to "auto <proporcja>".
 // Źródło tej właściwości nie znało.
@@ -2913,6 +2985,10 @@ func whiteSpace(tokens []Token, _ string) pr.CssProperty {
 	case pr.Normal, pr.Pre, pr.Nowrap, pr.PreWrap, pr.PreLine:
 		return keyword
 	default:
+		if getSingleKeyword(tokens) == "break-spaces" {
+			// gopdfgo: break-spaces przybliżamy przez pre-wrap (różnica dotyczy tylko końcowych spacji wiersza)
+			return pr.PreWrap
+		}
 		return nil
 	}
 }

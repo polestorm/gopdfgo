@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"strings"
 
 	pa "github.com/polestorm/gopdfgo/internal/webrender/css/parser"
@@ -17,7 +18,7 @@ func parseCalcFunction(token pa.FunctionBlock) *pr.CalcNode {
 		return nil
 	}
 	// sprawdzenie typów na sucho: każda długość liczona jako jej wartość
-	if _, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v }); err != nil {
+	if _, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v }); err != nil && !errors.Is(err, pr.ErrCalcPercentComparison) {
 		return nil
 	}
 	return node

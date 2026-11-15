@@ -65,6 +65,16 @@ func (dec Decorations) Union(other Decorations) Decorations { return dec | other
 
 type Transforms []Transform
 
+// BoxShadow (gopdfgo): jeden cień z właściwości box-shadow; długości po obliczeniu są w pikselach.
+type BoxShadow struct {
+	Inset              bool
+	X, Y, Blur, Spread Dimension
+	Color              Color // typ ColorCurrentColor oznacza kolor tekstu elementu
+}
+
+// BoxShadows: lista cieni w kolejności ze stylu (pierwszy leży na wierzchu); pusta oznacza none.
+type BoxShadows []BoxShadow
+
 type Values []TaggedDim
 
 type SIntStrings struct {
@@ -690,6 +700,7 @@ func (String) isCssProperty()            {}
 func (StringSet) isCssProperty()         {}
 func (Strings) isCssProperty()           {}
 func (Transforms) isCssProperty()        {}
+func (BoxShadows) isCssProperty()        {}
 func (Values) isCssProperty()            {}
 func (AttrData) isCssProperty()          {}
 func (NoneImage) isCssProperty()         {}
@@ -735,6 +746,7 @@ func (String) isDeclaredValue()            {}
 func (StringSet) isDeclaredValue()         {}
 func (Strings) isDeclaredValue()           {}
 func (Transforms) isDeclaredValue()        {}
+func (BoxShadows) isDeclaredValue()        {}
 func (Values) isDeclaredValue()            {}
 func (AttrData) isDeclaredValue()          {}
 func (NoneImage) isDeclaredValue()         {}

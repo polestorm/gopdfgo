@@ -3,6 +3,8 @@ package document
 import (
 	"math"
 
+	pa "github.com/polestorm/gopdfgo/internal/webrender/css/parser"
+
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
@@ -58,6 +60,90 @@ func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 			clipBorderSegment(ctx.dst, ruleStyle, fl(ruleWidth), left, borderBox, &borderWidths, nil)
 			color := styledColor(ruleStyle, tree.ResolveColor(box.Style, pr.PColumnRuleColor).RGBA, left)
 			ctx.drawRectBorder(borderBox, borderWidths, ruleStyle, color)
+		})
+	}
+}
+
+// drawBoxShadows (gopdfgo) rysuje cienie box-shadow pudełka (CSS Backgrounds 3 § 6.1): zewnętrzne pod tłem,
+// przycięte do obszaru poza pudełkiem obramowania; wewnętrzne nad tłem, przycięte do pudełka odstępu
+// wewnętrznego. Pierwszy cień z listy leży na wierzchu. Rozmycie jest przybliżane kilkoma współśrodkowymi
+// warstwami o rosnącej przezroczystości (PDF nie ma rozmycia; bez rasteryzacji to najbliższy odpowiednik).
+func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
+	shadows := box.Style.GetBoxShadow()
+	if len(shadows) == 0 || box.Style.GetVisibility() != "visible" {
+		return
+	}
+	const layers = 12
+	// narożnik bez promienia zostaje ostry także po rozszerzeniu cienia (CSS Backgrounds 3 § 6.1.1)
+	sharpen := func(shape bo.RoundedBox) bo.RoundedBox {
+		if box.BorderTopLeftRadius == (bo.Point{}) {
+			shape.TopLeft = bo.Point{}
+		}
+		if box.BorderTopRightRadius == (bo.Point{}) {
+			shape.TopRight = bo.Point{}
+		}
+		if box.BorderBottomRightRadius == (bo.Point{}) {
+			shape.BottomRight = bo.Point{}
+		}
+		if box.BorderBottomLeftRadius == (bo.Point{}) {
+			shape.BottomLeft = bo.Point{}
+		}
+		return shape
+	}
+	translated := func(distance, dx, dy pr.Float) bo.RoundedBox {
+		shape := sharpen(box.RoundedBoxInset(distance))
+		shape.X += dx
+		shape.Y += dy
+		return shape
+	}
+	for i := len(shadows) - 1; i >= 0; i-- {
+		shadow := shadows[i]
+		if shadow.Inset != inset {
+			continue
+		}
+		color := shadow.Color
+		if color.Type == pa.ColorCurrentColor {
+			color = box.Style.GetColor()
+		}
+		if color.RGBA.A == 0 {
+			continue
+		}
+		dx, dy, blur, spread := shadow.X.Value, shadow.Y.Value, shadow.Blur.Value, shadow.Spread.Value
+		steps := 1
+		if blur > 0 {
+			steps = layers
+			// po nałożeniu wszystkich warstw środek cienia ma pełną nieprzezroczystość koloru
+			color.RGBA.A = pr.Fl(1 - math.Pow(1-float64(color.RGBA.A), 1/float64(layers)))
+		}
+		ctx.dst.OnNewStack(func() {
+			if inset {
+				roundedBox(ctx.dst, box.RoundedPaddingBox())
+				ctx.dst.State().Clip(false)
+			} else {
+				ctx.dst.Rectangle(-1e5, -1e5, 2e5, 2e5)
+				roundedBox(ctx.dst, box.RoundedBorderBox())
+				ctx.dst.State().Clip(true)
+			}
+			ctx.dst.State().SetColorRgba(color.RGBA, false)
+			for step := 0; step < steps; step++ {
+				// przesunięcie krawędzi warstwy względem krawędzi cienia: od +blur do -blur
+				edge := pr.Float(0)
+				if steps > 1 {
+					edge = blur - 2*blur*pr.Float(step)/pr.Float(steps-1)
+				}
+				if inset {
+					// cień wewnętrzny: wszystko w pudełku odstępu poza kształtem zmniejszonym o spread
+					inner := sharpen(box.RoundedPaddingBoxInset(spread + edge))
+					inner.X += dx
+					inner.Y += dy
+					ctx.dst.Rectangle(-1e5, -1e5, 2e5, 2e5)
+					roundedBox(ctx.dst, inner)
+					ctx.dst.Paint(backend.FillEvenOdd)
+				} else {
+					roundedBox(ctx.dst, translated(-(spread+edge), dx, dy))
+					ctx.dst.Paint(backend.FillNonZero)
+				}
+			}
 		})
 	}
 }

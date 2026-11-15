@@ -59,10 +59,10 @@ fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-8-pri
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-9-print.html	
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-001-print.html	strony 1 vs 2
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-002-print.html	strony 1 vs 2
-fail	margin-boxes	css/css-page/margin-boxes/alignment-001-print.html	strona 1: różne piksele 898
+pass	margin-boxes	css/css-page/margin-boxes/alignment-001-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	strona 1: różne piksele 2392
 fail	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	strona 1: różne piksele 19216
-fail	margin-boxes	css/css-page/margin-boxes/auto-margins-003-print.html	strona 1: różne piksele 2275
+pass	margin-boxes	css/css-page/margin-boxes/auto-margins-003-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-002-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-004-print.html	
@@ -86,12 +86,12 @@ fail	margin-boxes	css/css-page/margin-boxes/dimensions-008-print.html	strona 1: 
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-009-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-010-print.html	strona 1: różne piksele 35000
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html	strona 1: różne piksele 24870
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 13872
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 16016
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 60889
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 59849
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	strona 1: różne piksele -1
 pass	margin-boxes	css/css-page/margin-boxes/inapplicable-properties-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/overconstrained-001-print.html	strona 1: różne piksele 2130
+pass	margin-boxes	css/css-page/margin-boxes/overconstrained-001-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/paint-order-001-print.html	strona 1: różne piksele 37048
 fail	margin-boxes	css/css-page/margin-boxes/paint-order-002-print.html	strona 1: różne piksele 37048
 fail	margin-boxes	css/css-page/margin-boxes/paint-order-003-print.html	strona 1: różne piksele 2500
@@ -128,7 +128,7 @@ fail	monolithic-overflow	css/css-page/monolithic-overflow-024-print.html	strony 
 fail	monolithic-overflow	css/css-page/monolithic-overflow-025-print.html	strony 4 vs 8
 pass	monolithic-overflow	css/css-page/monolithic-overflow-026-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-027-print.html	strona 1: różne piksele 18432
-fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strona 1: różne piksele 18432
+fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strony 1 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strona 1: różne piksele 18432
 pass	monolithic-overflow	css/css-page/monolithic-overflow-030-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-031-print.html	strony 8 vs 7
@@ -234,7 +234,7 @@ pass	page-margins	css/css-page/page-margin-auto-print.html
 pass	page-margins	css/css-page/page-margin-negative-print.tentative.html	
 fail	page-margins	css/css-page/tentative/safe-printable-inset-001-print.html	strona 1: różne piksele 61395
 fail	page-margins	css/css-page/tentative/safe-printable-inset-002-print.html	strona 1: różne piksele 31268
-fail	page-margins	css/css-page/tentative/safe-printable-inset-003-print.html	strona 1: różne piksele 34286
+fail	page-margins	css/css-page/tentative/safe-printable-inset-003-print.html	strona 1: różne piksele 35918
 pass	page-margins	css/css-page/tentative/safe-printable-inset-large-crash-print.html	
 pass	page-selectors	css/css-page/page-left-right-001-print.html	
 pass	page-selectors	css/css-page/page-left-right-002-print.html	
@@ -337,5 +337,5 @@ pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-
 pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-later-forced-break-print.html	
 pass	table-fragmentation	css/css-tables/collapsed-border-fragmentation-001-print.html	
 pass	table-fragmentation	css/css-tables/collapsed-border-fragmentation-002-print.html	
-fail	table-fragmentation	css/css-tables/table-cell-percent-height-row-groups-print.html	strona 1: różne piksele 7680
-fail	table-fragmentation	css/css-tables/table-cell-percent-height-rowspan-fragmented-print.html	strona 2: różne piksele 8000
+fail	table-fragmentation	css/css-tables/table-cell-percent-height-row-groups-print.html	strona 1: różne piksele 6280
+fail	table-fragmentation	css/css-tables/table-cell-percent-height-rowspan-fragmented-print.html	strona 1: różne piksele 2000

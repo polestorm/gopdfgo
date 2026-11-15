@@ -327,6 +327,20 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 	}
 	box := placeholder.AliasBox
 	newBox, resumeAt := absoluteBoxLayout(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
+	if static := box.Box().StaticAlign; static != nil && newBox != nil {
+		// gopdfgo: wyrównanie pozycji statycznej dziecka siatki w osi bez podanych przesunięć
+		style, laidOut := newBox.Box().Style, newBox.Box()
+		var dx, dy pr.Float
+		if style.GetLeft().Tag == pr.Auto && style.GetRight().Tag == pr.Auto {
+			dx = static[0] + (static[2]-laidOut.MarginWidth())*static[4] - laidOut.PositionX
+		}
+		if style.GetTop().Tag == pr.Auto && style.GetBottom().Tag == pr.Auto {
+			dy = static[1] + (static[3]-laidOut.MarginHeight())*static[5] - laidOut.PositionY
+		}
+		if dx != 0 || dy != 0 {
+			newBox.Translate(dx, dy, false)
+		}
+	}
 	placeholder.setLaidOutBox(newBox)
 	// gopdfgo: dalszy ciąg pudełka przyciętego przez blok zawierający nie jest widoczny, więc nie tworzy stron
 	if _, isPage := containingBlock.(*bo.PageBox); !isPage && containingBlock.Box().Style.GetOverflow() != "visible" {
@@ -375,6 +389,10 @@ func absoluteBoxLayout(context *layoutContext, box Box, cb_ Box, fixedBoxes *[]*
 		containingBlock.Y = cb.PaddingBoxY()
 		containingBlock.Width = cb.PaddingWidth()
 		containingBlock.Height = cb.PaddingHeight()
+	}
+	if area := box.Box().GridArea; area != nil {
+		// gopdfgo: dziecko siatki pozycjonowane bezwzględnie: pudełkiem zawierającym jest obszar siatki
+		containingBlock.X, containingBlock.Y, containingBlock.Width, containingBlock.Height = area[0], area[1], area[2], area[3]
 	}
 
 	resolveSizes(context, box, bo.MaybePoint{containingBlock.Width, containingBlock.Height})

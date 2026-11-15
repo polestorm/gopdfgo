@@ -33,7 +33,7 @@ func (s relativePseudoClassSelector) Match(n *html.Node) bool {
 		return false
 	}
 	switch s.name {
-	case "is":
+	case "is", "where":
 		return s.match.Match(n)
 	case "not":
 		// matches elements that do not match a.
@@ -76,6 +76,10 @@ func hasDescendantMatch(n *html.Node, a Matcher) bool {
 // See https://www.w3.org/TR/selectors/#specificity-rules
 func (s relativePseudoClassSelector) Specificity() Specificity {
 	var max Specificity
+	if s.name == "where" {
+		// gopdfgo: :where() działa jak :is(), ale nie wnosi wagi (Selectors 4 § 4.4); źródło go nie znało
+		return max
+	}
 	for _, sel := range s.match {
 		newSpe := sel.Specificity()
 		if max.Less(newSpe) {

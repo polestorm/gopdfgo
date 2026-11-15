@@ -982,6 +982,16 @@ func (s *ComputedStyle) SetAspectRatio(v pr.Float) { s.propsCache.setKnown(pr.PA
 func (s *AnonymousStyle) GetAspectRatio() pr.Float  { return s.Get(pr.PAspectRatio.Key()).(pr.Float) }
 func (s *AnonymousStyle) SetAspectRatio(v pr.Float) { s.propsCache.setKnown(pr.PAspectRatio, v) }
 
+func (s *ComputedStyle) GetBoxShadow() pr.BoxShadows {
+	return s.Get(pr.PBoxShadow.Key()).(pr.BoxShadows)
+}
+func (s *ComputedStyle) SetBoxShadow(v pr.BoxShadows) { s.propsCache.setKnown(pr.PBoxShadow, v) }
+
+func (s *AnonymousStyle) GetBoxShadow() pr.BoxShadows {
+	return s.Get(pr.PBoxShadow.Key()).(pr.BoxShadows)
+}
+func (s *AnonymousStyle) SetBoxShadow(v pr.BoxShadows) { s.propsCache.setKnown(pr.PBoxShadow, v) }
+
 func (s *ComputedStyle) GetBoxSizing() pr.String  { return s.Get(pr.PBoxSizing.Key()).(pr.String) }
 func (s *ComputedStyle) SetBoxSizing(v pr.String) { s.propsCache.setKnown(pr.PBoxSizing, v) }
 

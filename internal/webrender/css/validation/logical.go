@@ -19,6 +19,8 @@ var logicalSides = map[string]string{
 
 // logicalLonghands: nazwy bez odpowiednika wyliczanego wzorcem.
 var logicalLonghands = map[string]string{
+	"border-start-start-radius": "border-top-left-radius", "border-start-end-radius": "border-top-right-radius",
+	"border-end-start-radius": "border-bottom-left-radius", "border-end-end-radius": "border-bottom-right-radius",
 	"inline-size": "width", "block-size": "height",
 	"min-inline-size": "min-width", "min-block-size": "min-height",
 	"max-inline-size": "max-width", "max-block-size": "max-height",
@@ -33,6 +35,13 @@ var logicalPairs = map[string][2]string{
 	"border-block-width": {"border-top-width", "border-bottom-width"}, "border-inline-width": {"border-left-width", "border-right-width"},
 	"border-block-style": {"border-top-style", "border-bottom-style"}, "border-inline-style": {"border-left-style", "border-right-style"},
 	"border-block-color": {"border-top-color", "border-bottom-color"}, "border-inline-color": {"border-left-color", "border-right-color"},
+}
+
+// placeShorthands: skróty wyrównania w obu osiach.
+var placeShorthands = map[string][2]string{
+	"place-items":   {"align-items", "justify-items"},
+	"place-content": {"align-content", "justify-content"},
+	"place-self":    {"align-self", "justify-self"},
 }
 
 // logicalBorders: skróty obramowania obu stron osi; cała wartość trafia do obu skrótów fizycznych.
@@ -94,6 +103,53 @@ func expandLogical(declarations []pa.Compound) []pa.Compound {
 				side.Name = physical
 				side.Value = []pa.Token{values[min(i, len(values)-1)]}
 				out = append(out, side)
+			}
+		case name == "inset":
+			// skrót inset: 1 do 4 wartości jak w margin (góra, prawo, dół, lewo)
+			values := withoutWhitespace(declaration.Value)
+			if len(values) < 1 || len(values) > 4 {
+				out = append(out, compound)
+				continue
+			}
+			order := [4][4]int{{0, 0, 0, 0}, {0, 1, 0, 1}, {0, 1, 2, 1}, {0, 1, 2, 3}}[len(values)-1]
+			for i, physical := range [...]string{"top", "right", "bottom", "left"} {
+				side := declaration
+				side.Name = physical
+				side.Value = []pa.Token{values[order[i]]}
+				out = append(out, side)
+			}
+		case placeShorthands[name] != [2]string{}:
+			// skróty place-*: pierwsza wartość dla osi blokowej (align-*), druga dla liniowej (justify-*);
+			// jedna wartość obowiązuje w obu osiach. Wartości wielowyrazowe (np. "first baseline") nie
+			// są tu rozdzielane i zostają odrzucone jako nieznane.
+			values := withoutWhitespace(declaration.Value)
+			if len(values) != 1 && len(values) != 2 {
+				out = append(out, compound)
+				continue
+			}
+			for i, physical := range placeShorthands[name] {
+				side := declaration
+				side.Name = physical
+				side.Value = []pa.Token{values[min(i, len(values)-1)]}
+				out = append(out, side)
+			}
+		case name == "overflow-x" || name == "overflow-y":
+			// Silnik ma jedną właściwość overflow dla obu osi, więc wartość inną niż visible w jednej osi
+			// przenosimy na obie (CSS Overflow 3 § 3.1: przy przycinaniu w jednej osi druga i tak nie
+			// zostaje visible). auto i scroll działają jak w skrócie overflow, czyli przycinają; visible
+			// jest pomijane.
+			values := withoutWhitespace(declaration.Value)
+			if len(values) != 1 {
+				out = append(out, compound)
+				continue
+			}
+			switch getKeyword(values[0]) {
+			case "hidden", "clip", "auto", "scroll":
+				declaration.Name = "overflow"
+				out = append(out, declaration)
+			case "visible":
+			default:
+				out = append(out, compound)
 			}
 		case logicalBorders[name] != [2]string{}:
 			for _, physical := range logicalBorders[name] {

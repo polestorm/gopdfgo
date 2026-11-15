@@ -1023,6 +1023,32 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 ) (Box, blockLayout) {
 	context.createBlockFormattingContext()
 
+	// gopdfgo: dzieci pozycjonowane bezwzględnie nie są elementami siatki (CSS Grid 1 § 9): nie biorą udziału
+	// w rozmieszczaniu ani w rozmiarach ścieżek. Dostają zastępnik, a gdy siatka jest ich pudełkiem
+	// zawierającym, tym pudełkiem jest obszar wskazany przez grid-row i grid-column (linie auto to krawędzie
+	// odstępu wewnętrznego kontenera). W źródle były układane jak zwykłe elementy siatki.
+	var positionedChildren []Box
+	for _, child := range box_.Box().Children {
+		if child.Box().IsAbsolutelyPositioned() {
+			positionedChildren = append(positionedChildren, child)
+		}
+	}
+	if len(positionedChildren) != 0 {
+		inFlow := make([]Box, 0, len(box_.Box().Children))
+		for _, child := range box_.Box().Children {
+			if !child.Box().IsAbsolutelyPositioned() {
+				inFlow = append(inFlow, child)
+			}
+		}
+		box_ = bo.CopyWithChildren(box_, inFlow)
+	}
+	// gopdfgo: siatka z position: relative jest pudełkiem zawierającym dla pozycjonowanych potomków;
+	// źródło oddawało ich ułożenie dalszemu przodkowi.
+	ownsPositioned := box_.Box().Style.GetPosition().String == "relative"
+	if ownsPositioned {
+		absoluteBoxes = &[]*AbsolutePlaceholder{}
+	}
+
 	// Define explicit grid
 	box, style := box_.Box(), box_.Box().Style
 	gridAreas := style.GetGridTemplateAreas()
@@ -1144,6 +1170,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 		}
 	}
+
+	explicitRowNames, explicitColumnNames := extractNames(rows), extractNames(columns) // dla elementów pozycjonowanych
 
 	// gopdfgo: grid-auto-flow: column. Algorytm rozmieszczania poniżej jest napisany dla przepływu
 	// wierszowego; dla kolumnowego zamieniamy osie przed nim i przywracamy po nim (CSS Grid 1 § 8.5
@@ -1775,9 +1803,14 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	// Lay out grid items.
 	justifyItems := box.Style.GetJustifyItems()
 	alignItems := box.Style.GetAlignItems()
+	type baselineItem struct {
+		box Box
+		row int
+	}
 	var (
-		newChildren []Box
-		baseline    pr.MaybeFloat
+		newChildren   []Box
+		baseline      pr.MaybeFloat
+		baselineItems []baselineItem
 	)
 	for _, child := range thisPageChildren {
 		x, y, width, height := childrenPositions[child].unpack()
@@ -1808,6 +1841,8 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		childHeight := heightF - (childB.MarginTop.V() + childB.BorderTopWidth + childB.PaddingTop.V() +
 			childB.MarginBottom.V() + childB.BorderBottomWidth + childB.PaddingBottom.V())
 
+		// rozmiar auto zapamiętany przed rozciąganiem, które niżej wpisuje do stylu rozmiar obszaru
+		widthAuto, heightAuto := childB.Style.GetWidth().Tag == pr.Auto, childB.Style.GetHeight().Tag == pr.Auto
 		justifySelf := childB.Style.GetJustifySelf()
 		if justifySelf.Has(pr.Auto) {
 			justifySelf = justifyItems
@@ -1820,7 +1855,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		marginBottomAuto := childB.Style.GetMarginBottom().Tag == pr.Auto
 		inlineAuto, blockAuto := marginLeftAuto || marginRightAuto, marginTopAuto || marginBottomAuto
 		if !inlineAuto && justifySelf.Intersects(pr.Normal, pr.Stretch) {
-			if childB.Style.GetWidth().Tag == pr.Auto {
+			if widthAuto {
 				childB.Style.SetWidth(pr.FToPx(childWidth))
 			}
 		}
@@ -1829,7 +1864,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			alignSelf = alignItems
 		}
 		if !blockAuto && alignSelf.Intersects(pr.Normal, pr.Stretch) && childSkipStack == nil {
-			if childB.Style.GetHeight().Tag == pr.Auto {
+			if heightAuto {
 				childB.Style.SetHeight(pr.FToPx(childHeight))
 			}
 		}
@@ -1861,7 +1896,7 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if inlineAuto {
 			// Przy podanej szerokości marginesy auto w poziomie rozkłada już układ blokowy;
 			// tutaj zostaje tylko element o szerokości auto, który kurczy się do treści.
-			if childB.Style.GetWidth().Tag == pr.Auto {
+			if widthAuto {
 				newChild.Box().Width = maxContentWidth(context, newChild, true)
 				// marginesy auto pochłaniają tylko dodatnie wolne miejsce
 				diff := max(childWidth-newChild.Box().Width.V(), 0)
@@ -1873,11 +1908,15 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 			}
 		} else if justifySelf.Intersects(pr.Normal, pr.Stretch) {
-			newChild.Box().Width = max(childWidth, newChild.Box().Width.V())
+			// gopdfgo: rozciągany jest tylko element o rozmiarze auto (CSS Grid 1 § 6.2, CSS Align 3 § 6.1);
+			// źródło rozciągało też element z podaną szerokością albo wysokością do rozmiaru obszaru
+			if widthAuto {
+				newChild.Box().Width = max(childWidth, newChild.Box().Width.V())
+			}
 		} else {
 			// gopdfgo: do treści kurczy się tylko element o szerokości auto; w źródle podana szerokość
 			// była nadpisywana szerokością treści.
-			if childB.Style.GetWidth().Tag == pr.Auto {
+			if widthAuto {
 				newChild.Box().Width = maxContentWidth(context, newChild, true)
 			}
 			diff := childWidth - newChild.Box().Width.V()
@@ -1904,7 +1943,9 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				newChild.Box().Height = max(newChild.Box().Height.V()-over, 0)
 			}
 		} else if alignSelf.Intersects(pr.Normal, pr.Stretch) {
-			newChild.Box().Height = max(childHeight, newChild.Box().Height.V())
+			if heightAuto {
+				newChild.Box().Height = max(childHeight, newChild.Box().Height.V())
+			}
 		} else {
 			diff := childHeight - newChild.Box().Height.V()
 			if alignSelf.Has(pr.Center) {
@@ -1916,6 +1957,9 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 		// TODO: Take care of page fragmentation.
 		newChildren = append(newChildren, newChild)
+		if alignSelf.Has(pr.Baseline) && !alignSelf.Has(pr.Last) && height == 1 && !blockAuto && childSkipStack == nil {
+			baselineItems = append(baselineItems, baselineItem{newChild, yi})
+		}
 		if baseline == nil && y == implicitY1 {
 			baseline = findInFlowBaseline(newChild, false)
 			if baseline == nil {
@@ -1924,6 +1968,26 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				// inline-grid z pustymi elementami wisiał pod linią bazową wiersza.
 				baseline = newChild.Box().BorderBoxY() + newChild.Box().BorderHeight()
 			}
+		}
+	}
+
+	// gopdfgo: wyrównanie do linii bazowej w wierszu siatki (CSS Grid 1 § 10.6, CSS Align 3 § 9.3): elementy
+	// jednego wiersza z align-self: baseline są przesuwane tak, żeby ich pierwsze linie bazowe leżały na
+	// wspólnej linii; element bez wiersza tekstu ma linię bazową na dolnej krawędzi marginesu. Rozmiary
+	// ścieżek nie są przy tym powiększane. Źródło zgłaszało tylko ostrzeżenie o braku obsługi.
+	itemBaseline := func(item Box) pr.Float {
+		if baseline := findInFlowBaseline(item, false); baseline != nil {
+			return baseline.V() - item.Box().PositionY
+		}
+		return item.Box().MarginHeight()
+	}
+	rowBaseline := map[int]pr.Float{}
+	for _, item := range baselineItems {
+		rowBaseline[item.row] = max(rowBaseline[item.row], itemBaseline(item.box))
+	}
+	for _, item := range baselineItems {
+		if shift := rowBaseline[item.row] - itemBaseline(item.box); shift > 0 {
+			item.box.Translate(0, shift, false)
 		}
 	}
 
@@ -1940,7 +2004,102 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		box.Height = bottom - box.ContentBoxY()
 	}
 
+	// Zastępniki dzieci pozycjonowanych, z obszarem siatki jako pudełkiem zawierającym.
+	for _, child_ := range positionedChildren {
+		child := child_.Box()
+		edges := func(start, end pr.GridLine, names []pr.GridNames, positions []pr.Float, sizes [][2]pr.Float,
+			implicitBefore int, paddingStart, paddingSize pr.Float,
+		) (pr.Float, pr.Float, bool) {
+			from, to, placed := paddingStart, paddingStart+paddingSize, false
+			resolve := func(line pr.GridLine, side string) (int, bool) {
+				if line.IsAuto() || line.Tag == pr.Span {
+					return 0, false
+				}
+				_, _, _, coord := getLine(line, names, side)
+				index := coord.i + implicitBefore
+				if !coord.valid || index < 0 || index > len(positions) || len(positions) == 0 {
+					return 0, false
+				}
+				return index, true
+			}
+			if index, ok := resolve(start, "start"); ok {
+				placed = true
+				if index < len(positions) {
+					from = positions[index]
+				} else {
+					from = positions[index-1] + sizes[index-1][0]
+				}
+			}
+			if index, ok := resolve(end, "end"); ok {
+				placed = true
+				if index > 0 {
+					to = positions[index-1] + sizes[index-1][0]
+				} else {
+					to = positions[0]
+				}
+			}
+			return from, max(to-from, 0), placed
+		}
+		style := child.Style
+		x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
+			columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth())
+		y, height, placedY := edges(style.GetGridRowStart(), style.GetGridRowEnd(), explicitRowNames,
+			rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight())
+		child.PositionX, child.PositionY = box.ContentBoxX(), box.ContentBoxY()
+		child.GridArea = nil
+		// pozycja statyczna: jak jedyny element w obszarze o krawędziach treści kontenera albo wskazanych linii
+		static := [6]pr.Float{box.ContentBoxX(), box.ContentBoxY(), box.Width.V(), box.Height.V(), 0, 0}
+		if placedX {
+			static[0], static[2] = x, width
+		}
+		if placedY {
+			static[1], static[3] = y, height
+		}
+		fraction := func(self, items pr.JustifyOrAlign) pr.Float {
+			if self.Has(pr.Auto) || len(self) == 0 {
+				self = items
+			}
+			switch {
+			case self.Has(pr.Center):
+				return 0.5
+			case self.Intersects(pr.End, pr.FlexEnd, pr.SelfEnd, pr.Right):
+				return 1
+			}
+			return 0
+		}
+		static[4] = fraction(style.GetJustifySelf(), box.Style.GetJustifyItems())
+		static[5] = fraction(style.GetAlignSelf(), box.Style.GetAlignItems())
+		child.StaticAlign = &static
+		if ownsPositioned && skipStack == nil {
+			if placedX || placedY {
+				child.GridArea = &[4]pr.Float{x, y, width, height}
+				// pozycja statyczna: początek obszaru
+				if placedX {
+					child.PositionX = x
+				}
+				if placedY {
+					child.PositionY = y
+				}
+			}
+		}
+		if skipStack != nil {
+			continue // pozycjonowane dzieci należą do pierwszego fragmentu siatki
+		}
+		placeholder := NewAbsolutePlaceholder(child_)
+		newChildren = append(newChildren, placeholder)
+		if child.Style.GetPosition().String == "absolute" {
+			*absoluteBoxes = append(*absoluteBoxes, placeholder)
+		} else {
+			*fixedBoxes = append(*fixedBoxes, placeholder)
+		}
+	}
+
 	box_ = bo.CopyWithChildren(box_, newChildren)
+	if ownsPositioned {
+		for _, absoluteBox := range *absoluteBoxes {
+			absoluteLayout(context, absoluteBox, box_, fixedBoxes, bottomSpace, nil)
+		}
+	}
 	if bo.InlineGridT.IsInstance(box_) {
 		// TODO: Synthetize a real baseline value.
 		logger.WarningLogger.Println("Inline grids are not supported")

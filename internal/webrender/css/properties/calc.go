@@ -2,7 +2,6 @@ package properties
 
 import (
 	"errors"
-	"fmt"
 )
 
 // Plik dodany w gopdfgo, nie pochodzi ze źródła webrender.
@@ -39,6 +38,9 @@ type CalcResult struct {
 }
 
 var errCalcTypes = errors.New("calc: mismatched types")
+
+// ErrCalcPercentComparison: min(), max() albo clamp() z procentem; poprawne, ale liczone dopiero w układzie.
+var ErrCalcPercentComparison = errors.New("calc: percentages in min(), max() and clamp() are resolved at layout time")
 
 // Resolve liczy wyrażenie; toPixels zamienia długość w podanej jednostce na piksele.
 // Błąd oznacza wyrażenie niepoprawne typami (długość + liczba, dzielenie przez długość)
@@ -99,8 +101,11 @@ func (n *CalcNode) Resolve(toPixels func(Float, Unit) Float) (CalcResult, error)
 			if err != nil {
 				return CalcResult{}, err
 			}
-			if value.Percent != 0 || value.IsNumber != values[0].IsNumber && i > 0 {
-				return CalcResult{}, fmt.Errorf("calc: percentages are not supported in min(), max() and clamp()")
+			if value.IsNumber != values[0].IsNumber && i > 0 {
+				return CalcResult{}, errCalcTypes
+			}
+			if value.Percent != 0 {
+				return CalcResult{}, ErrCalcPercentComparison
 			}
 			values[i] = value
 		}
@@ -120,6 +125,75 @@ func (n *CalcNode) Resolve(toPixels func(Float, Unit) Float) (CalcResult, error)
 		return out, nil
 	}
 	return CalcResult{}, errCalcTypes
+}
+
+// Freeze zwraca kopię wyrażenia z długościami sprowadzonymi do pikseli. Używane dla min(), max() i clamp()
+// z procentami: takie wyrażenie da się policzyć dopiero w układzie, gdy znana jest podstawa procentu.
+func (n *CalcNode) Freeze(toPixels func(Float, Unit) Float) *CalcNode {
+	out := &CalcNode{Op: n.Op, Value: n.Value, Unit: n.Unit}
+	if n.Op == CalcLeaf {
+		if n.Unit != Scalar && n.Unit != Perc && n.Unit != Px {
+			out.Value, out.Unit = toPixels(n.Value, n.Unit), Px
+		}
+		return out
+	}
+	for _, arg := range n.Args {
+		out.Args = append(out.Args, arg.Freeze(toPixels))
+	}
+	return out
+}
+
+// Evaluate liczy wyrażenie zamrożone przez Freeze przy podanej podstawie procentu; wynik w pikselach
+// (albo liczba dla wyrażeń liczbowych).
+func (n *CalcNode) Evaluate(percentBase Float) Float {
+	switch n.Op {
+	case CalcLeaf:
+		if n.Unit == Perc {
+			return n.Value * percentBase / 100
+		}
+		return n.Value
+	case CalcAdd, CalcSub, CalcMul, CalcDiv:
+		if len(n.Args) != 2 {
+			return 0
+		}
+		a, b := n.Args[0].Evaluate(percentBase), n.Args[1].Evaluate(percentBase)
+		switch n.Op {
+		case CalcAdd:
+			return a + b
+		case CalcSub:
+			return a - b
+		case CalcMul:
+			return a * b
+		default:
+			if b == 0 {
+				return 0
+			}
+			return a / b
+		}
+	case CalcMin, CalcMax, CalcClamp:
+		if len(n.Args) == 0 {
+			return 0
+		}
+		values := make([]Float, len(n.Args))
+		for i, arg := range n.Args {
+			values[i] = arg.Evaluate(percentBase)
+		}
+		out := values[0]
+		switch {
+		case n.Op == CalcMin:
+			for _, v := range values[1:] {
+				out = min(out, v)
+			}
+		case n.Op == CalcMax:
+			for _, v := range values[1:] {
+				out = max(out, v)
+			}
+		case len(values) == 3:
+			out = max(values[0], min(values[1], values[2]))
+		}
+		return out
+	}
+	return 0
 }
 
 // HasPercentage mówi, czy w wyrażeniu występuje procent.

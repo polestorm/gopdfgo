@@ -583,6 +583,50 @@ Wspólne dla obu katalogów:
   - zmienione oczekiwania testów odziedziczonych `TestFlexItemIntrinsicHeightShrink`
     i `TestFlexItemIntrinsicWidthShrink` (renderują bez atrybutów prezentacyjnych, więc element o rozmiarze
     auto jest rozciągany: 10 zamiast 100);
+- `box-shadow` (CSS Backgrounds 3 § 6.1), 2026-11-15: nowa właściwość: `css/properties` (`PBoxShadow`,
+  `BoxShadows`, pliki generowane), `css/validation` (`boxShadow`), `html/tree/computed_values.go`
+  (`boxShadows`), `html/boxes/boxes.go` (`RoundedBoxInset`, `RoundedPaddingBoxInset`),
+  `html/document/draw_border.go` (`drawBoxShadows`) i wywołania w `draw.go` (pudełka blokowe, liniowe,
+  komórki tabel). Cień zewnętrzny leży pod tłem i jest przycięty do obszaru poza pudełkiem obramowania,
+  wewnętrzny leży nad tłem. Rozmycie jest przybliżane dwunastoma współśrodkowymi warstwami, bo PDF nie ma
+  rozmycia; źródło tej właściwości nie znało i zgłaszało ostrzeżenie;
+- `html/layout/grid.go`, `html/layout/absolute.go`, `html/boxes/boxes.go` (`GridArea`, `StaticAlign`),
+  2026-11-15, CSS Grid 1 § 9 i § 6.2:
+  - dzieci pozycjonowane bezwzględnie nie są elementami siatki (nie zajmują komórek, nie wpływają na
+    ścieżki); źródło układało je w automatycznym rozmieszczeniu jak zwykłe elementy;
+  - blok zawierający takiego dziecka to obszar wskazany przez `grid-row`/`grid-column` (linia `auto` oznacza
+    krawędź dopełnienia kontenera), a pozycja statyczna uwzględnia `justify-self` i `align-self`;
+    element bez podanych przesunięć ma rozmiar dopasowany do treści;
+  - siatka z `position` innym niż `static` sama układa swoje pudełka pozycjonowane, po wyznaczeniu ścieżek;
+  - rozciąganie (`stretch`) dotyczy tylko elementów o `width`/`height: auto`; źródło rozciągało także
+    elementy o podanym rozmiarze;
+  - `align-items: baseline` wyrównuje elementy wiersza do wspólnej linii bazowej (bez wpływu na rozmiar
+    ścieżek, co norma przewiduje, a czego tu jeszcze nie ma);
+- `css/parser/colors.go`, 2026-11-15, CSS Color 4: `rgb()`/`hsl()` w składni ze spacjami i alfą po ukośniku,
+  składowe ułamkowe i procentowe, `none`, kąt barwy z jednostką, `rgba()`/`hsla()` jako aliasy; nowe
+  funkcje `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` sprowadzane do sRGB (barwy spoza gamy przycinane
+  składowa po składowej, bez odwzorowania gamy z § 13). Usunięte `parseAlpha`, `parseRgb`, `parseHsl`.
+  Zmienione oczekiwania 9 przypadków w `css-parsing-tests/color3.json`, które kodowały CSS Color 3:
+  zapisy odrzucane tam jako błędne są poprawne w CSS Color 4 (np. `rgb(0, 0, 0, 0)`,
+  `hsl(30deg, 100%, 100%)`, alfa w `rgb()`, kolor bez alfy w `rgba()`);
+- `css/properties/calc.go` (`ErrCalcPercentComparison`, `Freeze`, `Evaluate`), `css/validation/calc.go`,
+  `html/tree/computed_values.go` (`length_`), `css/properties/float.go` (`ResolvePercentage`), 2026-11-15,
+  CSS Values 4 § 10: `min()`, `max()`, `clamp()` z procentami są przyjmowane i liczone w chwili, gdy znana
+  jest podstawa procentu; źródło odrzucało taką deklarację w całości;
+- `css/selector/parser.go`, `pseudo_classes.go`, 2026-11-15: `:where()` (Selectors 4 § 4.4), waga zerowa;
+- `css/validation/validation.go`, 2026-11-15, wartości bez odpowiednika w druku albo równoważne w piśmie
+  poziomym od lewej: `position: sticky` → `relative` (bez przewijania element zostaje na miejscu),
+  `float`/`clear: inline-start|inline-end` → `left|right`, `word-break: keep-all` → `normal`,
+  `white-space: break-spaces` → `pre-wrap`. Źródło odrzucało te deklaracje z ostrzeżeniem;
+- `css/validation/logical.go` (plik własny), 2026-11-15: skróty `inset`, `place-items`, `place-content`,
+  `place-self`; `overflow-x`/`overflow-y` (wartość inna niż `visible` ustawia `overflow` dla obu osi, bo silnik
+  ma jedną właściwość); `border-start-start-radius` i pokrewne;
+- `html/tree/style.go` (`evaluateSupports`), 2026-11-15, CSS Conditional 3 § 6: reguła `@supports`
+  z deklaracjami, `selector()`, `not`, `and`, `or`; deklaracja jest obsługiwana, gdy przechodzi walidację.
+  Źródło pomijało regułę z ostrzeżeniem o nieznanej regule;
+- `html/boxes/build.go` i `boxes_test.go`, 2026-11-15: `%s` → `%v` dla `pr.Display`. Od zmiany `Display`
+  na strukturę (`display: contents`) `go vet` odrzucał pakiet i jego testy się nie budowały; po poprawce
+  przechodzą;
 - `html/layout/flex.go`, 2026-11-15: kontener `inline-flex` bez elementu wyznaczającego linię bazową ma ją
   syntetyzowaną z dolnej krawędzi marginesu (CSS Align 3 § 9.1); źródło przyjmowało górę pudełka
   (testy WPT `flexbox-baseline-empty-001a`, `-001b`);

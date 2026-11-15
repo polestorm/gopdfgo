@@ -187,6 +187,13 @@ type BoxFields struct {
 	IndefiniteHeight bool
 	// CollapsedThrough: marginesy górny i dolny pudełka zwinęły się przez nie (puste pudełko)
 	CollapsedThrough bool
+	// GridArea: dla dziecka siatki pozycjonowanego bezwzględnie obszar siatki (x, y, szerokość, wysokość)
+	// będący jego pudełkiem zawierającym; nil, gdy pudełkiem zawierającym jest zwykłe pudełko odstępu
+	GridArea *[4]pr.Float
+	// StaticAlign: dla dziecka siatki pozycjonowanego bezwzględnie prostokąt pozycji statycznej (x, y,
+	// szerokość, wysokość) oraz ułamki wyrównania w obu osiach (0 początek, 0,5 środek, 1 koniec);
+	// stosowane w osi, w której oba przesunięcia to auto (CSS Grid 1 § 9.2)
+	StaticAlign *[6]pr.Float
 	// AnonymousBaseHeight: podstawa procentowych wysokości dzieci pudełka, którego własna wysokość w układzie
 	// to auto: dla anonimowego pudełka blokowego wysokość pudełka zawierającego jego rodzica (ustawiana
 	// w układzie blokowym), dla komórki tabeli jej podana wysokość (ustawiana w układzie tabeli)
@@ -543,6 +550,17 @@ func (b *BoxFields) RoundedPaddingBox() RoundedBox {
 }
 
 // Return the position, size and radii of the rounded border box.
+// RoundedBoxInset (gopdfgo): pudełko obramowania zmniejszone o d z każdej strony (ujemne d powiększa),
+// z odpowiednio skorygowanymi promieniami narożników; używane do rysowania cieni.
+func (b *BoxFields) RoundedBoxInset(d pr.Float) RoundedBox {
+	return b.roundedBox(d, d, d, d)
+}
+
+// RoundedPaddingBoxInset (gopdfgo): pudełko odstępu wewnętrznego zmniejszone o d z każdej strony.
+func (b *BoxFields) RoundedPaddingBoxInset(d pr.Float) RoundedBox {
+	return b.roundedBox(b.BorderTopWidth.V()+d, b.BorderRightWidth.V()+d, b.BorderBottomWidth.V()+d, b.BorderLeftWidth.V()+d)
+}
+
 func (b *BoxFields) RoundedBorderBox() RoundedBox {
 	return b.roundedBox(0, 0, 0, 0)
 }

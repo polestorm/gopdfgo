@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"sort"
 	"strconv"
@@ -1370,6 +1371,70 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 	return out
 }
 
+// evaluateSupports rozstrzyga warunek reguły @supports (CSS Conditional 3 § 6.1): deklaracja w nawiasach jest
+// obsługiwana, gdy przechodzi walidację silnika; selector(...) gdy selektor daje się sparsować; warunki łączą
+// not, and i or. Wszystko, czego nie rozpoznajemy, jest fałszem.
+func evaluateSupports(prelude []pa.Token, baseUrl string) bool {
+	var tokens []pa.Token
+	for _, token := range prelude {
+		switch token.(type) {
+		case pa.Whitespace, pa.Comment:
+		default:
+			tokens = append(tokens, token)
+		}
+	}
+	keyword := func(token pa.Token) string {
+		if ident, ok := token.(pa.Ident); ok {
+			return utils.AsciiLower(string(ident.Value))
+		}
+		return ""
+	}
+	single := func(token pa.Token) bool {
+		switch block := token.(type) {
+		case pa.ParenthesesBlock:
+			inner := block.Arguments
+			for _, t := range inner {
+				if lit, ok := t.(pa.Literal); ok && lit.Value == ":" {
+					// deklaracja: sprawdzamy ją walidacją, bez zgłaszania ostrzeżeń
+					previous := logger.WarningLogger.Writer()
+					logger.WarningLogger.SetOutput(io.Discard)
+					defer logger.WarningLogger.SetOutput(previous)
+					return len(validation.PreprocessDeclarations(baseUrl, pa.ParseBlocksContents(inner, false))) != 0
+				}
+			}
+			return evaluateSupports(inner, baseUrl)
+		case pa.FunctionBlock:
+			if utils.AsciiLower(block.Name) == "selector" {
+				_, err := selector.ParseGroup(pa.Serialize(block.Arguments))
+				return err == nil
+			}
+		}
+		return false
+	}
+	if len(tokens) == 0 {
+		return false
+	}
+	if keyword(tokens[0]) == "not" {
+		return len(tokens) == 2 && !single(tokens[1])
+	}
+	result := single(tokens[0])
+	operator := ""
+	for i := 1; i+1 < len(tokens); i += 2 {
+		op := keyword(tokens[i])
+		if (op != "and" && op != "or") || (operator != "" && op != operator) {
+			return false
+		}
+		operator = op
+		next := single(tokens[i+1])
+		if op == "and" {
+			result = result && next
+		} else {
+			result = result || next
+		}
+	}
+	return len(tokens)%2 == 1 && result
+}
+
 // Return the precedence for a declaration.
 // Precedence values have no meaning unless compared to each other.
 // Acceptable values for “origin“ are the strings “"author"“, “"user"“
@@ -1764,6 +1829,15 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 				contentRules := pa.ParseRuleList(rule.Content, false, false)
 				preprocessLayer(
 					deviceMediaType, baseUrl, contentRules, urlFetcher,
+					matcher, pageRules, fontConfig, counterStyle, true, layer)
+			case "supports":
+				// gopdfgo: @supports (CSS Conditional 3 § 6); źródło pomijało całą regułę jako nieznaną
+				ignoreImports = true
+				if rule.Content == nil || !evaluateSupports(rule.Prelude, baseUrl) {
+					continue
+				}
+				preprocessLayer(
+					deviceMediaType, baseUrl, pa.ParseRuleList(rule.Content, false, false), urlFetcher,
 					matcher, pageRules, fontConfig, counterStyle, true, layer)
 			case "layer":
 				name := strings.TrimSpace(pa.Serialize(rule.Prelude))
