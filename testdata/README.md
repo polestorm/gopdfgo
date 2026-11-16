@@ -69,6 +69,12 @@ python3 -I testdata/wpt/select.py wpt testdata/wpt
 
 Warstwa `layout` nie jest kopiowana (ok. 60 MB); benchmark czyta ją z klonu o commicie zapisanym w `wpt/UPSTREAM`.
 
+Sondaż ekranowy (poza repozytorium, `bench/survey/`) używa szerszego klonu tego samego commitu: do katalogów
+wyżej dochodzą `/fonts/`, `/images/`, `/css/css-grid/`, `/css/css-multicol/`, `/css/css-text/`,
+`/css/css-backgrounds/` i `/css/css-fonts/`. Klon, narzędzia i stany bazowe trzymamy w `bench/survey/`,
+nie w katalogu tymczasowym: system czyści `/tmp` z plików starszych niż kilka dni (2026-11-17 skasował
+w ten sposób poprzedni klon).
+
 ## Czego w korpusie nie ma
 
 - print-css.rocks (lekcje PrintCSS): repozytorium nie ma pliku licencji, więc nie kopiujemy; można uruchamiać z klonu.

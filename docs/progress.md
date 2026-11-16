@@ -7,7 +7,12 @@ Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów (od 
 dalsze: tekst, tła, fonty), renderowane bez pomniejszania treści i bez podziału na strony
 (`-max-shrink 1 -continuous`, od 16.11), rasteryzowane w 96 dpi, przycinane do okna 800 x 600 px
 i porównywane według ADR 0003 (zaliczenie ścisłe albo z dokładnością do krawędzi). Do 16.11 sondaż był
-stronicowy; ostatni wynik tą metodą to 7209 z 9110 i 1095 z 1768. Reftesty druku to
+stronicowy; ostatni wynik tą metodą to 7209 z 9110 i 1095 z 1768.
+
+Od 2026-11-17 klon testów W3C leży w `bench/survey/wpt` (ten sam commit `ab97c017`) i zawiera całe katalogi
+`/fonts/` i `/images/`. Dzięki temu do pomiaru weszły 84 testy, które wcześniej odpadały przez brakujące
+zasoby (41 z nich przechodzi). Pozostałe 10 878 testów daje na tej samej binarce wynik identyczny
+z poprzednim klonem, więc szereg jest ciągły poza tym dodatkiem. Reftesty druku to
 340 testów stronicowania trzymanych w `testdata/wpt`. Korpus to 22 własne dokumenty
 w `testdata/documents` porównywanych z wydrukami Chromium.
 
@@ -15,8 +20,8 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7231 z 9110 (79,4%)** | ściśle 6833, krawędziowo 398; tryb ciągły |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1208 z 1768 (68,3%)** | ściśle 1171, krawędziowo 37; `css-text` 552 z 887, `css-backgrounds` 487 z 600, `css-fonts` 169 z 281; tryb ciągły |
+| Sondaż ekranowy W3C | **7240 z 9123 (79,4%)** | ściśle 6841, krawędziowo 399; tryb ciągły; od 17.11 zestaw większy o 13 testów (zob. niżej) |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1240 z 1839 (67,4%)** | ściśle 1201, krawędziowo 39; `css-text` 565 z 909, `css-backgrounds` 490 z 603, `css-fonts` 185 z 327; od 17.11 zestaw większy o 71 testów |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 109 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
@@ -114,16 +119,16 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5837)                    ██████████████████▊  94,1%    345
-css-backgrounds (600)           ████████████████▎    81,2%    113
+CSS 2 (5846)                    ██████████████████▊  94,1%    344
+css-backgrounds (603)           ████████████████▎    81,3%    113
 css-tables (141)                ████████████████     80,1%     28
-css-lists (150)                 ███████████████▍     77,3%     34
+css-lists (151)                 ███████████████▌     77,5%     34
 css-flexbox (952)               ██████████████▎      71,4%    272
 css-grid bez lanes i subgrid    █████████████▊       68,8%    200
 css-multicol (370)              █████████████▏       65,9%    126
-css-text (887)                  ████████████▍        62,2%    335
-css-fonts (281)                 ████████████         60,1%    112
-css-content (37)                ███████████▎         56,8%     16
+css-text (909)                  ████████████▍        62,2%    344
+css-fonts (327)                 ███████████▎         56,6%    142
+css-content (40)                ██████████▌          52,5%     19
 css-grid: subgrid (88)          ████▊                23,9%     67
 css-grid: grid-lanes (865)      ██▎                  11,4%    766
 css-multicol: column-height (30) ██                  10,0%     27
@@ -131,7 +136,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7106 z 8127 (87,4%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7117 z 8140 (87,4%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 
