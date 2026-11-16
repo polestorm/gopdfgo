@@ -237,16 +237,40 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	if lineSkip != nil {
 		skipStack = nil
 		for position, child := range children {
-			if resume, inLine := lineSkip[position+skip]; inLine && resume == nil && child.Box().IsFlexItem {
+			resume, inLine := lineSkip[position+skip]
+			if !inLine || !child.Box().IsFlexItem {
+				continue
+			}
+			if resume == nil {
 				children[position] = finishedFlexItem(child, isStretchedFlexItem(child, box))
+			} else if len(resume) == 0 {
+				// element przesunięty w całości z poprzedniej strony (zob. linePushed niżej)
+				children[position] = pushedFlexItem(child, context.flexPushOffset[resumeKey(resume)])
 			}
 		}
 	}
 	pickSkip := func(index int, first tree.ResumeStack) tree.ResumeStack {
 		if lineSkip != nil {
-			return lineSkip[index]
+			if resume := lineSkip[index]; len(resume) != 0 {
+				return resume
+			}
+			return nil
 		}
 		return first
+	}
+	// pushedBefore: element już raz przesunięty na tę stronę; drugi raz go nie przesuwamy
+	pushedBefore := func(index int) bool {
+		resume, inLine := lineSkip[index]
+		return inLine && resume != nil && len(resume) == 0
+	}
+	pageEdge := context.pageBottom - bottomSpace
+	pushItem := func(pushed map[int]tree.ResumeStack, index int, top pr.Float) {
+		marker := tree.ResumeStack{}
+		if context.flexPushOffset == nil {
+			context.flexPushOffset = map[uintptr]pr.Float{}
+		}
+		context.flexPushOffset[resumeKey(marker)] = max(top-pageEdge, 0)
+		pushed[index] = marker
 	}
 
 	childSkipStack := skipStack
@@ -1443,6 +1467,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	parallel := main == pr.PWidth && !strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") &&
 		context.flexMeasuring == 0 && bottomSpace > -pr.Inf
 	lineResume := map[int]tree.ResumeStack{}
+	// gopdfgo: elementy linii, które nie mieszczą się na stronie i same się nie dzielą, przechodzą na
+	// następną pojedynczo, gdy inne elementy tej linii zostają (tak dzielą wiersz flex przeglądarki;
+	// CSS Flexbox 1 § 12 zostawia to implementacji). Wcześniej przechodziła cała linia.
+	linePushed := map[int]tree.ResumeStack{}
 	var lineOverflow []Box               // elementy bieżącej linii wystające poza stronę, które same się nie dzielą
 	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
 	for lineIndex, line := range flexLines {
@@ -1459,8 +1487,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// gopdfgo: w kolumnie bez zawijania wymuszony podział strony wypada między elementami (jak wyżej
 			// między liniami); w kolumnie z zawijaniem żądanie podziału dotyczy linii, nie strony
 			if position > 0 && main == pr.PHeight && box.Style.GetFlexWrap() == "nowrap" && len(box.Children) > flexItemsBefore && context.flexMeasuring == 0 &&
-				bottomSpace > -pr.Inf && (forcePageBreak(string(child.Style.GetBreakBefore()), context) ||
-				forcePageBreak(string(line.line[position-1].box.Box().Style.GetBreakAfter()), context)) {
+				bottomSpace > -pr.Inf && (forcedBreakAtEdge(context, v.box, true) ||
+				forcedBreakAtEdge(context, line.line[position-1].box, false)) {
 				resumeAt = tree.ResumeStack{i: nil}
 				break
 			}
@@ -1472,7 +1500,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				if clipsBlockOverflow(box) {
 					childResumeAt = nil // dalszy ciąg byłby przycięty przez kontener
 				}
-				if newChild == nil {
+				if newChild == nil && parallel && !pushedBefore(i) && len(box.Children) > flexItemsBefore {
+					// gopdfgo: element zaczynający się poniżej strony przechodzi na następną sam, reszta
+					// linii jest układana dalej
+					pushItem(linePushed, i, child.PositionY+child.MarginTop.V())
+				} else if newChild == nil {
 					resumeIndex := 0
 					if resumeAt != nil {
 						resumeIndex, _ = resumeAt.Unpack()
@@ -1544,7 +1576,35 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// Skip stack is only for the first child
 			childSkipStack = nil
 		}
-		if resumeAt == nil && len(lineResume) == 0 && len(lineOverflow) != 0 {
+		if resumeAt == nil && len(lineResume) == 0 && len(lineOverflow) != 0 && len(lineOverflow) < len(finalLines[lineIndex]) {
+			// część elementów linii mieści się na stronie: wystające przechodzą na następną pojedynczo
+			lineStart := len(box.Children) - len(finalLines[lineIndex])
+			kept := box.Children[:lineStart:lineStart]
+			var keptLine []Box
+			positions := map[Box]int{}
+			for position, placed := range finalLines[lineIndex] {
+				positions[placed] = position
+			}
+			itemIndexes := make([]int, 0, len(line.line))
+			for _, v := range line.line {
+				if v.box.Box().IsFlexItem {
+					if _, pushed := linePushed[v.index]; !pushed {
+						itemIndexes = append(itemIndexes, v.index)
+					}
+				}
+			}
+			for _, placed := range finalLines[lineIndex] {
+				index := itemIndexes[positions[placed]]
+				if isInBoxes(placed, lineOverflow) && !pushedBefore(index) {
+					removePlaceholders(context, []Box{placed}, absoluteBoxes, fixedBoxes)
+					pushItem(linePushed, index, placed.Box().PositionY+placed.Box().MarginTop.V())
+					continue
+				}
+				kept = append(kept, placed)
+				keptLine = append(keptLine, placed)
+			}
+			box.Children, finalLines[lineIndex] = kept, keptLine
+		} else if resumeAt == nil && len(lineResume) == 0 && len(lineOverflow) != 0 && len(linePushed) == 0 {
 			// żaden element linii się nie dzieli, a linia wystaje poza stronę: przechodzi na następną
 			lineStart := len(box.Children) - len(finalLines[lineIndex])
 			if lineStart == flexItemsBefore && !pageIsEmpty && skip == 0 {
@@ -1571,11 +1631,14 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 		}
 		lineOverflow = lineOverflow[:0]
-		if resumeAt == nil && len(lineResume) != 0 {
+		if resumeAt == nil && len(lineResume)+len(linePushed) != 0 {
 			state := tree.ResumeStack{}
 			for _, v := range line.line {
 				if v.box.Box().IsFlexItem {
 					state[-1-v.index] = lineResume[v.index] // nil: element skończył się na tej stronie
+					if marker, pushed := linePushed[v.index]; pushed {
+						state[-1-v.index] = marker
+					}
 				}
 			}
 			resumeAt = tree.ResumeStack{line.line[0].index: state}
@@ -1740,14 +1803,50 @@ func parallelLineState(stack tree.ResumeStack) map[int]tree.ResumeStack {
 // wymuszony podział strony.
 func forcedBreakBetweenFlexLines(context *layoutContext, previous, next flexLine) bool {
 	for _, v := range previous.line {
-		if forcePageBreak(string(v.box.Box().Style.GetBreakAfter()), context) {
+		if forcedBreakAtEdge(context, v.box, false) {
 			return true
 		}
 	}
 	for _, v := range next.line {
-		if forcePageBreak(string(v.box.Box().Style.GetBreakBefore()), context) {
+		if forcedBreakAtEdge(context, v.box, true) {
 			return true
 		}
+	}
+	return false
+}
+
+// forcedBreakAtEdge mówi, czy element żąda podziału strony przed sobą (before) albo po sobie. Żądanie
+// podziału na pierwszym albo ostatnim dziecku w przepływie przechodzi na rodzica (CSS Break 3 § 3.1),
+// więc `break-before` na pierwszym elemencie zagnieżdżonego kontenera flex dzieli strony przed tym
+// kontenerem; źródło (i wcześniejszy kod gopdfgo) patrzyło tylko na sam element.
+func forcedBreakAtEdge(context *layoutContext, box_ Box, before bool) bool {
+	for depth := 0; box_ != nil && depth < 32; depth++ {
+		box := box_.Box()
+		value := box.Style.GetBreakAfter()
+		if before {
+			value = box.Style.GetBreakBefore()
+		}
+		if forcePageBreak(string(value), context) {
+			return true
+		}
+		if !bo.BlockContainerT.IsInstance(box_) && !bo.FlexContainerT.IsInstance(box_) && !bo.GridContainerT.IsInstance(box_) {
+			return false
+		}
+		var next Box
+		for i := range box.Children {
+			child := box.Children[i]
+			if !before {
+				child = box.Children[len(box.Children)-1-i]
+			}
+			if _, isLine := child.(*bo.LineBox); isLine {
+				return false
+			}
+			if child.Box().IsInNormalFlow() {
+				next = child
+				break
+			}
+		}
+		box_ = next
 	}
 	return false
 }
@@ -1814,9 +1913,23 @@ func finishedFlexItem(item Box, stretched bool) Box {
 		style.SetMarginTop(pr.ZeroPixels.Tagged())
 	} else {
 		style.SetVisibility("hidden")
+		// margines elementu zostaje na stronie, na której element się zaczął
+		style.SetMarginTop(pr.ZeroPixels.Tagged())
 	}
 	empty.Box().Style = style
 	return empty
+}
+
+// pushedFlexItem zwraca kopię elementu wiersza flex przesuniętego w całości na następną stronę: górny
+// margines jest obcinany na podziale (CSS Fragmentation 3 § 5.2), a element staje tak daleko od góry
+// strony, jak daleko poniżej podziału wypadał w układzie bez stron (offset).
+func pushedFlexItem(item Box, offset pr.Float) Box {
+	pushed := item.Copy()
+	style := item.Box().Style.Copy()
+	style.SetMarginTop(pr.FToPx(offset))
+	style.SetAlignSelf(pr.JustifyOrAlign{pr.FlexStart})
+	pushed.Box().Style = style
+	return pushed
 }
 
 // isStretchedFlexItem mówi, czy element wiersza flex jest rozciągany do wysokości linii: align-self (albo

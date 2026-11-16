@@ -908,7 +908,7 @@ liście kandydatów: reguła `@media` z jakąkolwiek cechą była odrzucana w ca
 
 | Obszar | Co doszło | Norma |
 |---|---|---|
-| `@media` | cechy z `min-`/`max-`, zakresy, `and`/`or`/`not`, `only`; atrybut `media`; medium odniesienia A4 w pionie | Media Queries 4, ADR 0007 |
+| `@media` | cechy z `min-`/`max-`, zakresy, `and`/`or`/`not`, `only`; atrybut `media`; rozmiar medium to obszar strony z `@page` (od 2026-11-16) | Media Queries 4, ADR 0007 i 0012 |
 | `text-shadow` | cień ostry i rozmyty (17 kopii), wiele cieni, dziedziczenie | CSS Text Decoration 3 § 4 |
 | gradienty | przystanek o dwóch pozycjach, wskazówka przejścia, `in <przestrzeń>` | CSS Images 4 |
 | barwy | `color-mix()` w `srgb`, `srgb-linear`, `oklab`, `oklch` | CSS Color 5 § 3 |
@@ -1129,3 +1129,31 @@ sondażu i została sprawdzona sondażem 1881 testów z tabel, pozycjonowania i 
 ominąć drugi z nich; wcześniej zaliczała się dzięki błędnej, za małej szerokości max-content) oraz
 `css-grid/subgrid/line-names-007` (funkcja nieobsługiwana). Reftesty druku: **232 z 340**, poprzednio 230
 (zyskane `margin-boxes/dimensions-005-print` i `-008-print`).
+
+## Paczka: podział flex między strony, blok o podanej wysokości, `@media` względem `@page` (2026-11-16)
+
+- **Wymuszony podział w zagnieżdżonym kontenerze flex.** `break-before` na pierwszym (i `break-after`
+  na ostatnim) dziecku w przepływie przechodzi na element flex (CSS Break 3 § 3.1). Zostają warianty,
+  w których żądanie stoi na innym elemencie pierwszej albo ostatniej linii kontenera wierszowego
+  (`multi-line-row-flex-fragmentation-082b`, `-082c`): wymagają znajomości linii zagnieżdżonego kontenera.
+- **Element wiersza flex przechodzi na następną stronę sam** (ADR 0011), gdy inne elementy linii
+  mieszczą się na bieżącej. Wcześniej przechodziła cała linia.
+- **Blok o podanej wysokości z dziećmi dzielonymi między strony** przenosi dalej tylko resztę wysokości.
+  Wcześniej blok wyższy niż strona był przenoszony na następną, a jego ostatni fragment wypełniał całą
+  stronę (na próbce 4 strony zamiast 2).
+- **`@media` względem obszaru strony z `@page`** (ADR 0012, decyzja użytkownika): `width`, `height`,
+  `aspect-ratio` i `orientation`. Dokument A4 z domyślnymi marginesami ma teraz medium o szerokości
+  ok. 644 px, więc `(min-width: 768px)` jest fałszywe, jak w Chromium.
+- **Pismo pionowe**: ADR 0010 (decyzja użytkownika): tylko poddrzewo obrócone, dopiero na potrzebę
+  dokumentu.
+- Korekta wcześniejszego opisu: `css-flexbox/balance` (28 niezaliczonych testów) to `flex-wrap: balance`,
+  funkcja eksperymentalna, a nie podział między strony.
+- Nierozwiązane: `break-nested-float-in-flex-item-001`, `-002` (wysoki element pływający w elemencie
+  flex powinien ciągnąć się przez trzy strony), `multi-line-row-flex-fragmentation-064`.
+
+Wynik: reftesty druku **240 z 340**, poprzednio 232 (zyskane: `single-line-column-flex-fragmentation-069b`,
+`-069d`, `multi-line-row-flex-fragmentation-075`, `-076`, `-082a`, `-082d`,
+`single-line-row-flex-fragmentation-042`, `monolithic-overflow-027`; straconych brak). Pełny sondaż
+ekranowy (9110 reftestów WPT, reguła ADR 0003) bez zmian: **7094**, ściśle 6706, krawędziowo 388; zmiana
+`@media` doszła po sondażu i została sprawdzona na 26 testach sondażu używających `@media`, bez zmian.
+Korpus własnych dokumentów bez zmian.

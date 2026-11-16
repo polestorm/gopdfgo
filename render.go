@@ -17,6 +17,7 @@ import (
 	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
 	pdfmodel "github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
+	"github.com/polestorm/gopdfgo/internal/webrender/html/layout"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
@@ -207,13 +208,30 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
 		MonospaceFontSize: opts.MonospaceFontSize, ExactBorderWidths: opts.ExactBorderWidths}
-	var sheets []tree.CSS
-	if opts.UserCSS != "" {
+	// Cechy width, height, aspect-ratio i orientation w @media oceniamy względem obszaru strony
+	// dokumentu (ADR 0012). Arkusze czytamy najpierw z rozmiarem domyślnym; jeśli któreś zapytanie
+	// zależy od rozmiaru, a @page daje inny obszar strony, czytamy je drugi raz z tym obszarem.
+	userSheets := func() ([]tree.CSS, error) {
+		if opts.UserCSS == "" {
+			return nil, nil
+		}
 		sheet, err := tree.NewCSSExt(utils.InputString(opts.UserCSS), opts.BaseURL, fontConfig)
 		if err != nil {
-			return Result{}, fmt.Errorf("gopdfgo: user stylesheet: %w", err)
+			return nil, fmt.Errorf("gopdfgo: user stylesheet: %w", err)
 		}
-		sheets = append(sheets, sheet)
+		return []tree.CSS{sheet}, nil
+	}
+	tree.SetMediaReference(0, 0)
+	defer tree.SetMediaReference(0, 0)
+	sheets, err := userSheets()
+	if err != nil {
+		return Result{}, err
+	}
+	if width, height, needed := layout.MediaPageArea(parsed, sheets, true, fontConfig); needed {
+		tree.SetMediaReference(float64(width), float64(height))
+		if sheets, err = userSheets(); err != nil {
+			return Result{}, err
+		}
 	}
 
 	// Atrybuty prezentacyjne HTML (width i height na img, bgcolor, align, border na table itd.) są

@@ -1,6 +1,6 @@
 # ADR 0007: cechy w zapytaniach `@media` oceniane względem stałego medium odniesienia
 
-Status: przyjęta 2026-11-15 (decyzja robocza przy wdrożeniu; do rewizji, zob. pytanie 20 w `open-questions.md`).
+Status: przyjęta 2026-11-15; rozmiar medium (punkt 2, `width`, `height`, `orientation`) zastąpiony przez ADR 0012 z 2026-11-16.
 
 ## Kontekst
 

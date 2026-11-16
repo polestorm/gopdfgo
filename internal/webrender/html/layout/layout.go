@@ -366,6 +366,14 @@ type layoutContext struct {
 	// gopdfgo: pudełka pozycjonowane względem komórki tabeli, do ponownego ułożenia po ustaleniu
 	// wysokości wiersza; klucz to ułożona komórka
 	cellPositioned map[*bo.BoxFields][]cellPositioned
+
+	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
+	// wznowienia zwrócony przez układ fragmentu (resumeKey)
+	fixedHeightRemaining map[uintptr]pr.Float
+
+	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
+	// klucz to znacznik w stanie wznowienia linii (resumeKey)
+	flexPushOffset map[uintptr]pr.Float
 	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
 	clipDepth int
 	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony
@@ -417,6 +425,19 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 	self.styleFor = tree.GetAllComputedStyles(html, userStylesheets, presentationalHints, fontConfig,
 		counterStyle, &pageRules, &self.TargetCollector, false, &self)
 	return &self
+}
+
+// MediaPageArea (gopdfgo) czyta arkusze dokumentu i podaje obszar strony wynikający z @page, o ile
+// któreś zapytanie @media zależy od rozmiaru medium (needed); wywołujący ustawia go wtedy przez
+// tree.SetMediaReference i czyta arkusze ponownie (ADR 0012).
+func MediaPageArea(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
+) (width, height pr.Float, needed bool) {
+	context := newLayoutContext(html, stylesheets, presentationalHints, fontConfig, nil)
+	if !tree.MediaSizeSeen() {
+		return 0, 0, false
+	}
+	width, height = context.styleFor.PageArea()
+	return width, height, width > 0 && height > 0
 }
 
 func (l *layoutContext) CurrentPage() int { return l.currentPage }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -475,6 +476,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// choć sam blok skończył się wcześniej (CSS Fragmentation 3 § 5.1). W źródle taka treść była
 	// porzucana ("forget overflowing children").
 	resumedRemainder, overflowContinuation, finishedWithOverflow := false, false, false
+	resumedFixed := false
 	if !isStart {
 		if inner, isOverflow := skipStack.Overflow(); isOverflow {
 			// sam blok skończył się na poprzedniej stronie: zostaje po nim tylko wylewająca się treść
@@ -494,6 +496,13 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				box.Height = pr.Float(remaining)
 			}
 		} else {
+			if remaining, ok := context.fixedHeightRemaining[resumeKey(skipStack)]; ok {
+				// dalszy ciąg bloku o podanej wysokości, którego dzieci podzieliły się między strony:
+				// zostaje mu reszta wysokości (zob. niżej)
+				resumedFixed = true
+				box.Height = remaining
+				box.MinHeight, box.MaxHeight = pr.Float(0), pr.Inf
+			}
 			skip, skipStack = skipStack.Unpack()
 		}
 		firstLetterStyle = nil
@@ -806,10 +815,29 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		}
 		newBox.Height = clamped
 	} else if bottomSpace > -pr.Inf && !newBox.IsColumn {
+		// gopdfgo: blok o podanej wysokości, którego dzieci dzielą się między strony, zajmuje na tej
+		// stronie miejsce do jej dolnej krawędzi, a resztę wysokości przenosi na następną (CSS
+		// Fragmentation 3 § 5.1). W źródle każdy fragment dostawał całą podaną wysokość: blok wystawał
+		// poza stronę, więc był przenoszony na następną, a jego ostatni fragment wypełniał całą stronę.
+		fixedFragment := false
+		if box.Height != pr.AutoF && resumeAt != nil && !finishedWithOverflow && canSplitFixedHeight(context, box_, bottomSpace) {
+			used := box.Height.V()
+			if !resumedFixed {
+				used = max(min(used, box.MaxHeight.V()), box.MinHeight.V())
+			}
+			if available := context.pageBottom - bottomSpace - newBox.ContentBoxY(); available > 0 && used-available > 0.5 {
+				newBox.Height = available
+				if context.fixedHeightRemaining == nil {
+					context.fixedHeightRemaining = map[uintptr]pr.Float{}
+				}
+				context.fixedHeightRemaining[resumeKey(resumeAt)] = used - available
+				fixedFragment = true
+			}
+		}
 		// Make the box fill the blank space at the bottom of the page
 		// https://www.w3.org/TR/css-break-3/#box-splitting
 		newBoxHeight := context.pageBottom - bottomSpace - newBox.PositionY - (newBox.MarginHeight() - newBox.Height.V())
-		if newBoxHeight > newBox.Height.V() {
+		if !fixedFragment && newBoxHeight > newBox.Height.V() {
 			newBox.Height = newBoxHeight
 			if drawBottomDecoration {
 				newBox.Height = newBox.Height.V() + box.PaddingBottom.V() + box.BorderBottomWidth.V() + box.MarginBottom.V()
@@ -1766,4 +1794,12 @@ func hasPlacedChild(children []Box) bool {
 		}
 	}
 	return false
+}
+
+// resumeKey (gopdfgo) identyfikuje stos wznowienia: ten sam obiekt wraca do układu na następnej stronie.
+func resumeKey(stack tree.ResumeStack) uintptr {
+	if stack == nil {
+		return 0
+	}
+	return reflect.ValueOf(stack).Pointer()
 }

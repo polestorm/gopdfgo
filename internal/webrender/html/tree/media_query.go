@@ -11,13 +11,35 @@ import (
 // gopdfgo: zapytania o medium z cechami (Media Queries 4). Źródło znało tylko typy medium i odrzucało
 // całą regułę @media, gdy zapytanie miało cokolwiek poza jednym identyfikatorem.
 //
-// Cechy oceniamy względem stałego medium odniesienia (ADR 0007): strona A4 w pionie, 96 pikseli na cal,
-// kolor, bez wskaźnika, bez skryptów. Rozmiar z @page nie jest w tej chwili znany, bo arkusze są
-// przetwarzane przed układem strony.
+// Rozmiar medium to obszar strony dokumentu (ADR 0012, Media Queries 4 § 4.1). Arkusze są przetwarzane
+// przed układem strony, więc rozmiar ustala wywołujący przez SetMediaReference: najpierw arkusze czytane
+// są z rozmiarem domyślnym (strona A4 w pionie), a gdy któreś zapytanie zależy od rozmiaru, czytane są
+// drugi raz z obszarem strony wynikającym z @page. Pozostałe cechy są stałe: 96 pikseli na cal, kolor,
+// bez wskaźnika, bez skryptów.
 const (
-	mediaReferenceWidth  = 210 * 96 / 25.4 // px
-	mediaReferenceHeight = 297 * 96 / 25.4 // px
+	defaultMediaWidth  = 210 * 96 / 25.4 // px
+	defaultMediaHeight = 297 * 96 / 25.4 // px
 )
+
+// Stan globalny: renderowanie jest szeregowane (jedno naraz), a wynik zapytań jest wyliczany już przy
+// czytaniu arkusza.
+var (
+	mediaReferenceWidth, mediaReferenceHeight float64 = defaultMediaWidth, defaultMediaHeight
+	mediaSizeSeen                             bool
+)
+
+// SetMediaReference ustawia rozmiar medium dla cech width, height, aspect-ratio i orientation oraz
+// zeruje znacznik MediaSizeSeen. Wartości niedodatnie przywracają rozmiar domyślny.
+func SetMediaReference(width, height float64) {
+	mediaReferenceWidth, mediaReferenceHeight = defaultMediaWidth, defaultMediaHeight
+	if width > 0 && height > 0 {
+		mediaReferenceWidth, mediaReferenceHeight = width, height
+	}
+	mediaSizeSeen = false
+}
+
+// MediaSizeSeen mówi, czy od ostatniego SetMediaReference oceniono zapytanie zależne od rozmiaru medium.
+func MediaSizeSeen() bool { return mediaSizeSeen }
 
 // Wynik zapytania zależy jeszcze tylko od typu medium, więc zapisujemy go jako napis:
 // typ ("all", "print", …), "!typ" (zaprzeczenie) albo mediaNever (zawsze fałsz).
@@ -297,6 +319,7 @@ func evaluateMediaFeature(tokens []Token) bool {
 	}
 	switch name {
 	case "width", "device-width", "height", "device-height":
+		mediaSizeSeen = true
 		wanted, ok := mediaLength(value[0])
 		if !ok || len(value) != 1 {
 			return false
@@ -306,6 +329,7 @@ func evaluateMediaFeature(tokens []Token) bool {
 		}
 		return compare(mediaReferenceHeight, wanted)
 	case "aspect-ratio", "device-aspect-ratio":
+		mediaSizeSeen = true
 		wanted, ok := mediaRatio(value)
 		return ok && compare(mediaReferenceWidth/mediaReferenceHeight, wanted)
 	case "resolution":
@@ -322,6 +346,13 @@ func evaluateMediaFeature(tokens []Token) bool {
 		return false
 	}
 	actual, known := mediaDiscreteFeatures[name]
+	if name == "orientation" {
+		mediaSizeSeen = true
+		actual = "portrait"
+		if mediaReferenceWidth > mediaReferenceHeight {
+			actual = "landscape"
+		}
+	}
 	return known && mediaKeyword(value[0]) == actual
 }
 
@@ -383,6 +414,9 @@ func evaluateMediaRange(operands [][]Token, operators []string) bool {
 			}
 			return f(tokens[0])
 		}
+	}
+	if feature != "resolution" {
+		mediaSizeSeen = true
 	}
 	switch feature {
 	case "width", "device-width":

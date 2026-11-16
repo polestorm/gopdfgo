@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po paczce: `::first-line`, elementy pozycjonowane w siatce, pola marginesów w pionie. Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po paczce: podział flex między strony, blok o podanej wysokości, `@media` względem `@page`. Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, rasteryzowane w 96 dpi
@@ -13,13 +13,13 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 | Miara | Wynik | Uwagi |
 |---|---|---|
 | Sondaż ekranowy W3C | **7094 z 9110 (77,9%)** | ściśle 6706, krawędziowo 388 |
-| Reftesty druku W3C | **232 z 340 (68,2%)** | wszystkie ściśle |
+| Reftesty druku W3C | **240 z 340 (70,6%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 19 z 21 dokumentów | wyjątki: `06-margin-boxes`, `11-edge-cases` |
-| Testy własne | 94 funkcje testowe, wszystkie przechodzą | w tym 70 w `regression_test.go` |
+| Testy własne | 96 funkcji testowych, wszystkie przechodzą | w tym 71 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Commity | 99 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 5 |
-| Zmiany w przejętym kodzie | 252 wpisy w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 10 | otwarte pytania: 20 i 21 |
+| Commity | 101 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 7 |
+| Zmiany w przejętym kodzie | 256 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Decyzje (ADR) | 12 | otwarte pytanie: 21 |
 
 ## Sondaż ekranowy w czasie
 
@@ -66,6 +66,7 @@ Reftesty druku (z 340):
 16.11  229  █████████████████████████████████▋      67,4%
 16.11  230  █████████████████████████████████▊      67,6%
 16.11  232  ██████████████████████████████████      68,2%
+16.11  240  ███████████████████████████████████▎    70,6%
 ```
 
 ## Poprawki według obszarów
@@ -123,9 +124,8 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Linia bazowa w siatce i flex (`last baseline`, oś kolumn) | 30 testów `css-grid/alignment`, część `css-flexbox` | średni |
 | Obrazy w siatce: rozmiar z `aspect-ratio` i procentów, `minmax` z obrazem | ok. 20 testów `grid-items`, `grid-lanes` pomijam | średni |
 | Pola marginesów: pozostałe wymiary (część wymaga pisma pionowego) | 8 testów `margin-boxes/dimensions` | średni |
-| Podział kontenera flex między strony: nowa linia przy żądaniu podziału, równoważenie | 28 testów `css-flexbox/balance`, reftesty druku flex | średni |
-| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 108 z 340 niezaliczonych | duży, po kawałku |
-| `@media` względem rzeczywistego rozmiaru strony | pytanie 20, czeka na decyzję | mały |
+| Podział kontenera flex między strony: żądanie podziału w środku linii zagnieżdżonej, wysoki element pływający w elemencie flex | 5 reftestów druku flex | średni |
+| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 100 z 340 niezaliczonych | duży, po kawałku |
 | `::first-line`: `vertical-align`, `text-transform`, elementy pływające w pierwszym wierszu | 4 testy; podstawa działa od 16.11 | mały |
 | Tabela obok elementów pływających: zwężanie, żeby ominąć kolejny | `table-among-floats-001` (strata z 16.11) | mały |
 
@@ -146,6 +146,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Pismo pionowe (`writing-mode`) | 272 niezaliczone testy sondażu, 17 druku | ADR 0010: poza projektem; poddrzewo obrócone dopiero na potrzebę dokumentu |
 | `grid-lanes` (układ murarski) | 766 testów | brak w większości przeglądarek |
 | `subgrid` | 67 testów | do rozważenia po uporządkowaniu siatki |
+| `flex-wrap: balance` | 28 testów `css-flexbox/balance` | eksperymentalne |
 | `column-height` | 29 testów | eksperymentalne |
 | Tekst dwukierunkowy (`bidi`) | 48 testów CSS 2 | poza zakresem (`docs/scope.md`) |
 | `@container`, `@property`, `::selection` | lista z audytu | nie dotyczą druku albo rzadkie |

@@ -755,6 +755,21 @@ Wspólne dla obu katalogów:
     pozycjonowane względem komórki tabeli są układane ponownie, gdy komórka dostanie wysokość wiersza
     (CSS 2.1 § 10.1); źródło liczyło `bottom` i wysokości procentowe od wysokości treści komórki, więc
     np. obrócony podpis w nagłówku kolumny wystawał ponad tabelę;
+- podział między strony, 2026-11-16 (piąta paczka):
+  - `html/layout/flex.go` (`forcedBreakAtEdge`): żądanie podziału strony na pierwszym albo ostatnim
+    dziecku w przepływie przechodzi na element flex (CSS Break 3 § 3.1), więc `break-before` na pierwszym
+    elemencie zagnieżdżonego kontenera dzieli strony przed tym kontenerem;
+  - `html/layout/flex.go` (`linePushed`, `pushedFlexItem`, `finishedFlexItem`), `html/layout/layout.go`
+    (`flexPushOffset`): element wiersza, który nie mieści się na stronie, przechodzi na następną sam
+    (ADR 0011); element zakończony na poprzedniej stronie nie wnosi już górnego marginesu;
+  - `html/layout/block.go` (`fixedHeightRemaining`, `resumeKey`): blok o podanej wysokości, którego dzieci
+    dzielą się między strony, zajmuje na stronie miejsce do jej dolnej krawędzi i przenosi dalej resztę
+    wysokości (CSS Fragmentation 3 § 5.1). W źródle każdy fragment dostawał całą podaną wysokość, więc
+    blok wyższy niż strona był przenoszony na następną, a jego ostatni fragment wypełniał całą stronę;
+- `html/tree/media_query.go` (`SetMediaReference`, `MediaSizeSeen`), `html/tree/style.go` (`PageArea`),
+  `html/layout/layout.go` (`MediaPageArea`), 2026-11-16: cechy `width`, `height`, `aspect-ratio`
+  i `orientation` w `@media` oceniane względem obszaru strony z `@page` (Media Queries 4 § 4.1, ADR 0012);
+  wcześniej względem stałej strony A4 (ADR 0007);
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

@@ -2196,3 +2196,44 @@ func TestFirstLineFloatWidthAndGridDescendants(t *testing.T) {
 		}
 	}
 }
+
+// TestFlexRowPushAndFixedHeightFragments pilnuje poprawek podziału między strony z 2026-11-16: blok
+// o podanej wysokości dzielony razem z dziećmi przenosi na następną stronę tylko resztę wysokości,
+// element wiersza flex, który nie mieści się na stronie, przechodzi na następną sam, a żądanie podziału
+// na pierwszym elemencie zagnieżdżonego kontenera flex dzieli strony przed tym kontenerem.
+func TestFlexRowPushAndFixedHeightFragments(t *testing.T) {
+	page := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } .i { width: 50px; height: 60px; background: green }</style>`
+	cases := []struct {
+		name, tested, expected string
+		pages                  int
+	}{
+		{"blok o podanej wysokości z dziećmi dzielonymi między strony",
+			page + `<div style="height:50px"></div><div style="height:250px;background:silver"><div style="height:100px"></div><div style="height:100px"></div></div><div style="height:20px;background:blue"></div>`,
+			page + `<div style="height:50px"></div><div style="height:150px;background:silver"><div style="height:100px"></div></div><div style="height:100px;background:silver"><div style="height:100px"></div></div><div style="height:20px;background:blue"></div>`,
+			2},
+		{"element wiersza flex przechodzi na następną stronę sam",
+			page + `<div style="height:100px"></div><div style="display:flex;align-items:flex-start"><div class="i"></div><div class="i" style="height:150px"></div></div>`,
+			page + `<div style="height:100px"></div><div style="display:flex;align-items:flex-start"><div class="i"></div></div><div style="height:40px"></div><div style="display:flex;align-items:flex-start"><div style="width:50px"></div><div class="i" style="height:150px"></div></div>`,
+			2},
+		{"break-before na pierwszym elemencie zagnieżdżonego kontenera flex",
+			page + `<div style="display:flex;flex-direction:column"><div style="display:flex;flex-direction:column"><div class="i"></div></div><div style="display:flex;flex-direction:column"><div class="i" style="break-before:page"></div></div></div>`,
+			page + `<div style="display:flex;flex-direction:column"><div style="display:flex;flex-direction:column"><div class="i"></div></div><div style="display:flex;flex-direction:column;break-before:page"><div class="i"></div></div></div>`,
+			2},
+	}
+	for _, c := range cases {
+		tested, err := Render(t.Context(), []byte(c.tested), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := Render(t.Context(), []byte(c.expected), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tested.Pages != c.pages {
+			t.Errorf("%s: %d stron, oczekiwano %d", c.name, tested.Pages, c.pages)
+		}
+		if !bytes.Equal(tested.PDF, expected.PDF) {
+			t.Errorf("%s: inny dokument niż wzorzec", c.name)
+		}
+	}
+}

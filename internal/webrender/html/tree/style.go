@@ -137,6 +137,10 @@ func (v *viewport) size() (pr.Float, pr.Float) {
 	return v.width, v.height
 }
 
+// PageArea (gopdfgo) podaje rozmiar obszaru strony (bez marginesów, obramowania i odstępu) wynikający
+// z reguł @page dla zwykłej strony; zero, gdy nie da się go ustalić.
+func (sf *StyleFor) PageArea() (width, height pr.Float) { return sf.viewport.size() }
+
 func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	targetColllector *TargetCollector, textContext text.TextLayoutContext,
 ) *StyleFor {

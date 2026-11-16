@@ -42,9 +42,9 @@ pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentat
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-068c-print.html	
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-068d-print.html	
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069a-print.html	
-fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069b-print.html	strona 1: różne piksele 4736
+pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069b-print.html	
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069c-print.html	
-fail	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069d-print.html	strona 1: różne piksele 4736
+pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069d-print.html	
 fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	strona 2: różne piksele 46080
 fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	strona 2: różne piksele 46080
 fail	flex-fragmentation	css/css-flexbox/inline-flexbox-vertical-rl-image-flexitem-crash-print.html	
@@ -127,7 +127,7 @@ fail	monolithic-overflow	css/css-page/monolithic-overflow-023-print.html	strona 
 fail	monolithic-overflow	css/css-page/monolithic-overflow-024-print.html	strony 3 vs 6
 fail	monolithic-overflow	css/css-page/monolithic-overflow-025-print.html	strony 4 vs 8
 pass	monolithic-overflow	css/css-page/monolithic-overflow-026-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-027-print.html	strona 1: różne piksele 18432
+pass	monolithic-overflow	css/css-page/monolithic-overflow-027-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strony 1 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strona 1: różne piksele 18432
 pass	monolithic-overflow	css/css-page/monolithic-overflow-030-print.html	
@@ -305,18 +305,18 @@ pass	table-fragmentation	css/CSS2/pagination/table-page-break-inside-avoid-8-pri
 pass	table-fragmentation	css/css-break/break-nested-float-in-table-001-print.html	
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-063-print.html	
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-064-print.html	strony 3 vs 4
-fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-075-print.html	strony 2 vs 4
-fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-076-print.html	strony 3 vs 4
+pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-075-print.html	
+pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-076-print.html	
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-080-print.html	
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-081a-print.html	
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-081b-print.html	
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-081c-print.html	
 pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-081d-print.html	
-fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082a-print.html	strona 1: różne piksele 5031
+pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082a-print.html	
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082b-print.html	strona 1: różne piksele 5031
 fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082c-print.html	strona 1: różne piksele 5031
-fail	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082d-print.html	strona 1: różne piksele 5031
-fail	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-042-print.html	strony 2 vs 4
+pass	table-fragmentation	css/css-break/flexbox/multi-line-row-flex-fragmentation-082d-print.html	
+pass	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-042-print.html	
 pass	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-045-print.html	
 pass	table-fragmentation	css/css-break/flexbox/single-line-row-flex-fragmentation-046-print.html	
 fail	table-fragmentation	css/css-break/table/repeated-section/fixedpos-in-footer-forced-break-print.html	strony 4 vs 7
