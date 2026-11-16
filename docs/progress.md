@@ -19,7 +19,7 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Commity | 99 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 5 |
 | Zmiany w przejętym kodzie | 252 wpisy w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 9 | otwarte pytania: 20, 21 i 22 |
+| Decyzje (ADR) | 10 | otwarte pytania: 20 i 21 |
 
 ## Sondaż ekranowy w czasie
 
@@ -137,13 +137,13 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Elementy pozycjonowane w siatce | 62 testy `css-grid/abspos`, większość z pismem pionowym, `rtl` albo `last baseline` | średni |
 | Elementy pływające: przypadki brzegowe z `clear` i marginesami | 58 testów CSS 2 | średni |
 | Nieobsługiwane właściwości z ostrzeżeniem: `conic-gradient`, `clip-path`, `translate/rotate/scale`, `text-wrap`, `rgb(from …)`, `round()` | lista z audytu | mały każda |
-| Pismo pionowe (`writing-mode`) | 272 niezaliczone testy sondażu, 17 druku; pytanie 22 | od 2–3 paczek (poddrzewo obrócone) do tygodni (osie logiczne) |
 | Dopasowanie wydruku do strony (fit-to-page) na życzenie | rozmowa 16.11, pytanie 21 | średni |
 
 ### Niska: eksperymentalne albo poza zakresem
 
 | Temat | Skąd wiadomo | Uwagi |
 |---|---|---|
+| Pismo pionowe (`writing-mode`) | 272 niezaliczone testy sondażu, 17 druku | ADR 0010: poza projektem; poddrzewo obrócone dopiero na potrzebę dokumentu |
 | `grid-lanes` (układ murarski) | 766 testów | brak w większości przeglądarek |
 | `subgrid` | 67 testów | do rozważenia po uporządkowaniu siatki |
 | `column-height` | 29 testów | eksperymentalne |

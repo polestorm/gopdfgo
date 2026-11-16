@@ -152,29 +152,4 @@ pisma wbrew arkuszowi; dokument, który ma się zmieścić, powinien to zapewni�
 
 ## 22. Czy i w jakim zakresie obsłużyć pismo pionowe (`writing-mode`)?
 
-Stan 2026-11-16: silnik nie parsuje `writing-mode` ani `text-orientation`; `docs/scope.md` zalicza pismo
-pionowe do rzeczy poza zakresem. Pytanie wróciło, bo testy W3C często używają go jako drugiej osi.
-
-Pomiar (sondaż ekranowy z 2026-11-16, 9110 reftestów; liczone testy, których źródło ustawia
-`writing-mode` pionowy albo `sideways-*`): 362 testy, z tego 272 niezaliczone (flex 58, siatka 84,
-`grid-lanes` i `subgrid` 121, kolumny 6, tabele 3). Żaden nie wymaga glifów stojących (`text-orientation:
-upright`, pismo CJK). W reftestach druku 23 pliki ustawiają `writing-mode`, 17 z nich jest niezaliczonych.
-W korpusie własnych dokumentów nie używa go żaden.
-
-Trzy możliwe zakresy, od najtańszego:
-
-1. **Poddrzewo obrócone.** Element z pionowym `writing-mode` w poziomym otoczeniu układany jest jak
-   osobny, poziomy kontekst z zamienionymi wymiarami i rysowany z obrotem o 90°. Pokrywa obrócone
-   nagłówki tabel, etykiety na marginesie, grzbiety. Poddrzewo nie dzieli się między strony. Zapis PDF
-   nie wymaga niczego nowego (obrót macierzą tekstu). Szacunek: 2–3 paczki.
-2. **Osie logiczne w układzie.** Kontenery flex, siatki i tabele liczą się w osiach „w wierszu” i „w bloku”
-   zamiast szerokości i wysokości. To warunek zaliczenia większości z 272 testów, ale wymaga przepisania
-   rachunków w całym układzie (ok. 33 tys. linii w `html/layout`). Szacunek: kilka tygodni, duże ryzyko
-   regresji.
-3. **Pełne pismo pionowe.** Dokument pionowy od korzenia (strony przyrastają w poziomie), glify stojące
-   z metrykami pionowymi fontu (`vhea`, `vmtx`, cecha `vert`), `text-combine-upright`. Biblioteka
-   kształtowania tekstu (go-text/typesetting) i model PDF w `internal/pdflib` (`WMode`, `W2`) to
-   potrafią; brakuje całej reszty. Potrzebne tylko dla dokumentów japońskich i chińskich.
-
-Zalecenie: zakres 1, gdy pojawi się dokument, który go potrzebuje; zakresy 2 i 3 zostawić poza
-projektem zgodnie z `docs/scope.md`.
+Rozstrzygnięte 2026-11-16: ADR 0010 (tylko poddrzewo obrócone, i dopiero na potrzebę dokumentu).
