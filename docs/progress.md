@@ -1,9 +1,10 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po paczce: przełącznik `ExactLengths`, `border-spacing`, siatka (wysokość z wiersza), kolejność rysowania. Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po paczce: pomniejszanie treści szerszej niż strona (ADR 0014). Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
-Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, rasteryzowane w 96 dpi
+Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, renderowane bez pomniejszania
+treści (`-max-shrink 1`, od 16.11), rasteryzowane w 96 dpi
 i porównywane według ADR 0003 (zaliczenie ścisłe albo z dokładnością do krawędzi). Reftesty druku to
 340 testów stronicowania trzymanych w `testdata/wpt`. Korpus to 21 własnych dokumentów
 w `testdata/documents` porównywanych z wydrukami Chromium.
@@ -14,12 +15,12 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 |---|---|---|
 | Sondaż ekranowy W3C | **7112 z 9110 (78,1%)** | ściśle 6724, krawędziowo 388 |
 | Reftesty druku W3C | **242 z 340 (71,2%)** | wszystkie ściśle |
-| Korpus: liczba stron jak w Chromium | 19 z 21 dokumentów | wyjątki: `06-margin-boxes`, `11-edge-cases` |
-| Testy własne | 97 funkcji testowych, wszystkie przechodzą | w tym 72 w `regression_test.go` |
+| Korpus: liczba stron jak w Chromium | 20 z 21 dokumentów | wyjątek: `06-margin-boxes` |
+| Testy własne | 98 funkcji testowych, wszystkie przechodzą | w tym 73 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Commity | 102 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 8 |
-| Zmiany w przejętym kodzie | 260 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 13 | brak otwartych pytań; do decyzji: dopasowanie do strony (rozmowa 16.11) |
+| Commity | 103 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 9 |
+| Zmiany w przejętym kodzie | 261 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Decyzje (ADR) | 14 | brak otwartych pytań |
 
 ## Sondaż ekranowy w czasie
 
@@ -125,7 +126,6 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 |---|---|---|
 | Linia bazowa w siatce i flex (`last baseline`, oś kolumn) | 30 testów `css-grid/alignment`, część `css-flexbox` | średni |
 | Elementy siatki: procenty i `minmax` z obrazem, tabela jako element, ponowne liczenie kolumn po wierszach | ok. 30 testów `grid-items` | średni |
-| Dopasowanie wydruku do szerokości strony (treść szersza niż strona jest dziś ucinana) | rozmowa 16.11, czeka na decyzję | średni |
 | Pola marginesów: pozostałe wymiary (część wymaga pisma pionowego) | 8 testów `margin-boxes/dimensions` | średni |
 | Podział kontenera flex między strony: żądanie podziału w środku linii zagnieżdżonej, wysoki element pływający w elemencie flex | 5 reftestów druku flex | średni |
 | Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 98 z 340 niezaliczonych | duży, po kawałku |
@@ -168,7 +168,7 @@ w których słowa dają się dopasować po kolei:
 
 Pozostałe 25 słów w `19-flex-grid-pagination` to karty o stałej wysokości: Chromium tnie je na
 granicy strony, gopdfgo przenosi w całości (ADR 0004). `07-images` i `10-preformatted` Chromium
-drukuje w skali 0,667 (pytanie 21), więc nie są porównywalne tą miarą.
+drukuje w skali 0,667; od ADR 0014 gopdfgo robi to samo (mediana odchylenia 0,3 pt i 0,1 pt).
 
 ## Sposób pracy od 2026-11-16
 
