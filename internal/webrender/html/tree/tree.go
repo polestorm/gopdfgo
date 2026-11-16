@@ -46,6 +46,9 @@ type Behavior struct {
 	// ExactLengths: długości zostają dokładne. Domyślnie szerokości obramowań, konturów i linii między
 	// kolumnami oraz border-spacing są zaokrąglane do całych pikseli CSS jak w Chromium (ADR 0009, 0013).
 	ExactLengths bool
+	// MaxShrink: największe pomniejszenie treści szerszej niż obszar strony (ADR 0014). Wartości do 1
+	// (także zero) wyłączają pomniejszanie.
+	MaxShrink float64
 }
 
 // `baseUrl` is the base used to resolve relative URLs

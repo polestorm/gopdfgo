@@ -729,6 +729,11 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	page.PositionY = 0
 	pageWidth(page, context, block{Width: cbWidth})
 	pageHeight(page, context, block{Height: cbHeight})
+	if scale := context.contentScale; scale > 1 {
+		// gopdfgo: treść układamy na powiększonym obszarze strony (ADR 0014); rozmiar z arkusza wraca
+		// przed układem pól marginesów
+		page.Width, page.Height = page.Width.V()*scale, page.Height.V()*scale
+	}
 
 	rootBox.Box().PositionX = page.ContentBoxX()
 	rootBox.Box().PositionY = page.ContentBoxY()

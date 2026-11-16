@@ -95,6 +95,12 @@ type Options struct {
 	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
 	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
 	ExactLengths bool
+	// MaxShrink ogranicza pomniejszanie treści szerszej niż obszar strony (ADR 0014). Gdy coś wystaje
+	// poza prawą krawędź obszaru strony (sztywna szerokość, szeroka tabela, długi wiersz bez łamania),
+	// cała treść jest pomniejszana tak, żeby się zmieściła, najwyżej MaxShrink razy; pola marginesów
+	// zostają w skali 1. Zero oznacza 1,5, jak w Chromium; 1 wyłącza pomniejszanie (treść wystaje
+	// i jest ucinana na krawędzi kartki); math.Inf(1) pomniejsza bez limitu.
+	MaxShrink float64
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -210,7 +216,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
 	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
-		MonospaceFontSize: opts.MonospaceFontSize, ExactLengths: opts.ExactLengths}
+		MonospaceFontSize: opts.MonospaceFontSize, ExactLengths: opts.ExactLengths, MaxShrink: maxShrink(opts.MaxShrink)}
 	// Cechy width, height, aspect-ratio i orientation w @media oceniamy względem obszaru strony
 	// dokumentu (ADR 0012). Arkusze czytamy najpierw z rozmiarem domyślnym; jeśli któreś zapytanie
 	// zależy od rozmiaru, a @page daje inny obszar strony, czytamy je drugi raz z tym obszarem.
@@ -282,4 +288,12 @@ func mediaType(declared, target string) string {
 		declared = declared[:i]
 	}
 	return strings.TrimSpace(declared)
+}
+
+// maxShrink zamienia Options.MaxShrink na wartość dla silnika: zero to domyślne 1,5.
+func maxShrink(option float64) float64 {
+	if option == 0 {
+		return 1.5
+	}
+	return option
 }

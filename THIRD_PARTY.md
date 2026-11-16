@@ -785,6 +785,11 @@ Wspólne dla obu katalogów:
     `inline-block`, każdy w całości i w kolejności dokumentu (CSS Flexbox 1 § 5.4, CSS Grid 1 § 9.5);
     źródło rysowało je jak zwykłe bloki, więc tekst wcześniejszego elementu przebijał przez tło
     późniejszego;
+- `html/layout/layout.go` (`Layout`, `layoutScaled`, `contentOverflowScale`), `html/layout/pages.go`
+  (`makePage`), `html/boxes/boxes.go` (`PageScale`), `html/document/document.go` (`getMatrix`),
+  `html/document/stacking.go`, `html/tree/tree.go` (`Behavior.MaxShrink`), 2026-11-16, ADR 0014: treść
+  szersza niż obszar strony jest układana drugi raz na powiększonym obszarze i rysowana pomniejszona;
+  źródło zostawiało ją wystającą poza stronę;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

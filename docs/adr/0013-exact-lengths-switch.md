@@ -28,7 +28,7 @@ Trzecia różnica z pytania 21, pomniejszanie całej strony, gdy treść wystaje
 2. `Options.ExactBorderWidths` i flaga `-exact-border-widths` znikają; zastępuje je przełącznik globalny.
 3. Każde następne zaokrąglenie Chromium, które zdecydujemy się naśladować, podlega temu samemu
    przełącznikowi i jest dopisywane do listy w komentarzu `Options.ExactLengths`.
-4. Pomniejszania strony nie naśladujemy. Dopasowanie wydruku do strony (fit-to-page) na życzenie
+4. (Zmienione przez ADR 0014: pomniejszanie jest wdrożone i domyślnie włączone.) Pomniejszania strony nie naśladujemy. Dopasowanie wydruku do strony (fit-to-page) na życzenie
    wywołującego pozostaje osobną funkcją do zaprojektowania.
 
 ## Skutki

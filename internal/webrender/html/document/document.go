@@ -39,6 +39,15 @@ func getMatrix(box_ Box) (mt.Transform, bool) {
 	// http://www.w3.org/TR/css3-2d-transforms/#introduction
 	box := box_.Box()
 	trans := box.Style.GetTransform()
+	if box.PageScale > 1 {
+		// gopdfgo: treść strony pomniejszona, żeby zmieściła się na szerokość (ADR 0014); własne
+		// przekształcenie elementu głównego jest wtedy pomijane
+		originX, originY, factor := fl(box.PageScaleOriginX), fl(box.PageScaleOriginY), fl(1/box.PageScale)
+		matrix := mt.New(1, 0, 0, 1, originX, originY)
+		matrix.RightMultBy(mt.New(factor, 0, 0, factor, 0, 0))
+		matrix.Translate(-originX, -originY)
+		return matrix, true
+	}
 	if len(trans) == 0 || bo.InlineT.IsInstance(box_) {
 		return mt.Transform{}, false
 	}

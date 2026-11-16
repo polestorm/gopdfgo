@@ -155,7 +155,7 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	style := box.Box().Style
 	position := style.GetPosition().String
 	positioned := position != "static"
-	hasTransform := len(style.GetTransform()) != 0
+	hasTransform := len(style.GetTransform()) != 0 || box.Box().PageScale > 1 // gopdfgo: zob. BoxFields.PageScale
 	if escape != nil && (position == "absolute" || position == "fixed") {
 		// bryła zawierająca tego pudełka leży poza przycinającym przodkiem
 		childContexts, escape = escape, nil

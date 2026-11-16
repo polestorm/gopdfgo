@@ -206,6 +206,11 @@ type BoxFields struct {
 	// o stałym rozmiarze i jego potomkowie o wysokości procentowej); służy do liczenia szerokości z treści
 	// pudełek z proporcjami. nil: nieznana.
 	DefiniteHeight pr.MaybeFloat
+	// gopdfgo: PageScale > 1 na pudełku treści strony (element główny, obszar przypisów): treść jest
+	// ułożona na obszarze strony powiększonym tyle razy i rysowana w skali 1/PageScale względem
+	// podanego początku (ADR 0014).
+	PageScale                          pr.Float
+	PageScaleOriginX, PageScaleOriginY pr.Float
 	// SplitBefore, SplitAfter: pudełko liniowe jest dalszym ciągiem (ma dalszy ciąg) pudełka rozdzielonego
 	// przez blok w środku; od tej strony nie ma marginesu, obramowania ani odstępu (CSS 2 §9.2.1.1)
 	SplitBefore, SplitAfter bool

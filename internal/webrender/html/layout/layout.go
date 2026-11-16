@@ -48,8 +48,24 @@ type Box = bo.Box
 // This includes line breaks, page breaks, absolute size and position for all
 // boxes.
 func Layout(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration) []*bo.PageBox {
+	pages := layoutScaled(html, stylesheets, presentationalHints, fontConfig, 1)
+	// gopdfgo: treść szersza niż obszar strony jest pomniejszana, żeby się zmieściła (ADR 0014): dokument
+	// układamy drugi raz na obszarze strony powiększonym tyle razy, ile wynosi pomniejszenie, a rysujemy
+	// w odpowiedniej skali. Dokument, w którym nic nie wystaje, jest układany raz.
+	if limit := pr.Float(html.Behavior.MaxShrink); limit > 1 {
+		if scale := min(contentOverflowScale(pages), limit); scale > 1.001 {
+			pages = layoutScaled(html, stylesheets, presentationalHints, fontConfig, scale)
+		}
+	}
+	return pages
+}
+
+func layoutScaled(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
+	contentScale pr.Float,
+) []*bo.PageBox {
 	counterStyle := make(counters.CounterStyle)
 	context := newLayoutContext(html, stylesheets, presentationalHints, fontConfig, counterStyle)
+	context.contentScale = contentScale
 
 	logger.ProgressLogger.Println("Step 4 - Creating formatting structure")
 
@@ -269,6 +285,16 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 
 		// pageMaker's pageState is ready for the MarginBoxes
 		state := context.pageMaker[context.currentPage].PageState
+		scaledHeight := page.Height.V()
+		if scale := context.contentScale; scale > 1 {
+			// treść strony jest ułożona na powiększonym obszarze; sama strona, jej marginesy i pola
+			// marginesów wracają do rozmiaru z arkusza, a treść będzie rysowana w skali 1/scale
+			page.Width, page.Height = page.Width.V()/scale, page.Height.V()/scale
+			for _, content := range []Box{root, footnoteArea} {
+				content.Box().PageScale = scale
+				content.Box().PageScaleOriginX, content.Box().PageScaleOriginY = page.ContentBoxX(), page.ContentBoxY()
+			}
+		}
 		page.Children = []Box{root}
 		if len(footnoteArea.Box().Children) != 0 {
 			page.Children = append(page.Children, footnoteArea)
@@ -281,7 +307,7 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 		canvasOrigin := *firstRoot
 		canvasOrigin.PositionY -= canvasOffset
 		layoutBackgrounds(page, context.resolver.FetchImage, &canvasOrigin)
-		canvasOffset += page.Height.V()
+		canvasOffset += scaledHeight
 		out[i] = page
 		warnContentBelowPage(page, root, i+1)
 
@@ -366,6 +392,10 @@ type layoutContext struct {
 	// gopdfgo: pudełka pozycjonowane względem komórki tabeli, do ponownego ułożenia po ustaleniu
 	// wysokości wiersza; klucz to ułożona komórka
 	cellPositioned map[*bo.BoxFields][]cellPositioned
+
+	// gopdfgo: contentScale > 1: obszar strony jest powiększony tyle razy na czas układu treści
+	// (pomniejszanie treści szerszej niż strona, ADR 0014)
+	contentScale pr.Float
 
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)
@@ -693,4 +723,53 @@ type cellPositioned struct {
 	placeholder *AbsolutePlaceholder
 	original    Box
 	height      pr.Float // wysokość komórki (z odstępem wewnętrznym) w chwili pierwszego układu
+}
+
+// contentOverflowScale (gopdfgo) podaje, ile razy treść jest szersza niż obszar strony: największy iloraz
+// po stronach; 1, gdy nic nie wystaje. Liczą się pudełka treści (bez pól marginesów), także pozycjonowane;
+// zawartość pudełek przycinających (overflow inny niż visible) jest pomijana.
+func contentOverflowScale(pages []*bo.PageBox) pr.Float {
+	scale := pr.Float(1)
+	for _, page := range pages {
+		left, width := page.ContentBoxX(), page.Width.V()
+		if width <= 0 {
+			continue
+		}
+		right := left + width
+		for _, child := range page.Children {
+			if _, isMargin := child.(*bo.MarginBox); isMargin {
+				continue
+			}
+			right = max(right, contentRightEdge(child))
+		}
+		scale = max(scale, (right-left)/width)
+	}
+	return scale
+}
+
+func contentRightEdge(box_ Box) pr.Float {
+	if placeholder, ok := box_.(*AbsolutePlaceholder); ok {
+		box_ = placeholder.AliasBox
+	}
+	box := box_.Box()
+	edge := -pr.Inf
+	switch box_.(type) {
+	case *bo.LineBox:
+		// szerokość wiersza nie jest szerokością treści; liczą się jego dzieci
+	case *bo.TextBox:
+		if width, ok := box.Width.(pr.Float); ok {
+			edge = box.PositionX + width
+		}
+	default:
+		if _, ok := box.Width.(pr.Float); ok && box.Style.GetVisibility() == "visible" {
+			edge = box.BorderBoxX() + box.BorderWidth()
+		}
+	}
+	if !bo.LineT.IsInstance(box_) && box.Style.GetOverflow() != "visible" {
+		return edge
+	}
+	for _, child := range box.Children {
+		edge = max(edge, contentRightEdge(child))
+	}
+	return edge
 }

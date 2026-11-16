@@ -34,6 +34,8 @@ func main() {
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
 	exactLengths := flag.Bool("exact-lengths", false,
 		"długości dokładnie jak w arkuszu, bez zaokrągleń do całych pikseli (domyślnie jak w Chromium: obramowanie 0.5pt daje 1px, border-spacing 1mm daje 3px)")
+	maxShrinkFlag := flag.Float64("max-shrink", 0,
+		"największe pomniejszenie treści szerszej niż strona; 0 oznacza 1.5 jak w Chromium, 1 wyłącza, +Inf bez limitu")
 	monospaceSize := flag.Float64("monospace-size", 0,
 		"rozmiar pisma (px) dla font-family: monospace bez podanego font-size; 0 oznacza 13 jak w przeglądarkach, 16 wyłącza regułę")
 	generic := map[string][]string{}
@@ -52,13 +54,13 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *exactLengths, *monospaceSize, *timeout, *quiet); err != nil {
+	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *exactLengths, *maxShrinkFlag, *monospaceSize, *timeout, *quiet); err != nil {
 		fmt.Fprintln(os.Stderr, "gopdfgo:", err)
 		os.Exit(1)
 	}
 }
 
-func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, monospaceSize float64, timeout time.Duration, quiet bool) error {
+func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, maxShrink float64, monospaceSize float64, timeout time.Duration, quiet bool) error {
 	html, err := os.ReadFile(in)
 	if err != nil {
 		return err
@@ -119,7 +121,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
-		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths})
+		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink})
 	if err != nil {
 		return err
 	}

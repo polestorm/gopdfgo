@@ -1180,3 +1180,20 @@ krawędziowo 388, niezaliczone 1998; poprzednio 7094. Zyskane 18 (siatka 17, fle
 Reftesty druku: **242 z 340**, poprzednio 240 (zyskane `page-name-img-002-print`,
 `page-name-canvas-002-print`). Korpus porównany po pikselach z poprzednią wersją: różnice tylko
 w `17-tables` (`border-spacing`) i 7 pikseli wygładzania w `10-preformatted`.
+
+## Pomniejszanie treści szerszej niż strona (2026-11-16)
+
+Decyzja użytkownika, ADR 0014: treść wystająca poza prawą krawędź obszaru strony jest układana drugi raz
+na powiększonym obszarze i rysowana pomniejszona, domyślnie najwyżej 1,5 raza jak w Chromium;
+`Options.MaxShrink` (CLI `-max-shrink`) zmienia limit, 1 wyłącza, `math.Inf(1)` znosi limit. Pola
+marginesów zostają w skali 1; prostokąty odnośników trafiają w pomniejszoną treść.
+
+Porównanie z wydrukiem Chromium (headless, 2026-11-16; mediana odchylenia słów w pionie): `07-images`
+43,3 pt → 0,3 pt, `10-preformatted` 17,2 pt → 0,1 pt; `11-edge-cases` 4 strony → 2 strony jak w Chromium.
+Liczba stron zgadza się z Chromium w 20 z 21 dokumentów korpusu (wyjątek: `06-margin-boxes`).
+
+Zmiana metody sondażu: od tej paczki sondaż ekranowy uruchamiamy z `-max-shrink 1`, bo testy W3C
+zakładają ekran, na którym przeglądarka niczego nie pomniejsza. Wynik przy tym ustawieniu (pełny sondaż
+9110 reftestów WPT, reguła ADR 0003): **7112**, ściśle 6724, krawędziowo 388, bez zmian względem
+poprzedniej paczki. Reftesty druku (pomniejszanie włączone, jak w `gopdfgo.Render`): **242 z 340**,
+bez zmian.

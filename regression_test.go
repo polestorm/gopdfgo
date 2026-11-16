@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1831,7 +1832,7 @@ func TestGridPositionedAndComparisonFunctions(t *testing.T) {
 		{
 			"min() z procentem zależy od bloku zawierającego",
 			`<div style="width:200px"><div class="k" style="width:min(50%, 150px);height:20px"></div></div>` +
-				`<div style="width:400px"><div class="k" style="width:min(50%, 150px);height:20px"></div></div>`,
+				`<div style="width:300px"><div class="k" style="width:min(50%, 200px);height:20px"></div></div>`,
 			`<div class="k" style="width:100px;height:20px"></div><div class="k" style="width:150px;height:20px"></div>`,
 		},
 		{
@@ -2261,5 +2262,47 @@ func TestBorderSpacingTruncation(t *testing.T) {
 	}
 	if bytes.Equal(render(table("1mm"), true), render(table("3px"), true)) {
 		t.Error("ExactLengths: border-spacing 1mm zostało obcięte")
+	}
+}
+
+// TestShrinkContentWiderThanPage pilnuje ADR 0014: treść szersza niż obszar strony jest pomniejszana
+// (domyślnie najwyżej 1,5 raza, jak w Chromium), MaxShrink: 1 to wyłącza, a pola marginesów zostają
+// w skali 1.
+func TestShrinkContentWiderThanPage(t *testing.T) {
+	page := `<style>@page { size: 400px 300px; margin: 50px; @top-center { content: "N" } } body { margin: 0 }</style>`
+	wide := func(width string) string {
+		return page + `<div style="width:` + width + `;height:60px;background:green"></div>` +
+			`<div style="height:150px;background:silver"></div><div style="height:150px;background:gray"></div>`
+	}
+	render := func(source string, shrink float64) Result {
+		result, err := Render(t.Context(), []byte(source), Options{Fonts: testFonts(t), MaxShrink: shrink})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	// trzy bloki (60, 150 i 150 px) na stronie 200 px: 3 strony, bo bloki o podanej wysokości nie są
+	// dzielone; przy pomniejszeniu 1,5 raza (strona 300 px) 2 strony, przy 2 razy (400 px) jedna
+	if fits := render(wide("300px"), 0); fits.Pages != 3 {
+		t.Errorf("treść mieszcząca się na szerokość: %d stron, oczekiwano 3", fits.Pages)
+	}
+	if !bytes.Equal(render(wide("300px"), 0).PDF, render(wide("300px"), 1).PDF) {
+		t.Error("treść mieszcząca się na szerokość zmienia się pod wpływem MaxShrink")
+	}
+	if bytes.Equal(render(wide("450px"), 0).PDF, render(wide("450px"), 1).PDF) {
+		t.Error("treść szersza niż strona nie została pomniejszona")
+	}
+	if limited, unlimited := render(wide("600px"), 0), render(wide("600px"), math.Inf(1)); limited.Pages != 2 || unlimited.Pages != 1 {
+		t.Errorf("treść dwa razy za szeroka: %d stron z limitem 1,5 i %d bez limitu, oczekiwano 2 i 1", limited.Pages, unlimited.Pages)
+	}
+	// pomniejszenie 1,5 raza: pas 450 px na 60 px wygląda jak pas 300 px na 40 px na stronie bez skali
+	dir := t.TempDir()
+	shrunk := rasterize(t, render(page+`<div style="width:450px;height:60px;background:green"></div>`, 0).PDF, dir, "shrunk")
+	plain := rasterize(t, render(page+`<div style="width:300px;height:40px;background:green"></div>`, 1).PDF, dir, "plain")
+	if len(shrunk) != 1 || len(plain) != 1 {
+		t.Fatalf("strony %d i %d", len(shrunk), len(plain))
+	}
+	if n := differentPixels(shrunk[0], plain[0]); n != 0 {
+		t.Errorf("pomniejszony pas różni się od wzorca o %d pikseli", n)
 	}
 }
