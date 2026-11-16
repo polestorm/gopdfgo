@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po paczce poprawek siatki. Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po paczce: siatka (elementy rozpięte, obrazy), pola marginesów. Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, rasteryzowane w 96 dpi
@@ -12,13 +12,13 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7048 z 9110 (77,4%)** | ściśle 6661, krawędziowo 387 |
-| Reftesty druku W3C | **229 z 340 (67,4%)** | wszystkie ściśle |
+| Sondaż ekranowy W3C | **7058 z 9110 (77,5%)** | ściśle 6671, krawędziowo 387 |
+| Reftesty druku W3C | **230 z 340 (67,6%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 19 z 21 dokumentów | wyjątki: `06-margin-boxes`, `11-edge-cases` |
-| Testy własne | 92 funkcje testowe, wszystkie przechodzą | w tym 68 w `regression_test.go` |
+| Testy własne | 93 funkcje testowe, wszystkie przechodzą | w tym 69 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Commity | 97 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 3 |
-| Zmiany w przejętym kodzie | 239 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Commity | 98 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 4 |
+| Zmiany w przejętym kodzie | 245 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
 | Decyzje (ADR) | 9 | otwarte pytania: 20 i 21 |
 
 ## Sondaż ekranowy w czasie
@@ -47,6 +47,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  fonty, interlinia, monospace 7002  ██████████████████████████████████████▍ 76,9%
 16.11  obramowania, margines strony 7004  ██████████████████████████████████████▍ 76,9%
 16.11  siatka                       7048  ██████████████████████████████████████▋ 77,4%
+16.11  siatka: rozpięte, obrazy     7058  ██████████████████████████████████████▊ 77,5%
 ```
 
 (*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
@@ -62,6 +63,7 @@ Reftesty druku (z 340):
 15.11  225  █████████████████████████████████       66,2%
 16.11  228  █████████████████████████████████▌      67,1%
 16.11  229  █████████████████████████████████▋      67,4%
+16.11  230  █████████████████████████████████▊      67,6%
 ```
 
 ## Poprawki według obszarów
@@ -83,7 +85,7 @@ bloki i marginesy                      4  ██
 inne                                   9  ████▌
 ```
 
-Razem 239 wpisów. Trzy obszary zebrały prawie połowę poprawek: stronicowanie (bo to cel silnika,
+Razem 239 wpisów w chwili liczenia (przed ostatnią paczką, która dodała 6: siatka 3, strony 2, style 1). Trzy obszary zebrały prawie połowę poprawek: stronicowanie (bo to cel silnika,
 a przejęty kod gubił treść na granicach stron), style i składnia (dużo małych braków) oraz tekst.
 
 ## Stan obszarów sondażu
@@ -96,7 +98,7 @@ CSS 2 (5837)                    ████████████████
 css-tables (141)                ███████████████▋     78,7%     30
 css-lists (150)                 ███████████████▍     77,3%     34
 css-flexbox (952)               ██████████████       70,1%    285
-css-grid bez lanes i subgrid    ████████████▌        62,5%    240
+css-grid bez lanes i subgrid    ████████████▊        63,9%    231
 css-content (37)                ██████████▊          54,1%     17
 css-multicol (370)              ████████▎            41,4%    217
 css-grid: subgrid (88)          ████▊                23,9%     67
@@ -105,7 +107,7 @@ css-multicol: column-height (30) ▋                    3,3%     29
 ```
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
-jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6927 z 8127 (85,2%)**.
+jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6936 z 8127 (85,3%)**.
 
 ## Co zostało do naprawienia
 
@@ -115,9 +117,9 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 | Temat | Skąd wiadomo | Rozmiar |
 |---|---|---|
-| Element siatki rozpięty na kilka kolumn: rozkład miejsca między ścieżki | `grid-percent-cols-spanned-shrinkwrap-001`, pomiar z 16.11 | średni |
 | Linia bazowa w siatce i flex (`last baseline`, oś kolumn) | 30 testów `css-grid/alignment`, część `css-flexbox` | średni |
-| Elementy zastępowane (obrazy) jako elementy siatki | 9 testów `grid-items/replaced-element` | mały |
+| Obrazy w siatce: rozmiar z `aspect-ratio` i procentów, `minmax` z obrazem | ok. 20 testów `grid-items`, `grid-lanes` pomijam | średni |
+| Pola marginesów: wymiary przy trzech polach i w pionie | 10 testów `margin-boxes/dimensions` | średni |
 | Podział kontenera flex między strony: nowa linia przy żądaniu podziału, równoważenie | 28 testów `css-flexbox/balance`, reftesty druku flex | średni |
 | Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 111 z 340 niezaliczonych | duży, po kawałku |
 | `@media` względem rzeczywistego rozmiaru strony | pytanie 20, czeka na decyzję | mały |

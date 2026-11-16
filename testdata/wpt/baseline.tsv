@@ -60,8 +60,8 @@ pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-9-pri
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-001-print.html	strony 1 vs 2
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-002-print.html	strony 1 vs 2
 pass	margin-boxes	css/css-page/margin-boxes/alignment-001-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	strona 1: różne piksele 2392
-fail	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	strona 1: różne piksele 19216
+fail	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	strona 1: różne piksele 1996
+fail	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	strona 1: różne piksele 18304
 pass	margin-boxes	css/css-page/margin-boxes/auto-margins-003-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-002-print.html	
@@ -77,19 +77,19 @@ fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 1: ró
 pass	margin-boxes	css/css-page/margin-boxes/content-013-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-002-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-003-print.html	strona 1: różne piksele 2768
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-003-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-004-print.html	strona 1: różne piksele 7424
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-005-print.html	strona 1: różne piksele 1664
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-006-print.html	strona 1: różne piksele 10176
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-007-print.html	strona 1: różne piksele 43388
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-008-print.html	strona 1: różne piksele 9573
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-007-print.html	strona 1: różne piksele 5325
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-008-print.html	strona 1: różne piksele 3413
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-009-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-010-print.html	strona 1: różne piksele 35000
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html	strona 1: różne piksele 24870
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 16016
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 60889
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 59849
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	strona 1: różne piksele -1
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 15600
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 62078
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 61038
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	strony 19 vs 1
 pass	margin-boxes	css/css-page/margin-boxes/inapplicable-properties-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/overconstrained-001-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/paint-order-001-print.html	strona 1: różne piksele 37048
@@ -263,8 +263,8 @@ pass	page-size	css/css-page/page-size-011-print.html
 fail	page-size	css/css-page/page-size-012-print.html	strona 1: różne piksele 204084
 pass	page-size	css/css-page/page-size-013-print.html	
 pass	page-size	css/css-page/page-size-014-print.html	
-fail	page-size	css/css-page/page-size-015-print.tentative.html	strona 1: różne piksele -1
-fail	page-size	css/css-page/page-size-016-print.tentative.html	strona 1: różne piksele -1
+fail	page-size	css/css-page/page-size-015-print.tentative.html	strony 9 vs 1
+fail	page-size	css/css-page/page-size-016-print.tentative.html	strony 16 vs 1
 fail	page-size	css/css-page/page-size-017-print.tentative.html	strony 27 vs 1
 fail	page-size	css/css-page/subpixel-page-size-001-print.html	strony 2 vs 1
 fail	page-size	css/css-page/subpixel-page-size-002-print.html	strony 2 vs 1

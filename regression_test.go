@@ -2119,3 +2119,36 @@ func TestGridPlacementStretchGapAndIntrinsicWidth(t *testing.T) {
 		}
 	}
 }
+
+// Paczka 2026-11-16 (druga): element siatki rozpięty na kilka kolumn mieści się w ścieżkach,
+// obraz w siatce zachowuje proporcje,
+// vh przy @page { height } liczy się od obszaru strony.
+func TestGridSpanAndReplacedItems(t *testing.T) {
+	cases := []struct{ name, tested, expected string }{
+		{"element rozpięty na trzy kolumny auto",
+			`<div style="display:grid;float:left;grid-template-columns:auto auto auto"><div style="width:20px;height:10px;background:blue"></div><div style="grid-column:3;width:20px;height:10px;background:blue"></div><div style="grid-column:span 3;width:120px;height:10px;background:green"></div></div>`,
+			`<div style="display:grid;float:left;width:120px;grid-template-columns:20px 80px 20px"><div style="width:20px;height:10px;background:blue"></div><div style="grid-column:3;width:20px;height:10px;background:blue"></div><div style="grid-column:span 3;width:120px;height:10px;background:green"></div></div>`},
+		{"svg w siatce zachowuje proporcje",
+			`<div style="display:grid;grid-template-columns:200px"><svg style="background:green;height:100px" viewBox="0 0 1 1"></svg></div>`,
+			`<div style="display:grid;grid-template-columns:200px"><svg style="background:green;height:100px;width:100px" viewBox="0 0 1 1"></svg></div>`},
+		{"svg z justify-self: stretch",
+			`<div style="display:grid;grid-template-columns:200px"><svg style="background:green;height:100px;justify-self:stretch" viewBox="0 0 1 1" preserveAspectRatio="none"></svg></div>`,
+			`<div style="display:grid;grid-template-columns:200px"><svg style="background:green;height:100px;width:200px" viewBox="0 0 1 1" preserveAspectRatio="none"></svg></div>`},
+		{"vh przy @page height",
+			`<style>@page { margin: 0; width: 300px; height: 200px } body { margin: 0 }</style><div style="height:100vh;background:green"></div>`,
+			`<style>@page { margin: 0; width: 300px; height: 200px } body { margin: 0 }</style><div style="height:200px;background:green"></div>`},
+	}
+	for _, c := range cases {
+		tested, err := Render(t.Context(), []byte(c.tested), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := Render(t.Context(), []byte(c.expected), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(tested.PDF, expected.PDF) {
+			t.Errorf("%s: inny dokument niż wzorzec", c.name)
+		}
+	}
+}

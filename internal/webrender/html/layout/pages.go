@@ -270,6 +270,10 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 		}
 	}
 	boxA, boxB, boxC := sideBoxes[0].baseBox(), sideBoxes[1].baseBox(), sideBoxes[2].baseBox()
+	// gopdfgo: rozdział miejsca (flex-fit, CSS Page 3 § 5.3.2.3) działa na rozmiarach zewnętrznych:
+	// pudełko dostaje swój zewnętrzny rozmiar max-content albo min-content i udział w wolnym miejscu.
+	// Źródło podawało do setOuter rozmiar samej treści, więc pole z marginesem, obramowaniem albo
+	// odstępem wewnętrznym wychodziło za wąskie, a suma pól nie wypełniała krawędzi strony.
 
 	for _, box_ := range sideBoxes {
 		box := box_.baseBox()
@@ -298,8 +302,8 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 				if flexFactorSum == 0 {
 					flexFactorSum = 1
 				}
-				boxA.setOuter(boxA.maxContentSize() + (flexSpace * flexFactorA / flexFactorSum))
-				boxC.setOuter(boxC.maxContentSize() + (flexSpace * flexFactorC / flexFactorSum))
+				boxA.setOuter(boxA.outerMaxContentSize() + (flexSpace * flexFactorA / flexFactorSum))
+				boxC.setOuter(boxC.outerMaxContentSize() + (flexSpace * flexFactorC / flexFactorSum))
 			} else if availableSize > (boxA.outerMinContentSize() + boxC.outerMinContentSize()) {
 				// sum of the outer min-content widths
 				// is less than the available width
@@ -310,19 +314,19 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 				if flexFactorSum == 0 {
 					flexFactorSum = 1
 				}
-				boxA.setOuter(boxA.minContentSize() + (flexSpace * flexFactorA / flexFactorSum))
-				boxC.setOuter(boxC.minContentSize() + (flexSpace * flexFactorC / flexFactorSum))
+				boxA.setOuter(boxA.outerMinContentSize() + (flexSpace * flexFactorA / flexFactorSum))
+				boxC.setOuter(boxC.outerMinContentSize() + (flexSpace * flexFactorC / flexFactorSum))
 			} else {
 				// otherwise
 				flexSpace := availableSize - boxA.outerMinContentSize() - boxC.outerMinContentSize()
-				flexFactorA := boxA.minContentSize()
-				flexFactorC := boxC.minContentSize()
+				flexFactorA := boxA.outerMinContentSize()
+				flexFactorC := boxC.outerMinContentSize()
 				flexFactorSum := flexFactorA + flexFactorC
 				if flexFactorSum == 0 {
 					flexFactorSum = 1
 				}
-				boxA.setOuter(boxA.minContentSize() + (flexSpace * flexFactorA / flexFactorSum))
-				boxC.setOuter(boxC.minContentSize() + (flexSpace * flexFactorC / flexFactorSum))
+				boxA.setOuter(boxA.outerMinContentSize() + (flexSpace * flexFactorA / flexFactorSum))
+				boxC.setOuter(boxC.outerMinContentSize() + (flexSpace * flexFactorC / flexFactorSum))
 			}
 		} else {
 			// only one box has 'width: auto'
@@ -344,7 +348,7 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 				if flexFactorSum == 0 {
 					flexFactorSum = 1
 				}
-				boxB.setOuter(boxB.maxContentSize() + (flexSpace * flexFactorB / flexFactorSum))
+				boxB.setOuter(boxB.outerMaxContentSize() + (flexSpace * flexFactorB / flexFactorSum))
 			} else {
 				acMinContentSize := 2 * max(boxA.outerMinContentSize(), boxC.outerMinContentSize())
 				if availableSize > (boxB.outerMinContentSize() + acMinContentSize) {
@@ -355,16 +359,16 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 					if flexFactorSum == 0 {
 						flexFactorSum = 1
 					}
-					boxB.setOuter(boxB.minContentSize() + (flexSpace * flexFactorB / flexFactorSum))
+					boxB.setOuter(boxB.outerMinContentSize() + (flexSpace * flexFactorB / flexFactorSum))
 				} else {
 					flexSpace := availableSize - boxB.outerMinContentSize() - acMinContentSize
-					flexFactorB := boxB.minContentSize()
+					flexFactorB := boxB.outerMinContentSize()
 					flexFactorAc := acMinContentSize
 					flexFactorSum := flexFactorB + flexFactorAc
 					if flexFactorSum == 0 {
 						flexFactorSum = 1
 					}
-					boxB.setOuter(boxB.minContentSize() + (flexSpace * flexFactorB / flexFactorSum))
+					boxB.setOuter(boxB.outerMinContentSize() + (flexSpace * flexFactorB / flexFactorSum))
 				}
 			}
 		}

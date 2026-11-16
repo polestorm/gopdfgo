@@ -712,6 +712,21 @@ Wspólne dla obu katalogów:
   - `gridContentWidth`, `gridMeasure` (nowe), `preferred.go`: szerokość min-content i max-content
     kontenera siatki to suma kolumn i odstępów (§ 5.2, § 11.1); źródło liczyło siatkę jak blok, więc
     `inline-grid` i siatka pływająca miały szerokość najszerszego elementu albo zero;
+- paczka 2026-11-16 (trzecia): siatka, obrazy w siatce, pola marginesów:
+  - `html/layout/grid.go` (`distributeExtraSpace`): rozdział miejsca dla elementu rozpiętego na kilka
+    ścieżek według CSS Grid 1 § 11.5.1: po równo z zamrażaniem ścieżek na granicy wzrostu i dalszym
+    rozdawaniem reszty (krok 2.2), potem ponad granice (krok 2.4, w źródle TODO). Źródło robiło jedną
+    rundę, a ścieżce już przekraczającej granicę dawało przyrost ujemny;
+  - `html/layout/grid.go` (`resolveTracksSizes`): o tym, czy element rozpięty obejmuje ścieżkę `fr`,
+    decydują ścieżki, które zajmuje; źródło brało zakres od numeru elementu w kolejności iteracji po
+    mapie, czyli losowo (niedeterminizm);
+  - `html/layout/grid.go` (układ elementów): dla elementu zastępowanego `justify-self` i `align-self`
+    o wartości `normal` działają jak `start` (§ 6.2); źródło rozciągało obraz na cały obszar siatki;
+  - `html/layout/pages.go` (`computeVariableDimension`): pola marginesów dzielą krawędź strony według
+    rozmiarów zewnętrznych (CSS Page 3 § 5.3.2.3); źródło podawało rozmiar samej treści jako zewnętrzny,
+    więc pole z marginesem, obramowaniem albo odstępem wychodziło za wąskie;
+  - `html/tree/style.go` (`viewport.size`): `vw` i `vh` przy `@page { width; height }` liczą się od
+    podanego obszaru strony; wcześniej od domyślnego rozmiaru arkusza;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

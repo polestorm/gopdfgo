@@ -510,10 +510,37 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 			// TODO: Find a better way to get height.
 			var space pr.Float
 			if direction == 'x' {
-				if sizeContribution == 'm' || sizeContribution == 'c' {
+				// gopdfgo: wkład minimalny elementu z podanym min-width to ten min-width z obramowaniem,
+				// odstępem i marginesami, a nie szerokość min-content (CSS Grid 1 § 6.6, § 11.5)
+				minimum := func() pr.Float {
+					if minWidth := item.Box().Style.GetMinWidth(); minWidth.Tag != pr.Auto && minWidth.Unit == pr.Px &&
+						item.Box().Style.GetWidth().Tag == pr.Auto {
+						return marginWidth(item.Box(), minWidth.Value, true, true)
+					}
+					return minContentWidth(context, item, true)
+				}
+				switch sizeContribution {
+				case 'm':
+					space = minimum()
+				case 'c':
 					space = minContentWidth(context, item, true)
-				} else {
+				default:
 					space = maxContentWidth(context, item, true)
+					// gopdfgo: wkład max-content ograniczony sumą stałych funkcji maksimum ścieżek,
+					// ale nie mniejszy niż wkład minimalny (§ 11.5, „limited max-content contribution”)
+					if affectedSizes == sizeMin {
+						limit, fixed := pr.Float(0), true
+						for j := i; j < i+span && j < len(sizingFunctions); j++ {
+							if f := sizingFunctions[j][1]; isLength(f) && f.Unit == pr.Px {
+								limit += f.Value
+							} else {
+								fixed = false
+							}
+						}
+						if fixed {
+							space = max(minimum(), min(space, limit))
+						}
+					}
 				}
 			} else {
 				item = bo.Deepcopy(item)
@@ -539,45 +566,59 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 			// tracksNumbers = list(enumerate(affectedTracks[i:i+span], i))
 			// affectedTracksNumbers = [                j for j, affected := range tracksNumbers if affected]
 			itemIncurredIncreases := make([]pr.Float, len(sizingFunctions))
-			distributedSpace := space
-			if L := len(affectedTracksNumbers); L != 0 {
-				distributedSpace /= pr.Float(L)
-			}
-			for _, trackNumber := range affectedTracksNumbers {
-				// baseSize, growthLimit := tracksSizes[trackNumber]
-				itemIncurredIncrease := distributedSpace
-				affectedSize := tracksSizes[trackNumber][affectedSizes].V()
-				limit := tracksSizes[trackNumber][1].V()
-				if affectedSize+itemIncurredIncrease >= limit {
-					extra := (itemIncurredIncrease + affectedSize - limit)
-					itemIncurredIncrease -= extra
-				}
-				space -= itemIncurredIncrease
-				itemIncurredIncreases[trackNumber] = itemIncurredIncrease
-			}
-			// 2.3 Distribute space to non-affected tracks.
-			if space != 0 && len(affectedTracksNumbers) != 0 {
-				// unaffectedTracksNumbers = [                    j for j, affected := range tracksNumbers if ! affected]
-				distributedSpace := space
-				if L := len(unaffectedTracksNumbers); L != 0 {
-					distributedSpace /= pr.Float(L)
-				}
-				for _, trackNumber := range unaffectedTracksNumbers {
-					// baseSize, growthLimit = tracksSizes[trackNumber]
-					itemIncurredIncrease := distributedSpace
-					affectedSize := tracksSizes[trackNumber][affectedSizes].V()
-					limit := tracksSizes[trackNumber][1].V()
-					if affectedSize+itemIncurredIncrease >= limit {
-						extra := (itemIncurredIncrease + affectedSize - limit)
-						itemIncurredIncrease -= extra
+			// gopdfgo: rozdział po równo z zamrażaniem ścieżek, które doszły do granicy wzrostu,
+			// i dalszym rozdawaniem reszty niezamrożonym (CSS Grid 1 § 11.5.1, krok 2.2). Źródło robiło
+			// jedną rundę, a przy rozmiarze już ponad granicą dawało przyrost ujemny i „odzyskane”
+			// miejsce oddawało innym ścieżkom.
+			distribute := func(tracks []int) {
+				active := append([]int(nil), tracks...)
+				for space > 0.0001 && len(active) != 0 {
+					share := space / pr.Float(len(active))
+					var next []int
+					for _, trackNumber := range active {
+						room := tracksSizes[trackNumber][1].V() - tracksSizes[trackNumber][affectedSizes].V() -
+							itemIncurredIncreases[trackNumber]
+						if room <= share {
+							room = max(room, 0)
+							itemIncurredIncreases[trackNumber] += room
+							space -= room
+						} else {
+							itemIncurredIncreases[trackNumber] += share
+							space -= share
+							next = append(next, trackNumber)
+						}
 					}
-					space -= itemIncurredIncrease
-					itemIncurredIncreases[trackNumber] = (itemIncurredIncrease)
+					if len(next) == len(active) {
+						break
+					}
+					active = next
 				}
+			}
+			distribute(affectedTracksNumbers)
+			// 2.3 Distribute space to non-affected tracks.
+			if len(affectedTracksNumbers) != 0 {
+				distribute(unaffectedTracksNumbers)
 			}
 			// 2.4 Distribute space beyond limits.
-			if space != 0 {
-				// TODO: Distribute space beyond limits.
+			// gopdfgo: miejsce, które zostało po dojściu ścieżek do granic wzrostu, dostają ścieżki
+			// objęte rozkładem o funkcji maksimum zależnej od treści, a gdy takich nie ma, wszystkie
+			// objęte (CSS Grid 1 § 11.5.1, krok 2.4). Źródło miało tu TODO, więc element rozpięty na
+			// kilka ścieżek mógł się w nich nie mieścić.
+			if space > 0.001 && affectedSizes == sizeMin && len(affectedTracksNumbers) != 0 {
+				var beyond []int
+				for _, trackNumber := range affectedTracksNumbers {
+					switch sizingFunctions[trackNumber][1].Tag {
+					case pr.MinContent, pr.MaxContent, pr.Auto:
+						beyond = append(beyond, trackNumber)
+					}
+				}
+				if len(beyond) == 0 {
+					beyond = affectedTracksNumbers
+				}
+				share := space / pr.Float(len(beyond))
+				for _, trackNumber := range beyond {
+					itemIncurredIncreases[trackNumber] += share
+				}
 			}
 			// 2.5. Set the track’s planned increase.
 			for k, extra := range itemIncurredIncreases {
@@ -785,7 +826,10 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				continue
 			}
 			hasFr := false
-			for _, functions := range sizingFunctions[min(i, len(sizingFunctions)):min(len(sizingFunctions), i+span+1)] {
+			// gopdfgo: ścieżki, które element zajmuje; źródło brało zakres od numeru kolejnego elementu
+			// w (losowej) kolejności mapy, więc o pominięciu elementu decydował przypadek
+			first := min(max(coord-implicitStart, 0), len(sizingFunctions))
+			for _, functions := range sizingFunctions[first:min(len(sizingFunctions), first+span)] {
 				if isFr(functions[1]) {
 					hasFr = true
 					break
@@ -824,7 +868,10 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			}
 
 			hasFr := false
-			for _, functions := range sizingFunctions[min(i, len(sizingFunctions)):min(len(sizingFunctions), i+span+1)] {
+			// gopdfgo: ścieżki, które element zajmuje; źródło brało zakres od numeru kolejnego elementu
+			// w (losowej) kolejności mapy, więc o pominięciu elementu decydował przypadek
+			first := min(max(coord-implicitStart, 0), len(sizingFunctions))
+			for _, functions := range sizingFunctions[first:min(len(sizingFunctions), first+span)] {
 				if isFr(functions[1]) {
 					hasFr = true
 					break
@@ -1956,6 +2003,16 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		if justifySelf.Has(pr.Auto) {
 			justifySelf = justifyItems
 		}
+		alignSelf := childB.Style.GetAlignSelf()
+		if alignSelf.Has(pr.Auto) {
+			alignSelf = alignItems
+		}
+		// gopdfgo: dla elementu zastępowanego (obraz, svg) wyrównanie normal działa jak start, nie jak
+		// stretch (CSS Grid 1 § 6.2): zachowuje rozmiar wynikający z proporcji. Źródło rozciągało obraz
+		// do całego obszaru siatki.
+		replaced := bo.ReplacedT.IsInstance(child)
+		stretchInline := justifySelf.Intersects(pr.Normal, pr.Stretch) && !(replaced && !justifySelf.Has(pr.Stretch))
+		stretchBlock := alignSelf.Intersects(pr.Normal, pr.Stretch) && !(replaced && !alignSelf.Has(pr.Stretch))
 		// gopdfgo: marginesy auto elementu siatki pochłaniają wolne miejsce w swojej osi przed
 		// wyrównaniem i wyłączają rozciąganie (CSS Grid 1 § 6.4). W źródle: "TODO: Apply auto margins".
 		marginLeftAuto := childB.Style.GetMarginLeft().Tag == pr.Auto
@@ -1963,16 +2020,12 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		marginTopAuto := childB.Style.GetMarginTop().Tag == pr.Auto
 		marginBottomAuto := childB.Style.GetMarginBottom().Tag == pr.Auto
 		inlineAuto, blockAuto := marginLeftAuto || marginRightAuto, marginTopAuto || marginBottomAuto
-		if !inlineAuto && justifySelf.Intersects(pr.Normal, pr.Stretch) {
+		if !inlineAuto && stretchInline {
 			if widthAuto {
 				childB.Style.SetWidth(pr.FToPx(childWidth))
 			}
 		}
-		alignSelf := childB.Style.GetAlignSelf()
-		if alignSelf.Has(pr.Auto) {
-			alignSelf = alignItems
-		}
-		if !blockAuto && alignSelf.Intersects(pr.Normal, pr.Stretch) && childSkipStack == nil {
+		if !blockAuto && stretchBlock && childSkipStack == nil {
 			if heightAuto {
 				childB.Style.SetHeight(pr.FToPx(childHeight))
 			}
@@ -2016,7 +2069,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 					newChild.Translate(diff, 0, false)
 				}
 			}
-		} else if justifySelf.Intersects(pr.Normal, pr.Stretch) {
+		} else if stretchInline {
 			// gopdfgo: rozciągany jest tylko element o rozmiarze auto (CSS Grid 1 § 6.2, CSS Align 3 § 6.1);
 			// źródło rozciągało też element z podaną szerokością albo wysokością do rozmiaru obszaru
 			if widthAuto {
@@ -2025,7 +2078,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		} else {
 			// gopdfgo: do treści kurczy się tylko element o szerokości auto; w źródle podana szerokość
 			// była nadpisywana szerokością treści.
-			if widthAuto {
+			if widthAuto && !replaced {
 				newChild.Box().Width = maxContentWidth(context, newChild, true)
 			}
 			diff := childWidth - newChild.Box().Width.V()
@@ -2051,7 +2104,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				bottomSpace > -pr.Inf && newChild.Box().Height != pr.AutoF {
 				newChild.Box().Height = max(newChild.Box().Height.V()-over, 0)
 			}
-		} else if alignSelf.Intersects(pr.Normal, pr.Stretch) {
+		} else if stretchBlock {
 			if heightAuto {
 				newChild.Box().Height = max(childHeight, newChild.Box().Height.V())
 			}

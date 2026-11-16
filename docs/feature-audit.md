@@ -1077,3 +1077,24 @@ bez zmian w zaliczeniach. Reftesty druku: **229 z 340**, poprzednio 228 (zyskany
 
 Zestawienie postępu od początku, z wykresami: `docs/progress.md`.
 
+## Paczka: element siatki rozpięty na kolumny, obrazy w siatce, pola marginesów (2026-11-16)
+
+Pierwsza paczka robiona według zasady „2–3 obszary, potem jeden pełny sondaż”.
+
+- **Element rozpięty na kilka ścieżek.** Rozkład miejsca robił jedną rundę i nie miał kroku „ponad
+  granice”, a ścieżce już przekraczającej granicę wzrostu dawał przyrost ujemny. Teraz według CSS Grid 1
+  § 11.5.1: rozdział z zamrażaniem, wkład minimalny z `min-width`, wkład max-content ograniczony stałą
+  funkcją maksimum. Przy okazji usunięta zależność od losowej kolejności mapy (o tym, czy element
+  obejmuje ścieżkę `fr`, decydował numer w iteracji).
+- **Obrazy i `svg` w siatce** zachowują rozmiar z proporcji (`normal` działa dla nich jak `start`).
+- **Pola marginesów** (`@top-left`, `@top-right`…) dzielą krawędź według rozmiarów zewnętrznych;
+  `vw`/`vh` przy `@page { width; height }` liczą się od podanego obszaru strony.
+- Odłożone po obejrzeniu testów: linia bazowa w siatce (testy prawie w całości wymagają pisma pionowego),
+  przenoszenie `break-before` z elementu zagnieżdżonego kontenera flex na kontener nadrzędny
+  (`multi-line-row-flex-fragmentation-082a` do `-082d`), podział wierszy tabel z powtarzanym nagłówkiem.
+
+Wynik (pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003; po sondażu jedna poprawka sprawdzona
+sondażem `css-grid`): **7058 z 9110 (77,5%)**, ściśle 6671, krawędziowo 387, niezaliczone 2052; poprzednio
+7048. Zyskane 11, stracony 1 (`grid-lanes/subgrid/…/row-auto-track-sizing-002`, funkcja nieobsługiwana).
+Reftesty druku: **230 z 340**, poprzednio 229 (zyskany `margin-boxes/dimensions-003-print`).
+

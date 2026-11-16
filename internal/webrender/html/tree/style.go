@@ -125,6 +125,14 @@ func (v *viewport) size() (pr.Float, pr.Float) {
 	v.height = size[1].Value -
 		side(style.GetMarginTop(), style.GetPaddingTop(), style.GetBorderTopWidth().Value, size[1].Value) -
 		side(style.GetMarginBottom(), style.GetPaddingBottom(), style.GetBorderBottomWidth().Value, size[1].Value)
+	// gopdfgo: width i height w @page podają wprost rozmiar obszaru strony (CSS Page 3 § 5.3);
+	// wcześniej vw i vh liczyły się wtedy od domyślnego rozmiaru arkusza
+	if width := style.GetWidth(); width.Tag == 0 && width.Unit == pr.Px && width.Calc == nil {
+		v.width = width.Value
+	}
+	if height := style.GetHeight(); height.Tag == 0 && height.Unit == pr.Px && height.Calc == nil {
+		v.height = height.Value
+	}
 	v.done = true
 	return v.width, v.height
 }
