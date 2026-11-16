@@ -129,3 +129,17 @@ Rozstrzygnięte 2026-11-16: ADR 0013 (`border-spacing` obcinane domyślnie, pod 
 ## 22. Czy i w jakim zakresie obsłużyć pismo pionowe (`writing-mode`)?
 
 Rozstrzygnięte 2026-11-16: ADR 0010 (tylko poddrzewo obrócone, i dopiero na potrzebę dokumentu).
+
+## 23. Zestaw fontów przygotowany raz dla wielu dokumentów (odłożone)
+
+Odłożone 2026-11-16 (decyzja użytkownika: zapisać na przyszłość). Pomiar z `docs/benchmark.md` § 9:
+parsowanie fontów z `Options.Fonts` powtarza się przy każdym wywołaniu `Render` i dla sześciu fontów Noto
+trwa ok. 10 ms z ok. 32 ms małego dokumentu; sparsowany font zajmuje ok. 1,1–1,5 MB (plik 380–470 kB).
+
+Propozycja: `gopdfgo.PrepareFonts(fonts)` zwraca zestaw tylko do odczytu, przekazywany w `Options.FontSet`;
+`Options.Fonts` zostaje. Zestaw trzyma program wywołujący (bez bufora i czasu retencji po stronie silnika,
+binarka się nie zmienia), fonty z `@font-face` dokumentu nie są nim objęte. Odrzucona alternatywa:
+wewnętrzna pamięć podręczna według skrótu treści (stan wspólny między wywołaniami).
+
+Do sprawdzenia przed wdrożeniem: czy go-text pozwala dzielić sparsowany `font.Font` między równoległymi
+renderowaniami bez blokady; wynik z zestawem ma być bajt w bajt taki sam jak bez niego (test).

@@ -857,6 +857,11 @@ Wspólne dla obu katalogów:
     rozpinającym rozkłada ją na fragmenty (przed elementem wysokość treści, na końcu reszta);
   - `html/layout/column_test.go`: `TestColumnsRegression3` przepisany (oczekiwał bloku 60px w całości
     w pierwszej kolumnie; zob. ADR 0015);
+- `html/layout/tables.go`, 2026-11-16 (faktura KSeF z 60 pozycjami wobec Chromium): wiersz tabeli,
+  w którym jedna komórka nie zmieściłaby na stronie żadnej treści, a inna by zmieściła, przechodzi na
+  następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
+  między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
+  zostawały na dole strony, a wielowierszowa przechodziła dalej;
 - wydajność, 2026-11-16 (pomiar w `docs/benchmark.md` § 9):
   - `text/engine_gotext.go` (`loadOneFont`, `ReuseLoadedFaces`): reguła `@font-face` przetwarzana drugi
     raz w tej samej konfiguracji fontów nie pobiera i nie parsuje fontu ponownie; włączone tylko

@@ -2445,3 +2445,36 @@ func TestColumnsAcrossPagesAndHeights(t *testing.T) {
 		`<div style="width:200px"><div style="height:100px;background:green"></div><div style="height:50px;background:blue"></div>`+
 			`<div style="height:100px;background:green"></div><div style="height:50px;background:blue"></div><div style="height:50px;background:green"></div></div>`)
 }
+
+// Wiersz tabeli na granicy stron: gdy któraś komórka nie zmieściłaby na stronie żadnej treści (trzy
+// wiersze tekstu przy domyślnych orphans i widows), cały wiersz przechodzi na następną stronę, jak
+// w przeglądarkach. Znalezione na fakturze KSeF z 60 pozycjami (2026-11-16): numer i kwoty zostawały
+// na dole strony, a nazwa pozycji lądowała na następnej.
+func TestTableRowMovesWholeWhenCellWouldBeEmpty(t *testing.T) {
+	html := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0; font: 10px/20px sans-serif }
+		table { border-collapse: collapse; width: 100% } td { padding: 0; vertical-align: top }</style>
+		<table>` + strings.Repeat(`<tr><td>POPRZEDNI</td><td>x</td></tr>`, 8) +
+		`<tr><td>NUMER</td><td>pierwszy<br>drugi<br>trzeci</td></tr></table>`
+	result := renderString(t, html)
+	if result.Pages != 2 {
+		t.Fatalf("stron: %d, oczekiwane 2", result.Pages)
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "row.pdf")
+	if err := os.WriteFile(file, result.PDF, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first, err := exec.Command("pdftotext", "-f", "1", "-l", "1", file, "-").Output()
+	if err != nil {
+		t.Skip("brak pdftotext")
+	}
+	if strings.Contains(string(first), "NUMER") {
+		t.Errorf("komórka NUMER została na pierwszej stronie, choć treść sąsiedniej komórki przeszła na drugą")
+	}
+	second, _ := exec.Command("pdftotext", "-f", "2", "-l", "2", file, "-").Output()
+	for _, word := range []string{"NUMER", "pierwszy", "trzeci"} {
+		if !strings.Contains(string(second), word) {
+			t.Errorf("na drugiej stronie brakuje %q", word)
+		}
+	}
+}

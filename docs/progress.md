@@ -16,7 +16,8 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 | Sondaż ekranowy W3C | **7209 z 9110 (79,1%)** | ściśle 6815, krawędziowo 394 |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 101 funkcji testowych, wszystkie przechodzą | w tym 76 w `regression_test.go` |
+| Testy własne | 102 funkcje testowe i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
+| Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |
 | Rozmiar binarki | 23,35 MB (macOS arm64, `-s -w`) | 17 razy mniej niż Chromium z bibliotekami |

@@ -1340,3 +1340,31 @@ Znane ograniczenia po tej paczce: równoważenie przy `orphans`/`widows` zbliża
 1 px (wolne dla długich kolumn z samymi krótkimi akapitami), kontener kolumn o podanej wysokości bez
 treści przechodzi na następną stronę w całości (jak pusty blok, ADR 0004).
 
+## Faktura KSeF z xml.pro w czterech wariantach wobec Chromium (2026-11-16)
+
+Strona faktury z `goksefgo/ksefview` (ta, którą drukuje xml.pro), z próbki `sprzedaz.golden.xml`
+i trzech wariantów wygenerowanych z niej: 60 pozycji, 140 pozycji, kilka stawek VAT z przelewem i bez
+numeru KSeF. Pozycje mają nazwy od jednego do trzech wierszy. Oba silniki dostały te same pliki fontów
+przez `@font-face`. Pliki do obejrzenia: `bench/compare/invoice/2026-11-16-variants/` (poza gitem);
+w xml.pro i goksefgo nic nie zmieniono.
+
+| Wariant | Strony (gopdfgo / Chromium) | Słowa ponad 3 pt przed poprawką | Po poprawce | PDF gopdfgo | PDF Chromium |
+|---|---|---|---|---|---|
+| podstawowa, 2 pozycje | 1 / 1 | 0 | 0 | 31 kB | 41 kB |
+| 60 pozycji | 3 / 3 | 303 | 0 | 46 kB | 178 kB |
+| stawki 23, 8, 5, zw; przelew | 1 / 1 | 0 | 0 | 37 kB | 61 kB |
+| 140 pozycji | 7 / 7 | 1390 (143 na innej stronie) | 0 | 66 kB | 374 kB |
+
+Pomiar: `pdftotext -bbox`, słowa dopasowane przez wyrównanie ciągów; rozmiary z `ls`.
+
+Znaleziony błąd: wiersz tabeli na granicy stron, w którym nazwa pozycji ma trzy wiersze. Komórki
+jednowierszowe (numer, jednostka, kwoty) zostawały na dole strony, a nazwa, której przy `orphans: 2`
+i `widows: 2` nie da się podzielić, przechodziła w całości na następną. Chromium przenosi cały wiersz
+i tak robimy teraz: gdy któraś komórka nie zmieściłaby na stronie żadnej treści, a inna by zmieściła,
+podział wypada przed wierszem (o ile nie jest to pierwszy wiersz grupy na stronie).
+
+Pozostała różnica, bez wpływu na strony: Chromium zaokrągla wysokość wiersza tabeli do całych pikseli
+(30 albo 31 px na przemian), u nas każdy wiersz ma 30,33 px; położenia różnią się najwyżej o 0,9 pt.
+
+Sondaż ekranowy i reftesty druku: bez zmian w zaliczonych (7209 z 9110; 243 z 340).
+

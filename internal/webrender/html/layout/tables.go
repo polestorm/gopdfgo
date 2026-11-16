@@ -145,6 +145,8 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			row.Width = rowsWidth
 			// Place cells at the top of the row and layout their content.
 			var newRowChildren []Box
+			leftBehind := false // komórka z treścią, z której nic nie zostało na tej stronie
+			placedSome := false // inna komórka, z której coś na tej stronie zostało
 			for indexCell, cell_ := range row.Children {
 				cell := cell_.Box()
 				var spannedWidths []pr.Float
@@ -247,6 +249,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				cellResumeAt := tmp.resumeAt
 				cell.Style = originalStyle
 				if newCell == nil {
+					if cellSkipStack == nil && len(cell.Children) != 0 {
+						leftBehind = true
+					}
 					cell_ = bo.CopyWithChildren(cell_, nil)
 					cell_, _, _ = blockContainerLayout(context, cell_, bottomSpace, cellSkipStack, true,
 						new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float), false, -1)
@@ -276,6 +281,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					}
 				}
 				cell.Empty = !any
+				if any && newCell != nil {
+					placedSome = true
+				}
 
 				cell.ContentHeight = cell.Height.V()
 				if cell.ComputedHeight != pr.AutoF {
@@ -288,6 +296,15 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// Avoid break when "break-inside: avoid" is set on row or any
 				// on its cells.
 				avoidBreak := avoidPageBreak(string(row.Style.GetBreakInside()), context)
+				// gopdfgo: wiersz, którego któraś komórka nie zmieściłaby na tej stronie żadnej treści
+				// (np. trzy wiersze tekstu przy orphans i widows 2), a inna by zmieściła, przechodzi na
+				// następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie: podział między wierszami
+				// jest lepszy niż podział, który zostawia komórkę pustą (CSS Break 3 § 3.1, tak dzielą
+				// przeglądarki). W źródle na stronie zostawały komórki jednowierszowe (numer, kwoty),
+				// a nazwa pozycji lądowała na następnej.
+				if leftBehind && placedSome && len(newGroupChildren) != 0 {
+					avoidBreak = true
+				}
 				for _, cell := range row.Children {
 					avoidBreak = avoidBreak || avoidPageBreak(string(cell.Box().Style.GetBreakInside()), context)
 				}
