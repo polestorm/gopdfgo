@@ -790,6 +790,28 @@ Wspólne dla obu katalogów:
   `html/document/stacking.go`, `html/tree/tree.go` (`Behavior.MaxShrink`), 2026-11-16, ADR 0014: treść
   szersza niż obszar strony jest układana drugi raz na powiększonym obszarze i rysowana pomniejszona;
   źródło zostawiało ją wystającą poza stronę;
+- błędy znalezione 2026-11-16 przy porównaniu korpusu z wydrukiem Chromium:
+  - `text/engine_gotext.go` (`privateLayout`, `ApplyJustification`): wynik z pamięci podręcznej układów
+    tekstu dostaje własny obiekt układu, a odstęp justowania jest dodawany do kopii glifów i tylko raz.
+    W źródle obiekt i glify były współdzielone: wiersz o tym samym tekście (albo to samo pudełko
+    rysowane ponownie) dostawał odstępy justowania wielokrotnie i wystawał poza prawy margines
+    (`04-qms-procedure`: 426 słów przesuniętych o ponad 3 pt);
+  - `html/layout/block.go` (`blockContainerLayout`): wiersz bez treści (pusty element liniowy między
+    blokami) nie przerywa zwijania marginesów ani zwijania przez pudełko (CSS 2.1 § 9.4.2);
+  - `html/boxes/build.go` (`markerToBox`): znacznik-symbol (`disc`, `circle`, `square`) przy
+    `list-style-position: inside` jest pudełkiem `inline-block` o szerokości 1,36 em (pomiar Chromium;
+    CSS Lists 3 § 3.1 zostawia to implementacji); w źródle szerokością był glif z odstępem, ok. 0,6 em.
+    Test odziedziczony `TestListsStyle` dostosowany do nowej budowy znacznika;
+- kontrolki formularzy, 2026-11-16 (porównanie `13-forms-html-elements` z wydrukiem Chromium):
+  - `html/tree/html5_ua.css`: pole tekstowe 12 em (ok. 20 znaków), wysokość pól 1.36em z odstępem 2px,
+    przycisk i lista wyboru o szerokości treści, pole wielowierszowe domyślnie 20 znaków na 2 wiersze,
+    pole wyboru 13 px z marginesami jak w arkuszu Chromium; w przejętym arkuszu każda kontrolka miała
+    20 em szerokości. Odstępy ramki `fieldset` według WHATWG HTML § 15.3.13 (.35em .75em .625em; w źródle
+    boki i dół zamienione);
+  - `html/tree/style.go` (`findStyleAttributes`): atrybuty `cols` i `rows` elementu `textarea` wyznaczają
+    jego rozmiar (WHATWG HTML § 15.5.14); źródło je pomijało;
+  - `html/layout/block.go` (`prepareFieldsetLegend`): treść ramki zaczyna się pod legendą, w odległości
+    górnego odstępu ramki; wcześniej o ten odstęp za wysoko;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

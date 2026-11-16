@@ -192,6 +192,20 @@ type TextLayoutGotext struct {
 	MaxWidth pr.Float // input constraint, not always respected. Inf for no constraint
 
 	justification pr.Float
+	justified     bool // gopdfgo: odstęp justowania został już dodany do glifów
+}
+
+// privateLayout (gopdfgo) zwraca wynik z własnym obiektem układu. Wyniki z pamięci podręcznej były
+// współdzielone: SetJustification i ApplyJustification zmieniały wspólny obiekt, więc wiersze o tym
+// samym tekście nadpisywały sobie odstępy justowania, a wiersz rysowany drugi raz dostawał je podwójnie
+// i wystawał poza prawy margines.
+func privateLayout(line FirstLine) FirstLine {
+	if shared, ok := line.Layout.(*TextLayoutGotext); ok && shared != nil {
+		own := *shared
+		own.justification, own.justified = 0, false
+		line.Layout = &own
+	}
+	return line
 }
 
 // Text returns a readonly slice of the text in the layout
@@ -227,7 +241,18 @@ func (l *TextLayoutGotext) SetJustification(spacing pr.Float) {
 }
 
 func (l *TextLayoutGotext) ApplyJustification() {
+	if l.justified || l.justification == 0 {
+		return // gopdfgo: pudełko rysowane ponownie nie dostaje odstępu drugi raz
+	}
+	// gopdfgo: glify są wspólne z pamięcią podręczną układów, więc zmieniamy ich kopię
+	line := make(shaping.Line, len(l.Line))
+	for i, run := range l.Line {
+		run.Glyphs = append([]shaping.Glyph(nil), run.Glyphs...)
+		line[i] = run
+	}
+	l.Line = line
 	shaping.AddSpacing(l.Line, l.text, floatToFixed(pr.Fl(l.justification)), 0)
+	l.justified = true
 }
 
 func newAspect(style FontStyle, weight uint16, stretch FontStretch) font.Aspect {
@@ -497,7 +522,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	key := textKey{string(text), style.key(), maxWidth, allowWordBreak}
 	if l, ok := fc.textLayoutCache[key]; ok {
-		return l
+		return privateLayout(l)
 	}
 
 	var lang language.Language
@@ -674,7 +699,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	fc.textLayoutCache[key] = out
 
-	return out
+	return privateLayout(out)
 }
 
 func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs shaping.Line, maxWidth pr.Float, allowWordBreak bool) (usedMaxWidth fixed.Int26_6, _ shaping.WrappedLine, _ bool) {

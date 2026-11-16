@@ -544,11 +544,21 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				}
 			}
 		} else if childLineBox, ok := child_.(*bo.LineBox); ok { // LineBox is a final type
+			// gopdfgo: wiersz bez treści (np. pusty <span> między blokami) ma zerową wysokość i dla
+			// zwijania marginesów nie istnieje (CSS 2.1 § 9.4.2); źródło kończyło na nim łańcuch
+			// sąsiadujących marginesów, więc marginesy bloków przed nim i po nim się sumowały.
+			lineMargins := *adjoiningMargins
+			emptyLine := skipStack == nil && isEmptyLinebox(childLineBox)
+			if emptyLine {
+				lineMargins = nil
+			}
 			abort, stop, resumeAt, positionY, newChildren, newFootnotes, maxLines = lineBoxLayout(context, box_, index, childLineBox,
-				newChildren, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins,
+				newChildren, pageIsEmpty, absoluteBoxes, fixedBoxes, lineMargins,
 				bottomSpace, positionY, skipStack, firstLetterStyle, maxLines)
 			drawBottomDecoration = drawBottomDecoration || resumeAt == nil
-			adjoiningMargins = new([]pr.Float)
+			if !emptyLine {
+				adjoiningMargins = new([]pr.Float)
+			}
 		} else {
 			var (
 				adjoiningMarginsV []pr.Float
@@ -687,6 +697,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	lastInFlowChild = nil
 	for _, previousChild := range reversedBoxes(newChildren) {
+		if line, isLine := previousChild.(*bo.LineBox); isLine && line.Height == pr.Float(0) && isEmptyLinebox(line) {
+			continue // gopdfgo: pusty wiersz nie przerywa zwijania marginesów przez pudełko
+		}
 		if previousChild.Box().IsInNormalFlow() {
 			lastInFlowChild = previousChild
 			break
@@ -1766,6 +1779,11 @@ func prepareFieldsetLegend(context *layoutContext, box_ Box) {
 	paddingTop := px(box.Style.GetPaddingTop())
 
 	legendStyle.SetMarginTop(pr.FToPx(-(paddingTop + borderTop/2 + legendHeight/2)))
+	// gopdfgo: treść ramki zaczyna się pod legendą, w odległości górnego odstępu ramki (WHATWG HTML
+	// § 15.5.20: odstęp ramki dotyczy anonimowego pudełka treści, które stoi pod legendą); wcześniej
+	// pierwsza linia treści wypadała o ten odstęp za wysoko
+	// (odstęp wewnętrzny legendy, nie margines: margines zwinąłby się z marginesem pierwszego dziecka)
+	legendStyle.SetPaddingBottom(pr.FToPx(px(legendStyle.GetPaddingBottom()) + paddingTop))
 	legend.Box().Style = legendStyle
 
 	fieldsetStyle := box.Style.Copy()
@@ -1802,4 +1820,22 @@ func resumeKey(stack tree.ResumeStack) uintptr {
 		return 0
 	}
 	return reflect.ValueOf(stack).Pointer()
+}
+
+// isEmptyLinebox (gopdfgo): wiersz bez treści i bez pudełek wyjętych z przepływu. Wiersz z samym elementem
+// pływającym albo pozycjonowanym też ma zerową wysokość, ale wyznacza położenie tego elementu, więc
+// marginesy przed nim muszą być już rozliczone.
+func isEmptyLinebox(line *bo.LineBox) bool {
+	if !isPhantomLinebox(line.Box()) {
+		return false
+	}
+	for _, descendant := range bo.DescendantsPlaceholders(line, true) {
+		if !descendant.Box().IsInNormalFlow() {
+			return false
+		}
+		if _, isPlaceholder := descendant.(*AbsolutePlaceholder); isPlaceholder {
+			return false
+		}
+	}
+	return true
 }

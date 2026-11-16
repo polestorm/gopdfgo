@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po paczce: pomniejszanie treści szerszej niż strona (ADR 0014). Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po rundzie na dokumentach (cały korpus wobec wydruku Chromium). Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, renderowane bez pomniejszania
@@ -13,13 +13,13 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7112 z 9110 (78,1%)** | ściśle 6724, krawędziowo 388 |
+| Sondaż ekranowy W3C | **7119 z 9110 (78,1%)** | ściśle 6732, krawędziowo 387 |
 | Reftesty druku W3C | **242 z 340 (71,2%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 20 z 21 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 98 funkcji testowych, wszystkie przechodzą | w tym 73 w `regression_test.go` |
+| Testy własne | 99 funkcji testowych, wszystkie przechodzą | w tym 74 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Commity | 103 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 9 |
-| Zmiany w przejętym kodzie | 261 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
+| Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
 | Decyzje (ADR) | 14 | brak otwartych pytań |
 
 ## Sondaż ekranowy w czasie
@@ -51,6 +51,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  siatka: rozpięte, obrazy     7058  ██████████████████████████████████████▊ 77,5%
 16.11  ::first-line, abspos w siatce 7094 ██████████████████████████████████████▉ 77,9%
 16.11  siatka: wysokość z wiersza   7112  ███████████████████████████████████████  78,1%
+16.11  runda na dokumentach         7119  ███████████████████████████████████████  78,1%
 ```
 
 (*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
@@ -155,20 +156,36 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 ## Odchylenie od wydruków Chromium
 
-Mediana odchylenia położenia słów w pionie (pt) i liczba słów odchylonych o ponad 3 pt, dla dokumentów,
-w których słowa dają się dopasować po kolei:
+Cały korpus, 2026-11-16 po rundzie na dokumentach; słowa dopasowane przez wyrównanie ciągów. Szczegóły
+i przyczyny pozostałych różnic są w `docs/feature-audit.md` (sekcja „Runda na dokumentach”).
 
-| Dokument | 16.11 rano | 16.11 po poprawkach |
-|---|---|---|
-| `02-register-table` | 5,57 pt, 2015 z 2844 słów | 0,34 pt, 0 słów |
-| `08-flex` | 3,61 pt, 121 z 189 | 0,24 pt, 0 |
-| `20-invoice` | 2,52 pt, 350 z 826 | 0,68 pt, 0 |
-| `19-flex-grid-pagination` | 310 z 2313 | 0,21 pt, 25 z 2313 |
-| `17-tables` | 1,32 pt, 13 z 175 | 1,84 pt, 0 |
+| Dokument | Słowa wspólne | Mediana w pionie (pt) | Ponad 3 pt w pionie | Ponad 3 pt w poziomie | Na innej stronie |
+|---|---|---|---|---|---|
+| `01-record-copy` | 812 | 0,56 | 1 | 2 | 0 |
+| `02-register-table` | 2844 | 0,34 | 0 | 0 | 0 |
+| `03-report-svg-chart` | 140 | 0,58 | 0 | 2 | 0 |
+| `04-qms-procedure` | 2605 | 0,81 | 20 | 0 | 36 |
+| `05-hyphenation` | 99 | 0,18 | 0 | 2 | 0 |
+| `06-margin-boxes` | 73 | 0,27 | 0 | 0 | 37 |
+| `07-images` | 109 | 0,31 | 0 | 0 | 0 |
+| `08-flex` | 189 | 0,24 | 0 | 0 | 0 |
+| `09-lists-counters` | 170 | 0,21 | 0 | 0 | 0 |
+| `10-preformatted` | 142 | 0,12 | 0 | 0 | 0 |
+| `11-edge-cases` | 128 | 0,13 | 9 | 0 | 6 |
+| `12-floats-positioning` | 230 | 0,22 | 0 | 1 | 0 |
+| `13-forms-html-elements` | 131 | 2,72 | 52 | 1 | 0 |
+| `14-cascade-selectors` | 179 | 0,57 | 0 | 0 | 0 |
+| `15-page-breaks` | 413 | 0,22 | 0 | 0 | 0 |
+| `16-typography-fonts` | 217 | 0,50 | 0 | 0 | 0 |
+| `17-tables` | 175 | 0,33 | 0 | 0 | 0 |
+| `18-toc-running-elements` | 910 | 0,32 | 25 | 0 | 0 |
+| `19-flex-grid-pagination` | 2321 | 0,21 | 25 | 54 | 0 |
+| `20-invoice` | 826 | 0,68 | 0 | 0 | 0 |
+| `21-mixed-report` | 845 | 0,29 | 193 | 26 | 0 |
 
-Pozostałe 25 słów w `19-flex-grid-pagination` to karty o stałej wysokości: Chromium tnie je na
-granicy strony, gopdfgo przenosi w całości (ADR 0004). `07-images` i `10-preformatted` Chromium
-drukuje w skali 0,667; od ADR 0014 gopdfgo robi to samo (mediana odchylenia 0,3 pt i 0,1 pt).
+W 15 z 21 dokumentów żadne słowo nie odbiega o więcej niż 3 pt w pionie. Największa pozostała różnica
+to kolumny w `21-mixed-report`. Dla porównania, rano 16.11: `02-register-table` 5,57 pt (2015 słów ponad
+3 pt), `07-images` 43,3 pt, `10-preformatted` 17,2 pt, `13-forms-html-elements` 21,5 pt.
 
 ## Sposób pracy od 2026-11-16
 

@@ -1197,3 +1197,73 @@ zakładają ekran, na którym przeglądarka niczego nie pomniejsza. Wynik przy t
 9110 reftestów WPT, reguła ADR 0003): **7112**, ściśle 6724, krawędziowo 388, bez zmian względem
 poprzedniej paczki. Reftesty druku (pomniejszanie włączone, jak w `gopdfgo.Render`): **242 z 340**,
 bez zmian.
+
+## Runda na dokumentach: cały korpus wobec wydruku Chromium (2026-11-16)
+
+Metoda: 21 dokumentów z `testdata/documents` wydrukowanych przez Chromium (headless, `--print-to-pdf`,
+2026-11-16) i przez gopdfgo; słowa z `pdftotext -bbox` dopasowane przez wyrównanie ciągów (wcześniejsza
+miara parowała słowa po kolei i gubiła się przy różnej liczbie słów). Liczone są słowa wspólne, mediana
+odchylenia w pionie i liczba słów odchylonych o ponad 3 pt w pionie i w poziomie.
+
+Znalezione i naprawione:
+
+- **Justowanie wystające za prawy margines.** Układ tekstu z pamięci podręcznej był współdzielony, więc
+  wiersz o tym samym tekście (albo pudełko rysowane ponownie) dostawał odstępy justowania wielokrotnie.
+  `04-qms-procedure`: 426 słów przesuniętych w poziomie o ponad 3 pt, teraz 0.
+- **Pusty element liniowy między blokami** rozrywał zwijanie marginesów (`11-edge-cases`: 84 słowa
+  o ponad 3 pt, teraz 9).
+- **Znacznik listy przy `list-style-position: inside`** był węższy niż w Chromium, więc tekst łamał się
+  inaczej (`09-lists-counters`: 30 słów, teraz 0).
+- **Kontrolki formularzy**: szerokości i wysokości pól, przycisk i lista wyboru o szerokości treści,
+  `cols` i `rows` pola wielowierszowego, pole wyboru, odstępy ramki `fieldset`, treść pod legendą
+  (`13-forms-html-elements`: mediana 21,5 pt, teraz 2,7 pt).
+
+Stan po rundzie:
+
+| Dokument | Słowa wspólne | Mediana w pionie (pt) | Ponad 3 pt w pionie | Ponad 3 pt w poziomie | Na innej stronie |
+|---|---|---|---|---|---|
+| `01-record-copy` | 812 | 0,56 | 1 | 2 | 0 |
+| `02-register-table` | 2844 | 0,34 | 0 | 0 | 0 |
+| `03-report-svg-chart` | 140 | 0,58 | 0 | 2 | 0 |
+| `04-qms-procedure` | 2605 | 0,81 | 20 | 0 | 36 |
+| `05-hyphenation` | 99 | 0,18 | 0 | 2 | 0 |
+| `06-margin-boxes` | 73 | 0,27 | 0 | 0 | 37 |
+| `07-images` | 109 | 0,31 | 0 | 0 | 0 |
+| `08-flex` | 189 | 0,24 | 0 | 0 | 0 |
+| `09-lists-counters` | 170 | 0,21 | 0 | 0 | 0 |
+| `10-preformatted` | 142 | 0,12 | 0 | 0 | 0 |
+| `11-edge-cases` | 128 | 0,13 | 9 | 0 | 6 |
+| `12-floats-positioning` | 230 | 0,22 | 0 | 1 | 0 |
+| `13-forms-html-elements` | 131 | 2,72 | 52 | 1 | 0 |
+| `14-cascade-selectors` | 179 | 0,57 | 0 | 0 | 0 |
+| `15-page-breaks` | 413 | 0,22 | 0 | 0 | 0 |
+| `16-typography-fonts` | 217 | 0,50 | 0 | 0 | 0 |
+| `17-tables` | 175 | 0,33 | 0 | 0 | 0 |
+| `18-toc-running-elements` | 910 | 0,32 | 25 | 0 | 0 |
+| `19-flex-grid-pagination` | 2321 | 0,21 | 25 | 54 | 0 |
+| `20-invoice` | 826 | 0,68 | 0 | 0 | 0 |
+| `21-mixed-report` | 845 | 0,29 | 193 | 26 | 0 |
+
+Pozostałe różnice i ich przyczyny:
+
+- `21-mixed-report` (193 słowa): treść w kolumnach (`column-count`) rozkłada się inaczej; obszar kolumn
+  jest następny w kolejce.
+- `04-qms-procedure` (36 słów na innej stronie): akapit pięciowierszowy przy `orphans: 3; widows: 3`.
+  Chromium dzieli go 3 + 2, czyli łamie `widows`; gopdfgo przenosi cały akapit, zgodnie z CSS
+  Fragmentation 3 § 4.3. Zostaje.
+- `19-flex-grid-pagination`: 25 słów w pionie to karty o stałej wysokości (ADR 0004); 54 w poziomie to
+  trzy wiersze, w których ostatnie słowo mieści się w Chromium o ułamek piksela (zaokrąglenia szerokości
+  tekstu), a u nas przechodzi do następnego wiersza.
+- `18-toc-running-elements` (25 słów) i `06-margin-boxes` (inna liczba stron): elementy bieżące
+  (`position: running()`) i pola marginesów, których Chromium nie obsługuje tak jak norma; różnica jest
+  po stronie Chromium.
+- `13-forms-html-elements` (52 słowa do ok. 4 pt): margines ramki z legendą nie zwija się z marginesem
+  poprzedniego bloku tak jak w Chromium; drobne różnice w wysokości wiersza z polem wyboru.
+- `11-edge-cases` (9 słów): nagłówek przed blokiem `break-inside: avoid` wyższym niż strona; Chromium
+  zostawia nagłówek na poprzedniej stronie, gopdfgo trzyma go z blokiem (`break-after: avoid`).
+
+Wynik sondażu (pełny sondaż ekranowy 9110 reftestów WPT z `-max-shrink 1`, reguła ADR 0003; po sondażu
+dwie poprawki sprawdzone sondażami obszarów: 2479 testów CSS 2 i list, 953 testy flex): **7119 z 9110
+(78,1%)**, ściśle 6732, krawędziowo 387, niezaliczone 1991; poprzednio 7112. Zyskane 8 (elementy blokowe
+w liniowych i marginesy), stracony 1 (`css-flexbox/flexitem-stretch-range`: suwak `input type=range`
+po zmianie rozmiarów pól). Reftesty druku: **242 z 340**, bez zmian.

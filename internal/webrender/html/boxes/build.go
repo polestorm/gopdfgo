@@ -441,6 +441,7 @@ func markerToBox(element *utils.HTMLNode, state *tree.PageState, parentStyle pr.
 	}
 
 	children := &box.Box().Children
+	symbolMarker := false // znacznik domyślny z list-style-type: disc, circle albo square
 
 	if style.GetDisplay() == (pr.Display{Outside: pr.None}) {
 		return nil
@@ -466,6 +467,10 @@ func markerToBox(element *utils.HTMLNode, state *tree.PageState, parentStyle pr.
 				counterValue_ = []int{0}
 			}
 			counterValue := counterValue_[len(counterValue_)-1]
+			switch style.GetListStyleType().Name {
+			case "disc", "circle", "square":
+				symbolMarker = true
+			}
 			if markerText := cs.RenderMarker(style.GetListStyleType(), counterValue); markerText != "" {
 				markerBox := TextBoxAnonymousFrom(box, markerText)
 				markerBox.Box().Style.SetWhiteSpace(pr.PreWrap)
@@ -490,6 +495,15 @@ func markerToBox(element *utils.HTMLNode, state *tree.PageState, parentStyle pr.
 		// }
 		// translateY := pr.ZeroPixels
 		// markerBox.Box().Style.SetTransform(pr.Transforms{{String: "translate", Dimensions: pr.Dimensions{translateX, translateY}}})
+	} else if symbolMarker {
+		// gopdfgo: znacznik-symbol (disc, circle, square) wewnątrz elementu zajmuje stałą szerokość,
+		// niezależną od glifu. Norma zostawia ją implementacji (CSS Lists 3 § 3.1); przyjmujemy pomiar
+		// z Chromium z 2026-11-16 (tekst zaczyna się 14,67, 26,67 i 54,67 px od krawędzi przy piśmie 10,
+		// 20 i 40 px, czyli ok. 1,36 em). W źródle szerokością był glif z odstępem (ok. 0,6 em), więc
+		// tekst elementu łamał się w innych miejscach niż w przeglądarce.
+		inlineBlock := InlineBlockBoxAnonymousFrom(box, *children)
+		inlineBlock.Box().Style.SetWidth(pr.FToPx(1.36 * style.GetFontSize().Value))
+		markerBox = inlineBlock
 	} else {
 		markerBox = InlineBoxAnonymousFrom(box, *children)
 	}

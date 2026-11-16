@@ -37,7 +37,9 @@ func TestListsStyle(t *testing.T) {
 				var marker Box
 				line := unpack1(listItem)
 				marker, content = unpack2(line)
-				markerText = unpack1(marker)
+				// gopdfgo: znacznik-symbol wewnątrz elementu jest pudełkiem inline-block o stałej
+				// szerokości (jak w Chromium), więc tekst znacznika leży w jego wierszu
+				markerText = unpack1(unpack1(marker))
 			} else {
 				marker, lineContainer := unpack2(listItem)
 				tu.AssertEqual(t, marker.Box().PositionX, listItem.Box().PositionX-marker.Box().Width.V())

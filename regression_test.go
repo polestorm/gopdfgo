@@ -2306,3 +2306,35 @@ func TestShrinkContentWiderThanPage(t *testing.T) {
 		t.Errorf("pomniejszony pas różni się od wzorca o %d pikseli", n)
 	}
 }
+
+// TestRealDocumentFindings pilnuje błędów znalezionych 2026-11-16 przy porównaniu korpusu z wydrukiem
+// Chromium: justowany wiersz o tym samym tekście rysowany drugi raz dostawał odstępy podwójnie i wystawał
+// za margines, pusty element liniowy między blokami rozrywał zwijanie marginesów, a znacznik listy
+// wewnątrz elementu był węższy niż w przeglądarce.
+func TestRealDocumentFindings(t *testing.T) {
+	head := `<style>@page { size: 300px 150px; margin: 10px } body { margin: 0; font: 12px/1.3 sans-serif }</style>`
+	dir := t.TempDir()
+
+	paragraph := `<p style="text-align:justify;margin:0">Zapis uznaje się za kompletny dopiero po złożeniu podpisów przez osobę wykonującą, sprawdzającą i zatwierdzającą wynik.</p>`
+	twice := rasterize(t, renderString(t, head+paragraph+`<div style="break-before:page"></div>`+paragraph).PDF, dir, "justify")
+	if len(twice) != 2 {
+		t.Fatalf("justowanie: %d stron, oczekiwano 2", len(twice))
+	}
+	if n := differentPixels(twice[0], twice[1]); n != 0 {
+		t.Errorf("ten sam justowany akapit na dwóch stronach różni się o %d pikseli", n)
+	}
+
+	blocks := `<h3 style="margin:10px 0 4px">A</h3>%s<ul style="margin:10px 0"></ul><p style="margin:0">T</p>`
+	withSpan := rasterize(t, renderString(t, head+fmt.Sprintf(blocks, `<p style="margin:0 0 8px"></p><span></span>`)).PDF, dir, "span")
+	withoutSpan := rasterize(t, renderString(t, head+fmt.Sprintf(blocks, `<p style="margin:0 0 8px"></p>`)).PDF, dir, "nospan")
+	if n := differentPixels(withSpan[0], withoutSpan[0]); n != 0 {
+		t.Errorf("pusty <span> między blokami zmienia układ: %d pikseli", n)
+	}
+
+	// znacznik-symbol wewnątrz elementu zajmuje 1,36 em (pomiar Chromium), niezależnie od glifu
+	inside := rasterize(t, renderString(t, head+`<ul style="list-style-position:inside;margin:0;padding:0;font-size:20px"><li>Abc</li></ul>`).PDF, dir, "inside")
+	fixed := rasterize(t, renderString(t, head+`<div style="font-size:20px"><span style="display:inline-block;width:27.2px">•</span>Abc</div>`).PDF, dir, "fixed")
+	if n := differentPixels(inside[0], fixed[0]); n != 0 {
+		t.Errorf("znacznik listy wewnątrz elementu: %d pikseli różni się od wzorca o stałej szerokości", n)
+	}
+}

@@ -1372,6 +1372,16 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 				}
 				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, styleAttribute)})
 			}
+		case atom.Textarea:
+			// gopdfgo: atrybuty cols i rows wyznaczają rozmiar pola (WHATWG HTML § 15.5.14); źródło je
+			// pomijało i każde pole miało rozmiar z arkusza domyślnego. Szerokość znaku 0,55 em i wiersz
+			// 1,36 em to przybliżenie zgodne z wydrukiem Chromium dla pisma bezszeryfowego.
+			if cols, err := strconv.Atoi(strings.TrimSpace(element.Get("cols"))); err == nil && cols > 0 {
+				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, fmt.Sprintf("width:%.2fem", float64(cols)*0.55))})
+			}
+			if rows, err := strconv.Atoi(strings.TrimSpace(element.Get("rows"))); err == nil && rows > 0 {
+				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, fmt.Sprintf("height:%.2fem", float64(rows)*1.36))})
+			}
 		case atom.Hr:
 			size := 0
 			if element.Get("size") != "" {
