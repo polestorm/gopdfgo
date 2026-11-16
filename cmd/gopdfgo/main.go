@@ -30,6 +30,7 @@ func main() {
 	timeout := flag.Duration("timeout", time.Minute, "limit czasu")
 	userCSS := flag.String("css", "", "arkusz użytkownika, np. \"@page { size: A4 }\"")
 	quiet := flag.Bool("quiet", false, "nie wypisuj ostrzeżeń")
+	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b (PDF/A-2b); domyślnie zwykły PDF")
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
 	exactLengths := flag.Bool("exact-lengths", false,
@@ -50,6 +51,14 @@ func main() {
 		})
 	}
 	flag.Parse()
+	switch *pdfa {
+	case "":
+	case "2b", "2B":
+		conformance = gopdfgo.PDFA2b
+	default:
+		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b)")
+		os.Exit(2)
+	}
 	if *in == "" || *out == "" || *fontDir == "" {
 		flag.Usage()
 		os.Exit(2)
@@ -59,6 +68,9 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+// conformance to zgodność wybrana flagą -pdfa.
+var conformance gopdfgo.Conformance
 
 func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, maxShrink float64, monospaceSize float64, timeout time.Duration, quiet bool) error {
 	html, err := os.ReadFile(in)
@@ -121,7 +133,8 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
-		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink})
+		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
+		Conformance: conformance})
 	if err != nil {
 		return err
 	}

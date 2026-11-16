@@ -101,6 +101,10 @@ type Options struct {
 	// zostają w skali 1. Zero oznacza 1,5, jak w Chromium; 1 wyłącza pomniejszanie (treść wystaje
 	// i jest ucinana na krawędzi kartki); math.Inf(1) pomniejsza bez limitu.
 	MaxShrink float64
+	// Conformance wybiera normę pliku wynikowego; wartość pusta to zwykły PDF 1.7, PDFA2b to PDF/A-2b
+	// (ADR 0016). W trybie PDF/A plik dostaje metadane XMP, profil sRGB i identyfikator wyliczony
+	// z treści; układ i wygląd stron się nie zmieniają.
+	Conformance Conformance
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -251,7 +255,14 @@ func render(html []byte, opts Options) (result Result, err error) {
 	pdfmodel.NonFiniteNumbers.Store(0)
 	output := pdf.NewOutput()
 	laidOut.Write(output, 1, nil)
+	if opts.Conformance != ConformanceNone {
+		output.DisableImageInterpolation() // ISO 19005-2 § 6.2.8
+	}
 	file := output.Finalize()
+	file.Trailer.Info.Producer = EngineName + " " + EngineVersion
+	if err := applyConformance(&file, opts.Conformance); err != nil {
+		return Result{}, err
+	}
 	var out bytes.Buffer
 	if err := file.Write(&out, nil); err != nil {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)

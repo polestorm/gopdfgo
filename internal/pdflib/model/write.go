@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"sort"
 	"strconv"
@@ -29,8 +30,9 @@ func (r Reference) String() string {
 // and keep track of the correct byte offsets
 type output struct {
 	dst     io.Writer
-	err     error // internal error, to defer error checking
-	written int   // total number of bytes written to dst
+	err     error     // internal error, to defer error checking
+	written int       // total number of bytes written to dst
+	digest  hash.Hash // gopdfgo: skrót zapisanych bajtów, podstawa Trailer.ContentID
 
 	// encode the object numbers as index (starting from 1)
 	// and the byte offsets of objects (starts at 1, [0] is unused)
@@ -47,6 +49,9 @@ func (w *output) bytes(b []byte) {
 		return
 	}
 	w.written += n
+	if w.digest != nil {
+		w.digest.Write(b[:n])
+	}
 }
 
 // CreateObject return a new reference
@@ -88,6 +93,9 @@ func (w *output) writeFooter(trailer Trailer, root, info, encrypt Reference) {
 		b.WriteString(fmt.Sprintf("/Encrypt %s\n", encrypt))
 		b.WriteString(fmt.Sprintf("/ID [%s %s]\n",
 			EscapeByteString([]byte(trailer.ID[0])), EscapeByteString([]byte(trailer.ID[1]))))
+	} else if trailer.ContentID && w.digest != nil {
+		id := hex.EncodeToString(w.digest.Sum(nil)[:16])
+		b.WriteString(fmt.Sprintf("/ID [<%s> <%s>]\n", id, id))
 	}
 	b.WriteString(">>\n")
 	b.WriteString("startxref\n")

@@ -73,40 +73,26 @@ func Test_handleComposite(t *testing.T) {
 //go:embed test/table_post_20.bin
 var post20 []byte
 
+// gopdfgo: podzbiór zapisuje tabelę post w wersji 3.0, bez nazw glifów (zob. writePost); źródło
+// sprawdzało tu przepisanie nazw z wersji 2.0, którego już nie ma.
 func TestSubsetPost20(t *testing.T) {
 	table, _, err := tables.ParsePost(post20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := table.Names.(tables.PostNames20)
-	numG := len(names.GlyphNameIndexes)
-	if numG != 6253 {
+	if numG := len(table.Names.(tables.PostNames20).GlyphNameIndexes); numG != 6253 {
 		t.Fatal()
 	}
-	exp1 := names.Strings[names.GlyphNameIndexes[456]-258]
-	exp2 := names.Strings[names.GlyphNameIndexes[2000]-258]
-	exp3 := names.Strings[names.GlyphNameIndexes[4566]-258]
-	set := gs(0, 1, 10, 155, 456, 4566, 2000)
-	namesSubsetted := subsetPost20(names, set)
-	if L := len(namesSubsetted.GlyphNameIndexes); L != len(set) {
-		t.Fatalf("expected %d, got %d", len(set), L)
+	final := writePost(post20)
+	if len(final) != 32 || !bytes.Equal(final[4:], post20[4:32]) {
+		t.Fatal("nagłówek tabeli post nie został zachowany")
 	}
-	if !reflect.DeepEqual(namesSubsetted.Strings, []string{exp1, exp2, exp3}) {
-		t.Fatal()
-	}
-
-	encoded := writePost(post20, names)
-	if !bytes.Equal(encoded, post20) {
-		t.Fatal()
-	}
-	// check the subsetted table is valid
-	final := writePost(post20, namesSubsetted)
 	table, _, err = tables.ParsePost(final)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(table.Names.(tables.PostNames20).GlyphNameIndexes) != len(set) {
-		t.Fatal()
+	if _, isV30 := table.Names.(tables.PostNames30); !isV30 {
+		t.Fatalf("oczekiwana tabela post 3.0, jest %T", table.Names)
 	}
 }
 

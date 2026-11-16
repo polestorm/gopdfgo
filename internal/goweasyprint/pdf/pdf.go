@@ -198,6 +198,15 @@ func (c *Output) SetBookmarks(root []backend.BookmarkNode) {
 }
 
 // Finalize setup and returns the final document
+// DisableImageInterpolation (gopdfgo) wyłącza wygładzanie obrazów przy powiększaniu we wszystkich
+// obrazach dokumentu; PDF/A zabrania wpisu Interpolate o wartości true (ISO 19005-2 § 6.2.8).
+// Wywoływać po narysowaniu stron, przed Finalize.
+func (c *Output) DisableImageInterpolation() {
+	for _, image := range c.cache.images {
+		image.Interpolate = false
+	}
+}
+
 func (c *Output) Finalize() model.Document {
 	pages := make([]model.PageNode, len(c.pages))
 	for i, p := range c.pages {

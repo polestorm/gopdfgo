@@ -15,9 +15,11 @@
 package model
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -60,6 +62,9 @@ func (doc *Document) Clone() Document {
 // returned by `UseStandardEncryptionHandler`.
 func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 	wr := newWriter(output, encryption)
+	if doc.Trailer.ContentID {
+		wr.digest = sha256.New()
+	}
 
 	wr.writeHeader()
 
@@ -118,6 +123,21 @@ type Catalog struct {
 	OpenAction Action
 	URI        string // optional, ASCII string, written in PDF as a dictionary
 	Lang       string
+
+	// gopdfgo: Metadata to pakiet XMP zapisywany jako nieskompresowany strumień metadanych katalogu
+	// (ISO 32000-1 § 14.3.2); OutputIntents to deklaracje zamierzonego wyjścia (§ 14.11.5). Źródło
+	// tych wpisów katalogu nie zapisywało; oba są wymagane przez PDF/A (ISO 19005-2 § 6.6.2.1, § 6.2.3).
+	Metadata      []byte
+	OutputIntents []OutputIntent
+}
+
+// OutputIntent opisuje zamierzone urządzenie wyjściowe i niesie jego profil ICC.
+type OutputIntent struct {
+	S                         Name   // np. GTS_PDFA1
+	OutputConditionIdentifier string // np. "sRGB IEC61966-2.1"
+	Info                      string // opis czytelny dla człowieka
+	DestOutputProfile         []byte // profil ICC
+	N                         int    // liczba składowych profilu
 }
 
 func (cat *Catalog) setupWriter(pdf *pdfWriter) {
@@ -199,6 +219,23 @@ func (cat *Catalog) pdfString(pdf pdfWriter) string {
 	}
 	if cat.Lang != "" {
 		b.fmt("%s", "/Lang "+pdf.EncodeString(cat.Lang, TextString, pdf.catalog))
+	}
+	if len(cat.Metadata) != 0 {
+		// bez filtra: metadane mają dać się odczytać bez dekodowania strumieni (ISO 19005-2 § 6.6.2.1)
+		ref := pdf.addStream(StreamHeader{Fields: map[Name]string{"Type": "/Metadata", "Subtype": "/XML",
+			"Length": strconv.Itoa(len(cat.Metadata))}}, cat.Metadata)
+		b.line("/Metadata %s", ref)
+	}
+	if len(cat.OutputIntents) != 0 {
+		b.fmt("/OutputIntents [")
+		for _, intent := range cat.OutputIntents {
+			profile := pdf.addStream(StreamHeader{Fields: map[Name]string{"N": strconv.Itoa(intent.N),
+				"Length": strconv.Itoa(len(intent.DestOutputProfile))}}, intent.DestOutputProfile)
+			b.fmt("<</Type/OutputIntent/S%s/OutputConditionIdentifier %s/Info %s/DestOutputProfile %s>>",
+				intent.S, pdf.EncodeString(intent.OutputConditionIdentifier, TextString, pdf.catalog),
+				pdf.EncodeString(intent.Info, TextString, pdf.catalog), profile)
+		}
+		b.line("]")
 	}
 	b.fmt(">>")
 
@@ -355,6 +392,11 @@ type Trailer struct {
 	// Encrypt Encrypt
 	Info Info
 	ID   [2]string // optional (must be not crypted, direct objects)
+
+	// gopdfgo: ContentID każe zapisać identyfikator pliku wyliczony ze skrótu wszystkich bajtów
+	// poprzedzających tabelę odsyłaczy: te same wejścia dają ten sam identyfikator, a wywołujący nie
+	// musi go podawać. Identyfikatora wymaga PDF/A (ISO 19005-2 § 6.1.3).
+	ContentID bool
 }
 
 func (t Trailer) Clone() Trailer {

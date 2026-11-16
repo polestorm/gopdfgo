@@ -135,15 +135,7 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("subsetting failed: %s", err)
 		}
-		post, _, err := tables.ParsePost(raw)
-		if err != nil {
-			return nil, fmt.Errorf("subsetting failed: %s", err)
-		}
-		names := post.Names
-		if v20, isV20 := names.(tables.PostNames20); isV20 {
-			names = subsetPost20(v20, glyphs)
-		}
-		postNew = writePost(raw, names)
+		postNew = writePost(raw)
 	}
 
 	// gopdfgo: przy konturach TrueType font w PDF jest adresowany wyłącznie numerami glifów
@@ -252,56 +244,14 @@ func writeLoca(offsets []uint32, isLong bool) []byte {
 	}
 }
 
-func subsetPost20(names tables.PostNames20, glyphs glyphSet) tables.PostNames20 {
-	const numBuiltInPostNames = 258
-
-	out := tables.PostNames20{
-		GlyphNameIndexes: make([]uint16, 0, len(glyphs)),
-		Strings:          make([]string, 0, len(glyphs)),
-	}
-	for gid, index := range names.GlyphNameIndexes {
-		if _, has := glyphs[ot.GID(gid)]; !has {
-			continue // drop this glyph
-		}
-		// offsets are shifted to handle predefined glyphs
-		if index < numBuiltInPostNames { // just copy the builtin index
-			out.GlyphNameIndexes = append(out.GlyphNameIndexes, index)
-		} else {
-			// fetch and copy the name
-			index = index - numBuiltInPostNames
-			out.Strings = append(out.Strings, names.Strings[index])
-			// compute the new index
-			newIndex := uint16(len(out.Strings) - 1 + numBuiltInPostNames)
-			out.GlyphNameIndexes = append(out.GlyphNameIndexes, newIndex)
-		}
-	}
-	return out
-}
-
-func writePost(src []byte, names tables.PostNames) []byte {
+func writePost(src []byte) []byte {
 	// simple copy the header
 	out := make([]byte, 32)
 	copy(out, src)
-	switch names := names.(type) {
-	case tables.PostNames10, tables.PostNames30: // empty
-	case tables.PostNames20:
-		out = append(out, writePostNames20(names)...)
-	}
-	return out
-}
-
-func writePostNames20(names tables.PostNames20) []byte {
-	numG := len(names.GlyphNameIndexes)
-	out := make([]byte, 2+2*numG)
-	binary.BigEndian.PutUint16(out, uint16(numG))
-	for i, index := range names.GlyphNameIndexes {
-		binary.BigEndian.PutUint16(out[2+2*i:], index)
-	}
-	// strings as Pascal encoded
-	for _, name := range names.Strings {
-		out = append(out, byte(len(name)))
-		out = append(out, name...)
-	}
+	// gopdfgo: tabela post w wersji 3.0, czyli bez nazw glifów. W PDF font jest adresowany numerami
+	// glifów, więc nazwy nie są używane, a lista nazw z wersji 2.0 po odrzuceniu glifów miała inną
+	// liczbę wpisów niż maxp (walidator veraPDF: "numberOfGlyphs field of 'post' table does not match").
+	binary.BigEndian.PutUint32(out, 0x00030000)
 	return out
 }
 

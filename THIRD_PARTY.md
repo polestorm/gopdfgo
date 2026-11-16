@@ -862,6 +862,19 @@ Wspólne dla obu katalogów:
   następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
   między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
   zostawały na dole strony, a wielowierszowa przechodziła dalej;
+- PDF/A-2b, 2026-11-16 (ADR 0016; walidacja veraPDF 1.30):
+  - `internal/pdflib/model/model.go`: katalog zapisuje strumień metadanych XMP (`Catalog.Metadata`)
+    i deklaracje zamierzonego wyjścia z profilem ICC (`Catalog.OutputIntents`); `write.go`: identyfikator
+    pliku wyliczany ze skrótu zapisanych bajtów (`Trailer.ContentID`), wcześniej `/ID` było zapisywane
+    tylko przy szyfrowaniu;
+  - `internal/goweasyprint/pdf/text.go`: fonty CID typu 2 mają `CIDToGIDMap /Identity` (ISO 32000-1
+    § 9.7.4, tablica 117; źródło wpis pomijało);
+  - `internal/goweasyprint/pdf/text_font_subset.go` (`writePost`): tabela `post` podzbioru w wersji 3.0,
+    bez nazw glifów; lista nazw z wersji 2.0 po odrzuceniu glifów miała inną liczbę wpisów niż `maxp`,
+    a nazwy przesuwały się względem numerów glifów. Usunięte `subsetPost20` i `writePostNames20`,
+    `TestSubsetPost20` przepisany;
+  - `internal/goweasyprint/pdf/page.go`: adnotacje linków i załączników mają flagę drukowania
+    (ISO 19005-2 § 6.3.2); `pdf.go`: `DisableImageInterpolation` dla trybu PDF/A;
 - wydajność, 2026-11-16 (pomiar w `docs/benchmark.md` § 9):
   - `text/engine_gotext.go` (`loadOneFont`, `ReuseLoadedFaces`): reguła `@font-face` przetwarzana drugi
     raz w tej samej konfiguracji fontów nie pobiera i nie parsuje fontu ponownie; włączone tylko

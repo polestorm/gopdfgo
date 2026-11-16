@@ -431,6 +431,9 @@ func (c *Output) writeFonts() {
 				},
 				W:              widths,
 				FontDescriptor: desc,
+				// gopdfgo: identyfikatory znaków są numerami glifów; wpis jest wymagany dla osadzonych
+				// fontów CID typu 2 (ISO 32000-1 § 9.7.4, tablica 117), źródło go pomijało.
+				CIDToGIDMap: model.CIDToGIDMapIdentity{},
 			},
 		}
 		font.FontDict.ToUnicode = &model.UnicodeCMap{Stream: newStream(writeToUnicodeCMap(font.Cmap))}

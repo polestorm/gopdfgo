@@ -175,6 +175,7 @@ func (cp *outputPage) AddInternalLink(xMin, yMin, xMax, yMax fl, anchorName stri
 	an := model.AnnotationDict{
 		BaseAnnotation: model.BaseAnnotation{
 			Rect: model.Rectangle{Llx: xMin, Lly: yMin, Urx: xMax, Ury: yMax},
+			F:    model.APrint, // gopdfgo: flaga drukowania, wymagana przez PDF/A (ISO 19005-2 § 6.3.2)
 		},
 		Subtype: model.AnnotationLink{
 			BS:   &model.BorderStyle{W: model.ObjFloat(0)},
@@ -188,6 +189,7 @@ func (cp *outputPage) AddExternalLink(xMin, yMin, xMax, yMax fl, url string) {
 	an := model.AnnotationDict{
 		BaseAnnotation: model.BaseAnnotation{
 			Rect: model.Rectangle{Llx: xMin, Lly: yMin, Urx: xMax, Ury: yMax},
+			F:    model.APrint, // gopdfgo: flaga drukowania, wymagana przez PDF/A (ISO 19005-2 § 6.3.2)
 		},
 		Subtype: model.AnnotationLink{
 			BS: &model.BorderStyle{W: model.ObjFloat(0)},
@@ -203,6 +205,7 @@ func (cp *outputPage) AddFileAnnotation(xMin, yMin, xMax, yMax fl, fileID string
 	an := model.AnnotationDict{
 		BaseAnnotation: model.BaseAnnotation{
 			Rect: rect,
+			F:    model.APrint, // gopdfgo: jak wyżej
 			AP: &model.AppearanceDict{
 				N: model.AppearanceEntry{"": &model.XObjectForm{
 					BBox: rect,

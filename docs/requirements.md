@@ -43,7 +43,7 @@ obowiązuje kolejność z `vision.md`.
 | Y2 | **Determinizm**: identyczne wejście, fonty i wersja silnika → identyczne bajty; `CreationDate`, `ModDate`, `/ID` i XMP ustawiane przez wywołującego | M | Hash PDF odtwarzalny; przewaga nad Chromium |
 | Y3 | Metadane: tytuł, autor, temat, słowa kluczowe, język dokumentu | M | |
 | Y4 | Zakładki (outline) z nagłówków, linki wewnętrzne i zewnętrzne | P | |
-| Y5 | PDF/A-2b (osadzone wszystkie fonty, XMP, OutputIntent, bez przezroczystości lub z dozwoloną) | P | Archiwum 15 lat; może być krok końcowy w osobnym narzędziu |
+| Y5 | PDF/A-2b (osadzone wszystkie fonty, XMP, OutputIntent, bez przezroczystości lub z dozwoloną) | P | Archiwum 15 lat; może być krok końcowy w osobnym narzędziu; **zrobione 2026-11-16** (`Options.Conformance`, ADR 0016) |
 | Y6 | Tagged PDF (struktura logiczna) | O | Dostępność; PDF/UA w przyszłości |
 | Y7 | SVG na stronę i PNG na stronę z tego samego układu | P | Podgląd wydruku, testy porównawcze; z listy wyświetlania prawie za darmo |
 | Y8 | Raport renderowania: liczba stron, ostrzeżenia z nazwą nieobsługiwanej właściwości/elementu i miejscem w źródle | M | Warunek walidacji; silnik nie może ignorować po cichu |

@@ -1368,3 +1368,21 @@ Pozostała różnica, bez wpływu na strony: Chromium zaokrągla wysokość wier
 
 Sondaż ekranowy i reftesty druku: bez zmian w zaliczonych (7209 z 9110; 243 z 340).
 
+## PDF/A-2b (2026-11-16)
+
+Decyzje użytkownika: poziom 2b, veraPDF jako walidator testowy, własny minimalny profil sRGB (ADR 0016).
+
+Stan wyjściowy według veraPDF 1.30: zwykły plik łamał 4–5 reguł (metadane XMP, identyfikator pliku,
+kolory bez `OutputIntent`, `CIDToGIDMap`, interpolacja obrazów, flaga drukowania adnotacji). Po wdrożeniu
+`Options.Conformance = PDFA2b` (wiersz poleceń: `-pdfa 2b`): **22 z 22 dokumentów korpusu zgodne**, bez
+ostrzeżeń walidatora; pomiar `verapdf -f 2b` na plikach z bieżącej binarki.
+
+Przy okazji walidator wskazał błąd w podzbiorze fontu TrueType niezależny od PDF/A: tabela `post` miała
+inną liczbę glifów niż `maxp`. Podzbiór zapisuje teraz `post` w wersji 3.0.
+
+Rozmiar korpusu: 1,0 MB jako zwykły PDF, 1,1 MB jako PDF/A (ok. 3–4 kB na plik). Wygląd stron bez zmian
+(test porównuje piksele obu trybów); wyjątek opisany w ADR: powiększany obraz rastrowy bez wygładzania.
+
+Czego tryb nie obejmuje: załączniki (PDF/A-2 ich zabrania, silnik ich nie odrzuca ani nie zgłasza),
+PDF/A-2a i PDF/UA (tagged PDF), PDF/A-3b.
+
