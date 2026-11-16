@@ -6,6 +6,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | # | Decyzja | Status |
 |---|---|---|
 | 0014 | Treść szersza niż obszar strony jest pomniejszana jak w Chromium, domyślnie najwyżej 1,5 raza; `Options.MaxShrink` zmienia limit albo wyłącza | przyjęta |
+| 0015 | Blok o podanej wysokości jest dzielony między kolumny jak w przeglądarkach (między strony nadal według ADR 0004); `break-inside: avoid` i `contain: size` wyłączają dzielenie | przyjęta (robocza) |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
 | 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page`, jak w Chromium i Media Queries 4 | przyjęta |
 | 0011 | Element wiersza flex, który nie mieści się na stronie, przechodzi na następną sam (jak w przeglądarkach); gdy nie mieści się żaden, przechodzi cała linia | przyjęta |

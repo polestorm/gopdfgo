@@ -1002,6 +1002,12 @@ func (s *AnonymousStyle) GetTextShadow() pr.BoxShadows {
 }
 func (s *AnonymousStyle) SetTextShadow(v pr.BoxShadows) { s.propsCache.setKnown(pr.PTextShadow, v) }
 
+func (s *ComputedStyle) GetContain() pr.String  { return s.Get(pr.PContain.Key()).(pr.String) }
+func (s *ComputedStyle) SetContain(v pr.String) { s.propsCache.setKnown(pr.PContain, v) }
+
+func (s *AnonymousStyle) GetContain() pr.String  { return s.Get(pr.PContain.Key()).(pr.String) }
+func (s *AnonymousStyle) SetContain(v pr.String) { s.propsCache.setKnown(pr.PContain, v) }
+
 func (s *ComputedStyle) GetBoxSizing() pr.String  { return s.Get(pr.PBoxSizing.Key()).(pr.String) }
 func (s *ComputedStyle) SetBoxSizing(v pr.String) { s.propsCache.setKnown(pr.PBoxSizing, v) }
 

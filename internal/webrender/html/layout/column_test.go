@@ -973,6 +973,10 @@ func TestColumnsRegression1(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
 	// Regression test #1 for https://github.com/Kozea/WeasyPrint/issues/659
+	//
+	// gopdfgo: blok o podanej wysokości dzieli się między kolumny i strony (CSS Break 3 § 4.4, jak
+	// w przeglądarkach): kolumny zaczynają się na 5px, które zostają pod A, a reszta jest równoważona
+	// na następnej stronie. Źródło oczekiwało przeniesienia całego kontenera na drugą stronę.
 	pages := renderPages(t, `
       <style>
         @page {margin: 0; width: 100px; height: 100px}
@@ -986,29 +990,37 @@ func TestColumnsRegression1(t *testing.T) {
       </div>
       <div style="height:95px">C</div>
     `)
+	tu.AssertEqual(t, len(pages), 3)
 	page1, page2, page3 := pages[0], pages[1], pages[2]
 
 	html := unpack1(page1)
 	body := unpack1(html)
-	div := unpack1(body)
+	div, columns := unpack2(body)
 	tu.AssertEqual(t, div.Box().PositionY, Fl(0))
 	assertText(t, unpack1(div.Box().Children[0]), "A")
+	column1, column2 := unpack2(columns)
+	tu.AssertEqual(t, column1.Box().PositionY, Fl(95))
+	tu.AssertEqual(t, column2.Box().PositionY, Fl(95))
+	tu.AssertEqual(t, unpack1(column1).Box().Height, Fl(5))
+	tu.AssertEqual(t, unpack1(column2).Box().Height, Fl(5))
 
 	html = unpack1(page2)
 	body = unpack1(html)
-	div = unpack1(body)
-	tu.AssertEqual(t, div.Box().PositionY, Fl(0))
-	column1, column2 := unpack2(div)
-	tu.AssertEqual(t, column1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, column2.Box().PositionY, Fl(0))
+	columns = unpack1(body)
+	tu.AssertEqual(t, columns.Box().PositionY, Fl(0))
+	column1, column2 = unpack2(columns)
 	div1, div2 := unpack2(column1)
-	div3 := unpack1(column2)
+	div3, div4 := unpack2(column2)
 	tu.AssertEqual(t, div1.Box().PositionY, Fl(0))
+	tu.AssertEqual(t, div1.Box().Height, Fl(10))
+	tu.AssertEqual(t, div2.Box().PositionY, Fl(10))
+	tu.AssertEqual(t, div2.Box().Height, Fl(15))
 	tu.AssertEqual(t, div3.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, div2.Box().PositionY, Fl(20))
-	assertText(t, unpack1(div1.Box().Children[0]), "B1")
+	tu.AssertEqual(t, div3.Box().Height, Fl(5))
+	tu.AssertEqual(t, div4.Box().PositionY, Fl(5))
+	tu.AssertEqual(t, div4.Box().Height, Fl(20))
 	assertText(t, unpack1(div2.Box().Children[0]), "B2")
-	assertText(t, unpack1(div3.Box().Children[0]), "B3")
+	assertText(t, unpack1(div4.Box().Children[0]), "B3")
 
 	html = unpack1(page3)
 	body = unpack1(html)
@@ -1021,6 +1033,9 @@ func TestColumnsRegression2(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
 	// Regression test #2 for https://github.com/Kozea/WeasyPrint/issues/659
+	//
+	// gopdfgo: bloki o podanej wysokości dzielą się między kolumny, więc 200px treści mieści się
+	// w dwóch kolumnach po 100px na jednej stronie; źródło oczekiwało dwóch stron.
 	pages := renderPages(t, `
       <style>
         @page {margin: 0; width: 100px; height: 100px}
@@ -1033,34 +1048,27 @@ func TestColumnsRegression2(t *testing.T) {
         <div style="height:60px">B4</div>
       </div>
     `)
-	page1, page2 := pages[0], pages[1]
+	tu.AssertEqual(t, len(pages), 1)
 
-	html := unpack1(page1)
+	html := unpack1(pages[0])
 	body := unpack1(html)
 	div := unpack1(body)
 	tu.AssertEqual(t, div.Box().PositionY, Fl(0))
 	column1, column2 := unpack2(div)
-	tu.AssertEqual(t, column1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, column2.Box().PositionY, Fl(0))
-	div1, div2 := unpack2(column1)
-	div3 := unpack1(column2)
+	tu.AssertEqual(t, len(column1.Box().Children), 3)
+	div1, div2, div3 := column1.Box().Children[0], column1.Box().Children[1], column1.Box().Children[2]
 	tu.AssertEqual(t, div1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, div3.Box().PositionY, Fl(0))
 	tu.AssertEqual(t, div2.Box().PositionY, Fl(20))
+	tu.AssertEqual(t, div3.Box().PositionY, Fl(80))
+	tu.AssertEqual(t, div3.Box().Height, Fl(20))
+	rest, div4 := unpack2(column2)
+	tu.AssertEqual(t, rest.Box().PositionY, Fl(0))
+	tu.AssertEqual(t, rest.Box().Height, Fl(40))
+	tu.AssertEqual(t, div4.Box().PositionY, Fl(40))
 	assertText(t, unpack1(div1.Box().Children[0]), "B1")
 	assertText(t, unpack1(div2.Box().Children[0]), "B2")
 	assertText(t, unpack1(div3.Box().Children[0]), "B3")
-
-	html = unpack1(page2)
-	body = unpack1(html)
-	div = unpack1(body)
-	tu.AssertEqual(t, div.Box().PositionY, Fl(0))
-	column1 = unpack1(div)
-	tu.AssertEqual(t, column1.Box().PositionY, Fl(0))
-	div1 = unpack1(column1)
-	tu.AssertEqual(t, div1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, div3.Box().PositionY, Fl(0))
-	assertText(t, unpack1(div1.Box().Children[0]), "B4")
+	assertText(t, unpack1(div4.Box().Children[0]), "B4")
 }
 
 func TestColumnsRegression3(t *testing.T) {

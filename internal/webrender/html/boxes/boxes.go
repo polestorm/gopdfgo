@@ -6,6 +6,7 @@
 package boxes
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/images"
@@ -281,6 +282,11 @@ type BoxFields struct {
 	Background *Background
 
 	RemoveDecorationSides [4]bool
+
+	// gopdfgo: fragment przodka elementu rozpinającego kolumny (column-span: all), który stoi po
+	// (SpannerSplitBefore) albo przed (SpannerSplitAfter) wyniesionym elementem; po tej stronie nie ma
+	// marginesu, obramowania ani odstępu wewnętrznego (CSS Multicol 1 § 6.1, CSS Break 3 § 5.4).
+	SpannerSplitBefore, SpannerSplitAfter bool
 
 	BorderImage, MaskBorderImage images.Image
 
@@ -628,7 +634,31 @@ func IsMonolithic(box Box) bool {
 	style := box.Box().Style
 	overflow, height := style.GetOverflow(), style.GetHeight()
 	return AtomicInlineLevelT.IsInstance(box) || ReplacedT.IsInstance(box) ||
-		overflow == "auto" || overflow == "scroll" || (overflow == "hidden" && height.Tag != pr.Auto)
+		overflow == "auto" || overflow == "scroll" || (overflow == "hidden" && height.Tag != pr.Auto) ||
+		HasContainment(box, "size")
+}
+
+// HasContainment mówi, czy pudełko ma podany rodzaj zawierania ("size", "layout", "paint"; CSS
+// Containment 1 § 3). Zawieranie nie dotyczy pudełek liniowych nieatomowych ani wewnętrznych pudełek tabeli.
+//
+// gopdfgo: z zawierania obsługujemy to, co wpływa na układ: zawieranie rozmiaru (pudełko jest
+// niepodzielne, a wysokość auto liczy się jak dla pudełka bez treści) oraz to, że zawieranie układu
+// i malowania zakłada niezależny kontekst formatowania. Przycinania treści przy zawieraniu malowania
+// nie ma.
+func HasContainment(box Box, kind string) bool {
+	value := string(box.Box().Style.GetContain())
+	if value == "none" || value == "" {
+		return false
+	}
+	if !(BlockLevelT.IsInstance(box) || AtomicInlineLevelT.IsInstance(box) || BlockContainerT.IsInstance(box)) {
+		return false
+	}
+	for _, word := range strings.Fields(value) {
+		if word == kind {
+			return true
+		}
+	}
+	return false
 }
 
 // Return whether this box establishes a block formatting context.
@@ -641,6 +671,7 @@ func EstablishesFormattingContext(box_ Box) bool {
 		(BlockContainerT.IsInstance(box_) && !BlockT.IsInstance(box_)) ||
 		(BlockT.IsInstance(box_) && box.Style.GetOverflow() != "visible" && box.Style.GetOverflow() != "clip") ||
 		box.Style.GetDisplay().Has(pr.FlowRoot) ||
+		(BlockT.IsInstance(box_) && (HasContainment(box_, "layout") || HasContainment(box_, "paint"))) ||
 		// gopdfgo: podpis tabeli zakłada kontekst formatowania blokowego (CSS 2 §17.4), więc marginesy
 		// jego dzieci nie wychodzą poza podpis; w źródle podpis nie był tu uwzględniony.
 		TableCaptionT.IsInstance(box_))

@@ -20,7 +20,7 @@ pass	breaks	css/css-break/block-001-wm-vrl-print.html
 fail	breaks	css/css-break/block-002-wm-vlr-print.html	strony 2 vs 4
 fail	breaks	css/css-break/block-002-wm-vrl-print.html	strony 2 vs 4
 pass	breaks	css/css-break/block-in-inline-015-print.html	
-fail	breaks	css/css-break/break-inside-avoid-multicol-001-print.html	strony 1 vs 2
+pass	breaks	css/css-break/break-inside-avoid-multicol-001-print.html	
 pass	breaks	css/css-break/break-inside-avoid-multicol-iframe-crash-print.html	
 pass	breaks	css/css-break/firefox-bug-2026295-print.html	
 fail	breaks	css/css-break/root-margin-001-print.html	strona 2: różne piksele 2394
@@ -200,7 +200,7 @@ pass	page-context	css/css-page/layers-003-print.html
 pass	page-context	css/css-page/layers-004-print.html	
 pass	page-context	css/css-page/page-background-001-print.html	
 fail	page-context	css/css-page/page-background-002-print.html	strona 2: różne piksele 1233
-fail	page-context	css/css-page/page-background-003-print.html	strony 2 vs 3
+fail	page-context	css/css-page/page-background-003-print.html	strona 2: różne piksele 7081
 pass	page-context	css/css-page/page-background-004-print.html	
 pass	page-context	css/css-page/page-context-inherits-from-root-custom-property-print.html	
 pass	page-context	css/css-page/page-context-inherits-from-root-em-rem-print.html	

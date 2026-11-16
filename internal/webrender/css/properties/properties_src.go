@@ -139,6 +139,7 @@ const (
 	PAspectRatio   // gopdfgo: CSS Sizing 4 § 5.1; 0 oznacza auto
 	PBoxShadow     // gopdfgo: CSS Backgrounds 3 § 6.1
 	PTextShadow    // gopdfgo: CSS Text Decoration 3 § 4; dziedziczona
+	PContain       // gopdfgo: CSS Containment 1 § 2; lista słów w stałej kolejności albo "none"
 	PBoxSizing
 
 	// The following properties are all background related,

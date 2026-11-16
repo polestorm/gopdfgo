@@ -812,6 +812,42 @@ Wspólne dla obu katalogów:
     jego rozmiar (WHATWG HTML § 15.5.14); źródło je pomijało;
   - `html/layout/block.go` (`prepareFieldsetLegend`): treść ramki zaczyna się pod legendą, w odległości
     górnego odstępu ramki; wcześniej o ten odstęp za wysoko;
+- kolumny, 2026-11-16 (CSS Multicol 1, paczka pierwsza):
+  - `html/layout/column.go` (`hoistSpanners`, `mayHoldSpanner`), `html/boxes/boxes.go`
+    (`SpannerSplitBefore`, `SpannerSplitAfter`), `html/layout/block.go`: element z `column-span: all`
+    rozpina kolumny także wtedy, gdy stoi głębiej niż dziecko kontenera (§ 6.1); przodek jest dzielony
+    na fragmenty przed elementem i po nim, bez obramowań w miejscu podziału. Źródło obsługiwało tylko
+    bezpośrednie dzieci kontenera;
+  - `html/layout/block.go` (`canSplitFixedHeight`, warunek `splittable`): blok o podanej wysokości jest
+    dzielony na dole kolumny (ADR 0015); w źródle treść kolumn nie była dzielona wcale. Pudełka
+    niepodzielne w kolumnach nie dzielą też swojej treści;
+  - `html/layout/column.go`: górny margines kontenera kolumn zwija się z marginesami sąsiednimi (CSS 2
+    § 8.3.1); w źródle nie był doliczany, więc kontener z marginesem większym niż margines poprzednika
+    stał za wysoko;
+  - `html/layout/column.go`: wysokość równoważenia liczona z całej wysokości treści razem z dolnymi
+    marginesami, a kolumna podzielona w środku pudełka liczy się do końca ostatniego wiersza
+    (`fragmentBottom`); kontener ma wysokość z równoważenia, a dolny margines ostatniego pudełka, który
+    się w niej nie mieści, jest obcinany (CSS Break 3 § 5.2). W źródle podzielone pudełko uchodziło za
+    wypełniające kolumnę, a kontener rósł o margines; kolumny wychodziły o kilka punktów wyższe niż
+    w przeglądarkach (dokument `21-mixed-report`);
+  - `html/layout/column.go`: krok równoważenia uwzględnia grupę pudełek, których nie wolno rozdzielić
+    (`break-before`/`break-after: avoid`), i liczy ostatnie z nich tylko do pierwszego możliwego podziału
+    (`firstPieceHeight`); w źródle liczyło się tylko pierwsze pudełko następnej kolumny;
+  - `html/layout/column.go`: kolumny nie są wyższe niż reszta podanej wysokości kontenera, a dodatkowe
+    kolumny w kierunku wiersza powstają tylko wtedy, gdy ogranicza je ta wysokość, a nie koniec strony
+    (§ 8.2); `context.inColumn` jest przywracany po wyjściu z kontenera zagnieżdżonego;
+  - `html/document/draw_border.go` (`drawColumnRules`): style `inset` i `outset` linii między kolumnami
+    to `ridge` i `groove` (CSS Multicol 1 § 4.2, model obramowań zwijanych); kolory połówek jak w lewym
+    obramowaniu;
+  - `html/layout/column_test.go`: `TestColumnsRegression1` i `TestColumnsRegression2` przepisane, bo
+    oczekiwały przenoszenia bloków o podanej wysokości w całości (zob. ADR 0015);
+- `contain` (CSS Containment 1), 2026-11-16: nowa właściwość (`css/properties`, `css/validation/validation.go`
+  `contain`, `html/boxes/boxes.go` `HasContainment`). Obsługujemy to, co wpływa na układ: `size` czyni
+  pudełko niepodzielnym (między strony jest krojone tylko wtedy, gdy nie mieści się na żadnej, jak inne
+  wysokie bloki) i liczy wysokość auto jak dla pudełka bez treści; `layout` i `paint` zakładają
+  niezależny kontekst formatowania. Bez przycinania treści przy `paint`, bez `contain-intrinsic-size`,
+  szerokość wewnętrzna nie jest zerowana. Źródło właściwości nie znało. Pliki generowane
+  (`properties_gen.go`, `accessors_gen.go`) odświeżone generatorem `css/properties/cmd`;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

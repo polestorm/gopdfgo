@@ -38,6 +38,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	height_ := style.GetHeight()
 	originalBottomSpace := bottomSpace
 
+	wasInColumn := context.inColumn
 	context.inColumn = true
 
 	if style.GetPosition().String == "relative" {
@@ -45,9 +46,22 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		absoluteBoxes = &[]*AbsolutePlaceholder{}
 	}
 
+	// gopdfgo: element rozpinający może stać głębiej niż dziecko kontenera (CSS Multicol 1 § 6.1);
+	// wynosimy go na poziom dzieci, dzieląc przodków. Zmieniamy pudełko źródłowe, żeby indeksy
+	// wznowienia na następnej stronie odnosiły się do tej samej listy; operacja jest idempotentna.
+	if hoisted, changed := hoistSpanners(box_.Box().Children); changed {
+		box_.Box().Children = hoisted
+	}
 	box_ = bo.CopyWithChildren(box_, box_.Box().Children).(bo.BlockBoxITF) // CopyWithChildren preserves the concrete type of box_
 	box := box_.Box()
-	box.PositionY += collapseMargin(adjoiningMargins) - box.MarginTop.V()
+	// gopdfgo: własny górny margines kontenera kolumn zwija się z marginesami sąsiednimi (CSS 2 § 8.3.1);
+	// w źródle nie był do nich doliczany, więc kontener z marginesem większym niż margines poprzednika
+	// stał za wysoko.
+	if marginTop, ok := box.MarginTop.(pr.Float); ok {
+		box.PositionY += collapseMargin(append(append([]pr.Float(nil), adjoiningMargins...), marginTop)) - marginTop
+	} else {
+		box.PositionY += collapseMargin(adjoiningMargins)
+	}
 
 	// Set height if defined
 	heightDefined := false
@@ -55,10 +69,15 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		if height_.Unit != pr.Px {
 			panic(fmt.Sprintf("expected Px got %v", height_))
 		}
-		heightDefined = true
 		emptySpace := context.pageBottom - box.ContentBoxY() - height_.Value
+		// gopdfgo: dodatkowe kolumny w kierunku wiersza powstają tylko wtedy, gdy treść ogranicza
+		// wysokość kontenera; gdy wcześniej kończy się strona, dalsza treść przechodzi na następną
+		// stronę (CSS Multicol 1 § 8.2). W źródle podana wysokość zawsze dawała dodatkowe kolumny.
+		heightDefined = emptySpace >= bottomSpace
 		bottomSpace = max(bottomSpace, emptySpace)
 	}
+
+	definedBottomSpace := bottomSpace
 
 	blockLevelWidth(box_, nil, containingBlock)
 
@@ -208,6 +227,11 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		adjoiningMargins = nil
 		columnBox := createColumnBox(box_, containingBlock, columnChildren, width, currentPositionY)
 		height := context.pageBottom - currentPositionY - originalBottomSpace
+		// gopdfgo: kolumny nie są wyższe niż to, co zostało z podanej wysokości kontenera; w źródle
+		// pierwsza próba i równoważenie liczyły do końca strony.
+		if limited := context.pageBottom - currentPositionY - definedBottomSpace; heightDefined && limited > 0 {
+			height = limited
+		}
 		maxHeight := height
 
 		// Try to render columns until the content fits, increase the column
@@ -218,6 +242,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		originalPageIsEmpty := pageIsEmpty
 		pageIsEmpty = false
 		stopRendering, balancing := false, false
+		balancedHeight := false
 		for {
 			// Remove extra excluded shapes introduced during the previous loop
 			context.excludedShapes.list = (context.excludedShapes.list)[:len(originalExcludedShapes)]
@@ -227,6 +252,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			var (
 				consumedHeights []pr.Float
 				newBoxes        []Box
+				trailingMargin  pr.Float
 			)
 			for i := 0; i < count; i += 1 {
 				// Render one column
@@ -250,10 +276,16 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 				// Calculate consumed height, empty space and next box height
 				var lastInFlowChildren *bo.BoxFields
+				var lastInFlowBox Box
 				for _, child := range newBox.Box().Children {
 					if ch := child.Box(); ch.IsInNormalFlow() {
-						lastInFlowChildren = ch
+						lastInFlowChildren, lastInFlowBox = ch, child
 					}
+				}
+				// czy kolumna kończy się w środku pudełka (dalszy ciąg w następnej kolumnie)
+				var continued tree.ResumeStack
+				if resumeAt != nil {
+					_, continued = resumeAt.Unpack()
 				}
 
 				var consumedHeight, emptySpace, nextBoxHeight pr.Float
@@ -262,20 +294,58 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 					consumedHeight = lastInFlowChildren.MarginHeight() + lastInFlowChildren.PositionY - currentPositionY
 					emptySpace = height - consumedHeight
 					consumedHeight -= lastInFlowChildren.MarginBottom.V()
+					trailingMargin += max(0, lastInFlowChildren.MarginBottom.V())
+					// gopdfgo: pudełko podzielone w środku jest rozciągane do dołu kolumny, więc jego
+					// wysokość nie mówi, ile treści się zmieściło; liczymy do końca ostatniego wiersza.
+					// W źródle taka kolumna uchodziła za zapełnioną i zawyżała wysokość równoważenia.
+					if continued != nil {
+						consumedHeight = fragmentBottom(lastInFlowBox, continued) - currentPositionY
+						emptySpace = height - consumedHeight
+					}
 
 					// Get the minimum size needed to render the next box
 					if columnSkipStack != nil {
-						nextBox, _ := blockBoxLayout(context, columnBox, pr.Inf,
+						// Gdy następnego pudełka nie wolno oddzielić od kolejnego, układamy resztę treści
+						// bez ograniczenia wysokości, żeby poznać wysokość całej grupy.
+						groupSpace := pr.Inf
+						// Tylko gdy kolumna zaczyna się od całego pudełka: przy dalszym ciągu pudełka
+						// podzielonego wcześniej zostaje krok źródła.
+						if top, inner := columnSkipStack.Unpack(); inner == nil && top >= 0 && top+1 < len(columnChildren) &&
+							columnChildren[top].Box().IsInNormalFlow() && columnChildren[top+1].Box().IsInNormalFlow() &&
+							avoidPageBreak(blockLevelPageBreak(columnChildren[top], columnChildren[top+1]), context) {
+							groupSpace = -pr.Inf
+						}
+						nextBox, _ := blockBoxLayout(context, columnBox, groupSpace,
 							columnSkipStack, containingBlock, true, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
 							false, -1)
 						var nextChildren []Box
 						if nextBox != nil { // gopdfgo: układ może nie zwrócić pudełka; w źródle panika
 							nextChildren = nextBox.Box().Children
 						}
+						// gopdfgo: liczy się cała grupa pudełek, których nie wolno rozdzielić (break-before
+						// albo break-after: avoid); w źródle tylko pierwsze pudełko, więc kolumny rosły
+						// o zbyt mały krok i równoważenie kończyło się za wysoko.
+						// Ostatnie pudełko grupy liczy się tylko do pierwszego miejsca, w którym samo może
+						// się podzielić: krok za duży dałby kolumny wyższe, niż trzeba.
+						var previous Box
 						for _, child := range nextChildren {
-							if child.Box().IsInNormalFlow() {
-								nextBoxHeight = child.Box().MarginHeight()
-								break
+							if !child.Box().IsInNormalFlow() {
+								continue
+							}
+							if previous != nil {
+								if !avoidPageBreak(blockLevelPageBreak(previous, child), context) {
+									break
+								}
+								nextBoxHeight += previous.Box().MarginHeight()
+							}
+							previous = child
+						}
+						if previous != nil {
+							if nextBoxHeight == 0 && continued == nil {
+								nextBoxHeight = previous.Box().MarginHeight()
+							} else {
+								// także dalszy ciąg podzielonego pudełka potrzebuje tylko następnego wiersza
+								nextBoxHeight += firstPieceHeight(previous)
 							}
 						}
 						if nextBox != nil {
@@ -358,7 +428,11 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 					maxHeight -= lastFootnotesHeight
 					if style.GetColumnFill() == "balance" || index < columnsAndBlocks[len(columnsAndBlocks)-1].index {
 						balancing = true
-						height = sum(consumedHeights) / pr.Float(count)
+						// gopdfgo: do wysokości wyjściowej liczy się też dolny margines ostatniego pudełka
+						// (cała wysokość treści podzielona przez liczbę kolumn, jak w przeglądarkach);
+						// w źródle był pomijany, a kontener i tak go potem doliczał.
+						height = (sum(consumedHeights) + trailingMargin) / pr.Float(count)
+						balancedHeight = true
 					} else {
 						break
 					}
@@ -380,8 +454,26 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 		// Replace the current box children with real columns
 		i := 0
-		var maxColumnHeight pr.Float
+		var maxColumnHeight, maxContentHeight pr.Float
 		var columns []Box
+		// wysokość treści kolumny bez dolnego marginesu ostatniego pudełka
+		contentHeight := func(column Box) pr.Float {
+			var last *bo.BoxFields
+			for _, child := range column.Box().Children {
+				if ch := child.Box(); ch.IsInNormalFlow() {
+					last = ch
+				}
+			}
+			if last == nil {
+				return column.Box().MarginHeight()
+			}
+			withMargin := last.PositionY + last.MarginHeight() - currentPositionY
+			if full := column.Box().MarginHeight(); full > withMargin+0.01 {
+				// wysokość kolumny wyznaczają elementy pływające, nie ostatnie pudełko
+				return full
+			}
+			return withMargin - max(0, last.MarginBottom.V())
+		}
 		for {
 			i_ := pr.Float(i)
 
@@ -403,6 +495,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			if newChild != nil && columnSkipStack != nil && reflect.DeepEqual(columnSkipStack, skipStack) {
 				columns = append(columns, newChild)
 				maxColumnHeight = max(maxColumnHeight, newChild.Box().MarginHeight())
+				maxContentHeight = max(maxContentHeight, contentHeight(newChild))
 				skipStack = nil
 				bottomSpace = originalBottomSpace
 				break
@@ -420,6 +513,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			skipStack = columnSkipStack
 			columns = append(columns, newChild)
 			maxColumnHeight = max(maxColumnHeight, newChild.Box().MarginHeight())
+			maxContentHeight = max(maxContentHeight, contentHeight(newChild))
 			if skipStack == nil {
 				bottomSpace = originalBottomSpace
 				break
@@ -432,6 +526,13 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				// direction.
 				break
 			}
+		}
+
+		// gopdfgo: kolumny zrównoważone mają wysokość z równoważenia; dolny margines ostatniego pudełka,
+		// który się w niej nie mieści, jest obcinany jak przy podziale (CSS Break 3 § 5.2). W źródle
+		// kontener rósł o ten margines.
+		if balancedHeight && !stopRendering && !breakPage {
+			maxColumnHeight = min(maxColumnHeight, max(height, maxContentHeight))
 		}
 
 		// Update the current y position and set the columns’ height
@@ -454,7 +555,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 	if len(box.Children) != 0 && len(newChildren) == 0 {
 		// The box has children but none can be drawn, let's skip the whole box
-		context.inColumn = false
+		context.inColumn = wasInColumn
 
 		if traceMode {
 			traceLogger.Dump("columnLayout: exit early")
@@ -511,7 +612,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		context.pageBottom -= context.currentFootnoteArea.MarginHeight()
 	}
 
-	context.inColumn = false
+	context.inColumn = wasInColumn
 
 	if traceMode {
 		traceLogger.Dump(fmt.Sprintf("columnsLayout -> %s, %v", skipStack, nextPage))
@@ -547,4 +648,122 @@ func createColumnBox(box_ Box, containingBlock containingBlock, children []Box, 
 	columnBox.Box().PositionX = box_.Box().ContentBoxX()
 	columnBox.Box().PositionY = positionY
 	return columnBox
+}
+
+// mayHoldSpanner mówi, czy potomek kontenera kolumn należy do tego samego kontekstu formatowania
+// blokowego, więc element z column-span: all w jego wnętrzu rozpina kolumny kontenera.
+func mayHoldSpanner(child Box) bool {
+	box := child.Box()
+	if !bo.BlockT.IsInstance(child) || !box.IsInNormalFlow() || box.IsTableWrapper || box.IsColumn {
+		return false
+	}
+	// przekształcenie też zatrzymuje element rozpinający (jak w przeglądarkach; test WPT
+	// multicol-span-all-010)
+	if bo.EstablishesFormattingContext(child) || len(box.Style.GetTransform()) != 0 {
+		return false
+	}
+	return box.Style.GetColumnWidth().Tag == pr.Auto && box.Style.GetColumnCount().String == "auto"
+}
+
+// hoistSpanners wynosi elementy rozpinające kolumny z potomków na poziom podanej listy dzieci.
+// Przodek zostaje podzielony na fragmenty przed elementem i po nim, bez obramowań w miejscu podziału.
+func hoistSpanners(children []Box) ([]Box, bool) {
+	var out []Box
+	changed := false
+	for i, child := range children {
+		if bo.IsColumnSpanner(child) || !mayHoldSpanner(child) {
+			if changed {
+				out = append(out, child)
+			}
+			continue
+		}
+		inner, _ := hoistSpanners(child.Box().Children)
+		hasSpanner := false
+		for _, c := range inner {
+			if bo.IsColumnSpanner(c) {
+				hasSpanner = true
+				break
+			}
+		}
+		if !hasSpanner {
+			if changed {
+				out = append(out, child)
+			}
+			continue
+		}
+		if !changed {
+			changed = true
+			out = append(out, children[:i]...)
+		}
+		var run []Box
+		first := true
+		flush := func(last bool) {
+			part := bo.CopyWithChildren(child, run)
+			part.Box().SpannerSplitBefore = !first
+			part.Box().SpannerSplitAfter = !last
+			out = append(out, part)
+			run, first = nil, false
+		}
+		for _, c := range inner {
+			if bo.IsColumnSpanner(c) {
+				// między sąsiednimi elementami rozpinającymi nie ma fragmentu przodka
+				if first || len(run) != 0 {
+					flush(false)
+				}
+				out = append(out, c)
+				continue
+			}
+			run = append(run, c)
+		}
+		flush(true)
+	}
+	if !changed {
+		return children, false
+	}
+	return out, true
+}
+
+// firstPieceHeight podaje wysokość najmniejszego początkowego kawałka pudełka, po którym wolno je
+// podzielić: pierwszy wiersz albo pierwsze pudełko bez dzieci, razem z górnymi odstępami przodków.
+func firstPieceHeight(box_ Box) pr.Float {
+	box := box_.Box()
+	if bo.LineT.IsInstance(box_) {
+		return box.Height.V()
+	}
+	for _, child := range box.Children {
+		if child.Box().IsInNormalFlow() && (bo.LineT.IsInstance(child) || bo.BlockLevelT.IsInstance(child)) {
+			return box.MarginTop.V() + box.BorderTopWidth.V() + box.PaddingTop.V() + firstPieceHeight(child)
+		}
+	}
+	return box.MarginHeight()
+}
+
+// fragmentBottom podaje dolną krawędź treści pudełka podzielonego w miejscu opisanym przez resume:
+// koniec ostatniego wiersza albo ostatniego całego pudełka, bez rozciągnięcia do dołu kolumny.
+func fragmentBottom(box_ Box, resume tree.ResumeStack) pr.Float {
+	box := box_.Box()
+	full := box.PositionY + box.MarginHeight() - box.MarginBottom.V()
+	if resume == nil || bo.LineT.IsInstance(box_) {
+		return full
+	}
+	if _, ok := resume.Remainder(); ok {
+		return full
+	}
+	if _, ok := resume.Overflow(); ok {
+		return full
+	}
+	if _, _, ok := resume.Slice(); ok {
+		return full
+	}
+	var last Box
+	for _, child := range box.Children {
+		if child.Box().IsInNormalFlow() && (bo.LineT.IsInstance(child) || bo.BlockLevelT.IsInstance(child)) {
+			last = child
+		}
+	}
+	if last == nil {
+		return full
+	}
+	_, inner := resume.Unpack()
+	return min(full, fragmentBottom(last, inner))
 }

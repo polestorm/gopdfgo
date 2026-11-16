@@ -36,6 +36,14 @@ func (ctx *drawContext) setMaskBorder(box_ Box) {
 func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 	ruleWidth := box.Style.GetColumnRuleWidth().Value
 	ruleStyle := box.Style.GetColumnRuleStyle()
+	// gopdfgo: style linii między kolumnami czyta się jak w modelu obramowań zwijanych (CSS Multicol 1
+	// § 4.2, CSS 2 § 17.6.2): inset to ridge, outset to groove. W źródle były rysowane jednym kolorem.
+	switch ruleStyle {
+	case "inset":
+		ruleStyle = "ridge"
+	case "outset":
+		ruleStyle = "groove"
+	}
 	columnGap := box.Style.GetColumnGap()
 	var gap pr.Float
 	if columnGap.Tag == pr.Normal {
@@ -59,6 +67,11 @@ func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 			borderBox := pr.Rectangle{positionX, child.Box().PositionY, ruleWidth, child.Box().Height.V()}
 			clipBorderSegment(ctx.dst, ruleStyle, fl(ruleWidth), left, borderBox, &borderWidths, nil)
 			color := styledColor(ruleStyle, tree.ResolveColor(box.Style, pr.PColumnRuleColor).RGBA, left)
+			if ruleStyle == "ridge" || ruleStyle == "groove" {
+				// drawRectBorder maluje pierwszym kolorem połowę zewnętrzną, a zwykłe obramowanie
+				// wewnętrzną; linia ma wyglądać jak lewe obramowanie w tym samym stylu
+				color[0], color[1] = color[1], color[0]
+			}
 			ctx.drawRectBorder(borderBox, borderWidths, ruleStyle, color)
 		})
 	}

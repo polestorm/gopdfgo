@@ -1267,3 +1267,46 @@ dwie poprawki sprawdzone sondażami obszarów: 2479 testów CSS 2 i list, 953 te
 (78,1%)**, ściśle 6732, krawędziowo 387, niezaliczone 1991; poprzednio 7112. Zyskane 8 (elementy blokowe
 w liniowych i marginesy), stracony 1 (`css-flexbox/flexitem-stretch-range`: suwak `input type=range`
 po zmianie rozmiarów pól). Reftesty druku: **242 z 340**, bez zmian.
+
+## Kolumny, paczka pierwsza: element rozpinający, dzielenie bloków, równoważenie, `contain` (2026-11-16)
+
+Punkt wyjścia: 253 niezaliczone testy `css-multicol` i największa różnica w korpusie (`21-mixed-report`,
+193 słowa ponad 3 pt od wydruku Chromium).
+
+Co zrobione (szczegóły w `THIRD_PARTY.md`):
+
+- element z `column-span: all` rozpina kolumny także w głębi drzewa; przodek jest dzielony na fragmenty;
+- blok o podanej wysokości jest dzielony na dole kolumny (ADR 0015), więc równoważenie działa dla treści
+  złożonej z bloków, a nie tylko z wierszy;
+- górny margines kontenera kolumn zwija się z marginesem poprzednika (samo to dało ok. 20 testów);
+- wysokość równoważenia: cała wysokość treści przez liczbę kolumn, kolumna podzielona w środku akapitu
+  liczona do ostatniego wiersza, dolny margines ostatniego pudełka obcinany. To była przyczyna różnicy
+  w `21-mixed-report`: kontener wychodził o 3 pt wyższy niż w Chromium i akapit po kolumnach spadał na
+  następną stronę. Po poprawce 4 słowa ponad 3 pt (było 193);
+- krok równoważenia dla grup pudełek z `break-before`/`break-after: avoid`;
+- kolumny o podanej wysokości wystające poza stronę przechodzą na następną stronę zamiast tworzyć
+  dodatkową kolumnę;
+- linie między kolumnami w stylach `inset`, `outset`, `groove`, `ridge`;
+- nowa właściwość `contain` (CSS Containment 1) w zakresie wpływającym na układ: `size` (pudełko
+  niepodzielne, wysokość auto jak bez treści), `layout` i `paint` (niezależny kontekst formatowania).
+  Korzysta z niej 99 testów W3C z mierzonych obszarów, głównie jako ze sposobu na pudełko niepodzielne.
+
+Wynik: sondaż ekranowy 7189 z 9110 (ściśle 6795, krawędziowo 394), zyskane 74 (kolumny 73, siatka 1),
+stracone 4; `css-multicol` bez `column-height` 221 z 370 (było 153). Reftesty druku 243 z 340 (zyskany
+`break-inside-avoid-multicol-001-print`).
+
+Straty i ich przyczyny:
+
+- `multicol-contained-absolute`: blok zawierający element pozycjonowany nie jest dzielony między kolumny,
+  a wzorzec (zwykły blok) już tak; potrzebny podział elementów pozycjonowanych;
+- `multicol-span-all-rule-001`: kontener wyższy niż strona sondażu (600 px); test i wzorzec dzielą się
+  teraz między strony inaczej na drugiej stronie, pierwsza jest zgodna;
+- `multicol-fill-balance-032`: sam element pływający z `break-inside: avoid` jako treść równoważonych
+  kolumn trafia na następną stronę (próba równoważenia uznaje go za mieszczący się, właściwy układ nie);
+- `grid-lanes-contain-intrinsic-size-015`: układ `grid-lanes` nie jest obsługiwany, test przechodził
+  przypadkiem, dopóki `contain` było pomijane.
+
+Co zostało w kolumnach (149 testów): kolumny zagnieżdżone i ich podział między kolumny zewnętrzne
+(ok. 45), podział elementu rozpinającego (`spanner-fragmentation-*`, 13), wysokości procentowe dzieci
+kontenera o podanej wysokości (`multicol-span-all-children-height-*`), elementy pozycjonowane po elemencie
+rozpinającym, kolumny w komórce tabeli, pismo pionowe.

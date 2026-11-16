@@ -152,6 +152,7 @@ var (
 		pr.PColumnRuleWidth:         borderWidth,
 		pr.POutlineWidth:            borderWidth,
 		pr.POutlineOffset:           outlineOffset,
+		pr.PContain:                 contain,
 		pr.PAspectRatio:             aspectRatio,
 		pr.PBoxShadow:               boxShadow,
 		pr.PTextShadow:              textShadow,
@@ -2916,6 +2917,46 @@ func aspectRatio(tokens []Token, _ string) pr.CssProperty {
 		return -ratio
 	}
 	return ratio
+}
+
+// gopdfgo: “contain“ (CSS Containment 1 § 2): none | strict | content | [size || layout || style || paint],
+// oraz inline-size z poziomu 2. Wartość obliczona to słowa w stałej kolejności; strict i content
+// są rozwijane. Źródło tej właściwości nie znało.
+func contain(tokens []Token, _ string) pr.CssProperty {
+	if len(tokens) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, token := range tokens {
+		keyword := getKeyword(token)
+		switch keyword {
+		case "none", "strict", "content":
+			if len(tokens) != 1 {
+				return nil
+			}
+			switch keyword {
+			case "strict":
+				return pr.String("size layout style paint")
+			case "content":
+				return pr.String("layout style paint")
+			}
+			return pr.String("none")
+		case "size", "inline-size", "layout", "style", "paint":
+			if seen[keyword] || (keyword == "size" && seen["inline-size"]) || (keyword == "inline-size" && seen["size"]) {
+				return nil
+			}
+			seen[keyword] = true
+		default:
+			return nil
+		}
+	}
+	var parts []string
+	for _, keyword := range [...]string{"size", "inline-size", "layout", "style", "paint"} {
+		if seen[keyword] {
+			parts = append(parts, keyword)
+		}
+	}
+	return pr.String(strings.Join(parts, " "))
 }
 
 // gopdfgo: “outline-offset“ (CSS UI 4 § 3.2): długość, także ujemna; źródło tej właściwości nie znało.

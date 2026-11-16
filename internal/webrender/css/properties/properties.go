@@ -192,6 +192,7 @@ var InitialValues = Properties{
 	PAspectRatio:   Float(0),                                  // gopdfgo: auto
 	PBoxShadow:     BoxShadows{},                              // gopdfgo: none
 	PTextShadow:    BoxShadows{},                              // gopdfgo: none
+	PContain:       String("none"),                            // gopdfgo
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po rundzie na dokumentach (cały korpus wobec wydruku Chromium). Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po pierwszej paczce kolumn (`css-multicol`, `contain`). Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, renderowane bez pomniejszania
@@ -13,10 +13,10 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7119 z 9110 (78,1%)** | ściśle 6732, krawędziowo 387 |
-| Reftesty druku W3C | **242 z 340 (71,2%)** | wszystkie ściśle |
+| Sondaż ekranowy W3C | **7189 z 9110 (78,9%)** | ściśle 6795, krawędziowo 394 |
+| Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 20 z 21 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 99 funkcji testowych, wszystkie przechodzą | w tym 74 w `regression_test.go` |
+| Testy własne | 100 funkcji testowych, wszystkie przechodzą | w tym 75 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
 | Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
@@ -52,6 +52,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  ::first-line, abspos w siatce 7094 ██████████████████████████████████████▉ 77,9%
 16.11  siatka: wysokość z wiersza   7112  ███████████████████████████████████████  78,1%
 16.11  runda na dokumentach         7119  ███████████████████████████████████████  78,1%
+16.11  kolumny, contain             7189  ███████████████████████████████████████▍ 78,9%
 ```
 
 (*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
@@ -102,20 +103,20 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5837)                    ██████████████████▊  93,8%    359
+CSS 2 (5837)                    ██████████████████▊  94,0%    351
 css-tables (141)                ███████████████▋     78,7%     30
 css-lists (150)                 ███████████████▍     77,3%     34
-css-flexbox (952)               ██████████████▏      70,8%    278
-css-grid bez lanes i subgrid    █████████████▋       68,4%    202
+css-flexbox (952)               ██████████████▏      70,7%    279
+css-grid bez lanes i subgrid    █████████████▋       68,6%    201
+css-multicol (370)              ███████████▉         59,7%    149
 css-content (37)                ███████████▎         56,8%     16
-css-multicol (370)              ████████▎            41,4%    217
 css-grid: subgrid (88)          ████▊                23,9%     67
-css-grid: grid-lanes (865)      ██▎                  11,4%    766
-css-multicol: column-height (30) ▋                    3,3%     29
+css-grid: grid-lanes (865)      ██▎                  11,3%    767
+css-multicol: column-height (30) ██                  10,0%     27
 ```
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
-jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6991 z 8127 (86,0%)**.
+jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **7067 z 8127 (87,0%)**.
 
 ## Co zostało do naprawienia
 
@@ -129,7 +130,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Elementy siatki: procenty i `minmax` z obrazem, tabela jako element, ponowne liczenie kolumn po wierszach | ok. 30 testów `grid-items` | średni |
 | Pola marginesów: pozostałe wymiary (część wymaga pisma pionowego) | 8 testów `margin-boxes/dimensions` | średni |
 | Podział kontenera flex między strony: żądanie podziału w środku linii zagnieżdżonej, wysoki element pływający w elemencie flex | 5 reftestów druku flex | średni |
-| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 98 z 340 niezaliczonych | duży, po kawałku |
+| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 97 z 340 niezaliczonych | duży, po kawałku |
 | `::first-line`: `vertical-align`, `text-transform`, elementy pływające w pierwszym wierszu | 4 testy; podstawa działa od 16.11 | mały |
 | Tabela obok elementów pływających: zwężanie, żeby ominąć kolejny | `table-among-floats-001` (strata z 16.11) | mały |
 
@@ -137,7 +138,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 | Temat | Skąd wiadomo | Rozmiar |
 |---|---|---|
-| Kolumny: element rozpinający w zagnieżdżeniu, równoważenie, podział | 217 testów `css-multicol` | duży |
+| Kolumny: kolumny zagnieżdżone (ok. 45 testów), podział elementu rozpinającego i kolumn między kolumny zewnętrzne i strony, wysokości procentowe dzieci, elementy pozycjonowane po elemencie rozpinającym | 149 testów `css-multicol`; element rozpinający w głębi drzewa, dzielenie bloków i równoważenie działają od 16.11 | duży, po kawałku |
 | Elementy pozycjonowane w siatce | 62 testy `css-grid/abspos`, większość z pismem pionowym, `rtl` albo `last baseline` | średni |
 | Elementy pływające: przypadki brzegowe z `clear` i marginesami | 58 testów CSS 2 | średni |
 | Nieobsługiwane właściwości z ostrzeżeniem: `conic-gradient`, `clip-path`, `translate/rotate/scale`, `text-wrap`, `rgb(from …)`, `round()` | lista z audytu | mały każda |
@@ -156,7 +157,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 ## Odchylenie od wydruków Chromium
 
-Cały korpus, 2026-11-16 po rundzie na dokumentach; słowa dopasowane przez wyrównanie ciągów. Szczegóły
+Cały korpus, 2026-11-16 po pierwszej paczce kolumn; słowa dopasowane przez wyrównanie ciągów. Szczegóły
 i przyczyny pozostałych różnic są w `docs/feature-audit.md` (sekcja „Runda na dokumentach”).
 
 | Dokument | Słowa wspólne | Mediana w pionie (pt) | Ponad 3 pt w pionie | Ponad 3 pt w poziomie | Na innej stronie |
@@ -181,10 +182,11 @@ i przyczyny pozostałych różnic są w `docs/feature-audit.md` (sekcja „Runda
 | `18-toc-running-elements` | 910 | 0,32 | 25 | 0 | 0 |
 | `19-flex-grid-pagination` | 2321 | 0,21 | 25 | 54 | 0 |
 | `20-invoice` | 826 | 0,68 | 0 | 0 | 0 |
-| `21-mixed-report` | 845 | 0,29 | 193 | 26 | 0 |
+| `21-mixed-report` | 846 | 0,22 | 4 | 26 | 0 |
 
-W 15 z 21 dokumentów żadne słowo nie odbiega o więcej niż 3 pt w pionie. Największa pozostała różnica
-to kolumny w `21-mixed-report`. Dla porównania, rano 16.11: `02-register-table` 5,57 pt (2015 słów ponad
+W 15 z 21 dokumentów żadne słowo nie odbiega o więcej niż 3 pt w pionie. Kolumny w `21-mixed-report`
+zgadzają się od 16.11 (było 193 słów ponad 3 pt: kontener kolumn był o 3 pt za wysoki i akapit po nim
+spadał na następną stronę). Dla porównania, rano 16.11: `02-register-table` 5,57 pt (2015 słów ponad
 3 pt), `07-images` 43,3 pt, `10-preformatted` 17,2 pt, `13-forms-html-elements` 21,5 pt.
 
 ## Sposób pracy od 2026-11-16

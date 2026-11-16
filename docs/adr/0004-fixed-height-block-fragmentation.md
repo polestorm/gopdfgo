@@ -36,5 +36,7 @@ Przewidywalność jest ważniejsza niż zgodność z przeglądarką w punkcie, k
   zostaje ich dalszy ciąg.
 - Ta sama reguła obowiązuje obrazy blokowe w przepływie: wyższy niż strona jest krojony, mieszczący się na
   stronie przenoszony w całości; `break-inside: avoid` wyłącza krojenie obrazu.
-- Ograniczenia obecnej wersji podziału: nie są dzielone elementy flex i grid, treść kolumn, bloki z `overflow`
+- Ograniczenia obecnej wersji podziału: nie są dzielone elementy flex i grid, bloki z `overflow`
   innym niż `visible` ani bloki, których dzieci same zostały podzielone między strony.
+- Od 2026-11-16 treść kolumn jest dzielona, i to zawsze na dole kolumny (ADR 0015); reguła 1 dotyczy
+  tylko podziału między strony.

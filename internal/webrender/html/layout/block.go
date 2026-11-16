@@ -375,7 +375,8 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	// gopdfgo: w pudełku, które przycina treść (podana wysokość i overflow inne niż visible), nic nie jest
 	// krojone ani dzielone między strony: to, co się nie mieści, jest po prostu niewidoczne.
-	if clipsBlockOverflow(box) {
+	// W kolumnach to samo dotyczy każdego pudełka niepodzielnego (CSS Break 3 § 4.1).
+	if clipsBlockOverflow(box) || (context.inColumn && !box.IsColumn && bo.BlockT.IsInstance(box_) && bo.IsMonolithic(box_)) {
 		context.clipDepth++
 		defer func() { context.clipDepth-- }()
 	}
@@ -386,7 +387,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	}
 
 	isStart := skipStack == nil
-	box_.RemoveDecoration(box, !isStart, false)
+	box_.RemoveDecoration(box, !isStart || box.SpannerSplitBefore, false)
 
 	discard = discard || box.Style.GetContinue() == "discard"
 	drawBottomDecoration := discard || box.Style.GetBoxDecorationBreak() == "clone"
@@ -650,10 +651,17 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// takiego bloku nie dzielimy (zachowanie źródła).
 	// Dzielimy też blok, który jest pierwszą treścią na stronie: nie da się go przenieść, więc inaczej
 	// wystawałby poza stronę (przed nim są tylko obramowania i odstępy przodków).
-	splittable := resumedRemainder || (isStart && (box.BorderHeight() > context.pageHeight || (pageIsEmpty && box.IsInNormalFlow())))
+	// W kolumnach blok dzielimy zawsze: równoważenie kolumn tego wymaga, a wysokość kolumny (nie strony)
+	// jest tam miarą tego, co się mieści.
+	splittable := resumedRemainder || (isStart && (box.BorderHeight() > context.pageHeight || (pageIsEmpty && box.IsInNormalFlow()) || context.inColumn))
 	// break-inside: avoid nie da się spełnić dla bloku wyższego niż strona; taki blok przenosimy najpierw
 	// na początek strony i dopiero tam dzielimy.
 	if splittable && !resumedRemainder && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
+		splittable = false
+	}
+	// Bloku, który w kolumnach jest blokiem zawierającym elementy pozycjonowane, nie dzielimy:
+	// tych elementów nie umiemy podzielić razem z nim.
+	if splittable && context.inColumn && box.Style.GetPosition().String == "relative" && len(*absoluteBoxes) != 0 {
 		splittable = false
 	}
 	if resumeAt == nil && box.Height != pr.AutoF && splittable && canSplitFixedHeight(context, box_, bottomSpace) {
@@ -745,7 +753,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	newBox_ := bo.CopyWithChildren(box_, newChildren)
 	newBox := newBox_.Box()
 	newBox.CollapsedThrough = collapsingThrough
-	newBox_.RemoveDecoration(newBox, !isStart, boxIsFragmented && !discard)
+	newBox_.RemoveDecoration(newBox, !isStart || box.SpannerSplitBefore, (boxIsFragmented && !discard) || (box.SpannerSplitAfter && resumeAt == nil))
 
 	if newBox.Height == pr.AutoF {
 		if len(context.excludedShapes.list) != 0 && newBox.Style.GetOverflow() != "visible" {
@@ -768,6 +776,12 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		if content := positionY - newBox.ContentBoxY(); content > newBox.Height.V() {
 			newBox.Height = min(content, newBox.MaxHeight.V())
 		}
+	}
+
+	// gopdfgo: przy zawieraniu rozmiaru wysokość auto liczy się jak dla pudełka bez treści (CSS
+	// Containment 1 § 3.1)
+	if box.Height == pr.AutoF && !heightFromRatio && bo.HasContainment(box_, "size") {
+		newBox.Height = pr.Float(0)
 	}
 
 	if newBox.Style.GetPosition().String == "relative" {
@@ -1660,8 +1674,8 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 	if !bo.BlockT.IsInstance(box_) || !(box.IsInNormalFlow() || box.IsAbsolutelyPositioned() || box.IsFloated()) || box.IsColumn || box.IsForRootElement {
 		return false
 	}
-	// Elementy flex i grid oraz treść kolumn mają własne algorytmy podziału; tam bloków nie tniemy.
-	if box.IsFlexItem || box.IsGridItem || context.inColumn {
+	// Elementy flex i grid mają własne algorytmy podziału; tam bloków nie tniemy.
+	if box.IsFlexItem || box.IsGridItem {
 		return false
 	}
 	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.clipDepth > 0 {
@@ -1671,7 +1685,10 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 	if box.Height != pr.AutoF && box.Height != nil && box.Height.V() >= maxSliceableHeight {
 		return false
 	}
-	if box.Style.GetOverflow() != "visible" || bo.IsMonolithic(box_) {
+	// Pudełko niepodzielne przez zawieranie rozmiaru (contain: size) tniemy między strony tak jak
+	// zwykły blok o podanej wysokości: wyższe niż strona inaczej by z niej wystawało (CSS Break 3 § 4.1
+	// pozwala wtedy ciąć; testy WPT css-page/monolithic-overflow-*). W kolumnach zostaje w całości.
+	if box.Style.GetOverflow() != "visible" || (bo.IsMonolithic(box_) && (context.inColumn || !bo.HasContainment(box_, "size"))) {
 		return false
 	}
 	if box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto" {

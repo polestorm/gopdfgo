@@ -2338,3 +2338,50 @@ func TestRealDocumentFindings(t *testing.T) {
 		t.Errorf("znacznik listy wewnątrz elementu: %d pikseli różni się od wzorca o stałej szerokości", n)
 	}
 }
+
+// Kolumny (CSS Multicol 1): element rozpinający w głębi drzewa, dzielenie bloków o podanej wysokości
+// między kolumny, górny margines kontenera, style linii między kolumnami oraz contain: size.
+func TestColumnsSpannersSlicingAndContain(t *testing.T) {
+	head := `<style>@page { size: 300px 300px; margin: 0 } body { margin: 0 }
+		.mc { columns: 2; column-gap: 0; width: 100px } .g { background: green }</style>`
+	dir := t.TempDir()
+	same := func(name, test, reference string) {
+		t.Helper()
+		got := rasterize(t, renderString(t, head+test).PDF, dir, name)
+		want := rasterize(t, renderString(t, head+reference).PDF, dir, name+"-ref")
+		if len(got) != len(want) {
+			t.Errorf("%s: %d stron, wzorzec ma %d", name, len(got), len(want))
+			return
+		}
+		if n := differentPixels(got[0], want[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+	square := `<div class="g" style="width:100px;height:100px"></div>`
+
+	// blok 200px rozkłada się na dwie kolumny po 100px
+	same("slice", `<div class="mc"><div class="g" style="height:200px"></div></div>`, square)
+	// element rozpinający zagnieżdżony w zwykłym bloku dzieli przodka i rozpina obie kolumny
+	same("nested-spanner", `<div class="mc"><div class="g" style="height:60px"></div>
+		<div><div class="g" style="column-span:all;height:70px"></div></div></div>`, square)
+	// sąsiednie elementy rozpinające zwijają marginesy: 10 + 80 + 10 = 100
+	same("spanner-margins", `<div class="mc g"><div>
+		<div style="column-span:all;height:10px;margin-bottom:50px"></div>
+		<div style="column-span:all;height:10px;margin-top:80px"></div></div></div>`, square)
+	// grupa pudełek, których nie wolno rozdzielić, wyznacza krok równoważenia
+	same("avoid-group", `<div class="mc g"><div style="height:25px"></div><div style="height:50px"></div>
+		<div style="height:25px;break-before:avoid"></div><div style="height:50px"></div></div>`, square)
+	// contain: size: pudełko niepodzielne, wysokość auto jak dla pudełka bez treści
+	same("contain-monolithic", `<div style="width:100px;height:100px;overflow:hidden"><div class="mc" style="width:200px">
+		<div class="g" style="contain:size;height:100px"></div><div style="contain:size;height:100px"></div></div></div>`, square)
+	same("contain-auto-height", square+`<div style="contain:size"><div style="width:100px;height:50px;background:red"></div></div>`+
+		`<div class="g" style="width:100px;height:50px"></div>`, square+`<div class="g" style="width:100px;height:50px"></div>`)
+	// górny margines kontenera kolumn zwija się z marginesem poprzednika
+	same("container-margin", `<div style="height:10px;margin-bottom:10px"></div>
+		<div class="mc" style="margin-top:30px"><div class="g" style="height:200px"></div></div>`,
+		`<div style="height:40px"></div>`+square)
+	// inset i outset na linii między kolumnami to ridge i groove
+	rule := `<div style="columns:2;column-gap:20px;width:220px;column-rule:10px %s lime;background:black"><div style="height:100px"></div></div>`
+	same("rule-inset", fmt.Sprintf(rule, "inset"), fmt.Sprintf(rule, "ridge"))
+	same("rule-outset", fmt.Sprintf(rule, "outset"), fmt.Sprintf(rule, "groove"))
+}
