@@ -125,3 +125,18 @@ ADR 0007 przyjmuje stałe medium odniesienia (A4 w pionie, pudełko strony). Do 
   czy obszar treści (tak robi Chromium i tak czyta się Media Queries 4 § 4.1);
 - czy dać parametr w `Options` (np. szerokość medium), żeby wydruk mógł udawać okno o podanej szerokości.
 
+## 21. Czy naśladować Chromium w obcinaniu `border-spacing` i w pomniejszaniu strony?
+
+Dwie różnice wobec wydruku Chromium znalezione 2026-11-16 przy szukaniu odchyleń w korpusie; żadnej nie
+opisuje norma, obie zostały bez zmian.
+
+- `border-spacing` jest w Chromium obcinane do całych pikseli: tabela z 19 wierszami i `border-spacing: 1mm`
+  (3,78 px) ma tę samą wysokość co z `3px`, u nas jest wyższa o 15 px. W korpusie dotyczy tylko jednej
+  tabeli w `17-tables` (mediana odchylenia dokumentu 1,84 pt).
+- Gdy treść wystaje poza szerokość strony (`white-space: nowrap`, szeroki obraz), Chromium pomniejsza
+  całą stronę, najwyżej 1,5 raza. Dlatego `07-images` i `10-preformatted` mają w Chromium tekst w skali
+  0,667, a u nas w skali 1 i treść wystaje za margines.
+
+Zalecenie: nie naśladować żadnej z nich. Pierwsza to ograniczenie implementacji, druga zmienia rozmiar
+pisma wbrew arkuszowi; dokument, który ma się zmieścić, powinien to zapewnić własnym CSS.
+

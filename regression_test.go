@@ -1985,3 +1985,66 @@ func TestAutoQuotesByLanguage(t *testing.T) {
 		}
 	}
 }
+
+// ADR 0009: szerokości obramowań, konturów i linii między kolumnami są przyciągane do całych pikseli
+// (CSS Values 4 § 6.1, piksel urządzenia równy pikselowi CSS, jak w Chromium); ExactBorderWidths to wyłącza.
+func TestBorderWidthSnap(t *testing.T) {
+	page := func(style string) []byte {
+		return []byte(`<div style="width:100px;height:20px;` + style + `">a</div><p>b</p>`)
+	}
+	cases := []struct {
+		name, tested, expected string
+		exact, same            bool
+	}{
+		{"0.5pt rośnie do 1px", "border:0.5pt solid", "border:1px solid", false, true},
+		{"0.4pt rośnie do 1px", "border:0.4pt solid", "border:1px solid", false, true},
+		{"1.2pt maleje do 1px", "border:1.2pt solid", "border:1px solid", false, true},
+		{"1.5pt to dokładnie 2px", "border:1.5pt solid", "border:2px solid", false, true},
+		{"2.9px maleje do 2px", "border-top:2.9px solid", "border-top:2px solid", false, true},
+		{"zero zostaje zerem", "border:0 solid", "", false, true},
+		{"kontur", "outline:0.5pt solid", "outline:1px solid", false, true},
+		{"linia między kolumnami", "columns:2;column-rule:0.5pt solid", "columns:2;column-rule:1px solid", false, true},
+		{"wyłączone: 0.5pt to nie 1px", "border:0.5pt solid", "border:1px solid", true, false},
+		{"wyłączone: 0.75pt to 1px", "border:0.75pt solid", "border:1px solid", true, true},
+	}
+	for _, c := range cases {
+		options := Options{Fonts: testFonts(t), ExactBorderWidths: c.exact}
+		tested, err := Render(t.Context(), page(c.tested), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := Render(t.Context(), page(c.expected), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Equal(tested.PDF, expected.PDF) != c.same {
+			t.Errorf("%s: %q wobec %q: zgodność dokumentów %v, oczekiwano %v", c.name, c.tested, c.expected, !c.same, c.same)
+		}
+	}
+}
+
+// CSS Fragmentation 3 § 5.2: górny margines przylegający do zwykłego podziału strony jest obcinany do zera,
+// także dla kontenera flex i siatki; po wymuszonym podziale zostaje.
+func TestMarginTruncatedAtPageTop(t *testing.T) {
+	page := func(display, margin, breakBefore string) []byte {
+		return []byte(`<style>@page { size: 200px 200px; margin: 10px } body { margin: 0 }</style>
+<div style="height:150px">a</div>
+<div style="display:` + display + `;height:100px;break-inside:avoid;margin-top:` + margin + `;break-before:` + breakBefore + `">b</div>`)
+	}
+	options := Options{Fonts: testFonts(t)}
+	render := func(source []byte) []byte {
+		result, err := Render(t.Context(), source, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.PDF
+	}
+	for _, display := range []string{"block", "flex", "grid", "table"} {
+		if !bytes.Equal(render(page(display, "40px", "auto")), render(page(display, "0", "auto"))) {
+			t.Errorf("display: %s: margines po zwykłym podziale strony nie został obcięty", display)
+		}
+		if bytes.Equal(render(page(display, "40px", "page")), render(page(display, "0", "page"))) {
+			t.Errorf("display: %s: margines po wymuszonym podziale strony zniknął", display)
+		}
+	}
+}

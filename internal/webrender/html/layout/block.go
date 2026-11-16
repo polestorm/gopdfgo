@@ -60,6 +60,9 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		if box_.MarginBottom == pr.AutoF {
 			box_.MarginBottom = pr.Float(0)
 		}
+		if box_.MarginTopTruncated { // gopdfgo: zob. BoxFields.MarginTopTruncated
+			box_.MarginTop = pr.Float(0)
+		}
 
 		if context.currentPage > 1 && pageIsEmpty {
 			// When an unforced break occurs before or after a block-level box,
@@ -1211,6 +1214,7 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			}
 		}
 	}
+	child.MarginTopTruncated = false
 	if len(*adjoiningMargins) != 0 {
 		if box.IsTableWrapper { // should not be a special case
 			collapsedMargin := collapseMargin(*adjoiningMargins)
@@ -1221,6 +1225,15 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			if mt := child.Style.GetMarginTop(); mt.Tag != pr.Auto {
 				marginTop = pr.ResolvePercentage(mt, box.Width.V()).V()
 			}
+			// gopdfgo: margines przylegający do zwykłego podziału strony jest obcinany do zera także
+			// dla kontenerów flex i siatki oraz elementów zastępowanych (CSS Fragmentation 3 § 5.2).
+			// W źródle robiły to tylko bloki, bo tylko one dostają adjoiningMargins.
+			if context.currentPage > 1 && pageIsEmpty && !hasPlacedChild(newChildren) {
+				if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !context.forcedBreak) {
+					marginTop = 0
+					child.MarginTopTruncated = true
+				}
+			}
 			*adjoiningMargins = append(*adjoiningMargins, marginTop)
 			offsetY := collapseMargin(*adjoiningMargins) - marginTop
 			child.PositionY += offsetY
@@ -1228,14 +1241,7 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 		}
 	}
 
-	atLeastOneNotPlaceholder := false
-	for _, newChild := range newChildren {
-		if _, isAbsPlac := newChild.(*AbsolutePlaceholder); !isAbsPlac {
-			atLeastOneNotPlaceholder = true
-			break
-		}
-	}
-	pageIsEmptyWithNoChildren := pageIsEmpty && !atLeastOneNotPlaceholder
+	pageIsEmptyWithNoChildren := pageIsEmpty && !hasPlacedChild(newChildren)
 
 	if child.FirstLetterStyle == nil {
 		child.FirstLetterStyle = firstLetterStyle
@@ -1730,4 +1736,15 @@ func markLegendGap(fieldset Box) {
 		box.BorderGapX = legend.Box().BorderBoxX()
 		box.BorderGapWidth = legend.Box().BorderWidth()
 	}
+}
+
+// hasPlacedChild (gopdfgo) podaje, czy wśród ułożonych dzieci jest coś poza zastępnikami pudełek
+// pozycjonowanych bezwzględnie.
+func hasPlacedChild(children []Box) bool {
+	for _, child := range children {
+		if _, isPlaceholder := child.(*AbsolutePlaceholder); !isPlaceholder {
+			return true
+		}
+	}
+	return false
 }

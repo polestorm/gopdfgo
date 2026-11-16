@@ -202,6 +202,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	parentBox_ := box_.Copy()
 	parentBox := parentBox_.Box()
 	resolveSizesBox(context, parentBox_, containingBlock)
+	if parentBox.MarginTopTruncated { // gopdfgo: zob. BoxFields.MarginTopTruncated
+		parentBox.MarginTop = pr.Float(0)
+	}
 	// gopdfgo: wysokość nadana kontenerowi z zewnątrz (rozciągnięcie w osi
 	// poprzecznej kontenera nadrzędnego) jest określona i służy za podstawę
 	// procentów jego elementów (CSS Flexbox 1 § 9.4, krok 11). Źródło wracało

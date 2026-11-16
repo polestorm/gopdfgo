@@ -452,7 +452,23 @@ func borderWidth(computer *ComputedStyle, name pr.KnownProp, _value pr.CssProper
 		return bw.ToValue()
 	}
 	d := length_(computer, value, -1, true)
+	if d.Calc == nil && computer.snapsBorderWidths() {
+		d.Value = snapBorderWidth(d.Value)
+	}
 	return d
+}
+
+// snapBorderWidth (gopdfgo) realizuje „snap a length as a border width” z CSS Values 4 § 6.1 dla piksela
+// urządzenia równego pikselowi CSS, czyli tak, jak drukuje Chromium: szerokość między 0 a 1 px rośnie
+// do 1 px, większa jest obcinana w dół do całych pikseli (ADR 0009).
+func snapBorderWidth(width pr.Float) pr.Float {
+	if width <= 0 {
+		return width
+	}
+	if width < 1 {
+		return 1
+	}
+	return pr.Float(math.Floor(float64(width) + 1e-4))
 }
 
 // Compute the “border-image-slice“ property.

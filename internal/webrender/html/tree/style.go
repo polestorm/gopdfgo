@@ -666,6 +666,12 @@ func newComputedStyle(parentStyle pr.ElementStyle, cascaded cascadedStyle,
 
 func (c *ComputedStyle) isRootElement() bool { return c.parentStyle == nil }
 
+// snapsBorderWidths (gopdfgo): czy szerokości obramowań, konturów i linii między kolumnami są
+// przyciągane do całych pikseli (ADR 0009). Styl liczony poza dokumentem (bez viewport) zostaje dokładny.
+func (c *ComputedStyle) snapsBorderWidths() bool {
+	return c.viewport != nil && c.viewport.html != nil && !c.viewport.html.Behavior.ExactBorderWidths
+}
+
 func (c *ComputedStyle) Copy() pr.ElementStyle {
 	out := newComputedStyle(c.parentStyle, c.cascaded, c.element, c.pseudoType, c.rootStyle, c.baseUrl, c.textContext, c.share)
 	out.viewport = c.viewport

@@ -1006,3 +1006,37 @@ Liczba stron zgadza się z Chromium w 19 z 21 dokumentów (wyjątki: `06-margin-
 oba znane). Odchylenia w tabelach, flex i tekście preformatowanym narastają w dół strony, czyli są
 to różnice wysokości wierszy, nie pojedyncze przesunięcia. To następny cel: znaleźć, skąd bierze się
 dryf w `02-register-table`, `10-preformatted` i `20-invoice`.
+
+## Źródło odchyleń w pionie względem Chromium (2026-11-16)
+
+Szukane metodą: 20 jednakowych pudełek jedno pod drugim, osobno dla wysokości wiersza, obramowania,
+dopełnienia, marginesu i tabeli; położenie słowa za nimi w wydruku Chromium bezgłowego i gopdfgo
+(`pdftotext -bbox`). Wysokości wierszy, dopełnienia i marginesy zgadzały się co do 0,02 px na pudełko.
+Znalezione przyczyny:
+
+1. **Szerokości obramowań.** Chromium przyciąga je do całych pikseli (CSS Values 4 § 6.1): `0.4pt`
+   i `0.5pt` to 1 px, `1.2pt` też 1 px. Główna przyczyna dryfu w tabelach i flex. Naprawione,
+   z parametrem `ExactBorderWidths` (ADR 0009).
+2. **Górny margines kontenera flex i siatki na początku strony** po zwykłym podziale nie był obcinany
+   (CSS Fragmentation 3 § 5.2); bloki i tabele miały to dobrze. Stąd 14 pt na trzeciej stronie
+   `20-invoice`. Naprawione.
+3. **`border-spacing`** Chromium obcina do całych pikseli (`1mm` liczy jako 3 px). Bez zmian, pytanie 21.
+4. **Pomniejszanie strony.** Gdy treść wystaje poza szerokość strony, Chromium skaluje całą stronę
+   (w `07-images` i `10-preformatted` do 0,667). To nie dryf, tylko inna skala. Bez zmian, pytanie 21.
+
+Odchylenie w pionie po poprawkach (pt; słowa dopasowane po kolei na tej samej stronie):
+
+| Dokument | Mediana przed | Mediana po | Ponad 3 pt przed | Ponad 3 pt po |
+|---|---|---|---|---|
+| `02-register-table` | 5,57 | 0,34 | 2015 z 2844 | 0 |
+| `08-flex` | 3,61 | 0,24 | 121 z 189 | 0 |
+| `20-invoice` | 2,52 | 0,68 | 350 z 826 | 0 |
+| `17-tables` | 1,32 | 1,84 | 13 z 175 | 0 |
+| `19-flex-grid-pagination` | — | 0,26 | — | 310 z 2313 |
+
+`17-tables` ma medianę wyższą przez `border-spacing` (punkt 3). W `19-flex-grid-pagination` zostają
+inne miejsca podziału stron w kontenerach flex i siatki, nie dryf.
+
+Wynik (pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003): **7004 z 9110 (76,9%)**, ściśle 6618,
+krawędziowo 386, niezaliczone 2106; poprzednio 7002 (ściśle 6616). Zyskane 2 (`css-multicol`,
+`css-tables`), stracone 0. Reftesty druku: 228 z 340, bez zmian.

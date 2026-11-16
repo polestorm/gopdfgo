@@ -43,6 +43,9 @@ type Behavior struct {
 	// MonospaceFontSize: rozmiar w pikselach, jaki ma font-size: medium, gdy font-family to samo
 	// monospace. Zero oznacza 13 px, jak w przeglądarkach; 16 wyłącza tę regułę (ADR 0008).
 	MonospaceFontSize float64
+	// ExactBorderWidths: szerokości obramowań, konturów i linii między kolumnami zostają dokładne.
+	// Domyślnie, jak w Chromium, są przyciągane do całych pikseli CSS (ADR 0009).
+	ExactBorderWidths bool
 }
 
 // `baseUrl` is the base used to resolve relative URLs

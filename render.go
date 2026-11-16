@@ -86,6 +86,11 @@ type Options struct {
 	// słowem monospace (<pre>, <code>, <kbd>, <samp>, <tt>). Zero oznacza 13, jak w przeglądarkach;
 	// 16 wyłącza tę regułę i daje pismo tej samej wielkości co reszta tekstu (ADR 0008).
 	MonospaceFontSize float64
+	// ExactBorderWidths wyłącza przyciąganie szerokości obramowań do całych pikseli. Domyślnie (false),
+	// jak w Chromium, border-width, outline-width i column-rule-width między 0 a 1 px rosną do 1 px
+	// (0,75 pt), a większe są obcinane w dół do całych pikseli: 0.5pt daje 0,75 pt, 1pt daje 0,75 pt,
+	// 1.5pt daje 1,5 pt. Wartość true rysuje i układa szerokości dokładnie takie, jak podano (ADR 0009).
+	ExactBorderWidths bool
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -201,7 +206,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
 	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
-		MonospaceFontSize: opts.MonospaceFontSize}
+		MonospaceFontSize: opts.MonospaceFontSize, ExactBorderWidths: opts.ExactBorderWidths}
 	var sheets []tree.CSS
 	if opts.UserCSS != "" {
 		sheet, err := tree.NewCSSExt(utils.InputString(opts.UserCSS), opts.BaseURL, fontConfig)

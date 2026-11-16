@@ -681,6 +681,16 @@ Wspólne dla obu katalogów:
 - `html/tree/style.go` (`monospaceFontSize`, `fontSizeFromKeyword`), `html/tree/tree.go`
   (`Behavior.MonospaceFontSize`), 2026-11-16, ADR 0008: rozmiar pisma wywiedziony ze słowa kluczowego
   jest przeliczany 13/16 dla rodziny będącej samym `monospace`, jak w przeglądarkach; źródło dawało 16 px;
+- `html/tree/computed_values.go` (`borderWidth`, `snapBorderWidth`), `html/tree/tree.go`
+  (`Behavior.ExactBorderWidths`), 2026-11-16, ADR 0009, CSS Values 4 § 6.1: `border-*-width`,
+  `outline-width` i `column-rule-width` są przyciągane do całych pikseli CSS (poniżej 1 px rosną do 1 px,
+  większe są obcinane w dół), jak w Chromium; źródło trzymało szerokości dokładne. Test odziedziczony
+  `TestLinks` (obramowanie `1pt`) i pozostałe testy `goweasyprint/pdf` renderują z `ExactBorderWidths`;
+- `html/layout/block.go` (`blockContainerLayout`, `hasPlacedChild`), `html/layout/flex.go`,
+  `html/boxes/boxes.go` (`MarginTopTruncated`), 2026-11-16, CSS Fragmentation 3 § 5.2: górny margines
+  przylegający do zwykłego podziału strony jest obcinany do zera także dla kontenerów flex i siatki
+  oraz elementów zastępowanych; w źródle robiły to tylko bloki i tabele, więc np. podsumowanie faktury
+  w `display: flex` z `margin-top: 5mm` zaczynało stronę 14 pt niżej niż w Chromium;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz
