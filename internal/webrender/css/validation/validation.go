@@ -112,7 +112,7 @@ var (
 		pr.PBackgroundPosition:      backgroundPosition,
 		pr.PBackgroundRepeat:        backgroundRepeat,
 		pr.PBackgroundSize:          backgroundSize,
-		pr.PBackgroundClip:          box,
+		pr.PBackgroundClip:          backgroundClip,
 		pr.PBackgroundOrigin:        box,
 		pr.PBorderSpacing:           borderSpacing,
 		pr.PBorderTopRightRadius:    borderCornerRadius,
@@ -1173,6 +1173,24 @@ func _box(tokens []Token) string {
 	default:
 		return ""
 	}
+}
+
+// gopdfgo: background-clip przyjmuje też wartość text (CSS Backgrounds 4 § 3.6): tło jest malowane
+// tylko w kształcie tekstu elementu. Źródło znało tylko trzy pudełka.
+func backgroundClip(tokens []Token, _ string) pr.CssProperty {
+	var out pr.Strings
+	for _, part := range pa.SplitOnComma(tokens) {
+		part = pa.RemoveWhitespace(part)
+		result := _box(part)
+		if result == "" && getSingleKeyword(part) == "text" {
+			result = "text"
+		}
+		if result == "" {
+			return nil
+		}
+		out = append(out, result)
+	}
+	return out
 }
 
 func box(tokens []Token, _ string) pr.CssProperty {

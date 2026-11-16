@@ -350,6 +350,9 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 			}
 			ctx.dst.State().Clip(false)
 		}
+		if bg.TextClip != nil {
+			ctx.setTextMask(bg.TextClip)
+		}
 
 		// Background color
 		if bg.Color.A > 0 {
@@ -408,6 +411,39 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 			ctx.drawBackgroundImage(layer, bg.ImageRendering)
 		}
 	})
+}
+
+// setTextMask (gopdfgo) ustawia maskę przezroczystości z tekstu pudełka: wszystko, co zostanie potem
+// namalowane w bieżącym stanie graficznym, jest widoczne tylko w kształcie liter (background-clip: text).
+// Tekst jest rysowany do osobnej grupy na biało, niezależnie od własnego koloru, który zwykle
+// jest przezroczysty.
+func (ctx *drawContext) setTextMask(box_ Box) {
+	rbb := box_.Box().RoundedBorderBox()
+	current := ctx.dst
+	ctx.dst = ctx.dst.NewGroup(fl(rbb.X), fl(rbb.Y), fl(rbb.Width), fl(rbb.Height))
+	// maska jest liczona z jasności: biały tekst odsłania, czarne tło grupy zasłania (tło malujemy
+	// wprost, bo przeglądarki PDF różnie traktują puste miejsce w grupie maski)
+	ctx.dst.State().SetColorRgba(Color{R: 0, G: 0, B: 0, A: 1}, false)
+	ctx.dst.Rectangle(fl(rbb.X), fl(rbb.Y), fl(rbb.Width), fl(rbb.Height))
+	ctx.dst.Paint(backend.FillNonZero)
+	ctx.dst.State().SetColorRgba(Color{R: 1, G: 1, B: 1, A: 1}, false)
+	var walk func(Box)
+	walk = func(b Box) {
+		if textbox, ok := b.(*bo.TextBox); ok {
+			if textbox.Style.GetVisibility() == "visible" {
+				textbox.TextLayout.ApplyJustification()
+				ctx.drawFirstLine(textbox, "clip", pr.TaggedString{Tag: pr.None},
+					pr.Fl(textbox.PositionX), pr.Fl(textbox.PositionY+textbox.Baseline.V()))
+			}
+			return
+		}
+		for _, child := range b.Box().Children {
+			walk(child)
+		}
+	}
+	walk(box_)
+	current.State().SetAlphaMask(ctx.dst)
+	ctx.dst = current
 }
 
 func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRendering pr.String) {

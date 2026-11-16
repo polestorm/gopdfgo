@@ -2513,3 +2513,21 @@ func TestWhiteSpaceControlsHangingAndBreakSpaces(t *testing.T) {
 		t.Errorf("break-spaces: treść wystaje poza szerokość pudełka (%d pikseli)", n)
 	}
 }
+
+// background-clip: text (CSS Backgrounds 4 § 3.6): tło jest widoczne tylko w kształcie liter elementu.
+// Wzorzec to ten sam tekst w kolorze tła; maska i zwykłe wypełnienie mogą różnić się wygładzaniem
+// krawędzi, więc dopuszczamy niewielką liczbę różnych pikseli (tło namalowane w całym pudełku daje
+// ich kilkadziesiąt tysięcy).
+func TestBackgroundClipText(t *testing.T) {
+	head := `<style>@page { size: 400px 120px; margin: 0 } body { margin: 10px; font: bold 40px sans-serif }</style>`
+	dir := t.TempDir()
+	clipped := rasterize(t, renderString(t, head+`<div style="background:#c60;background-clip:text;color:transparent">Tekst w tle</div>`).PDF, dir, "clip")
+	plain := rasterize(t, renderString(t, head+`<div style="color:#c60">Tekst w tle</div>`).PDF, dir, "plain")
+	if n := differentPixels(clipped[0], plain[0]); n < 0 || n > 1500 {
+		t.Errorf("tło przycięte do tekstu różni się od tekstu w kolorze tła o %d pikseli", n)
+	}
+	filled := rasterize(t, renderString(t, head+`<div style="background:#c60;color:transparent">Tekst w tle</div>`).PDF, dir, "filled")
+	if n := differentPixels(clipped[0], filled[0]); n < 5000 {
+		t.Errorf("background-clip: text nie zmienia wyniku (różnica %d pikseli wobec pełnego tła)", n)
+	}
+}

@@ -122,6 +122,10 @@ type Background struct {
 	ImageRendering pr.String
 	Layers         []BackgroundLayer
 	Color          parser.RGBA
+
+	// gopdfgo: TextClip to pudełko, którego tekst wyznacza kształt tła (background-clip: text);
+	// nil, gdy tło jest malowane zwyczajnie.
+	TextClip Box
 }
 
 type Area struct {

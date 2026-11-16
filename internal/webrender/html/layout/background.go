@@ -140,6 +140,15 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 	}
 
 	box.Background = &bo.Background{Color: color, ImageRendering: style.GetImageRendering(), Layers: layers}
+	// gopdfgo: background-clip: text na którejkolwiek warstwie przycina całe tło do tekstu elementu
+	// (uproszczenie: norma pozwala podać to osobno dla każdej warstwy).
+	// Tło elementu głównego przechodzi na płótno strony i tam kształt tekstu nie obowiązuje.
+	for _, clip := range clips {
+		if clip == "text" && box_ != page && !box.IsForRootElement {
+			box.Background.TextClip = box_
+			break
+		}
+	}
 }
 
 func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFields, resolution pr.TaggedDim, image images.Image, size pr.Size, clip string, repeat [2]string,
@@ -150,6 +159,10 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 		paintingArea pr.Rectangle
 	)
 	box := box_.Box()
+	if clip == "text" {
+		// kształt tekstu nakłada rysowanie (Background.TextClip); obszar malowania jak dla border-box
+		clip = "border-box"
+	}
 	if box_ == page {
 		// [The page’s] background painting area is the bleed area […]
 		// regardless of background-clip.

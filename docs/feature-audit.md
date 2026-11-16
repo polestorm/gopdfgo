@@ -1435,3 +1435,24 @@ Co zostało w `white-space` (ok. 160): spacja ideograficzna i inne odstępy Unic
 (ok. 20), `text-wrap: balance` (ok. 19), próg pozycji tabulatora, rozmiary wewnętrzne przy `pre-wrap`,
 `textarea`, pismo od prawej do lewej.
 
+## Tła i odstępy między znakami: co pokazały małe grupy testów (2026-11-16)
+
+Trzy grupy z rozszerzonego sondażu miały bardzo niski wynik, co sugerowało pojedyncze przyczyny.
+Sprawdzenie dało trzy różne odpowiedzi:
+
+- **`background-origin` (10 niezaliczonych z 12): artefakt pomiaru.** Silnik rysuje te testy poprawnie.
+  Wzorzec W3C układa cztery pudełka jedno pod drugim i przesuwa je `position: relative` o 288 i 576 px
+  w górę; u nas trzecie i czwarte pudełko wypada przed przesunięciem na drugą stronę (strona sondażu ma
+  600 px), więc wzorzec jest niepełny. Bez trybu ciągłego (bez podziału na strony) tych testów nie da się
+  uczciwie zmierzyć.
+- **`letter-spacing` (18 niezaliczonych z 21): norma i Chromium się różnią.** Testy wymagają, żeby odstęp
+  nie był dodawany po ostatnim znaku elementu ani na końcu wiersza (CSS Text 3 § 8.2). Chromium 157
+  dodaje go po każdym znaku (sprawdzone zrzutem ekranu 2026-11-16) i sam tych testów nie przechodzi.
+  Zachowujemy się jak Chromium; zmiana wymagałaby decyzji i parametru (zasada z ADR 0006).
+- **`background-clip` (37 niezaliczonych z 47): dwie brakujące wartości.** `text` (20 testów) wdrożone:
+  tło w kształcie liter, przez maskę przezroczystości; poprawne w poppler i Ghostscripcie, plik przechodzi
+  walidację PDF/A-2b. `border-area` (18 testów, CSS Backgrounds 4, nowa wartość) nie jest obsługiwana.
+
+Wynik `css-backgrounds`: 434 z 600 (było 421): zyskane 14, stracony 1 (`clip-text-transform`: tekst
+z tłem przez maskę ma inne wygładzenie krawędzi niż tekst we wzorcu).
+

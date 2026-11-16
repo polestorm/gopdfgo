@@ -862,6 +862,12 @@ Wspólne dla obu katalogów:
   następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
   między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
   zostawały na dole strony, a wielowierszowa przechodziła dalej;
+- `background-clip: text`, 2026-11-16 (CSS Backgrounds 4 § 3.6): `css/validation/validation.go`
+  (`backgroundClip`), `html/layout/background.go` i `html/boxes/boxes.go` (`Background.TextClip`),
+  `html/document/draw.go` (`setTextMask`): tło elementu jest malowane przez maskę przezroczystości
+  zbudowaną z jego tekstu (biały tekst na czarnym tle grupy, maska z jasności). Wartość na którejkolwiek
+  warstwie przycina całe tło; tło elementu głównego nie jest przycinane. Źródło wartości nie znało
+  i odrzucało całą deklarację;
 - białe znaki, 2026-11-16 (CSS Text 3; testy W3C `css-text/white-space`):
   - `html/boxes/build.go` (`visibleControls`): znaki sterujące kategorii Cc inne niż tabulator i znak
     nowego wiersza są rysowane jako U+FFFD (§ 2.1: mają być widoczne); w źródle znikały;
