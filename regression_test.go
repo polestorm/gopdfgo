@@ -2385,3 +2385,63 @@ func TestColumnsSpannersSlicingAndContain(t *testing.T) {
 	same("rule-inset", fmt.Sprintf(rule, "inset"), fmt.Sprintf(rule, "ridge"))
 	same("rule-outset", fmt.Sprintf(rule, "outset"), fmt.Sprintf(rule, "groove"))
 }
+
+// Kolumny dzielone między strony i wysokości w kolumnach (CSS Multicol 1, CSS Break 3); oczekiwane
+// położenia zmierzone na wydruku Chromium 157 (2026-11-16).
+func TestColumnsAcrossPagesAndHeights(t *testing.T) {
+	head := `<style>@page { size: 400px 300px; margin: 0 } body { margin: 0 }
+		.two { columns: 2; column-gap: 20px } p { margin: 0 0 8px; font: 10px/14px sans-serif }</style>`
+	dir := t.TempDir()
+	same := func(name, test, reference string) {
+		t.Helper()
+		got := rasterize(t, renderString(t, head+test).PDF, dir, name)
+		want := rasterize(t, renderString(t, head+reference).PDF, dir, name+"-ref")
+		if len(got) != len(want) {
+			t.Errorf("%s: %d stron, wzorzec ma %d", name, len(got), len(want))
+			return
+		}
+		for i := range got {
+			if n := differentPixels(got[i], want[i]); n != 0 {
+				t.Errorf("%s, strona %d: %d pikseli różni się od wzorca", name, i+1, n)
+			}
+		}
+	}
+	box := func(height int) string {
+		return fmt.Sprintf(`<div style="height:%dpx;background:green;margin:0 0 10px"></div>`, height)
+	}
+	col := func(left int, content string) string {
+		return fmt.Sprintf(`<div style="position:absolute;left:%dpx;width:190px">%s</div>`, left, content)
+	}
+	filler := `<div style="height:200px;margin-bottom:10px"></div>`
+
+	// Bloki 60px z marginesem 10px, 90px miejsca na pierwszej stronie: blok bez obramowania jest
+	// przecinany na dole kolumny także wtedy, gdy stoi pod marginesem poprzednika.
+	same("slice-at-page-end", filler+`<div class="two">`+strings.Repeat(box(60), 7)+`</div>`,
+		filler+`<div style="position:relative">`+col(0, box(60)+box(20))+col(210, box(40)+box(40))+`</div>`+
+			`<div style="break-before:page;position:relative">`+col(0, box(20)+box(60)+box(55))+col(210, box(5)+box(60)+box(60))+`</div>`)
+
+	// Przed wymuszonym podziałem kolumny dolny margines zostaje: kolumny mają 2 x (42 + 8) = 100px.
+	same("forced-break-margin", `<div class="two" style="background:green"><p>a<br>b<br>c</p><p>d<br>e<br>f</p>`+
+		`<p style="break-before:column">g</p><p>h</p></div>`,
+		`<div class="two" style="background:green;height:100px;column-fill:auto"><p>a<br>b<br>c</p><p>d<br>e<br>f</p>`+
+			`<p style="break-before:column">g</p><p>h</p></div>`)
+
+	// Kontener kolumn o podanej wysokości zaczyna się w reszcie strony i kończy na następnej.
+	fixed := `<div class="two" style="height:160px;column-fill:auto;background:green">%s</div><div style="height:20px;background:blue"></div>`
+	same("fixed-height-container", filler+fmt.Sprintf(fixed, strings.Repeat(`<div style="height:80px"></div>`, 4)),
+		filler+`<div style="height:90px;background:green"></div><div style="break-before:page;height:70px;background:green"></div>`+
+			`<div style="height:20px;background:blue"></div>`)
+
+	// Wysokość procentowa dziecka liczy się od podanej wysokości kontenera kolumn: 50% z 200px
+	// rozkłada się po 50px na kolumnę.
+	same("percentage-height", `<div class="two" style="height:200px;column-gap:0;width:200px"><div style="height:50%;background:green"></div></div>`,
+		`<div style="width:200px;height:50px;background:green"></div>`)
+
+	// Przodek o podanej wysokości podzielony elementem rozpinającym: fragment przed elementem ma
+	// wysokość treści, ostatni resztę podanej wysokości (250 - 100 - 100 = 50).
+	same("split-ancestor-height", `<div style="columns:1;width:200px"><div style="height:250px;background:green">`+
+		`<div style="height:100px"></div><div style="column-span:all;height:50px;background:blue"></div>`+
+		`<div style="height:100px"></div><div style="column-span:all;height:50px;background:blue"></div></div></div>`,
+		`<div style="width:200px"><div style="height:100px;background:green"></div><div style="height:50px;background:blue"></div>`+
+			`<div style="height:100px;background:green"></div><div style="height:50px;background:blue"></div><div style="height:50px;background:green"></div></div>`)
+}

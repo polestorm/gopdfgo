@@ -1,0 +1,36 @@
+{
+  "title": "Kolumny dzielone między strony",
+  "level": "should",
+  "covers": [
+    "U1, U2",
+    "scope: columns dłuższe niż strona, column-span: all, break-inside: avoid w kolumnach, bloki o stałej wysokości w kolumnach, tabela i lista w kolumnach, break-before: column, kontener kolumn o podanej wysokości na granicy stron"
+  ],
+  "pages": null,
+  "checks": [
+    "Sekcja 1: akapity A1–A26 w dwóch kolumnach z linią między nimi, na dwóch stronach; na każdej stronie obie kolumny są wypełnione, na ostatniej wyrównane; „PO-A” pod kolumnami na całą szerokość.",
+    "Sekcja 2: trzy kolumny zaczynają się pod szarym wypełnieniem; NAGLOWEK-1 i NAGLOWEK-2 biegną przez całą szerokość, treść przed każdym z nich jest wyrównana w trzech kolumnach; nagłówek na początku strony nie ma odstępu nad sobą.",
+    "Sekcja 3: żadna z kart KARTA-1…KARTA-8 nie jest przecięta między kolumnami ani stronami; zielone bloki BLOK-1…BLOK-7 są przecinane na dole kolumny i kończą się w następnej.",
+    "Sekcja 4: tabela W1–W12 dzieli się między kolumny i strony; „PO-PODZIALE” zaczyna drugą kolumnę mimo wolnego miejsca w pierwszej.",
+    "Sekcja 5: kontener o wysokości 60 mm zaczyna się na dole strony i kończy na następnej; „KONIEC-DOKUMENTU” stoi 60 mm treści kolumn niżej, licząc obie strony."
+  ],
+  "chromium": {
+    "version": "157.0.8103.51",
+    "platform": "macOS arm64",
+    "date": "2026-11-16",
+    "pages": 11,
+    "pageStarts": [
+      "Kolumny dzielone między strony",
+      "A14. Zapis uznaje się za kompletny",
+      "2. Trzy kolumny z nagłówkami rozpiętymi",
+      "B6. Zapis uznaje się za kompletny",
+      "D1. Zapis uznaje się za kompletny",
+      "3. Karty niepodzielne i bloki o stałej wysokości",
+      "KARTA-3",
+      "PO-BLOKACH. Zapis uznaje się za kompletny",
+      "4. Tabela, lista i wymuszony podział w kolumnach",
+      "Kod Opis Ilość",
+      "wykrywalność oraz skutek dla bezpieczeństwa"
+    ],
+    "deviations": []
+  }
+}

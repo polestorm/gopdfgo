@@ -388,6 +388,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	isStart := skipStack == nil
 	box_.RemoveDecoration(box, !isStart || box.SpannerSplitBefore, false)
+	// gopdfgo: przodek o podanej wysokości podzielony elementem rozpinającym kolumny: fragmenty przed
+	// elementem mają wysokość treści, ostatni dostaje to, co z podanej wysokości zostało (testy WPT
+	// multicol-span-all-children-height-004a, -005).
+	if box.SpannerSplitUsed != nil && box.Height != pr.AutoF {
+		if box.SpannerSplitAfter {
+			box.Height = pr.AutoF
+		} else if box.SpannerSplitBefore && isStart {
+			box.Height = max(0, box.Height.V()-*box.SpannerSplitUsed)
+		}
+	}
 
 	discard = discard || box.Style.GetContinue() == "discard"
 	drawBottomDecoration := discard || box.Style.GetBoxDecorationBreak() == "clone"
@@ -672,6 +682,11 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			usedHeight = max(min(usedHeight, box.MaxHeight.V()), box.MinHeight.V())
 		}
 		available := context.pageBottom - bottomSpace - box.ContentBoxY()
+		if collapsingWithChildren {
+			// pudełko bez górnego obramowania i odstępu dostaje ostateczne położenie dopiero niżej,
+			// po zwinięciu marginesów; miejsce liczymy od tego położenia
+			available -= collapseMargin(*thisBoxAdjoiningMargins) - box.MarginTop.V()
+		}
 		if remaining := usedHeight - available; available > 0 && remaining > 0.5 {
 			splitHeight = available
 			resumeAt = tree.RemainderResume(float64(remaining))

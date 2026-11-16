@@ -52,6 +52,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	if hoisted, changed := hoistSpanners(box_.Box().Children); changed {
 		box_.Box().Children = hoisted
 	}
+	if skipStack == nil {
+		resetSpannerSplitUsed(box_.Box().Children)
+	}
 	box_ = bo.CopyWithChildren(box_, box_.Box().Children).(bo.BlockBoxITF) // CopyWithChildren preserves the concrete type of box_
 	box := box_.Box()
 	// gopdfgo: własny górny margines kontenera kolumn zwija się z marginesami sąsiednimi (CSS 2 § 8.3.1);
@@ -65,10 +68,28 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 	// Set height if defined
 	heightDefined := false
+	// gopdfgo: kontener o podanej wysokości, którego treść przechodzi na następną stronę, zajmuje na tej
+	// stronie miejsce do jej dołu, a na następnej resztę wysokości (CSS Fragmentation 3 § 5.1), tak jak
+	// zwykły blok (zob. block.go, fixedHeightRemaining). W źródle każdy fragment miał całą wysokość, więc
+	// kontener, który nie mieścił się w reszcie strony, był przenoszony w całości.
+	// gopdfgo: wysokości procentowe dzieci liczą się od wysokości treści kontenera kolumn, o ile jest
+	// określona (CSS Multicol 1 § 3: pudełka kolumn są anonimowe); w źródle od wysokości pudełka
+	// kolumny, czyli zawsze od auto.
+	var percentBase pr.MaybeFloat
+	if base, ok := box.Height.(pr.Float); ok {
+		percentBase = base
+	}
+	fixedHeight, hasFixedHeight := pr.Float(0), false
 	if height_.Tag != pr.Auto && height_.Unit != pr.Perc {
 		if height_.Unit != pr.Px {
 			panic(fmt.Sprintf("expected Px got %v", height_))
 		}
+		fixedHeight, hasFixedHeight = height_.Value, true
+		if remaining, ok := context.fixedHeightRemaining[resumeKey(skipStack)]; ok && skipStack != nil {
+			fixedHeight = remaining
+			box.Height = remaining
+		}
+		height_.Value = fixedHeight
 		emptySpace := context.pageBottom - box.ContentBoxY() - height_.Value
 		// gopdfgo: dodatkowe kolumny w kierunku wiersza powstają tylko wtedy, gdy treść ogranicza
 		// wysokość kontenera; gdy wcześniej kończy się strona, dalsza treść przechodzi na następną
@@ -226,6 +247,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		currentPositionY += collapseMargin(adjoiningMargins)
 		adjoiningMargins = nil
 		columnBox := createColumnBox(box_, containingBlock, columnChildren, width, currentPositionY)
+		columnBox.Box().AnonymousBaseHeight = percentBase
 		height := context.pageBottom - currentPositionY - originalBottomSpace
 		// gopdfgo: kolumny nie są wyższe niż to, co zostało z podanej wysokości kontenera; w źródle
 		// pierwsza próba i równoważenie liczyły do końca strony.
@@ -454,10 +476,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 		// Replace the current box children with real columns
 		i := 0
-		var maxColumnHeight, maxContentHeight pr.Float
+		var maxColumnHeight, maxContentHeight, forcedHeight pr.Float
 		var columns []Box
 		// wysokość treści kolumny bez dolnego marginesu ostatniego pudełka
-		contentHeight := func(column Box) pr.Float {
+		contentHeight := func(column Box, keepMargin bool) pr.Float {
 			var last *bo.BoxFields
 			for _, child := range column.Box().Children {
 				if ch := child.Box(); ch.IsInNormalFlow() {
@@ -472,12 +494,16 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				// wysokość kolumny wyznaczają elementy pływające, nie ostatnie pudełko
 				return full
 			}
+			if keepMargin {
+				return withMargin
+			}
 			return withMargin - max(0, last.MarginBottom.V())
 		}
 		for {
 			i_ := pr.Float(i)
 
 			columnBox = createColumnBox(box_, containingBlock, columnChildren, width, currentPositionY)
+			columnBox.Box().AnonymousBaseHeight = percentBase
 			if style.GetDirection() == pr.Rtl {
 				columnBox.Box().PositionX += box.Width.V() - (i_+1)*width - i_*gap
 			} else {
@@ -495,7 +521,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			if newChild != nil && columnSkipStack != nil && reflect.DeepEqual(columnSkipStack, skipStack) {
 				columns = append(columns, newChild)
 				maxColumnHeight = max(maxColumnHeight, newChild.Box().MarginHeight())
-				maxContentHeight = max(maxContentHeight, contentHeight(newChild))
+				maxContentHeight = max(maxContentHeight, contentHeight(newChild, false))
 				skipStack = nil
 				bottomSpace = originalBottomSpace
 				break
@@ -513,7 +539,12 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			skipStack = columnSkipStack
 			columns = append(columns, newChild)
 			maxColumnHeight = max(maxColumnHeight, newChild.Box().MarginHeight())
-			maxContentHeight = max(maxContentHeight, contentHeight(newChild))
+			// przed wymuszonym podziałem dolny margines zostaje (CSS Break 3 § 5.2)
+			forced := columnSkipStack != nil && forcePageBreak(string(columnNextPage.Break), context)
+			maxContentHeight = max(maxContentHeight, contentHeight(newChild, false))
+			if forced {
+				forcedHeight = max(forcedHeight, contentHeight(newChild, true))
+			}
 			if skipStack == nil {
 				bottomSpace = originalBottomSpace
 				break
@@ -532,7 +563,12 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		// który się w niej nie mieści, jest obcinany jak przy podziale (CSS Break 3 § 5.2). W źródle
 		// kontener rósł o ten margines.
 		if balancedHeight && !stopRendering && !breakPage {
-			maxColumnHeight = min(maxColumnHeight, max(height, maxContentHeight))
+			maxColumnHeight = max(min(maxColumnHeight, max(height, maxContentHeight)), min(forcedHeight, maxHeight))
+		}
+
+		// wysokość zużyta przez fragmenty przodków podzielonych elementem rozpinającym
+		for _, column := range columns {
+			addSpannerSplitUsed(column.Box().Children)
 		}
 
 		// Update the current y position and set the columns’ height
@@ -568,6 +604,13 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	box.Children = newChildren
 	currentPositionY += collapseMargin(adjoiningMargins)
 	height := currentPositionY - box.ContentBoxY()
+	fragmentedFixed := false
+	if hasFixedHeight && (spannerResume != nil || columnSkipStack != nil || breakPage) && originalBottomSpace > -pr.Inf {
+		if available := context.pageBottom - originalBottomSpace - box.ContentBoxY(); available > 0 && available < fixedHeight {
+			box.Height = available
+			fragmentedFixed = true
+		}
+	}
 	var heightDifference pr.Float
 	if box.Height == pr.AutoF {
 		box.Height = height
@@ -604,6 +647,12 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		skipStack = tree.ResumeStack{index + skip: columnSkipStack[skip]}
 	} else if breakPage {
 		skipStack = tree.ResumeStack{index: nil}
+	}
+	if fragmentedFixed && skipStack != nil {
+		if context.fixedHeightRemaining == nil {
+			context.fixedHeightRemaining = map[uintptr]pr.Float{}
+		}
+		context.fixedHeightRemaining[resumeKey(skipStack)] = fixedHeight - box.Height.V()
 	}
 
 	// Update page bottom according to the new footnotes
@@ -697,8 +746,10 @@ func hoistSpanners(children []Box) ([]Box, bool) {
 		}
 		var run []Box
 		first := true
+		used := new(pr.Float)
 		flush := func(last bool) {
 			part := bo.CopyWithChildren(child, run)
+			part.Box().SpannerSplitUsed = used
 			part.Box().SpannerSplitBefore = !first
 			part.Box().SpannerSplitAfter = !last
 			out = append(out, part)
@@ -766,4 +817,29 @@ func fragmentBottom(box_ Box, resume tree.ResumeStack) pr.Float {
 	}
 	_, inner := resume.Unpack()
 	return min(full, fragmentBottom(last, inner))
+}
+
+// resetSpannerSplitUsed zeruje liczniki wysokości fragmentów przodków (zob. BoxFields.SpannerSplitUsed)
+// przed układem kontenera od początku.
+func resetSpannerSplitUsed(children []Box) {
+	for _, child := range children {
+		if used := child.Box().SpannerSplitUsed; used != nil {
+			*used = 0
+			resetSpannerSplitUsed(child.Box().Children)
+		}
+	}
+}
+
+// addSpannerSplitUsed dolicza wysokości ułożonych fragmentów, po których stoi element rozpinający.
+func addSpannerSplitUsed(children []Box) {
+	for _, child := range children {
+		box := child.Box()
+		if box.SpannerSplitUsed == nil {
+			continue
+		}
+		if height, ok := box.Height.(pr.Float); ok && box.SpannerSplitAfter {
+			*box.SpannerSplitUsed += height
+		}
+		addSpannerSplitUsed(box.Children)
+	}
 }

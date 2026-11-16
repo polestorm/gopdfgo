@@ -841,6 +841,22 @@ Wspólne dla obu katalogów:
     obramowaniu;
   - `html/layout/column_test.go`: `TestColumnsRegression1` i `TestColumnsRegression2` przepisane, bo
     oczekiwały przenoszenia bloków o podanej wysokości w całości (zob. ADR 0015);
+- kolumny, 2026-11-16 (paczka druga, porównanie `22-multicol-pagination` z wydrukiem Chromium):
+  - `html/layout/block.go` (podział bloku o podanej wysokości): miejsce do dołu strony albo kolumny
+    liczone od położenia po zwinięciu marginesów; pudełko bez górnego obramowania dostaje je dopiero
+    na końcu układu, więc po przesunięciu wystawało i było odrzucane w całości;
+  - `html/layout/column.go`: przed wymuszonym podziałem kolumny dolny margines ostatniego pudełka
+    zostaje i liczy się do wysokości kolumn (CSS Break 3 § 5.2);
+  - `html/layout/column.go`: kontener kolumn o podanej wysokości, którego treść przechodzi na następną
+    stronę, zajmuje miejsce do dołu strony i przenosi resztę wysokości (`context.fixedHeightRemaining`);
+    w źródle każdy fragment miał całą wysokość i kontener był przenoszony w całości;
+  - `html/layout/column.go`: wysokości procentowe dzieci liczone od podanej wysokości kontenera
+    (`AnonymousBaseHeight` pudełka kolumny); w źródle od auto;
+  - `html/layout/column.go` (`resetSpannerSplitUsed`, `addSpannerSplitUsed`), `html/boxes/boxes.go`
+    (`SpannerSplitUsed`), `html/layout/block.go`: przodek o podanej wysokości podzielony elementem
+    rozpinającym rozkłada ją na fragmenty (przed elementem wysokość treści, na końcu reszta);
+  - `html/layout/column_test.go`: `TestColumnsRegression3` przepisany (oczekiwał bloku 60px w całości
+    w pierwszej kolumnie; zob. ADR 0015);
 - `contain` (CSS Containment 1), 2026-11-16: nowa właściwość (`css/properties`, `css/validation/validation.go`
   `contain`, `html/boxes/boxes.go` `HasContainment`). Obsługujemy to, co wpływa na układ: `size` czyni
   pudełko niepodzielnym (między strony jest krojone tylko wtedy, gdy nie mieści się na żadnej, jak inne

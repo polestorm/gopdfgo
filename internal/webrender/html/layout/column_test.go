@@ -1093,12 +1093,18 @@ func TestColumnsRegression3(t *testing.T) {
 	column1, column2 := unpack2(div)
 	tu.AssertEqual(t, column1.Box().PositionY, Fl(0))
 	tu.AssertEqual(t, column2.Box().PositionY, Fl(0))
+	// gopdfgo: bloki o podanej wysokości dzielą się między kolumny (ADR 0015): 150px treści daje
+	// dwie kolumny po 75px, a B2 jest przecięty po 45px. Źródło oczekiwało B2 w całości w pierwszej
+	// kolumnie i wysokości 90px.
 	div1, div2 := unpack2(column1)
-	div3 := unpack1(column2)
+	rest, div3 := unpack2(column2)
 	tu.AssertEqual(t, div1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, div3.Box().PositionY, Fl(0))
 	tu.AssertEqual(t, div2.Box().PositionY, Fl(30))
-	tu.AssertEqual(t, div.Box().Height, Fl(5+20+5+60))
+	tu.AssertEqual(t, div2.Box().Height, Fl(45))
+	tu.AssertEqual(t, rest.Box().PositionY, Fl(0))
+	tu.AssertEqual(t, rest.Box().Height, Fl(15))
+	tu.AssertEqual(t, div3.Box().PositionY, Fl(15))
+	tu.AssertEqual(t, div.Box().Height, Fl(75))
 	assertText(t, unpack1(div1.Box().Children[0]), "B1")
 	assertText(t, unpack1(div2.Box().Children[0]), "B2")
 	assertText(t, unpack1(div3.Box().Children[0]), "B3")

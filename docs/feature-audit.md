@@ -1310,3 +1310,33 @@ Co zostało w kolumnach (149 testów): kolumny zagnieżdżone i ich podział mi�
 (ok. 45), podział elementu rozpinającego (`spanner-fragmentation-*`, 13), wysokości procentowe dzieci
 kontenera o podanej wysokości (`multicol-span-all-children-height-*`), elementy pozycjonowane po elemencie
 rozpinającym, kolumny w komórce tabeli, pismo pionowe.
+
+## Kolumny, paczka druga: podział między strony, wysokości (2026-11-16)
+
+Nowy dokument korpusu `22-multicol-pagination` (11 stron): dwie i trzy kolumny dłuższe niż strona,
+nagłówki rozpięte, karty z `break-inside: avoid`, bloki o stałej wysokości, tabela i lista w kolumnach,
+`break-before: column`, kontener kolumn o podanej wysokości na granicy stron. Pierwsze porównanie
+z wydrukiem Chromium: ta sama liczba stron, 98 słów ponad 3 pt w pionie i 26 na innej stronie. Po
+poprawkach: żadnego słowa ponad 3 pt w żadnej osi.
+
+Co różniło (szczegóły w `THIRD_PARTY.md`):
+
+- blok bez obramowania przecinany na dole kolumny liczył miejsce przed zwinięciem marginesu poprzednika,
+  więc po przesunięciu wystawał i był przenoszony w całości; kolumny na końcu strony zostawały niedopełnione;
+- przed wymuszonym podziałem kolumny (`break-before: column`) dolny margines zostaje; kolumny były o ten
+  margines za niskie;
+- kontener kolumn o podanej wysokości, który nie mieścił się w reszcie strony, był przenoszony w całości;
+  teraz zaczyna się w reszcie strony, a na następnej ma resztę wysokości;
+- wysokości procentowe dzieci liczą się od podanej wysokości kontenera kolumn (wcześniej od auto);
+- przodek o podanej wysokości podzielony elementem rozpinającym: fragmenty przed elementem mają wysokość
+  treści, ostatni dostaje resztę.
+
+Wynik: sondaż ekranowy 7209 z 9110 (ściśle 6815, krawędziowo 394), zyskane 20, bez strat; `css-multicol`
+bez `column-height` 241 z 370. Reftesty druku 243 z 340 (bez zmian; wśród niezaliczonych nie ma testów
+kolumn poza dwoma z elementem pływającym w elemencie flex). Przejęty `TestColumnsRegression3` przepisany
+według ADR 0015.
+
+Znane ograniczenia po tej paczce: równoważenie przy `orphans`/`widows` zbliża się do wyniku krokami po
+1 px (wolne dla długich kolumn z samymi krótkimi akapitami), kontener kolumn o podanej wysokości bez
+treści przechodzi na następną stronę w całości (jak pusty blok, ADR 0004).
+

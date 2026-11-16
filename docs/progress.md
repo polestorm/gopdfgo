@@ -1,22 +1,22 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po pierwszej paczce kolumn (`css-multicol`, `contain`). Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po drugiej paczce kolumn (podział między strony, wysokości). Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, renderowane bez pomniejszania
 treści (`-max-shrink 1`, od 16.11), rasteryzowane w 96 dpi
 i porównywane według ADR 0003 (zaliczenie ścisłe albo z dokładnością do krawędzi). Reftesty druku to
-340 testów stronicowania trzymanych w `testdata/wpt`. Korpus to 21 własnych dokumentów
+340 testów stronicowania trzymanych w `testdata/wpt`. Korpus to 22 własne dokumenty
 w `testdata/documents` porównywanych z wydrukami Chromium.
 
 ## Stan w liczbach
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7189 z 9110 (78,9%)** | ściśle 6795, krawędziowo 394 |
+| Sondaż ekranowy W3C | **7209 z 9110 (79,1%)** | ściśle 6815, krawędziowo 394 |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
-| Korpus: liczba stron jak w Chromium | 20 z 21 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 100 funkcji testowych, wszystkie przechodzą | w tym 75 w `regression_test.go` |
+| Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
+| Testy własne | 101 funkcji testowych, wszystkie przechodzą | w tym 76 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
 | Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
@@ -53,6 +53,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  siatka: wysokość z wiersza   7112  ███████████████████████████████████████  78,1%
 16.11  runda na dokumentach         7119  ███████████████████████████████████████  78,1%
 16.11  kolumny, contain             7189  ███████████████████████████████████████▍ 78,9%
+16.11  kolumny: strony, wysokości   7209  ███████████████████████████████████████▌ 79,1%
 ```
 
 (*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
@@ -108,7 +109,7 @@ css-tables (141)                ███████████████▋
 css-lists (150)                 ███████████████▍     77,3%     34
 css-flexbox (952)               ██████████████▏      70,7%    279
 css-grid bez lanes i subgrid    █████████████▋       68,6%    201
-css-multicol (370)              ███████████▉         59,7%    149
+css-multicol (370)              █████████████        65,1%    129
 css-content (37)                ███████████▎         56,8%     16
 css-grid: subgrid (88)          ████▊                23,9%     67
 css-grid: grid-lanes (865)      ██▎                  11,3%    767
@@ -116,7 +117,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 ```
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
-jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **7067 z 8127 (87,0%)**.
+jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **7087 z 8127 (87,2%)**.
 
 ## Co zostało do naprawienia
 
@@ -138,7 +139,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 | Temat | Skąd wiadomo | Rozmiar |
 |---|---|---|
-| Kolumny: kolumny zagnieżdżone (ok. 45 testów), podział elementu rozpinającego i kolumn między kolumny zewnętrzne i strony, wysokości procentowe dzieci, elementy pozycjonowane po elemencie rozpinającym | 149 testów `css-multicol`; element rozpinający w głębi drzewa, dzielenie bloków i równoważenie działają od 16.11 | duży, po kawałku |
+| Kolumny: kolumny zagnieżdżone (ok. 45 testów), podział elementu rozpinającego między kolumny zewnętrzne, elementy pozycjonowane po elemencie rozpinającym, kolumny w komórce tabeli | 129 testów `css-multicol`; zwykłe kolumny na wielu stronach zgadzają się z Chromium (`22-multicol-pagination`) | duży, po kawałku |
 | Elementy pozycjonowane w siatce | 62 testy `css-grid/abspos`, większość z pismem pionowym, `rtl` albo `last baseline` | średni |
 | Elementy pływające: przypadki brzegowe z `clear` i marginesami | 58 testów CSS 2 | średni |
 | Nieobsługiwane właściwości z ostrzeżeniem: `conic-gradient`, `clip-path`, `translate/rotate/scale`, `text-wrap`, `rgb(from …)`, `round()` | lista z audytu | mały każda |
@@ -157,7 +158,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 ## Odchylenie od wydruków Chromium
 
-Cały korpus, 2026-11-16 po pierwszej paczce kolumn; słowa dopasowane przez wyrównanie ciągów. Szczegóły
+Cały korpus, 2026-11-16 po drugiej paczce kolumn; słowa dopasowane przez wyrównanie ciągów. Szczegóły
 i przyczyny pozostałych różnic są w `docs/feature-audit.md` (sekcja „Runda na dokumentach”).
 
 | Dokument | Słowa wspólne | Mediana w pionie (pt) | Ponad 3 pt w pionie | Ponad 3 pt w poziomie | Na innej stronie |
@@ -183,8 +184,9 @@ i przyczyny pozostałych różnic są w `docs/feature-audit.md` (sekcja „Runda
 | `19-flex-grid-pagination` | 2321 | 0,21 | 25 | 54 | 0 |
 | `20-invoice` | 826 | 0,68 | 0 | 0 | 0 |
 | `21-mixed-report` | 846 | 0,22 | 4 | 26 | 0 |
+| `22-multicol-pagination` | 2345 | 0,20 | 0 | 0 | 0 |
 
-W 15 z 21 dokumentów żadne słowo nie odbiega o więcej niż 3 pt w pionie. Kolumny w `21-mixed-report`
+W 16 z 22 dokumentów żadne słowo nie odbiega o więcej niż 3 pt w pionie. Kolumny w `21-mixed-report`
 zgadzają się od 16.11 (było 193 słów ponad 3 pt: kontener kolumn był o 3 pt za wysoki i akapit po nim
 spadał na następną stronę). Dla porównania, rano 16.11: `02-register-table` 5,57 pt (2015 słów ponad
 3 pt), `07-images` 43,3 pt, `10-preformatted` 17,2 pt, `13-forms-html-elements` 21,5 pt.

@@ -287,6 +287,9 @@ type BoxFields struct {
 	// (SpannerSplitBefore) albo przed (SpannerSplitAfter) wyniesionym elementem; po tej stronie nie ma
 	// marginesu, obramowania ani odstępu wewnętrznego (CSS Multicol 1 § 6.1, CSS Break 3 § 5.4).
 	SpannerSplitBefore, SpannerSplitAfter bool
+	// SpannerSplitUsed: wspólny dla fragmentów jednego przodka licznik wysokości zużytej przez fragmenty
+	// stojące przed elementami rozpinającymi; ostatni fragment dostaje resztę podanej wysokości.
+	SpannerSplitUsed *pr.Float
 
 	BorderImage, MaskBorderImage images.Image
 
