@@ -862,6 +862,10 @@ Wspólne dla obu katalogów:
   następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
   między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
   zostawały na dole strony, a wielowierszowa przechodziła dalej;
+- tryb ciągły, 2026-11-16 (ADR 0017): `html/tree/tree.go` (`Behavior.Continuous`),
+  `html/layout/pages.go` (`makePage`: dół strony odsunięty na czas układu, potem strona rośnie do dołu
+  treści), `html/layout/layout.go` (`contentBottomEdge`, `continuousPageHeight`),
+  `html/layout/block.go` (`forcePageBreak` i zmiana strony nazwanej nie łamią strony);
 - `background-clip: text`, 2026-11-16 (CSS Backgrounds 4 § 3.6): `css/validation/validation.go`
   (`backgroundClip`), `html/layout/background.go` i `html/boxes/boxes.go` (`Background.TextClip`),
   `html/document/draw.go` (`setTextMask`): tło elementu jest malowane przez maskę przezroczystości

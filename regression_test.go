@@ -2531,3 +2531,49 @@ func TestBackgroundClipText(t *testing.T) {
 		t.Errorf("background-clip: text nie zmienia wyniku (różnica %d pikseli wobec pełnego tła)", n)
 	}
 }
+
+// Tryb ciągły (ADR 0017): jedna strona, która rośnie do wysokości treści; wysokość z @page zostaje
+// podstawą procentów, jednostek vh i elementów pozycjonowanych, a wymuszone podziały nie tworzą stron.
+func TestContinuousMode(t *testing.T) {
+	html := `<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }
+		.b { height: 80px; background: green } .h { height: 50vh; background: blue }
+		.a { position: absolute; bottom: 0; left: 0; width: 10px; height: 10px; background: red }</style>
+		<div class="b"></div><div class="b" style="break-before:page"></div><div class="h"></div>
+		<div class="b"></div><div class="a"></div>`
+	paged := renderString(t, html)
+	if paged.Pages < 3 {
+		t.Fatalf("dokument z podziałami ma %d stron, oczekiwane co najmniej 3", paged.Pages)
+	}
+	result, err := Render(context.Background(), []byte(html), Options{Fonts: testFonts(t), Continuous: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Pages != 1 {
+		t.Fatalf("tryb ciągły: %d stron, oczekiwana 1", result.Pages)
+	}
+	// 80 + 80 + 50 (połowa wysokości z @page) + 80 = 290 px; element pozycjonowany stoi przy dole
+	// okna z arkusza (100 px), nie przy dole treści
+	reference := `<style>@page { size: 200px 290px; margin: 0 } body { margin: 0 }
+		.b { height: 80px; background: green } .h { height: 50px; background: blue }
+		.a { position: absolute; top: 90px; left: 0; width: 10px; height: 10px; background: red }</style>
+		<div class="b"></div><div class="b"></div><div class="h"></div><div class="b"></div><div class="a"></div>`
+	dir := t.TempDir()
+	got, want := rasterize(t, result.PDF, dir, "continuous"), rasterize(t, renderString(t, reference).PDF, dir, "reference")
+	if len(want) != 1 {
+		t.Fatalf("wzorzec ma %d stron", len(want))
+	}
+	if n := differentPixels(got[0], want[0]); n != 0 {
+		t.Errorf("tryb ciągły różni się od wzorca o %d pikseli", n)
+	}
+
+	// treść krótsza niż strona z arkusza: strona nie maleje
+	short, err := Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 }</style><p>x</p>`),
+		Options{Fonts: testFonts(t), Continuous: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := renderString(t, `<style>@page { size: 200px 100px; margin: 0 }</style><p>x</p>`)
+	if n := differentPixels(rasterize(t, short.PDF, dir, "short")[0], rasterize(t, plain.PDF, dir, "plain")[0]); n != 0 {
+		t.Errorf("krótki dokument w trybie ciągłym różni się od zwykłego o %d pikseli", n)
+	}
+}

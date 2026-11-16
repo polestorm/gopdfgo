@@ -101,6 +101,12 @@ type Options struct {
 	// zostają w skali 1. Zero oznacza 1,5, jak w Chromium; 1 wyłącza pomniejszanie (treść wystaje
 	// i jest ucinana na krawędzi kartki); math.Inf(1) pomniejsza bez limitu.
 	MaxShrink float64
+	// Continuous wyłącza podział na strony: powstaje jedna strona o szerokości z @page, która rośnie
+	// w dół do wysokości treści i nie jest niższa niż strona z arkusza. Wysokość z @page pozostaje
+	// podstawą procentów, jednostek vh i elementów pozycjonowanych, jak okno przeglądarki; właściwości
+	// podziału (break-*, orphans, widows) i powtarzanie nagłówków tabel nie mają wtedy zastosowania
+	// (ADR 0017).
+	Continuous bool
 	// Conformance wybiera normę pliku wynikowego; wartość pusta to zwykły PDF 1.7, PDFA2b to PDF/A-2b
 	// (ADR 0016). W trybie PDF/A plik dostaje metadane XMP, profil sRGB i identyfikator wyliczony
 	// z treści; układ i wygląd stron się nie zmieniają.
@@ -221,7 +227,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
 	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
-		MonospaceFontSize: opts.MonospaceFontSize, ExactLengths: opts.ExactLengths, MaxShrink: maxShrink(opts.MaxShrink)}
+		MonospaceFontSize: opts.MonospaceFontSize, ExactLengths: opts.ExactLengths, MaxShrink: maxShrink(opts.MaxShrink), Continuous: opts.Continuous}
 	// Cechy width, height, aspect-ratio i orientation w @media oceniamy względem obszaru strony
 	// dokumentu (ADR 0012). Arkusze czytamy najpierw z rozmiarem domyślnym; jeśli któreś zapytanie
 	// zależy od rozmiaru, a @page daje inny obszar strony, czytamy je drugi raz z tym obszarem.

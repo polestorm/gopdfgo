@@ -1456,3 +1456,22 @@ Sprawdzenie dało trzy różne odpowiedzi:
 Wynik `css-backgrounds`: 434 z 600 (było 421): zyskane 14, stracony 1 (`clip-text-transform`: tekst
 z tłem przez maskę ma inne wygładzenie krawędzi niż tekst we wzorcu).
 
+## Tryb ciągły i przejście sondażu na ten tryb (2026-11-16)
+
+`Options.Continuous` (ADR 0017): jedna strona, która rośnie do wysokości treści; wysokość z `@page`
+zostaje podstawą procentów, `vh` i elementów pozycjonowanych; wymuszone podziały nie tworzą stron.
+Wszystkie 22 dokumenty korpusu wychodzą w tym trybie jako jedna strona.
+
+Po co: testy ekranowe W3C porównują zrzut okna 800 x 600 px, a silnik dzielił treść wyższą niż 600 px
+na strony. Sondaż renderuje teraz w trybie ciągłym i przycina obraz do okna (`SURVEY_CROP=600`).
+
+| Pomiar tej samej binarki | Stronicowo | Tryb ciągły |
+|---|---|---|
+| siedem dotychczasowych obszarów (9110) | 7209 | 7229 (ściśle 6832, krawędziowo 397) |
+| tekst, tła, fonty (1768) | 1095 | 1148 (ściśle 1110, krawędziowo 38) |
+| razem (10878) | 8304 | 8377 |
+
+Zyskane 73 (tła 53, flex 7, CSS 2: 6, kolumny 3, siatka 2, tabele 2), stracone 0. Wniosek: artefakty
+podziału na strony były małą częścią niezaliczonych (73 z 2574); pozostałe 2501 to realne różnice.
+Reftesty druku (`testdata/wpt`) zostają stronicowe: 243 z 340.
+

@@ -1248,7 +1248,7 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 	if lastInFlowChild != nil {
 		// Between in-flow siblings
 		pageBreak = blockLevelPageBreak(lastInFlowChild, child_)
-		if pageNameChanges(lastInFlowChild, child_) || forcePageBreak(pageBreak, context) {
+		if (!context.behavior.Continuous && pageNameChanges(lastInFlowChild, child_)) || forcePageBreak(pageBreak, context) {
 			pageName, _ := child.PageValues()
 			nextPage = tree.PageBreak{Break: pageBreak, Page: pageName, HasPage: true}
 			resumeAt = tree.ResumeStack{index: nil}
@@ -1675,6 +1675,10 @@ func avoidPageBreak(pageBreak string, context *layoutContext) bool {
 
 // Test whether we should force breaks.
 func forcePageBreak(pageBreak string, context *layoutContext) bool {
+	if context.behavior.Continuous {
+		// tryb ciągły nie ma stron: zostaje tylko wymuszony podział kolumny
+		return context.inColumn && pageBreak == "column"
+	}
 	if context.inColumn {
 		return pageBreak == "page" || pageBreak == "left" || pageBreak == "right" || pageBreak == "recto" || pageBreak == "verso" || pageBreak == "column"
 	}

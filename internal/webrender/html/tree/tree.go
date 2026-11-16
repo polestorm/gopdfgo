@@ -53,6 +53,9 @@ type Behavior struct {
 	// MaxShrink: największe pomniejszenie treści szerszej niż obszar strony (ADR 0014). Wartości do 1
 	// (także zero) wyłączają pomniejszanie.
 	MaxShrink float64
+	// Continuous: dokument nie jest dzielony na strony; powstaje jedna strona, która rośnie w dół
+	// do wysokości treści (ADR 0017).
+	Continuous bool
 }
 
 // `baseUrl` is the base used to resolve relative URLs

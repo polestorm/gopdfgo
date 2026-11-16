@@ -739,6 +739,13 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	rootBox.Box().PositionY = page.ContentBoxY()
 	context.pageBottom = rootBox.Box().PositionY + page.Height.V()
 	context.pageHeight = page.Height.V()
+	if context.behavior.Continuous {
+		// gopdfgo: tryb ciągły (ADR 0017). Dół strony odsuwamy tak daleko, że nic się nie dzieli;
+		// wysokość obszaru strony z arkusza zostaje podstawą procentów, jednostek vh i elementów
+		// pozycjonowanych, a po układzie strona rośnie do dołu treści (zob. niżej).
+		context.pageBottom = rootBox.Box().PositionY + continuousPageHeight
+		context.pageHeight = continuousPageHeight
+	}
 	initialContainingBlock := page
 
 	footnoteAreaStyle := context.styleFor.Get(pageType, "@footnote")
@@ -882,6 +889,18 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	}
 
 	context.finishBlockFormattingContext(rootBox)
+
+	if context.behavior.Continuous {
+		// strona kończy się tam, gdzie treść, ale nie wyżej niż obszar strony z arkusza; gdy przewijanie
+		// okna jest wyłączone (overflow elementu głównego albo body inne niż visible), strona nie rośnie
+		bottom := page.ContentBoxY() + page.Height.V()
+		if page.Style.GetOverflow() == "visible" {
+			bottom = max(bottom, contentBottomEdge(rootBox))
+		}
+		footnoteArea.Translate(0, bottom-context.pageBottom, false)
+		page.Height = bottom - page.ContentBoxY()
+		context.pageBottom = bottom
+	}
 
 	page.Children = []Box{rootBox, footnoteArea}
 

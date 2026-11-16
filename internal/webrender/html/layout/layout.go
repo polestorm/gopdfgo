@@ -800,3 +800,32 @@ func contentRightEdge(box_ Box) pr.Float {
 	}
 	return edge
 }
+
+// continuousPageHeight to umowna wysokość strony w trybie ciągłym: na tyle duża, że żadna treść nie
+// sięga jej dołu, i na tyle mała, że położenia zachowują dokładność.
+const continuousPageHeight pr.Float = 1 << 22
+
+// contentBottomEdge podaje dolną krawędź treści pudełka i jego potomków (krawędzie obramowań, tekst,
+// elementy pozycjonowane); treść przyciętą przez overflow pomija.
+func contentBottomEdge(box_ Box) pr.Float {
+	if placeholder, ok := box_.(*AbsolutePlaceholder); ok {
+		box_ = placeholder.AliasBox
+	}
+	box := box_.Box()
+	edge := -pr.Inf
+	if height, ok := box.Height.(pr.Float); ok && box.Style.GetVisibility() == "visible" {
+		switch box_.(type) {
+		case *bo.TextBox, *bo.LineBox:
+			edge = box.PositionY + height
+		default:
+			edge = box.BorderBoxY() + box.BorderHeight()
+		}
+	}
+	if !bo.LineT.IsInstance(box_) && box.Style.GetOverflow() != "visible" && !box.IsForRootElement {
+		return edge
+	}
+	for _, child := range box.Children {
+		edge = max(edge, contentBottomEdge(child))
+	}
+	return edge
+}

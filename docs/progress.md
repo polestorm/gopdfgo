@@ -1,11 +1,13 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po drugiej paczce kolumn (podział między strony, wysokości). Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po wprowadzeniu trybu ciągłego (ADR 0017) i przejściu sondażu ekranowego na ten tryb. Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
-Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, renderowane bez pomniejszania
-treści (`-max-shrink 1`, od 16.11), rasteryzowane w 96 dpi
-i porównywane według ADR 0003 (zaliczenie ścisłe albo z dokładnością do krawędzi). Reftesty druku to
+Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów (od 16.11 osobno liczone trzy
+dalsze: tekst, tła, fonty), renderowane bez pomniejszania treści i bez podziału na strony
+(`-max-shrink 1 -continuous`, od 16.11), rasteryzowane w 96 dpi, przycinane do okna 800 x 600 px
+i porównywane według ADR 0003 (zaliczenie ścisłe albo z dokładnością do krawędzi). Do 16.11 sondaż był
+stronicowy; ostatni wynik tą metodą to 7209 z 9110 i 1095 z 1768. Reftesty druku to
 340 testów stronicowania trzymanych w `testdata/wpt`. Korpus to 22 własne dokumenty
 w `testdata/documents` porównywanych z wydrukami Chromium.
 
@@ -13,11 +15,11 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7209 z 9110 (79,1%)** | ściśle 6815, krawędziowo 394 |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1095 z 1768 (61,9%)** | ściśle 1057, krawędziowo 38; `css-text` 493 z 887, `css-backgrounds` 434 z 600, `css-fonts` 168 z 281; pierwszy pomiar 970 |
+| Sondaż ekranowy W3C | **7229 z 9110 (79,4%)** | ściśle 6832, krawędziowo 397; tryb ciągły |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1148 z 1768 (64,9%)** | ściśle 1110, krawędziowo 38; `css-text` 493 z 887, `css-backgrounds` 487 z 600, `css-fonts` 168 z 281; tryb ciągły |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 107 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
+| Testy własne | 108 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |
@@ -59,9 +61,12 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  runda na dokumentach         7119  ███████████████████████████████████████  78,1%
 16.11  kolumny, contain             7189  ███████████████████████████████████████▍ 78,9%
 16.11  kolumny: strony, wysokości   7209  ███████████████████████████████████████▌ 79,1%
+16.11  tryb ciągły (*)              7229  ███████████████████████████████████████▋ 79,4%
 ```
 
-(*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
+(*) Skoki z 13.11 i przejście na tryb ciągły 16.11 to poprawki metody pomiaru, nie silnika; przy trybie
+ciągłym 20 testów w tych siedmiu obszarach i 53 w tłach okazało się artefaktem podziału na strony.
+Z 13.11: w 40 dpi kształty o tej samej
 geometrii różniły się wygładzaniem krawędzi.
 
 Reftesty druku (z 340):
@@ -109,20 +114,24 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5837)                    ██████████████████▊  94,0%    351
-css-tables (141)                ███████████████▋     78,7%     30
+CSS 2 (5837)                    ██████████████████▊  94,1%    345
+css-backgrounds (600)           ████████████████▎    81,2%    113
+css-tables (141)                ████████████████     80,1%     28
 css-lists (150)                 ███████████████▍     77,3%     34
-css-flexbox (952)               ██████████████▏      70,7%    279
-css-grid bez lanes i subgrid    █████████████▋       68,6%    201
-css-multicol (370)              █████████████        65,1%    129
+css-flexbox (952)               ██████████████▎      71,4%    272
+css-grid bez lanes i subgrid    █████████████▊       68,8%    200
+css-multicol (370)              █████████████▏       65,9%    126
+css-fonts (281)                 ███████████▉         59,8%    113
 css-content (37)                ███████████▎         56,8%     16
+css-text (887)                  ███████████          55,6%    394
 css-grid: subgrid (88)          ████▊                23,9%     67
-css-grid: grid-lanes (865)      ██▎                  11,3%    767
+css-grid: grid-lanes (865)      ██▎                  11,4%    766
 css-multicol: column-height (30) ██                  10,0%     27
 ```
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
-jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **7087 z 8127 (87,2%)**.
+jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
+**7106 z 8127 (87,4%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 
