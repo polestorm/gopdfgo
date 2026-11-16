@@ -601,6 +601,9 @@ type ComputedStyle struct {
 
 	cascaded   cascadedStyle
 	pseudoType string
+
+	// inProgress: właściwości tego stylu w trakcie obliczania (zob. Get)
+	inProgress []pr.KnownProp
 	baseUrl    string
 	specified  pr.SpecifiedAttributes
 
@@ -779,6 +782,19 @@ func (c *ComputedStyle) Get(key pr.PropKey) pr.CssProperty {
 	// check the cache
 	if v, has := c.propsCache.get(key); has {
 		return v
+	}
+	// gopdfgo: wartość, której obliczenie pyta o nią samą (np. tab-size: 0.4ch: jednostka ch wymaga
+	// stylu tekstu, a ten czyta tab-size), dostaje na czas tego obliczenia wartość początkową.
+	// W źródle kończyło się to nieskończoną rekurencją i przepełnieniem stosu, którego nie da się
+	// przechwycić: ginął cały proces.
+	if key.Var == "" {
+		for _, busy := range c.inProgress {
+			if busy == key.KnownProp {
+				return pr.InitialValues[key.KnownProp]
+			}
+		}
+		c.inProgress = append(c.inProgress, key.KnownProp)
+		defer func() { c.inProgress = c.inProgress[:len(c.inProgress)-1] }()
 	}
 	if key.KnownProp == pr.PFontSize && key.Var == "" {
 		// zależy od rodziny fontu i rozmiaru rodzica; wynik zostaje przy tym stylu

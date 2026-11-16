@@ -130,3 +130,28 @@ func panicSite(message string) string {
 	}
 	return lines[0]
 }
+
+// Trzy awarie znalezione 2026-11-16 w testach W3C z obszaru css-text; każda przerywała renderowanie
+// poprawnego dokumentu, pierwsza przepełnieniem stosu, którego proces nie przeżywa.
+func TestTextCrashesFromW3CSurvey(t *testing.T) {
+	documents := map[string]string{
+		// jednostka ch w tab-size: obliczenie wartości pytało o nią samą
+		"tab-size-ch": `<div style="white-space:pre;tab-size:0.4ch">a&#9;b</div>`,
+		// justowanie tekstu od prawej do lewej: numer skupienia glifu poza tekstem wiersza
+		"justify-rtl": `<p dir="rtl" style="text-align:justify;text-align-last:center;width:200px">` +
+			strings.Repeat("אמר המחבר החיבור הזה לא חברתיו ללמד לבני האדם ", 4) + `ממנה&nbsp;מתעלם</p>`,
+		// znak podziału wiersza spoza listy znanej silnikowi (U+000B, U+000C)
+		"line-break-controls": "<div style=\"white-space:pre\">a\u000bb\u000cc</div><div>d\u000be f\u000cg</div>",
+	}
+	for name, html := range documents {
+		t.Run(name, func(t *testing.T) {
+			result, err := Render(context.Background(), []byte(html), Options{Fonts: testFonts(t)})
+			if err != nil {
+				t.Fatalf("renderowanie nie powiodło się: %v", err)
+			}
+			if result.Pages != 1 {
+				t.Errorf("stron: %d, oczekiwana 1", result.Pages)
+			}
+		})
+	}
+}

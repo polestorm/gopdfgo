@@ -862,6 +862,14 @@ Wspólne dla obu katalogów:
   następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
   między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
   zostawały na dole strony, a wielowierszowa przechodziła dalej;
+- awarie znalezione w testach W3C `css-text`, 2026-11-16:
+  - `html/tree/style.go` (`ComputedStyle.Get`, `inProgress`): wartość, której obliczenie pyta o nią samą
+    (`tab-size: 0.4ch`: jednostka `ch` wymaga stylu tekstu, a ten czyta `tab-size`), dostaje na ten czas
+    wartość początkową; w źródle nieskończona rekurencja i przepełnienie stosu;
+  - `text/engine_gotext.go` (`ApplyJustification`): tekst przekazywany do `shaping.AddSpacing` jest
+    dopełniany, gdy numer skupienia glifu wychodzi poza tekst wiersza; w źródle panika `index out of range`;
+  - `html/layout/inline.go` (`splitTextBox`): znaki między wierszami spoza listy znanych podziałów
+    (U+000B, U+000C) są traktowane jak zachowany podział wiersza; w źródle `panic`;
 - PDF/A-2b, 2026-11-16 (ADR 0016; walidacja veraPDF 1.30):
   - `internal/pdflib/model/model.go`: katalog zapisuje strumień metadanych XMP (`Catalog.Metadata`)
     i deklaracje zamierzonego wyjścia z profilem ICC (`Catalog.OutputIntents`); `write.go`: identyfikator

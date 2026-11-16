@@ -14,9 +14,10 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 | Miara | Wynik | Uwagi |
 |---|---|---|
 | Sondaż ekranowy W3C | **7209 z 9110 (79,1%)** | ściśle 6815, krawędziowo 394 |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **970 z 1768 (54,9%)** | ściśle 934, krawędziowo 36; `css-text` 381 z 887, `css-backgrounds` 421 z 600, `css-fonts` 168 z 281 |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 104 funkcje testowe i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
+| Testy własne | 105 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |

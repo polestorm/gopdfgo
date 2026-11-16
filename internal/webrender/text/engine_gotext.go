@@ -271,7 +271,18 @@ func (l *TextLayoutGotext) ApplyJustification() {
 		line[i] = run
 	}
 	l.Line = line
-	shaping.AddSpacing(l.Line, l.text, floatToFixed(pr.Fl(l.justification)), 0)
+	// gopdfgo: numer skupienia glifu może wychodzić poza tekst wiersza (obcięta spacja na końcu, tekst
+	// od prawej do lewej), a go-text indeksuje nim tekst bez sprawdzenia; w źródle kończyło się to
+	// paniką. Brakujące pozycje dopełniamy znakiem, który nie jest odstępem.
+	text := l.text
+	for _, run := range l.Line {
+		for _, glyph := range run.Glyphs {
+			if glyph.ClusterIndex >= len(text) {
+				text = append(append([]rune(nil), text...), make([]rune, glyph.ClusterIndex+1-len(text))...)
+			}
+		}
+	}
+	shaping.AddSpacing(l.Line, text, floatToFixed(pr.Fl(l.justification)), 0)
 	l.justified = true
 }
 

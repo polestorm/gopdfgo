@@ -1371,11 +1371,9 @@ func splitTextBox(context *layoutContext, box *bo.TextBox, availableWidth pr.May
 		}
 		between := string(text_[length:resumeIndex])
 		preservedLineBreak = len(strings.Trim(between, " ")) != 0
-		if preservedLineBreak {
-			if !lineBreaks.Has(between) {
-				panic(fmt.Sprintf("Got %s between two lines. Expected nothing or a preserved line break", between))
-			}
-		}
+		// gopdfgo: znaki między wierszami, których nie ma na liście znanych podziałów (np. U+000B,
+		// U+000C: klasa BK w UAX 14), też liczą się jako zachowany podział wiersza. W źródle silnik
+		// zgłaszał tu panikę na poprawnym dokumencie.
 		resumeIndex += skip
 	}
 

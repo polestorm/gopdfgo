@@ -1386,3 +1386,32 @@ Rozmiar korpusu: 1,0 MB jako zwykły PDF, 1,1 MB jako PDF/A (ok. 3–4 kB na pli
 Czego tryb nie obejmuje: załączniki (PDF/A-2 ich zabrania, silnik ich nie odrzuca ani nie zgłasza),
 PDF/A-2a i PDF/UA (tagged PDF), PDF/A-3b.
 
+## Sondaż rozszerzony o tekst, tła i fonty (2026-11-16)
+
+Dotychczasowy sondaż ekranowy obejmuje siedem obszarów W3C. Trzy kolejne dotyczą każdego dokumentu,
+a nie były mierzone: `css-text` (łamanie wierszy, białe znaki, justowanie), `css-backgrounds` (tła,
+obramowania, cienie) i `css-fonts`. Pomiar tą samą metodą (strona 800 x 600 px, 96 dpi, reguła ADR 0003,
+`-max-shrink 1`); 240 testów z pismami spoza fontów testowych pominięto. Wynik rozszerzony podajemy
+osobno, żeby szereg dotychczasowy (9110 testów) pozostał porównywalny.
+
+| Obszar | Zaliczone | W tym krawędziowo | Największe braki |
+|---|---|---|---|
+| `css-text` | 381 z 887 (43,0%) | 8 | `white-space` 274 (z 397), `line-break` 33, `word-break` 25, `hyphens` 22, `line-breaking` 19, `letter-spacing` 18, `text-align` 17, `overflow-wrap` 16 |
+| `css-backgrounds` | 421 z 600 (70,2%) | 28 | `background-size` 60 (z 217), `background-clip` 37, `border-image` ok. 25, `background-origin` 10, `box-shadow` 10 |
+| `css-fonts` | 168 z 281 (59,8%) | 0 | `font-family-name` 21, `font-variant-alternates` 17, `font-palette` 13, `font-size-adjust` ok. 10 |
+| razem | **970 z 1768 (54,9%)** | 36 | |
+
+Pierwszy przebieg pokazał dziesięć awarii silnika na poprawnych dokumentach, wszystkie w `css-text`,
+z trzech przyczyn (naprawione, test `TestTextCrashesFromW3CSurvey`):
+
+- **Przepełnienie stosu przy `tab-size` w jednostce `ch`.** Obliczenie wartości pytało o nią samą.
+  Takiej awarii nie da się przechwycić: ginął cały proces, nie tylko renderowanie. Teraz każda wartość,
+  która w trakcie obliczania pyta o samą siebie, dostaje na ten czas wartość początkową.
+- **Panika przy justowaniu** tekstu od prawej do lewej i przy `text-align-last` (indeks poza tekstem
+  wiersza w bibliotece go-text).
+- **Panika przy znakach podziału wiersza** U+000B i U+000C: przejęty kod sprawdzał listę znanych znaków
+  i przerywał pracę, gdy trafił na inny.
+
+Po poprawkach: 0 awarii w 1768 testach, 5 testów zyskanych. Dotychczasowy sondaż bez zmian (7209 z 9110),
+reftesty druku 243 z 340.
+
