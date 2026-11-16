@@ -2152,3 +2152,47 @@ func TestGridSpanAndReplacedItems(t *testing.T) {
 		}
 	}
 }
+
+// TestFirstLineFloatWidthAndGridDescendants pilnuje poprawek z 2026-11-16: `::first-line` zmienia styl
+// treści pierwszego wiersza (wcześniej był pomijany), szerokość max-content sumuje stojące obok siebie
+// elementy pływające, dalszy potomek pozycjonowany wskazuje obszar siatki właściwościami grid-column,
+// a pozycjonowanie względem komórki tabeli liczy się od jej wysokości w wierszu.
+func TestFirstLineFloatWidthAndGridDescendants(t *testing.T) {
+	float := `<div style="float:left;width:20px;height:40px;background:green"></div>`
+	cases := []struct{ name, tested, expected string }{
+		{"::first-line zmienia kolor pierwszego wiersza",
+			`<style>p::first-line { color: green }</style><p>pierwszy<br>drugi</p>`,
+			`<style>span { color: green }</style><p><span>pierwszy</span><br>drugi</p>`},
+		{"::first-line przodka obejmuje pierwszy wiersz bloku zagnieżdżonego",
+			`<style>section::first-line { color: green }</style><section><p>pierwszy<br>drugi</p><p>trzeci</p></section>`,
+			`<style>span { color: green }</style><section><p><span>pierwszy</span><br>drugi</p><p>trzeci</p></section>`},
+		{"dwa elementy pływające w kontenerze o szerokości z treści",
+			`<div style="position:absolute;background:red">` + float + float + `</div>`,
+			`<div style="position:absolute;background:red;width:40px">` + float + float + `</div>`},
+		{"clear zaczyna nowy rząd elementów pływających",
+			`<div style="position:absolute;background:red">` + float + `<div style="clear:left"></div>` + float + `</div>`,
+			`<div style="position:absolute;background:red;width:20px">` + float + `<div style="clear:left"></div>` + float + `</div>`},
+		{"bottom względem komórki tabeli o podanej wysokości",
+			`<table style="border-spacing:0"><tr><td style="position:relative;height:100px;width:50px;padding:0"><div style="position:absolute;bottom:0;left:0;width:10px;height:10px;background:green"></div></td></tr></table>`,
+			`<table style="border-spacing:0"><tr><td style="position:relative;height:100px;width:50px;padding:0"><div style="position:absolute;top:90px;left:0;width:10px;height:10px;background:green"></div></td></tr></table>`},
+		{"bottom względem komórki rozciągniętej przez sąsiednią",
+			`<table style="border-spacing:0"><tr><td style="position:relative;width:50px;padding:0;vertical-align:top"><div style="position:absolute;bottom:0;left:0;width:10px;height:10px;background:green"></div></td><td style="padding:0"><div style="height:80px;width:10px"></div></td></tr></table>`,
+			`<table style="border-spacing:0"><tr><td style="position:relative;width:50px;padding:0;vertical-align:top"><div style="position:absolute;top:70px;left:0;width:10px;height:10px;background:green"></div></td><td style="padding:0"><div style="height:80px;width:10px"></div></td></tr></table>`},
+		{"dalszy potomek pozycjonowany w obszarze siatki",
+			`<div style="position:relative;display:grid;grid:40px/10px 33px;width:43px"><div><div style="position:absolute;grid-column:2/3;left:0;width:100%;height:10px;background:green"></div></div></div>`,
+			`<div style="position:relative;display:grid;grid:40px/10px 33px;width:43px"><div><div style="position:absolute;left:10px;width:33px;height:10px;background:green"></div></div></div>`},
+	}
+	for _, c := range cases {
+		tested, err := Render(t.Context(), []byte(c.tested), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := Render(t.Context(), []byte(c.expected), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(tested.PDF, expected.PDF) {
+			t.Errorf("%s: inny dokument niż wzorzec", c.name)
+		}
+	}
+}

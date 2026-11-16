@@ -247,7 +247,7 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 	state.CounterScopes = append(state.CounterScopes, utils.Set{})
 
 	box.Box().FirstLetterStyle = styleFor.Get(element, "first-letter")
-	box.Box().firstLineStyle = styleFor.Get(element, "first-line")
+	box.Box().FirstLineStyle = tree.FirstLineStyle(styleFor.Get(element, "first-line"))
 
 	var children, markerBoxes []Box
 	if display.Has(pr.ListItem) {

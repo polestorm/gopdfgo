@@ -68,6 +68,7 @@ func (o orientedBox) outerMaxContentSize() pr.Float {
 }
 
 type verticalBox struct {
+	content pr.MaybeFloat // gopdfgo: wysokość treści, liczona raz
 	orientedBox
 }
 
@@ -94,14 +95,39 @@ func (vb *verticalBox) restoreBoxAttributes() {
 	box.MarginBottom = vb.marginB
 }
 
-// TODO: Define what are the min-content && max-content heights
-func (vb *verticalBox) minContentSize() pr.Float {
-	return 0
+// gopdfgo: wysokość min-content i max-content pola marginesu to wysokość jego treści ułożonej
+// w ustalonej już szerokości (CSS Page 3 § 5.3.2.4 stosuje do wysokości te same reguły co do
+// szerokości). Źródło zwracało 0 i 1e6, więc pola z lewej i z prawej strony dzieliły krawędź po
+// równo, niezależnie od treści.
+func (vb *verticalBox) contentSize() pr.Float {
+	if vb.content != nil {
+		return vb.content.V()
+	}
+	vb.content = pr.Float(0)
+	if marginBox, ok := vb.box.(*bo.MarginBox); ok && marginBox.IsGenerated && marginBox.Width != pr.AutoF {
+		probe := bo.Deepcopy(vb.box)
+		fields := probe.Box()
+		fields.Height = pr.AutoF
+		fields.MarginTop, fields.MarginBottom = pr.Float(0), pr.Float(0)
+		if fields.MarginLeft == pr.AutoF {
+			fields.MarginLeft = pr.Float(0)
+		}
+		if fields.MarginRight == pr.AutoF {
+			fields.MarginRight = pr.Float(0)
+		}
+		var positioned []*AbsolutePlaceholder
+		laidOut, _, _ := blockContainerLayout(vb.context, probe, -pr.Inf, nil, true,
+			&positioned, &positioned, new([]pr.Float), false, -1)
+		if height, ok := laidOut.Box().Height.(pr.Float); ok {
+			vb.content = height
+		}
+	}
+	return vb.content.V()
 }
 
-func (vb *verticalBox) maxContentSize() pr.Float {
-	return 1e6
-}
+func (vb *verticalBox) minContentSize() pr.Float { return vb.contentSize() }
+
+func (vb *verticalBox) maxContentSize() pr.Float { return vb.contentSize() }
 
 type horizontalBox struct {
 	_minContentSize, _maxContentSize pr.MaybeFloat
@@ -528,6 +554,15 @@ func makeMarginBoxes(context *layoutContext, page *bo.PageBox, state tree.PageSt
 		if !anyIsGenerated {
 			continue
 		}
+		if vertical {
+			// gopdfgo: szerokość pól z lewej i z prawej strony ustalamy przed wysokością, bo wysokość
+			// treści zależy od szerokości
+			for _, box := range sideBoxes {
+				if box.IsGenerated {
+					computeFixedDimension(context, box, fixedOuter.V(), false, prefix == "left")
+				}
+			}
+		}
 		// We need the three boxes together for the variable dimension:
 		computeVariableDimension(context, sideBoxes, vertical, variableOuter.V())
 		offsets := [...]pr.Float{0, 0.5, 1}
@@ -543,7 +578,9 @@ func makeMarginBoxes(context *layoutContext, page *bo.PageBox, state tree.PageSt
 			} else {
 				box.PositionX += offset * (variableOuter.V() - box.MarginWidth())
 			}
-			computeFixedDimension(context, box, fixedOuter.V(), !vertical, prefix == "top" || prefix == "left")
+			if !vertical {
+				computeFixedDimension(context, box, fixedOuter.V(), true, prefix == "top")
+			}
 			generatedBoxes = append(generatedBoxes, box)
 		}
 	}

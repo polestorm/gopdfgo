@@ -362,6 +362,10 @@ type layoutContext struct {
 	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
 	flexMeasuring int
 	gridMeasure   *gridMeasure // gopdfgo: trwający pomiar szerokości wewnętrznej siatki
+
+	// gopdfgo: pudełka pozycjonowane względem komórki tabeli, do ponownego ułożenia po ustaleniu
+	// wysokości wiersza; klucz to ułożona komórka
+	cellPositioned map[*bo.BoxFields][]cellPositioned
 	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
 	clipDepth int
 	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony
@@ -661,4 +665,11 @@ func warnContentBelowPage(page *bo.PageBox, root Box, pageNumber int) {
 		logger.WarningLogger.Printf("strona %d: treść elementu <%s> leży poniżej dolnej krawędzi strony i nie jest widoczna",
 			pageNumber, found.Box().ElementTag())
 	}
+}
+
+// cellPositioned (gopdfgo) łączy zastępnik pudełka pozycjonowanego z jego pudełkiem sprzed układu.
+type cellPositioned struct {
+	placeholder *AbsolutePlaceholder
+	original    Box
+	height      pr.Float // wysokość komórki (z odstępem wewnętrznym) w chwili pierwszego układu
 }

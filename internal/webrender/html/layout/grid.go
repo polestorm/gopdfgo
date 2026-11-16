@@ -2190,8 +2190,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 
 	// Zastępniki dzieci pozycjonowanych, z obszarem siatki jako pudełkiem zawierającym.
-	for _, child_ := range positionedChildren {
-		child := child_.Box()
+	for _, child_ := range append(positionedChildren[:len(positionedChildren):len(positionedChildren)], nil) {
 		edges := func(start, end pr.GridLine, names []pr.GridNames, positions []pr.Float, sizes [][2]pr.Float,
 			implicitBefore int, paddingStart, paddingSize pr.Float,
 		) (pr.Float, pr.Float, bool) {
@@ -2225,6 +2224,30 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			}
 			return from, max(to-from, 0), placed
 		}
+		if child_ == nil {
+			// gopdfgo: dalsi potomkowie, dla których kontener siatki jest pudełkiem zawierającym, też
+			// wskazują obszar właściwościami grid-column i grid-row (CSS Grid 1 § 9: reguła dotyczy
+			// każdego pudełka pozycjonowanego, którego pudełko zawierające tworzy kontener siatki);
+			// ich pozycja statyczna zostaje tam, gdzie wypadła w układzie
+			if ownsPositioned && skipStack == nil {
+				for _, placeholder := range *absoluteBoxes {
+					descendant := placeholder.Box()
+					if placeholder.layoutDone || isInBoxes(placeholder.AliasBox, positionedChildren) {
+						continue
+					}
+					style := descendant.Style
+					x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
+						columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth())
+					y, height, placedY := edges(style.GetGridRowStart(), style.GetGridRowEnd(), explicitRowNames,
+						rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight())
+					if placedX || placedY {
+						descendant.GridArea = &[4]pr.Float{x, y, width, height}
+					}
+				}
+			}
+			break
+		}
+		child := child_.Box()
 		style := child.Style
 		x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
 			columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth())
@@ -2234,11 +2257,10 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		child.GridArea = nil
 		// pozycja statyczna: jak jedyny element w obszarze o krawędziach treści kontenera albo wskazanych linii
 		static := [6]pr.Float{box.ContentBoxX(), box.ContentBoxY(), box.Width.V(), box.Height.V(), 0, 0}
-		if placedX {
-			static[0], static[2] = x, width
-		}
-		if placedY {
-			static[1], static[3] = y, height
+		if placedX || placedY {
+			// gopdfgo: prostokąt pozycji statycznej to cały obszar siatki (CSS Box Alignment 3 § 4.2),
+			// a w osi bez wskazanych linii obszar sięga krawędzi odstępu wewnętrznego kontenera
+			static[0], static[1], static[2], static[3] = x, y, width, height
 		}
 		fraction := func(self, items pr.JustifyOrAlign) pr.Float {
 			if self.Has(pr.Auto) || len(self) == 0 {
@@ -2259,12 +2281,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			if placedX || placedY {
 				child.GridArea = &[4]pr.Float{x, y, width, height}
 				// pozycja statyczna: początek obszaru
-				if placedX {
-					child.PositionX = x
-				}
-				if placedY {
-					child.PositionY = y
-				}
+				child.PositionX, child.PositionY = x, y
 			}
 		}
 		if skipStack != nil {

@@ -46,6 +46,7 @@ type lineBoxeIterator struct {
 
 	resetTextIndent bool
 	done            bool
+	firstLine       bool // gopdfgo: następny wiersz jest pierwszym wierszem pudełka (`::first-line`)
 }
 
 func (l *lineBoxeIterator) Has() bool {
@@ -56,7 +57,10 @@ func (l *lineBoxeIterator) Has() bool {
 		return false
 	}
 	line, resumeAt := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
-		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle)
+		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine)
+	if line != nil {
+		l.firstLine = false
+	}
 
 	if traceMode {
 		traceLogger.Dump(fmt.Sprintf("lineBoxeIterator.Has: %s", resumeAt))
@@ -108,12 +112,13 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 	return &lineBoxeIterator{
 		box: box, context: context, positionY: positionY, bottomSpace: bottomSpace, containingBlock: containingBlock,
 		absoluteBoxes: absoluteBoxes, fixedBoxes: fixedBoxes, skipStack: skipStack, firstLetterStyle: firstLetterStyle,
+		firstLine: skipStack == nil,
 	}
 }
 
 func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bottomSpace pr.Float, skipStack tree.ResumeStack,
 	containingBlock_ Box, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
-	firstLetterStyle pr.ElementStyle,
+	firstLetterStyle pr.ElementStyle, firstLine bool,
 ) (line_ *bo.LineBox, resumeAt tree.ResumeStack) {
 	if traceMode {
 		traceLogger.DumpTree(linebox, "getNextLinebox")
@@ -126,6 +131,17 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	}
 
 	skipStack = firstLetterToBox(context, linebox, skipStack, firstLetterStyle)
+
+	wrappedFirstLine := false
+	if firstLine && linebox.FirstLineStyle != nil {
+		// gopdfgo: pierwszy wiersz układamy z kopii, w której treść dziedziczy po `::first-line`;
+		// budowa kopii jest taka sama, więc miejsce wznowienia pasuje do pudełka pierwotnego
+		linebox = firstLineBox(linebox, linebox.FirstLineStyle)
+		wrappedFirstLine = true
+		if skipStack != nil {
+			skipStack = tree.ResumeStack{0: skipStack}
+		}
+	}
 
 	linebox.PositionY = positionY
 
@@ -234,6 +250,15 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		traceLogger.DumpTree(line_, "after loop in getNextLinebox")
 	}
 
+	if wrappedFirstLine && resumeAt != nil {
+		// miejsce wznowienia liczone jest względem pudełka `::first-line`: zdejmujemy ten poziom
+		if _, inner := resumeAt.Unpack(); inner != nil {
+			resumeAt = inner
+		} else {
+			resumeAt = tree.ResumeStack{0: nil}
+		}
+	}
+
 	*absoluteBoxes = append(*absoluteBoxes, lineAbsolutes...)
 	*fixedBoxes = append(*fixedBoxes, lineFixed...)
 
@@ -268,6 +293,58 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	line.Children = append(line.Children, floatChildren...)
 
 	return line_, resumeAt
+}
+
+// firstLineBox (gopdfgo) zwraca kopię pudełka wiersza ze stylami przeliczonymi tak, jakby treść
+// wiersza była objęta pseudoelementem `::first-line` (CSS Pseudo-Elements 4 § 2.1): pudełka
+// liniowe i tekst dziedziczą po nim, a pudełka atomowe i wyjęte z przepływu zostają bez zmian.
+func firstLineBox(linebox *bo.LineBox, style pr.ElementStyle) *bo.LineBox {
+	out := *linebox
+	out.Style = tree.Reparent(linebox.Style, style)
+	parent := tree.FirstLineParent(style, linebox.Style.ParentStyle())
+	// treść wiersza obejmuje pudełko liniowe pseudoelementu: rysuje jego tło i niesie `vertical-align`
+	wrapper := bo.NewInlineBox(style, linebox.Element, "first-line", firstLineChildren(linebox.Children, parent))
+	out.Children = []Box{wrapper}
+	return &out
+}
+
+func firstLineChildren(children []Box, parent pr.ElementStyle) []Box {
+	out := make([]Box, len(children))
+	for i, child := range children {
+		out[i] = child
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		switch child.(type) {
+		case *bo.TextBox, *bo.InlineBox:
+			copied := child.Copy()
+			copied.Box().Style = tree.Reparent(child.Box().Style, parent)
+			copied.Box().Children = firstLineChildren(child.Box().Children, copied.Box().Style)
+			out[i] = copied
+		}
+	}
+	return out
+}
+
+// firstLineTarget (gopdfgo) szuka pudełka pierwszego sformatowanego wiersza bloku: pierwszy wiersz
+// samego bloku albo jego pierwszego dziecka blokowego w przepływie (CSS Pseudo-Elements 4 § 2.1.2).
+// Drugi wynik mówi, że szukanie jest zakończone (także bez znalezienia wiersza).
+func firstLineTarget(box Box) (*bo.LineBox, bool) {
+	for _, child := range box.Box().Children {
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if line, ok := child.(*bo.LineBox); ok {
+			return line, true
+		}
+		if _, ok := child.(*bo.BlockBox); !ok {
+			return nil, true
+		}
+		if line, done := firstLineTarget(child); done {
+			return line, true
+		}
+	}
+	return nil, false
 }
 
 // Return the “skipStack“ to start just after the removed spaces

@@ -1098,3 +1098,34 @@ sondażem `css-grid`): **7058 z 9110 (77,5%)**, ściśle 6671, krawędziowo 387,
 7048. Zyskane 11, stracony 1 (`grid-lanes/subgrid/…/row-auto-track-sizing-002`, funkcja nieobsługiwana).
 Reftesty druku: **230 z 340**, poprzednio 229 (zyskany `margin-boxes/dimensions-003-print`).
 
+
+## Paczka: `::first-line`, elementy pozycjonowane w siatce, pola marginesów w pionie (2026-11-16)
+
+- **`::first-line`.** Silnik wyliczał styl pseudoelementu i nigdzie go nie używał. Teraz pierwszy
+  sformatowany wiersz bloku (także w pierwszym bloku zagnieżdżonym) układany jest z kopii pudełka wiersza,
+  w której treść obejmuje pudełko liniowe pseudoelementu i dziedziczy po nim (CSS Pseudo-Elements 4
+  § 2.1). Z 20 niezaliczonych testów z `first-line` w nazwie zostały 4: `vertical-align` na pseudoelemencie
+  z zagnieżdżonym większym pismem (2), element pływający w pierwszym wierszu, `text-indent` przy bloku
+  w elemencie liniowym. Nieobsłużone: `text-transform` na `::first-line`.
+- **Elementy pozycjonowane w siatce.** Dalszy potomek, dla którego siatka jest pudełkiem zawierającym,
+  wskazuje obszar właściwościami `grid-column` i `grid-row`; prostokąt pozycji statycznej to cały obszar
+  siatki. Zostają głównie testy z pismem pionowym, `direction: rtl` i `last baseline`.
+- **Błędy ogólne znalezione przy okazji.** Szerokość max-content bloku sumuje stojące obok siebie
+  elementy pływające (wcześniej brała największy, więc drugi spadał niżej). Szerokość dopasowana do treści
+  elementu pozycjonowanego bez `left` i `right` ma do dyspozycji miejsce od pozycji statycznej do końca
+  pudełka zawierającego. Spacje wiszące przy `pre-wrap` nie liczą się do min-content.
+- **Pola marginesów z lewej i z prawej strony** dzielą krawędź według wysokości treści (źródło: po równo).
+- **Pozycjonowanie względem komórki tabeli** liczy się od wysokości komórki w wierszu. Wyszło przy
+  sprawdzaniu tekstu obróconego (`transform: rotate(-90deg)`) w nagłówkach kolumn: sam obrót działał
+  i zgadzał się z Chromium, ale podpis wystawał ponad tabelę.
+- **Pismo pionowe** (`writing-mode`): pomiar i trzy możliwe zakresy w pytaniu 22
+  (`docs/adr/open-questions.md`); nic nie wdrożone.
+
+Wynik (pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003; poprawka komórek tabeli doszła po
+sondażu i została sprawdzona sondażem 1881 testów z tabel, pozycjonowania i flex, bez zmian):
+**7094 z 9110 (77,9%)**, ściśle 6706, krawędziowo 388, niezaliczone 2016; poprzednio 7058. Zyskane 38
+(siatka 12, selektory CSS 2 11, flex 6, kaskada CSS 2 4, inne 5), stracone 2:
+`CSS2/floats-clear/table-among-floats-001` (tabela obok elementów pływających powinna zwęzić się, żeby
+ominąć drugi z nich; wcześniej zaliczała się dzięki błędnej, za małej szerokości max-content) oraz
+`css-grid/subgrid/line-names-007` (funkcja nieobsługiwana). Reftesty druku: **232 z 340**, poprzednio 230
+(zyskane `margin-boxes/dimensions-005-print` i `-008-print`).

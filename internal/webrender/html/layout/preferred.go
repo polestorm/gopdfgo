@@ -109,21 +109,55 @@ func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 type fnBlock = func(*layoutContext, Box, bool) pr.Float
 
 // Helper to create “block_*_ContentWidth.“
-func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer bool) pr.Float {
+func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer, sumFloats bool) pr.Float {
 	width := box.Box().Style.GetWidth()
 	var widthValue pr.Float
 	if width.Tag == pr.Auto || width.Unit == pr.Perc {
 		// "percentages on the following properties are treated instead as
 		// though they were the following: width: auto"
 		// https://dbaron.org/css/intrinsic/#outer-intrinsic
-		var max pr.Float = 0
-		for _, child := range box.Box().Children {
-			if !child.Box().IsAbsolutelyPositioned() {
-				v := function(context, child, true)
+		var max, floats pr.Float
+		for _, child_ := range box.Box().Children {
+			child := child_.Box()
+			if child.IsAbsolutelyPositioned() {
+				continue
+			}
+			v := function(context, child_, true)
+			if !sumFloats {
 				if v > max {
 					max = v
 				}
+				continue
 			}
+			// gopdfgo: w szerokości max-content kolejne elementy pływające stoją obok siebie, więc ich
+			// szerokości się sumują (CSS Sizing 3 § 5.1: szerokość bez żadnego łamania); źródło brało
+			// największy z nich, przez co kontener z dwoma elementami pływającymi dostawał szerokość
+			// jednego i drugi spadał niżej. `clear` zaczyna nowy rząd, a blok w przepływie go kończy;
+			// blok, który omija elementy pływające (własny kontekst formatowania), staje obok nich.
+			if child.Style.GetClear() != "none" {
+				if floats > max {
+					max = floats
+				}
+				floats = 0
+			}
+			if child.IsFloated() {
+				floats += v
+				continue
+			}
+			if bo.EstablishesFormattingContext(child_) || bo.ReplacedT.IsInstance(child_) || child.IsTableWrapper ||
+				bo.FlexContainerT.IsInstance(child_) || bo.GridContainerT.IsInstance(child_) {
+				v += floats
+			}
+			if floats > max {
+				max = floats
+			}
+			if v > max {
+				max = v
+			}
+			floats = 0
+		}
+		if floats > max {
+			max = floats
 		}
 		widthValue = max
 	} else {
@@ -248,9 +282,9 @@ func adjust(box Box, outer bool, width pr.Float, left, right bool) pr.Float {
 func blockMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	// gopdfgo: width: max-content daje tę samą szerokość w obu pomiarach
 	if box.Box().Style.GetWidth().Intrinsic == pr.IntrinsicMaxContent {
-		return blockContentWidth(context, box, maxContentWidth, outer)
+		return blockContentWidth(context, box, maxContentWidth, outer, true)
 	}
-	v := blockContentWidth(context, box, minContentWidth, outer)
+	v := blockContentWidth(context, box, minContentWidth, outer, false)
 	return v
 }
 
@@ -258,9 +292,9 @@ func blockMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float 
 // outer=true
 func blockMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if box.Box().Style.GetWidth().Intrinsic == pr.IntrinsicMinContent {
-		return blockContentWidth(context, box, minContentWidth, outer)
+		return blockContentWidth(context, box, minContentWidth, outer, false)
 	}
-	return blockContentWidth(context, box, maxContentWidth, outer)
+	return blockContentWidth(context, box, maxContentWidth, outer, true)
 }
 
 // Return the min-content width for an “InlineBox“.
@@ -419,7 +453,22 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 				tmp := text.SplitFirstLine(textRunes[resumeIndex:], textBox.Style,
 					context, maxWidth, true, isLineStart)
 				newResumeIndex = tmp.ResumeAt
-				lines = append(lines, orNil(tmp.Width))
+				lineWidth := tmp.Width
+				if minimum && whiteSpace == pr.PreWrap && newResumeIndex > 0 {
+					// gopdfgo: zachowane spacje na końcu złamanego wiersza wiszą poza nim i nie liczą się
+					// do szerokości min-content (CSS Text 3 § 4.1.3); źródło je doliczało
+					line := textRunes[resumeIndex : resumeIndex+newResumeIndex]
+					trimmed := len(line)
+					for trimmed > 0 && line[trimmed-1] == ' ' {
+						trimmed--
+					}
+					if trimmed == 0 {
+						lineWidth = 0
+					} else if trimmed < len(line) {
+						lineWidth = text.SplitFirstLine(line[:trimmed], textBox.Style, context, nil, false, isLineStart).Width
+					}
+				}
+				lines = append(lines, orNil(lineWidth))
 				if firstLine {
 					break
 				}

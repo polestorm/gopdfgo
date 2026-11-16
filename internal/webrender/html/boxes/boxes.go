@@ -221,7 +221,10 @@ type BoxFields struct {
 
 	Style pr.ElementStyle
 
-	FirstLetterStyle, firstLineStyle pr.ElementStyle
+	FirstLetterStyle pr.ElementStyle
+	// gopdfgo: styl `::first-line` elementu; na pudełku wiersza: styl, który obowiązuje w tym wierszu,
+	// gdy jest on pierwszym sformatowanym wierszem bloku (ustawiany w układzie)
+	FirstLineStyle pr.ElementStyle
 
 	PositionX, PositionY                                    pr.Float
 	Width, Height, MinWidth, MaxWidth, MinHeight, MaxHeight pr.MaybeFloat

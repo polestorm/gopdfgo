@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po paczce: siatka (elementy rozpięte, obrazy), pola marginesów. Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po paczce: `::first-line`, elementy pozycjonowane w siatce, pola marginesów w pionie. Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, rasteryzowane w 96 dpi
@@ -12,14 +12,14 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7058 z 9110 (77,5%)** | ściśle 6671, krawędziowo 387 |
-| Reftesty druku W3C | **230 z 340 (67,6%)** | wszystkie ściśle |
+| Sondaż ekranowy W3C | **7094 z 9110 (77,9%)** | ściśle 6706, krawędziowo 388 |
+| Reftesty druku W3C | **232 z 340 (68,2%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 19 z 21 dokumentów | wyjątki: `06-margin-boxes`, `11-edge-cases` |
-| Testy własne | 93 funkcje testowe, wszystkie przechodzą | w tym 69 w `regression_test.go` |
+| Testy własne | 94 funkcje testowe, wszystkie przechodzą | w tym 70 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Commity | 98 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 4 |
-| Zmiany w przejętym kodzie | 245 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 9 | otwarte pytania: 20 i 21 |
+| Commity | 99 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 5 |
+| Zmiany w przejętym kodzie | 252 wpisy w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Decyzje (ADR) | 9 | otwarte pytania: 20, 21 i 22 |
 
 ## Sondaż ekranowy w czasie
 
@@ -48,6 +48,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  obramowania, margines strony 7004  ██████████████████████████████████████▍ 76,9%
 16.11  siatka                       7048  ██████████████████████████████████████▋ 77,4%
 16.11  siatka: rozpięte, obrazy     7058  ██████████████████████████████████████▊ 77,5%
+16.11  ::first-line, abspos w siatce 7094 ██████████████████████████████████████▉ 77,9%
 ```
 
 (*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
@@ -64,6 +65,7 @@ Reftesty druku (z 340):
 16.11  228  █████████████████████████████████▌      67,1%
 16.11  229  █████████████████████████████████▋      67,4%
 16.11  230  █████████████████████████████████▊      67,6%
+16.11  232  ██████████████████████████████████      68,2%
 ```
 
 ## Poprawki według obszarów
@@ -85,7 +87,8 @@ bloki i marginesy                      4  ██
 inne                                   9  ████▌
 ```
 
-Razem 239 wpisów w chwili liczenia (przed ostatnią paczką, która dodała 6: siatka 3, strony 2, style 1). Trzy obszary zebrały prawie połowę poprawek: stronicowanie (bo to cel silnika,
+Razem 239 wpisów w chwili liczenia; dwie późniejsze paczki dodały 13 (siatka 4, strony 3, style 2, tekst 2,
+pływające i pozycjonowanie 2). Trzy obszary zebrały prawie połowę poprawek: stronicowanie (bo to cel silnika,
 a przejęty kod gubił treść na granicach stron), style i składnia (dużo małych braków) oraz tekst.
 
 ## Stan obszarów sondażu
@@ -94,12 +97,12 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5837)                    ██████████████████▋  93,5%    377
+CSS 2 (5837)                    ██████████████████▊  93,8%    359
 css-tables (141)                ███████████████▋     78,7%     30
 css-lists (150)                 ███████████████▍     77,3%     34
-css-flexbox (952)               ██████████████       70,1%    285
-css-grid bez lanes i subgrid    ████████████▊        63,9%    231
-css-content (37)                ██████████▊          54,1%     17
+css-flexbox (952)               ██████████████▏      70,7%    279
+css-grid bez lanes i subgrid    █████████████▏       65,8%    219
+css-content (37)                ███████████▎         56,8%     16
 css-multicol (370)              ████████▎            41,4%    217
 css-grid: subgrid (88)          ████▊                23,9%     67
 css-grid: grid-lanes (865)      ██▎                  11,4%    766
@@ -107,7 +110,7 @@ css-multicol: column-height (30) ▋                    3,3%     29
 ```
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
-jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6936 z 8127 (85,3%)**.
+jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6973 z 8127 (85,8%)**.
 
 ## Co zostało do naprawienia
 
@@ -119,21 +122,22 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 |---|---|---|
 | Linia bazowa w siatce i flex (`last baseline`, oś kolumn) | 30 testów `css-grid/alignment`, część `css-flexbox` | średni |
 | Obrazy w siatce: rozmiar z `aspect-ratio` i procentów, `minmax` z obrazem | ok. 20 testów `grid-items`, `grid-lanes` pomijam | średni |
-| Pola marginesów: wymiary przy trzech polach i w pionie | 10 testów `margin-boxes/dimensions` | średni |
+| Pola marginesów: pozostałe wymiary (część wymaga pisma pionowego) | 8 testów `margin-boxes/dimensions` | średni |
 | Podział kontenera flex między strony: nowa linia przy żądaniu podziału, równoważenie | 28 testów `css-flexbox/balance`, reftesty druku flex | średni |
-| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 111 z 340 niezaliczonych | duży, po kawałku |
+| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 108 z 340 niezaliczonych | duży, po kawałku |
 | `@media` względem rzeczywistego rozmiaru strony | pytanie 20, czeka na decyzję | mały |
-| `::first-line` | brak w silniku; używane w typografii | średni |
+| `::first-line`: `vertical-align`, `text-transform`, elementy pływające w pierwszym wierszu | 4 testy; podstawa działa od 16.11 | mały |
+| Tabela obok elementów pływających: zwężanie, żeby ominąć kolejny | `table-among-floats-001` (strata z 16.11) | mały |
 
 ### Średnia: rzadziej, ale spotykane
 
 | Temat | Skąd wiadomo | Rozmiar |
 |---|---|---|
 | Kolumny: element rozpinający w zagnieżdżeniu, równoważenie, podział | 217 testów `css-multicol` | duży |
-| Elementy pozycjonowane w siatce | 70 testów `css-grid/abspos` | średni |
+| Elementy pozycjonowane w siatce | 62 testy `css-grid/abspos`, większość z pismem pionowym, `rtl` albo `last baseline` | średni |
 | Elementy pływające: przypadki brzegowe z `clear` i marginesami | 58 testów CSS 2 | średni |
 | Nieobsługiwane właściwości z ostrzeżeniem: `conic-gradient`, `clip-path`, `translate/rotate/scale`, `text-wrap`, `rgb(from …)`, `round()` | lista z audytu | mały każda |
-| Flex w trybach pisma pionowego i `writing-mode` w ogóle | 13 + część testów siatki | duży |
+| Pismo pionowe (`writing-mode`) | 272 niezaliczone testy sondażu, 17 druku; pytanie 22 | od 2–3 paczek (poddrzewo obrócone) do tygodni (osie logiczne) |
 | Dopasowanie wydruku do strony (fit-to-page) na życzenie | rozmowa 16.11, pytanie 21 | średni |
 
 ### Niska: eksperymentalne albo poza zakresem

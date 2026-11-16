@@ -464,6 +464,13 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	skip := 0
 	firstLetterStyle := box.FirstLetterStyle
+	if isStart && box.FirstLineStyle != nil {
+		// gopdfgo: styl `::first-line` trafia na pudełko pierwszego sformatowanego wiersza; blok
+		// zagnieżdżony układany jest później, więc jego własny styl ma pierwszeństwo
+		if line, _ := firstLineTarget(box_); line != nil {
+			line.FirstLineStyle = tree.Reparent(box.FirstLineStyle, line.Style)
+		}
+	}
 	// gopdfgo: treść wylewająca się z bloku o podanej wysokości jest kontynuowana na następnej stronie,
 	// choć sam blok skończył się wcześniej (CSS Fragmentation 3 § 5.1). W źródle taka treść była
 	// porzucana ("forget overflowing children").
@@ -742,6 +749,18 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	}
 
 	if newBox.Style.GetPosition().String == "relative" {
+		if bo.TableCellT.IsInstance(newBox_) && len(*absoluteBoxes) != 0 {
+			// gopdfgo: komórka tabeli dostanie ostateczną wysokość dopiero z wiersza; zapamiętujemy
+			// pudełka pierwotne, żeby układ tabeli mógł powtórzyć pozycjonowanie (zob. tables.go)
+			pending := make([]cellPositioned, len(*absoluteBoxes))
+			for i, absoluteBox := range *absoluteBoxes {
+				pending[i] = cellPositioned{placeholder: absoluteBox, original: absoluteBox.AliasBox, height: newBox.PaddingHeight()}
+			}
+			if context.cellPositioned == nil {
+				context.cellPositioned = map[*bo.BoxFields][]cellPositioned{}
+			}
+			context.cellPositioned[newBox] = pending
+		}
 		// New containing block, resolve the layout of the absolute descendants
 		for _, absoluteBox := range *absoluteBoxes {
 			absoluteLayout(context, absoluteBox, newBox_, fixedBoxes, bottomSpace, nil)

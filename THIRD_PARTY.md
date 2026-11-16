@@ -727,6 +727,34 @@ Wspólne dla obu katalogów:
     więc pole z marginesem, obramowaniem albo odstępem wychodziło za wąskie;
   - `html/tree/style.go` (`viewport.size`): `vw` i `vh` przy `@page { width; height }` liczą się od
     podanego obszaru strony; wcześniej od domyślnego rozmiaru arkusza;
+- paczka 2026-11-16 (czwarta): `::first-line`, elementy pozycjonowane w siatce, pola marginesów w pionie:
+  - `html/tree/first_line.go` (nowy), `html/boxes/boxes.go` (`FirstLineStyle`), `html/boxes/build.go`,
+    `html/layout/inline.go` (`firstLineBox`, `firstLineTarget`, `getNextLinebox`), `html/layout/block.go`:
+    obsługa `::first-line` (CSS Pseudo-Elements 4 § 2.1). Źródło wyliczało styl pseudoelementu i nigdzie go
+    nie używało. Pierwszy sformatowany wiersz bloku (także w pierwszym bloku zagnieżdżonym) układany jest
+    z kopii pudełka wiersza: treść obejmuje pudełko liniowe pseudoelementu, tekst i pudełka liniowe
+    dziedziczą po nim, a z kaskady pseudoelementu brane są tylko właściwości, które on przyjmuje (§ 2.1.1);
+  - `html/layout/preferred.go` (`blockContentWidth`): w szerokości max-content kolejne elementy pływające
+    sumują się, `clear` zaczyna nowy rząd, blok z własnym kontekstem formatowania staje obok nich
+    (CSS Sizing 3 § 5.1). Źródło brało największe dziecko, więc kontener o szerokości z treści z dwoma
+    elementami pływającymi miał szerokość jednego i drugi spadał niżej;
+  - `html/layout/preferred.go` (`inlineLineWidths`): zachowane spacje na końcu złamanego wiersza przy
+    `white-space: pre-wrap` nie liczą się do szerokości min-content (CSS Text 3 § 4.1.3: wiszą);
+  - `html/layout/absolute.go` (`_absoluteWidth`): przy `left`, `right` i `width` równych `auto` szerokość
+    dopasowana do treści ma do dyspozycji miejsce od pozycji statycznej do końca pudełka zawierającego
+    (CSS 2.1 § 10.3.7, reguła 3); źródło dawało całą szerokość pudełka zawierającego;
+  - `html/layout/grid.go`: dalszy potomek pozycjonowany, dla którego kontener siatki jest pudełkiem
+    zawierającym, wskazuje obszar właściwościami `grid-column` i `grid-row` (CSS Grid 1 § 9); wcześniej
+    tylko dziecko bezpośrednie. Prostokąt pozycji statycznej dziecka ze wskazanymi liniami to cały obszar
+    siatki, także w osi bez wskazanych linii (CSS Box Alignment 3 § 4.2);
+  - `html/layout/pages.go` (`verticalBox`, `makeMarginBoxes`): wysokość min-content i max-content pola
+    marginesu to wysokość jego treści w ustalonej szerokości, a szerokość pól z lewej i z prawej strony
+    jest ustalana przed wysokością (CSS Page 3 § 5.3.2.4). Źródło miało tu TODO i zwracało 0 oraz 1e6,
+    więc pola dzieliły krawędź po równo, niezależnie od treści;
+  - `html/layout/block.go`, `html/layout/tables.go`, `html/layout/layout.go` (`cellPositioned`): pudełka
+    pozycjonowane względem komórki tabeli są układane ponownie, gdy komórka dostanie wysokość wiersza
+    (CSS 2.1 § 10.1); źródło liczyło `bottom` i wysokości procentowe od wysokości treści komórki, więc
+    np. obrócony podpis w nagłówku kolumny wystawał ponad tabelę;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

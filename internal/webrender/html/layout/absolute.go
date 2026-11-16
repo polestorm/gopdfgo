@@ -87,7 +87,13 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 			box.MarginRight = pr.Float(0)
 		}
 		availableWidth := cbWidth - (paddingsBorders + box.MarginLeft.V() + box.MarginRight.V())
-		box.Width = shrinkToFit(context, box_, availableWidth)
+		fitWidth := availableWidth
+		if ltr && !box.IsOutsideMarker {
+			// gopdfgo: `left` przyjmuje pozycję statyczną, więc na szerokość zostaje miejsce od niej do
+			// końca pudełka zawierającego (CSS 2.1 § 10.3.7, reguła 3); źródło dawało całą szerokość
+			fitWidth += defaultTranslateX
+		}
+		box.Width = shrinkToFit(context, box_, fitWidth)
 		if box.IsOutsideMarker {
 			translateBoxWidth = ltr
 		} else if !ltr {

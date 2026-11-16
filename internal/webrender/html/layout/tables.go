@@ -386,11 +386,14 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				cell := cell_.Box()
 				cellBottomY := cell.PositionY + cell.BorderHeight()
 				extra := rowBottomY - cellBottomY
+				moved := pr.Float(0)
 				if extra != 0 {
 					if cell.VerticalAlign == pr.Bottom {
+						moved += extra
 						addTopPadding(cell, extra)
 					} else if cell.VerticalAlign == pr.Middle {
 						extra /= 2.
+						moved += extra
 						addTopPadding(cell, extra)
 						cell.PaddingBottom = cell.PaddingBottom.V() + extra
 					} else {
@@ -405,8 +408,27 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 						verticalAlignShift = cell.ComputedHeight.V() - cell.ContentHeight.V()
 					}
 					if verticalAlignShift > 0 {
+						moved += verticalAlignShift
 						for _, child := range cell.Children {
 							child.Translate(0, verticalAlignShift, false)
+						}
+					}
+				}
+				// gopdfgo: pudełkiem zawierającym dla potomków pozycjonowanych jest komórka w wysokości
+				// wiersza (CSS 2.1 § 10.1, CSS Tables 3 § 3.10.3), a układ komórki zna tylko wysokość
+				// treści. Po rozciągnięciu komórki pozycjonowanie powtarzamy; w źródle `bottom` i wysokości
+				// procentowe liczyły się od wysokości treści.
+				if pending, ok := context.cellPositioned[cell]; ok {
+					delete(context.cellPositioned, cell)
+					for _, positioned := range pending {
+						if positioned.height == cell.PaddingHeight() && moved == 0 {
+							continue
+						}
+						{
+							positioned.original.Box().PositionY += moved
+							positioned.placeholder.AliasBox = positioned.original
+							positioned.placeholder.layoutDone = false
+							absoluteLayout(context, positioned.placeholder, cell_, fixedBoxes, bottomSpace, nil)
 						}
 					}
 				}
