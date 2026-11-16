@@ -42,6 +42,12 @@ type FontConfigurationGotext struct {
 
 	fontsContent  map[string][]byte        // to be embedded in the target
 	fontsFeatures map[*font.Font][]Feature // as requested by @font-face
+	loadedFaces   map[string]bool          // gopdfgo: reguły @font-face już wczytane (zob. loadOneFont)
+
+	// ReuseLoadedFaces (gopdfgo): ta sama reguła @font-face przetwarzana ponownie nie wczytuje fontu
+	// drugi raz. Włącza to gopdfgo.Render, gdzie konfiguracja fontów żyje przez jedno renderowanie;
+	// konfiguracja współdzielona między dokumentami (testy przejęte) zachowuje zachowanie źródła.
+	ReuseLoadedFaces bool
 
 	textLayoutCache map[textKey]FirstLine
 
@@ -107,6 +113,26 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		}
 	}
 
+	desc := font.Description{
+		Family: string(ruleDescriptors.FontFamily),
+		Aspect: newAspect(
+			newFontStyle(ruleDescriptors.FontStyle),
+			newFontWeight(ruleDescriptors.FontWeight),
+			newFontStretch(ruleDescriptors.FontStretch),
+		),
+	}
+	// add the face with a "unique" ID
+	key := fmt.Sprintf("%s+%v", url.S, desc)
+
+	// gopdfgo: ta sama reguła @font-face czytana drugi raz (arkusze są przetwarzane dwukrotnie, zob.
+	// ADR 0012) nie pobiera ani nie parsuje fontu ponownie. W źródle każde przetworzenie arkusza
+	// dodawało nową twarz; dla małych dokumentów była to ponad jedna piąta czasu renderowania.
+	features := getFontFaceFeatures(ruleDescriptors)
+	loadedKey := fmt.Sprintf("%s+%v", key, features)
+	if f.ReuseLoadedFaces && f.loadedFaces[loadedKey] {
+		return key, nil
+	}
+
 	result, err := urlFetcher(url.S)
 	if err != nil {
 		return "", fmt.Errorf("failed to load font at %s: %s", url.S, err)
@@ -130,16 +156,6 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		return "", fmt.Errorf("failed to parse font at %s : %s", url.S, err)
 	}
 
-	desc := font.Description{
-		Family: string(ruleDescriptors.FontFamily),
-		Aspect: newAspect(
-			newFontStyle(ruleDescriptors.FontStyle),
-			newFontWeight(ruleDescriptors.FontWeight),
-			newFontStretch(ruleDescriptors.FontStretch),
-		),
-	}
-	// add the face with a "unique" ID
-	key := fmt.Sprintf("%s+%v", url.S, desc)
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
 
 	if url.Tag == pr.External {
@@ -147,7 +163,11 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 	}
 
 	// track the font features to apply
-	f.fontsFeatures[ft] = getFontFaceFeatures(ruleDescriptors)
+	f.fontsFeatures[ft] = features
+	if f.loadedFaces == nil {
+		f.loadedFaces = map[string]bool{}
+	}
+	f.loadedFaces[loadedKey] = true
 
 	return key, nil
 }

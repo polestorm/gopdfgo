@@ -182,6 +182,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		contents[id] = font.Data
 	}
 	fontConfig := text.NewFontConfigurationGotext(fontMap)
+	fontConfig.ReuseLoadedFaces = true
 	if len(opts.GenericFamilies) != 0 {
 		fontConfig.GenericFamilies = map[string][]string{}
 		for generic, families := range opts.GenericFamilies {

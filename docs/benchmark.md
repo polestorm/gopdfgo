@@ -161,3 +161,73 @@ same pola marginesowe.
 - Przejrzeć 69 różnic bez ostrzeżeń; powtórzyć reftesty przez `gopdfgo.Render` zamiast programu w `bench/`.
 - Dodać `vh`/`vw` i właściwości logiczne, powtórzyć przebieg, żeby oddzielić braki składni od błędów fragmentacji.
 - folio i Chromium na tym samym programie jako punkty odniesienia.
+
+## 9. Czas i rozmiar po paczkach kolumn (2026-11-16)
+
+Sposób pomiaru: `go test -run '^$' -bench 'BenchmarkCorpus|BenchmarkLargeTable' -benchtime 10x .`
+(`benchmark_test.go`), macOS arm64, 10 rdzeni, go1.26.6. Czas to jedno wywołanie `Render` razem
+z czytaniem i parsowaniem fontów dokumentu, bez startu procesu; pamięć to suma przydziałów, nie szczyt.
+Kolumna „przed” to ten sam pomiar (5 powtórzeń) na stanie `ef7c91b`, przed dwiema poprawkami opisanymi niżej.
+
+| Dokument | Strony | Czas przed [ms] | Czas [ms] | Pamięć przydzielona [MB] |
+|---|---|---|---|---|
+| `01-record-copy` | 3 | 56 | 47 | 104 |
+| `02-register-table` | 8 | 92 | 81 | 173 |
+| `03-report-svg-chart` | 2 | 56 | 46 | 164 |
+| `04-qms-procedure` | 10 | 70 | 65 | 153 |
+| `05-hyphenation` | 1 | 53 | 43 | 88 |
+| `06-margin-boxes` | 3 | 37 | 32 | 89 |
+| `07-images` | 6 | 45 | 32 | 91 |
+| `08-flex` | 2 | 38 | 32 | 85 |
+| `09-lists-counters` | 1 | 43 | 36 | 90 |
+| `10-preformatted` | 1 | 50 | 38 | 91 |
+| `11-edge-cases` | 2 | 52 | 40 | 99 |
+| `12-floats-positioning` | 2 | 37 | 33 | 85 |
+| `13-forms-html-elements` | 1 | 45 | 37 | 99 |
+| `14-cascade-selectors` | 1 | 41 | 35 | 85 |
+| `15-page-breaks` | 13 | 40 | 37 | 107 |
+| `16-typography-fonts` | 1 | 48 | 44 | 117 |
+| `17-tables` | 2 | 39 | 32 | 85 |
+| `18-toc-running-elements` | 6 | 49 | 43 | 107 |
+| `19-flex-grid-pagination` | 13 | 94 | 90 | 153 |
+| `20-invoice` | 3 | 57 | 50 | 105 |
+| `21-mixed-report` | 3 | 56 | 52 | 118 |
+| `22-multicol-pagination` | 11 | 100 | 101 | 160 |
+
+Tabela 4000 wierszy (`BenchmarkLargeTable`, 130 stron): 1.10 s i 1298 MB; przed poprawkami 1,33 s
+i 1391 MB; 15.11 było 1,06 s i 1239 MB, więc ok. 0,05 s i 60 MB przybyło od tamtego czasu z innych powodów
+(nie ustalałam których).
+
+Wnioski:
+
+- **Kolumny nie spowolniły silnika.** Dokumenty `19`, `21` i pozostałe mają ten sam czas co na stanie sprzed
+  paczek kolumn (`99006b1`); próby z kolumnami do 53 stron (1500 akapitów w trzech kolumnach) trwają tyle
+  samo co przed zmianami (0,40 s wobec 0,38 s całego procesu). Równoważenie krokami po 1 px nie jest
+  widoczne w czasie.
+- **Stały koszt ok. 30 ms na dokument** nie zależy od treści. Profil dokumentu `17-tables` (32 ms): ok. 40%
+  to parsowanie fontów podanych w `Options.Fonts` (biblioteka go-text parsuje od razu wszystkie glify),
+  ok. 25% czytanie arkuszy i fontów z `@font-face`, reszta to układ, rysowanie i zapis PDF.
+- **Dwie poprawki z tego pomiaru** (obie bez wpływu na wynik renderowania): reguła `@font-face` czytana
+  drugi raz nie wczytuje fontu ponownie, a style policzone w przedbiegu dla `@media` (ADR 0012) służą
+  właściwemu układowi, o ile arkusze nie muszą być czytane drugi raz. Małe dokumenty zyskały 10–25%,
+  tabela 4000 wierszy 17%.
+- **Do decyzji:** parsowanie `Options.Fonts` przy każdym wywołaniu. Program renderujący wiele dokumentów
+  tymi samymi fontami płaci za nie za każdym razem; przygotowany raz zestaw fontów albo pamięć podręczna
+  według skrótu treści skróciłyby mały dokument z ok. 32 do ok. 20 ms (szacunek z profilu). Wymaga to
+  zmiany interfejsu albo stanu wspólnego między wywołaniami, więc nie zostało zrobione.
+
+Cały proces (`time`, trzy powtórzenia, pierwsze pominięte), dla orientacji wobec Chromium 157 bezgłowego
+na tej samej maszynie:
+
+| Dokument | gopdfgo [s] | Chromium [s] |
+|---|---|---|
+| `17-tables` (2 strony) | 0,03 | 0,40 |
+| `02-register-table` (8 stron) | 0,08 | 0,46 |
+| `22-multicol-pagination` (11 stron) | 0,10 | 0,40 |
+
+Czas Chromium to głównie start przeglądarki; w usłudze, która trzyma przeglądarkę uruchomioną, różnica
+byłaby mniejsza. Tego nie mierzyłam.
+
+Rozmiar binarki `cmd/gopdfgo` (macOS arm64, `CGO_ENABLED=0 -trimpath -ldflags='-s -w'`): **23,35 MB**
+(14.11: 21,60 MB); linux/amd64 z `-s -w`: 24,3 MB. Wobec ok. 400 MB Chromium z bibliotekami to 17 razy
+mniej, wobec 150–200 MB `chrome-headless-shell` 6–8 razy mniej.

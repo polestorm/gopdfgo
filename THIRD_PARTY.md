@@ -857,6 +857,14 @@ Wspólne dla obu katalogów:
     rozpinającym rozkłada ją na fragmenty (przed elementem wysokość treści, na końcu reszta);
   - `html/layout/column_test.go`: `TestColumnsRegression3` przepisany (oczekiwał bloku 60px w całości
     w pierwszej kolumnie; zob. ADR 0015);
+- wydajność, 2026-11-16 (pomiar w `docs/benchmark.md` § 9):
+  - `text/engine_gotext.go` (`loadOneFont`, `ReuseLoadedFaces`): reguła `@font-face` przetwarzana drugi
+    raz w tej samej konfiguracji fontów nie pobiera i nie parsuje fontu ponownie; włączone tylko
+    w `gopdfgo.Render`, bo testy przejęte dzielą jedną konfigurację między dokumenty i zależą od
+    kolejności dodawania twarzy;
+  - `html/layout/layout.go` (`MediaPageArea`, `preparedContext`), `html/tree/tree.go` (`HTML.LayoutCache`):
+    kontekst układu z policzonymi stylami zbudowany w przedbiegu dla `@media` (ADR 0012) jest używany
+    przez właściwy układ, gdy arkusze nie są czytane ponownie; wcześniej style były liczone dwa razy;
 - `contain` (CSS Containment 1), 2026-11-16: nowa właściwość (`css/properties`, `css/validation/validation.go`
   `contain`, `html/boxes/boxes.go` `HasContainment`). Obsługujemy to, co wpływa na układ: `size` czyni
   pudełko niepodzielnym (między strony jest krojone tylko wtedy, gdy nie mieści się na żadnej, jak inne

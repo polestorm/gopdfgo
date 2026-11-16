@@ -3,6 +3,7 @@ package gopdfgo
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -35,6 +36,27 @@ func BenchmarkLargeTable(b *testing.B) {
 			b.Fatal(err)
 		}
 		b.ReportMetric(float64(result.Pages), "stron")
+	}
+}
+
+// BenchmarkCorpus mierzy czas renderowania każdego dokumentu z testdata/documents (samo renderowanie,
+// razem z czytaniem fontów dokumentu, bez startu procesu). Wyniki z datą zapisujemy w docs/benchmark.md.
+func BenchmarkCorpus(b *testing.B) {
+	documents, _ := filepath.Glob("testdata/documents/*.html")
+	if len(documents) == 0 {
+		b.Fatal("brak dokumentów w testdata/documents")
+	}
+	for _, path := range documents {
+		b.Run(strings.TrimSuffix(filepath.Base(path), ".html"), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				result, err := renderFileResult(path, "testdata", "")
+				if err != nil {
+					b.Fatal(err)
+				}
+				b.ReportMetric(float64(result.Pages), "stron")
+			}
+		})
 	}
 }
 
