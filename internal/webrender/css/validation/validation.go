@@ -3038,13 +3038,9 @@ func visibility(tokens []Token, _ string) pr.CssProperty {
 func whiteSpace(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeywordT(tokens)
 	switch keyword {
-	case pr.Normal, pr.Pre, pr.Nowrap, pr.PreWrap, pr.PreLine:
+	case pr.Normal, pr.Pre, pr.Nowrap, pr.PreWrap, pr.PreLine, pr.BreakSpaces:
 		return keyword
 	default:
-		if getSingleKeyword(tokens) == "break-spaces" {
-			// gopdfgo: break-spaces przybliżamy przez pre-wrap (różnica dotyczy tylko końcowych spacji wiersza)
-			return pr.PreWrap
-		}
 		return nil
 	}
 }

@@ -1901,6 +1901,9 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 
 		// Normalize line feeds
 		text = lineFeedRe.ReplaceAllString(text, "\n")
+		// gopdfgo: znaki sterujące (kategoria Cc) inne niż tabulator i znak nowego wiersza mają być
+		// widoczne (CSS Text 3 § 2.1); rysujemy w ich miejscu znak zastępczy U+FFFD. W źródle znikały.
+		text = visibleControls(text)
 
 		styleWhiteSpace := box_.Style.GetWhiteSpace()
 		newLineCollapse := styleWhiteSpace == pr.Normal || styleWhiteSpace == pr.Nowrap
@@ -2378,4 +2381,21 @@ func extractText(textPart string, box Box) string {
 	default:
 		panic("exhaustive switch")
 	}
+}
+
+// visibleControls zamienia znaki sterujące, które nie mają znaczenia dla układu, na U+FFFD.
+func visibleControls(text string) string {
+	if strings.IndexFunc(text, isRenderedControl) < 0 {
+		return text
+	}
+	return strings.Map(func(r rune) rune {
+		if isRenderedControl(r) {
+			return '\uFFFD'
+		}
+		return r
+	}, text)
+}
+
+func isRenderedControl(r rune) bool {
+	return unicode.Is(unicode.Cc, r) && r != '\t' && r != '\n'
 }

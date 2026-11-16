@@ -862,6 +862,19 @@ Wspólne dla obu katalogów:
   następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
   między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
   zostawały na dole strony, a wielowierszowa przechodziła dalej;
+- białe znaki, 2026-11-16 (CSS Text 3; testy W3C `css-text/white-space`):
+  - `html/boxes/build.go` (`visibleControls`): znaki sterujące kategorii Cc inne niż tabulator i znak
+    nowego wiersza są rysowane jako U+FFFD (§ 2.1: mają być widoczne); w źródle znikały;
+  - `text/engine_gotext.go` (`WrapWordBreak`): przy `pre-wrap` spacje i tabulatory, po których wiersz
+    został zawinięty, wiszą i nie liczą się do szerokości wiersza (§ 4.1.3); w źródle przesuwały
+    wyrównanie do prawej i do środka. Tylko pismo od lewej do prawej;
+  - `white-space: break-spaces` jako osobna wartość (`css/properties/keywords_src.go` `BreakSpaces`,
+    `css/validation`, `text/style.go` `breakSpaces`, `text/engine_gotext.go`): spacje zajmują miejsce,
+    wiersz łamie się po każdej z nich, a przed pierwszą tylko przy `overflow-wrap: anywhere` albo
+    `break-word`. Wcześniej (od 2026-11-14) wartość była przybliżana przez `pre-wrap`;
+  - `css/properties/cmd/main.go`: generator formatuje wynik programem `gofmt` zamiast `goimports`
+    (którego może nie być) i sam dopisuje import; wcześniej przerywał pracę przed zapisaniem tablicy
+    słów kluczowych;
 - awarie znalezione w testach W3C `css-text`, 2026-11-16:
   - `html/tree/style.go` (`ComputedStyle.Get`, `inProgress`): wartość, której obliczenie pyta o nią samą
     (`tab-size: 0.4ch`: jednostka `ch` wymaga stylu tekstu, a ten czyta `tab-size`), dostaje na ten czas

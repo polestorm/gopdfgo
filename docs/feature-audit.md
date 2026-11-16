@@ -1415,3 +1415,23 @@ z trzech przyczyn (naprawione, test `TestTextCrashesFromW3CSurvey`):
 Po poprawkach: 0 awarii w 1768 testach, 5 testów zyskanych. Dotychczasowy sondaż bez zmian (7209 z 9110),
 reftesty druku 243 z 340.
 
+## Białe znaki: znaki sterujące, wiszące spacje, `break-spaces` (2026-11-16)
+
+Grupa `white-space` w `css-text` była największą pojedynczą grupą niezaliczonych testów (274 z 397).
+Trzy przyczyny i co zrobiono:
+
+- **Znaki sterujące** (ok. 62 testy) nie były rysowane. Norma każe je pokazać; rysujemy znak zastępczy
+  U+FFFD. W tekście wydobytym z PDF w tym miejscu też jest U+FFFD.
+- **`pre-wrap`**: spacje na końcu zawiniętego wiersza liczyły się do jego szerokości, więc tekst
+  wyrównany do prawej albo do środka był przesunięty. Teraz wiszą.
+- **`break-spaces`** było przybliżane przez `pre-wrap`. Jest osobną wartością: spacje zajmują miejsce
+  i przechodzą do następnego wiersza.
+
+Wynik `css-text`: 493 z 887 (było 381), zyskane 112, bez strat względem stanu wyjściowego. Trzy testy
+`break-spaces-before-first-char` (010, 011, 017) przechodziły w wersji pośredniej i nie przechodzą
+w końcowej; przyczyny nie ustalałam.
+
+Co zostało w `white-space` (ok. 160): spacja ideograficzna i inne odstępy Unicode na końcu wiersza
+(ok. 20), `text-wrap: balance` (ok. 19), próg pozycji tabulatora, rozmiary wewnętrzne przy `pre-wrap`,
+`textarea`, pismo od prawej do lewej.
+

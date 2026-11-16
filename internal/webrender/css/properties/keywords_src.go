@@ -100,6 +100,7 @@ const (
 	Nowrap
 	PreWrap
 	PreLine
+	BreakSpaces // gopdfgo: white-space: break-spaces (CSS Text 3 § 3)
 
 	String_
 	Url

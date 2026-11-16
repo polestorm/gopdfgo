@@ -634,6 +634,70 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 	}
 
+	// gopdfgo: white-space: break-spaces. Zachowane spacje zajmują miejsce i nie wiszą, a wiersz wolno
+	// złamać po każdej z nich, nigdy przed pierwszą (CSS Text 3 § 3). Biblioteka pozwala spacjom na końcu
+	// wiersza wystawać poza jego szerokość, więc poprawiamy wynik: gdy słowo z jedną spacją się nie
+	// mieści, łamiemy wcześniej; spacje ponad szerokość przechodzą do następnego wiersza. Tylko dla
+	// pisma od lewej do prawej.
+	if style.breakSpaces() && textWrap && dir.Progression() == di.FromTopLeft {
+		for attempt := 0; attempt < 2; attempt++ {
+			end := wLine.NextLine
+			if end <= 0 || end > len(text) || text[end-1] != ' ' {
+				break
+			}
+			spaces := 0
+			for end-spaces-1 >= 0 && text[end-spaces-1] == ' ' {
+				spaces++
+			}
+			lastRun := &line[len(line)-1]
+			if len(lastRun.Glyphs) < spaces {
+				break
+			}
+			var total fixed.Int26_6
+			for _, run := range line {
+				total += run.Advance
+			}
+			if total <= mw {
+				break
+			}
+			spaceAdvance := lastRun.Glyphs[len(lastRun.Glyphs)-1].Advance
+			if spaceAdvance <= 0 {
+				break
+			}
+			content := total - fixed.Int26_6(spaces)*spaceAdvance
+			// Przy overflow-wrap: anywhere albo break-word wolno złamać także przed pierwszą spacją,
+			// i to jest lepsze niż podział w środku słowa. word-break: break-all tego nie daje: tam
+			// łamie się słowo (testy WPT break-spaces-before-first-char-004, overflow-wrap-break-word-006).
+			minKeep := 1
+			if allowWordBreak && content > 0 && style.OverflowWrap != ONormal && style.WordBreak != WBBreakAll {
+				minKeep = 0
+			}
+			if content > 0 && content+spaceAdvance > mw && attempt == 0 && minKeep == 1 {
+				// słowo razem z pierwszą spacją się nie mieści: szukamy wcześniejszego miejsca podziału
+				narrower := wrapingMaxWidth - pr.Float(spaceAdvance)/64
+				if _, shorter, _ := fc.LineWrap(text, style, outputs, narrower, allowWordBreak); len(shorter.Line) != 0 && shorter.NextLine < end {
+					wLine, line, fitsOnFirstLine = shorter, shorter.Line, false
+					continue
+				}
+				mw, wLine, fitsOnFirstLine = fc.LineWrap(text, style, outputs, wrapingMaxWidth, allowWordBreak)
+				line = wLine.Line
+				lastRun = &line[len(line)-1]
+			}
+			keep := spaces
+			if content+fixed.Int26_6(spaces)*spaceAdvance > mw {
+				keep = max(minKeep, int((mw-content)/spaceAdvance))
+			}
+			if drop := spaces - keep; drop > 0 {
+				lastRun.Glyphs = slices.Clone(lastRun.Glyphs[:len(lastRun.Glyphs)-drop])
+				lastRun.Runes.Count -= drop
+				lastRun.RecalculateAll()
+				wLine.NextLine -= drop
+				fitsOnFirstLine = false
+			}
+			break
+		}
+	}
+
 	resumeAt := wLine.NextLine
 	firstLineLength := resumeAt
 	if resumeAt == len(text) {
@@ -647,7 +711,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	// 000C FORM FEED (FF)
 	// 2028 LINE SEPARATOR
 	// 2029 PARAGRAPH SEPARATOR
+	mandatoryBreak := false
 	if r := text[wLine.NextLine-1]; r == '\n' || r == '\u000B' || r == '\u000C' || r == '\u2028' || r == '\u2029' {
+		mandatoryBreak = true
 		resumeAt = wLine.NextLine
 		firstLineLength = wLine.NextLine - 1
 		lastRun := &line[len(line)-1]
@@ -675,6 +741,31 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 		lastRun.Glyphs = lastRun.Glyphs[:i+1]
 		lastRun.RecalculateAll()
+	}
+
+	// gopdfgo: przy white-space: pre-wrap spacje i tabulatory, po których wiersz został zawinięty,
+	// wiszą: zostają w tekście, ale nie zajmują miejsca, więc nie wpływają na wyrównanie ani na
+	// szerokość wiersza (CSS Text 3 § 4.1.3). W źródle liczyły się do szerokości i wiersz wyrównany
+	// do prawej albo do środka był przesunięty o ich szerokość. Tylko dla pisma od lewej do prawej.
+	if !fitsOnFirstLine && !mandatoryBreak && !spaceCollapse && textWrap && !style.breakSpaces() && dir.Progression() == di.FromTopLeft {
+		lastRun := &line[len(line)-1]
+		glyphs := lastRun.Glyphs
+		hung := false
+		for i := len(glyphs) - 1; i >= 0; i-- {
+			index := glyphs[i].ClusterIndex
+			if index < 0 || index >= len(text) || (text[index] != ' ' && text[index] != '\t') {
+				break
+			}
+			if !hung {
+				glyphs = slices.Clone(glyphs)
+				hung = true
+			}
+			glyphs[i].Advance, glyphs[i].Width = 0, 0
+		}
+		if hung {
+			lastRun.Glyphs = glyphs
+			lastRun.RecalculateAll()
+		}
 	}
 
 	// copy the line, owned by lineWrapper

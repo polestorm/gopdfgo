@@ -1715,7 +1715,7 @@ func isCollapsibleSpace(box Box) bool {
 func canBreakInside(ctx *layoutContext, box Box) pr.MaybeBool {
 	// See https://www.w3.org/TR/css-text-3/#white-space-property
 	ws := box.Box().Style.GetWhiteSpace()
-	textWrap := ws == pr.Normal || ws == pr.PreWrap || ws == pr.PreLine
+	textWrap := ws == pr.Normal || ws == pr.PreWrap || ws == pr.PreLine || ws == pr.BreakSpaces
 	textBox, isTextBox := box.(*bo.TextBox)
 	if bo.AtomicInlineLevelT.IsInstance(box) {
 		return pr.False

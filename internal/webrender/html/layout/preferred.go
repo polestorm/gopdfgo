@@ -434,7 +434,7 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 			// Text box, split into lines.
 			whiteSpace := textBox.Style.GetWhiteSpace()
 			spaceCollapse := whiteSpace == pr.Normal || whiteSpace == pr.Nowrap || whiteSpace == pr.PreLine
-			textWrap := whiteSpace == pr.Normal || whiteSpace == pr.PreWrap || whiteSpace == pr.PreLine
+			textWrap := whiteSpace == pr.Normal || whiteSpace == pr.PreWrap || whiteSpace == pr.PreLine || whiteSpace == pr.BreakSpaces
 			if skipStack == nil {
 				skip = 0
 			} else {

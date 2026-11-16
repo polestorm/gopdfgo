@@ -1,6 +1,6 @@
 package properties
 
-//go:generate go run gen/gen.go
+//go:generate go run ./cmd
 
 // This file is used to generate typed accessors
 // The order of props matters : it is choosen so that the more frequent

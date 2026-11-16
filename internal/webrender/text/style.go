@@ -62,8 +62,11 @@ func (fd FontDescription) binary(dst []byte, includeSize bool) []byte {
 // textWrap returns true if the "white-space" property allows wrapping
 func (ts *TextStyle) textWrap() bool {
 	ws := ts.WhiteSpace
-	return ws == pr.Normal || ws == pr.PreWrap || ws == pr.PreLine
+	return ws == pr.Normal || ws == pr.PreWrap || ws == pr.PreLine || ws == pr.BreakSpaces
 }
+
+// breakSpaces: zachowane spacje zajmują miejsce i po każdej wolno złamać wiersz (white-space: break-spaces)
+func (ts *TextStyle) breakSpaces() bool { return ts.WhiteSpace == pr.BreakSpaces }
 
 func (ts *TextStyle) spaceCollapse() bool {
 	ws := ts.WhiteSpace

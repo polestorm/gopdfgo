@@ -2478,3 +2478,38 @@ func TestTableRowMovesWholeWhenCellWouldBeEmpty(t *testing.T) {
 		}
 	}
 }
+
+// Białe znaki (CSS Text 3 § 2.1, § 3, § 4.1.3): znaki sterujące są widoczne, spacje zachowane przez
+// pre-wrap wiszą na końcu zawiniętego wiersza, a przy break-spaces zajmują miejsce i przechodzą dalej.
+func TestWhiteSpaceControlsHangingAndBreakSpaces(t *testing.T) {
+	head := `<style>@page { size: 200px 120px; margin: 0 } body { margin: 0; font: 20px/24px sans-serif }
+		div { width: 70px }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		pages := rasterize(t, renderString(t, head+body).PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron, oczekiwana 1", name, len(pages))
+		}
+		return pages[0]
+	}
+
+	if n := differentPixels(page("control", "<p>a\u0001b</p>"), page("control-ref", `<p>ab</p>`)); n == 0 {
+		t.Error("znak sterujący U+0001 nie jest widoczny")
+	}
+
+	spaces := strings.Repeat(" ", 12)
+	wrapped := page("pre-wrap", `<div style="white-space:pre-wrap;text-align:right">aa`+spaces+`bb</div>`)
+	if n := differentPixels(wrapped, page("pre-wrap-ref", `<div style="text-align:right">aa<br>bb</div>`)); n != 0 {
+		t.Errorf("pre-wrap: spacje na końcu zawiniętego wiersza przesuwają wyrównanie (%d pikseli)", n)
+	}
+
+	broken := page("break-spaces", `<div style="white-space:break-spaces">aa`+spaces+`bb</div>`)
+	if n := differentPixels(broken, page("break-spaces-ref", `<div>aa<br>bb</div>`)); n == 0 {
+		t.Error("break-spaces: spacje nie zajmują miejsca (wynik jak bez nich)")
+	}
+	// każdy wiersz mieści się w szerokości pudełka: na prawo od niego nie ma treści
+	if n := differentPixels(broken, page("break-spaces-clip", `<div style="white-space:break-spaces;overflow:hidden">aa`+spaces+`bb</div>`)); n != 0 {
+		t.Errorf("break-spaces: treść wystaje poza szerokość pudełka (%d pikseli)", n)
+	}
+}
