@@ -15,11 +15,11 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7229 z 9110 (79,4%)** | ściśle 6832, krawędziowo 397; tryb ciągły |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1148 z 1768 (64,9%)** | ściśle 1110, krawędziowo 38; `css-text` 493 z 887, `css-backgrounds` 487 z 600, `css-fonts` 168 z 281; tryb ciągły |
+| Sondaż ekranowy W3C | **7231 z 9110 (79,4%)** | ściśle 6833, krawędziowo 398; tryb ciągły |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1208 z 1768 (68,3%)** | ściśle 1171, krawędziowo 37; `css-text` 552 z 887, `css-backgrounds` 487 z 600, `css-fonts` 169 z 281; tryb ciągły |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 108 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
+| Testy własne | 109 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 77 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |
@@ -121,9 +121,9 @@ css-lists (150)                 ███████████████▍
 css-flexbox (952)               ██████████████▎      71,4%    272
 css-grid bez lanes i subgrid    █████████████▊       68,8%    200
 css-multicol (370)              █████████████▏       65,9%    126
-css-fonts (281)                 ███████████▉         59,8%    113
+css-text (887)                  ████████████▍        62,2%    335
+css-fonts (281)                 ████████████         60,1%    112
 css-content (37)                ███████████▎         56,8%     16
-css-text (887)                  ███████████          55,6%    394
 css-grid: subgrid (88)          ████▊                23,9%     67
 css-grid: grid-lanes (865)      ██▎                  11,4%    766
 css-multicol: column-height (30) ██                  10,0%     27

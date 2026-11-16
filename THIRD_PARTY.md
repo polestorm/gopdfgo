@@ -862,6 +862,20 @@ Wspólne dla obu katalogów:
   następną stronę cały, o ile nie jest pierwszym wierszem grupy na stronie (CSS Break 3 § 3.1: podział
   między wierszami przed podziałem łamiącym `orphans`/`widows`). W źródle komórki jednowierszowe
   zostawały na dole strony, a wielowierszowa przechodziła dalej;
+- łamanie wierszy, 2026-11-16 (CSS Text 3 § 5; testy W3C `css-text`):
+  - nowa właściwość `line-break` (`css/properties`, `css/validation` `lineBreak`, `text/style.go`
+    `WBAnywhere`): `anywhere` łamie między dowolnymi znakami; `loose`, `normal`, `strict` są przyjmowane
+    i działają jak `auto`. Źródło właściwości nie znało;
+  - `text/engine_gotext.go` (`breakAllAllowed`): `word-break: break-all` łamie między literami i cyframi,
+    ale zachowuje reguły UAX 14 dla znaków przestankowych (wiersz nie zaczyna się od kropki ani od
+    U+00A0); wcześniej łamało w dowolnym miejscu;
+  - `html/layout/inline.go`: między U+00A0 a elementem atomowym (obraz, `inline-block`) wiersz wolno
+    złamać (§ 5.1, wyjątek dla zgodności ze stronami WWW);
+  - `html/layout/inline.go` (`splitTextBox`): przy podanym `line-height` linia bazowa i interlinia tekstu
+    liczą się z metryk pierwszego dostępnego fontu (CSS Inline 3 § 4.2); w źródle z fontu, z którego
+    pochodził glif, więc znak z fontu zastępczego powiększał wiersz;
+  - `text/engine_gotext.go` (`isPreservedSpace`): spacja ideograficzna U+3000 wisi na końcu wiersza
+    i przechodzi do następnego przy `break-spaces` jak zwykła spacja;
 - tryb ciągły, 2026-11-16 (ADR 0017): `html/tree/tree.go` (`Behavior.Continuous`),
   `html/layout/pages.go` (`makePage`: dół strony odsunięty na czas układu, potem strona rośnie do dołu
   treści), `html/layout/layout.go` (`contentBottomEdge`, `continuousPageHeight`),

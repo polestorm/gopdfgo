@@ -181,6 +181,7 @@ var (
 		PWidows,
 		PWordSpacing,
 		PWordBreak,
+		PLineBreak,
 	)
 
 	// http://www.w3.org/TR/CSS21/tables.html#model

@@ -1051,6 +1051,11 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				canBreak = pr.True
 			} else if first == letterFalse {
 				canBreak = pr.False
+			} else if (lastLetter == '\u00a0' && first == '\u2e80') || (lastLetter == '\u2e80' && first == '\u00a0') {
+				// gopdfgo: przed elementem atomowym (obraz, inline-block) i po nim wiersz wolno złamać
+				// także wtedy, gdy sąsiaduje ze spacją nierozdzielającą U+00A0 (CSS Text 3 § 5.1, wyjątek
+				// dla zgodności ze stronami WWW); pozostałe znaki klas GL, WJ i ZWJ nadal sklejają.
+				canBreak = pr.True
 			} else {
 				canBreak = context.Fonts().CanBreakText([]rune{lastLetter, first})
 			}
@@ -1351,8 +1356,16 @@ func splitTextBox(context *layoutContext, box *bo.TextBox, availableWidth pr.May
 		// "only the "line-height" is used when calculating the height
 		//  of the line box."
 		// Set margins so that marginHeight() == lineHeight
-		lineHeight, _ := text.StrutLayout(box.Style, context)
+		lineHeight, strutBaseline := text.StrutLayout(box.Style, context)
 		leadingTop, leadingBottom := text.SplitLeading(lineHeight-height, box.Style.GetLineHeight().Tag == pr.Normal)
+		if box.Style.GetLineHeight().Tag != pr.Normal {
+			// gopdfgo: przy podanym line-height pudełko układa się według metryk pierwszego dostępnego
+			// fontu, także gdy część glifów pochodzi z fontu zastępczego (CSS Inline 3 § 4.2). Linia
+			// bazowa stoi tam, gdzie w rozpórce wiersza; w źródle liczyły się metryki fontu zastępczego,
+			// więc jeden znak spoza fontu (symbol, łącznik nierozdzielający) powiększał wiersz.
+			leadingTop = strutBaseline - v.Baseline
+			leadingBottom = lineHeight - height - leadingTop
+		}
 		box.MarginTop = leadingTop
 		box.MarginBottom = leadingBottom
 		// form the top of the content box

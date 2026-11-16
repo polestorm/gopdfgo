@@ -133,6 +133,11 @@ func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
 	out.WhiteSpace = style.GetWhiteSpace()
 	out.OverflowWrap = newOverflowWrap(style.GetOverflowWrap())
 	out.WordBreak = newWordBreak(style.GetWordBreak())
+	if style.GetLineBreak() == "anywhere" {
+		// gopdfgo: line-break: anywhere łamie między dowolnymi znakami, jak word-break: break-all,
+		// i dodatkowo tam, gdzie UAX 14 łamania zabrania (znaki przestankowe, U+2060)
+		out.WordBreak = WBAnywhere
+	}
 
 	out.Hyphens = newHyphens(style.GetHyphens())
 	out.HyphenateLimitChars = style.GetHyphenateLimitChars()
@@ -420,6 +425,7 @@ type WordBreak uint8
 const (
 	WBNormal WordBreak = iota
 	WBBreakAll
+	WBAnywhere // gopdfgo: line-break: anywhere, podział między dowolnymi znakami
 )
 
 func newWordBreak(w pr.String) WordBreak {

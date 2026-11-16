@@ -2577,3 +2577,45 @@ func TestContinuousMode(t *testing.T) {
 		t.Errorf("krótki dokument w trybie ciągłym różni się od zwykłego o %d pikseli", n)
 	}
 }
+
+// Łamanie wierszy (CSS Text 3 § 5): line-break: anywhere, word-break: break-all ze znakami
+// przestankowymi, spacja nierozdzielająca przy elemencie atomowym oraz wysokość wiersza z glifem
+// z fontu zastępczego (CSS Inline 3 § 4.2).
+func TestLineBreakingRules(t *testing.T) {
+	ahem, err := os.ReadFile("testdata/wpt/fonts/Ahem.ttf")
+	if err != nil {
+		t.Skip("brak fontu Ahem")
+	}
+	fonts := append([]Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } div { font: 20px/20px Ahem; color: green }
+		.r { position: absolute; z-index: -1; color: red }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(head+body), Options{Fonts: fonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	same := func(name, test, reference string) {
+		t.Helper()
+		if n := differentPixels(page(name, test), page(name+"-ref", reference)); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+	// podział między dowolnymi znakami, także przed kropką
+	same("anywhere", `<div style="width:40px;line-break:anywhere">XXX.X</div>`, `<div>XX<br>X.<br>X</div>`)
+	// break-all: litery tak, ale wiersz nie zaczyna się od kropki
+	same("break-all", `<div style="width:160px;word-break:break-all">XX XXX...</div>`, `<div>XX XX<br>X...</div>`)
+	// U+00A0 nie skleja z elementem atomowym
+	same("nbsp-atomic", `<div style="width:40px">XX&nbsp;<span style="display:inline-block">XX</span></div>`,
+		`<div>XX<br><span style="display:inline-block">XX</span></div>`)
+	// znak spoza fontu podstawowego (U+2011 z fontu zastępczego) nie zmienia wysokości wiersza
+	marker := `<div style="width:20px;height:20px;background:blue"></div>`
+	same("fallback-line-height", `<div style="color:transparent">X&#x2011;X</div>`+marker, `<div style="color:transparent">XXX</div>`+marker)
+}

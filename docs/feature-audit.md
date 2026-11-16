@@ -1475,3 +1475,22 @@ Zyskane 73 (tła 53, flex 7, CSS 2: 6, kolumny 3, siatka 2, tabele 2), stracone 
 podziału na strony były małą częścią niezaliczonych (73 z 2574); pozostałe 2501 to realne różnice.
 Reftesty druku (`testdata/wpt`) zostają stronicowe: 243 z 340.
 
+## Tekst, paczka druga: łamanie wierszy (2026-11-16)
+
+- **`line-break: anywhere`** (nowa właściwość): 21 testów.
+- **Metryki fontu podstawowego przy podanym `line-height`**: znak z fontu zastępczego (symbol, łącznik
+  nierozdzielający U+2011) nie powiększa wiersza. To błąd widoczny w zwykłych dokumentach: wiersz
+  z jednym znakiem spoza fontu podstawowego był wyższy od sąsiednich mimo stałego `line-height`. 13 testów.
+- **`word-break: break-all`** zachowuje reguły dla znaków przestankowych: 10 testów.
+- **Spacja ideograficzna U+3000** traktowana jak zachowana spacja: 18 testów.
+- **U+00A0 przy elemencie atomowym** nie blokuje podziału: 3 testy.
+
+Wynik `css-text`: 552 z 887 (było 493). Straty: `line-break-anywhere-and-white-space-006`,
+`wrap-inside-avoid-line-break-anywhere`, `line-break-loose-hyphens-002` (dwa pierwsze łączą `anywhere`
+z właściwościami, których nie obsługujemy; trzeci wymaga `line-break: loose`, które działa jak `auto`).
+
+Co zostało w `css-text` (ok. 335): `text-wrap: balance` (ok. 19), `letter-spacing` (16, różnica wobec
+Chromium, pomijane), próg pozycji tabulatora (7), `word-space-transform` (7, eksperymentalne),
+`text-transform` z regułami językowymi (6), dzielenie wyrazów w innych językach (8, brak słowników),
+rozmiary wewnętrzne przy `pre-wrap` i `break-spaces`, pismo od prawej do lewej.
+

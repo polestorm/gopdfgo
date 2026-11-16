@@ -308,6 +308,9 @@ func (s Properties) SetBoxShadow(v BoxShadows) { s[PBoxShadow] = v }
 func (s Properties) GetTextShadow() BoxShadows  { return s[PTextShadow].(BoxShadows) }
 func (s Properties) SetTextShadow(v BoxShadows) { s[PTextShadow] = v }
 
+func (s Properties) GetLineBreak() String  { return s[PLineBreak].(String) }
+func (s Properties) SetLineBreak(v String) { s[PLineBreak] = v }
+
 func (s Properties) GetContain() String  { return s[PContain].(String) }
 func (s Properties) SetContain(v String) { s[PContain] = v }
 
@@ -885,6 +888,9 @@ type StyleAccessor interface {
 	GetTextShadow() BoxShadows
 	SetTextShadow(v BoxShadows)
 
+	GetLineBreak() String
+	SetLineBreak(v String)
+
 	GetContain() String
 	SetContain(v String)
 
@@ -1257,6 +1263,7 @@ var propsNames = [...]string{
 	PAspectRatio:             "aspect-ratio",
 	PBoxShadow:               "box-shadow",
 	PTextShadow:              "text-shadow",
+	PLineBreak:               "line-break",
 	PContain:                 "contain",
 	PBoxSizing:               "box-sizing",
 	PBackgroundColor:         "background-color",
@@ -1451,6 +1458,7 @@ var PropsFromNames = map[string]KnownProp{
 	"aspect-ratio":               PAspectRatio,
 	"box-shadow":                 PBoxShadow,
 	"text-shadow":                PTextShadow,
+	"line-break":                 PLineBreak,
 	"contain":                    PContain,
 	"box-sizing":                 PBoxSizing,
 	"background-color":           PBackgroundColor,

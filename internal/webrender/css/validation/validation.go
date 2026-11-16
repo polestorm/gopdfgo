@@ -259,6 +259,7 @@ var (
 		pr.PContinue:                continue_,
 		pr.PMaxLines:                maxLines,
 		pr.PWordBreak:               wordBreak,
+		pr.PLineBreak:               lineBreak,
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2624,6 +2625,19 @@ func overflow(tokens []Token, _ string) pr.CssProperty {
 		// gopdfgo: overflow: clip (CSS Overflow 3) przycina jak hidden, ale nie tworzy kontenera przewijania
 		// ani nowego kontekstu formatowania; w źródle wartość była odrzucana i treść nie była przycinana.
 		return pr.String("clip")
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “line-break“ (CSS Text 3 § 5.3). Działa wartość anywhere (wiersz wolno złamać między
+// dowolnymi dwoma znakami); loose, normal i strict różnią się od auto tylko dla pism CJK, których ta
+// wersja nie łamie osobno. Źródło właściwości nie znało.
+func lineBreak(tokens []Token, _ string) pr.CssProperty {
+	keyword := getSingleKeyword(tokens)
+	switch keyword {
+	case "auto", "loose", "normal", "strict", "anywhere":
+		return pr.String(keyword)
 	default:
 		return nil
 	}

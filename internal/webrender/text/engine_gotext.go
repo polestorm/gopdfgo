@@ -24,6 +24,7 @@ import (
 	"github.com/go-text/typesetting/segmenter"
 	"github.com/go-text/typesetting/shaping"
 	"golang.org/x/image/math/fixed"
+	"unicode"
 )
 
 var (
@@ -642,11 +643,11 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	if style.breakSpaces() && textWrap && dir.Progression() == di.FromTopLeft {
 		for attempt := 0; attempt < 2; attempt++ {
 			end := wLine.NextLine
-			if end <= 0 || end > len(text) || text[end-1] != ' ' {
+			if end <= 0 || end > len(text) || !isPreservedSpace(text[end-1]) {
 				break
 			}
 			spaces := 0
-			for end-spaces-1 >= 0 && text[end-spaces-1] == ' ' {
+			for end-spaces-1 >= 0 && isPreservedSpace(text[end-spaces-1]) {
 				spaces++
 			}
 			lastRun := &line[len(line)-1]
@@ -660,16 +661,22 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 			if total <= mw {
 				break
 			}
-			spaceAdvance := lastRun.Glyphs[len(lastRun.Glyphs)-1].Advance
+			// szerokości spacji w kolejności tekstu (zwykła spacja i ideograficzna mają różne)
+			trailing := lastRun.Glyphs[len(lastRun.Glyphs)-spaces:]
+			spaceAdvance := trailing[0].Advance
+			var spacesWidth fixed.Int26_6
+			for _, glyph := range trailing {
+				spacesWidth += glyph.Advance
+			}
 			if spaceAdvance <= 0 {
 				break
 			}
-			content := total - fixed.Int26_6(spaces)*spaceAdvance
+			content := total - spacesWidth
 			// Przy overflow-wrap: anywhere albo break-word wolno złamać także przed pierwszą spacją,
 			// i to jest lepsze niż podział w środku słowa. word-break: break-all tego nie daje: tam
 			// łamie się słowo (testy WPT break-spaces-before-first-char-004, overflow-wrap-break-word-006).
 			minKeep := 1
-			if allowWordBreak && content > 0 && style.OverflowWrap != ONormal && style.WordBreak != WBBreakAll {
+			if allowWordBreak && content > 0 && style.OverflowWrap != ONormal && style.WordBreak == WBNormal {
 				minKeep = 0
 			}
 			if content > 0 && content+spaceAdvance > mw && attempt == 0 && minKeep == 1 {
@@ -684,8 +691,12 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 				lastRun = &line[len(line)-1]
 			}
 			keep := spaces
-			if content+fixed.Int26_6(spaces)*spaceAdvance > mw {
-				keep = max(minKeep, int((mw-content)/spaceAdvance))
+			if content+spacesWidth > mw {
+				keep = 0
+				for used := content; keep < spaces && used+trailing[keep].Advance <= mw; keep++ {
+					used += trailing[keep].Advance
+				}
+				keep = max(minKeep, keep)
 			}
 			if drop := spaces - keep; drop > 0 {
 				lastRun.Glyphs = slices.Clone(lastRun.Glyphs[:len(lastRun.Glyphs)-drop])
@@ -753,7 +764,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		hung := false
 		for i := len(glyphs) - 1; i >= 0; i-- {
 			index := glyphs[i].ClusterIndex
-			if index < 0 || index >= len(text) || (text[index] != ' ' && text[index] != '\t') {
+			if index < 0 || index >= len(text) || (!isPreservedSpace(text[index]) && text[index] != '\t') {
 				break
 			}
 			if !hung {
@@ -1087,16 +1098,30 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 	overflowWrap, wordBreak := style.OverflowWrap, style.WordBreak
 	space := maxWidthV - firstLine.Width
 	// If we can break words and the first line is too long
-	canBreak := wordBreak == WBBreakAll ||
+	canBreak := wordBreak != WBNormal ||
 		(isLineStart && (overflowWrap == OAnywhere || (overflowWrap == OBreakWord && !minimum)))
 	// gopdfgo: przy word-break: break-all każdy znak jest miejscem łamania (CSS Text 3 § 5.2), więc wiersz
 	// wypełniamy do końca także wtedy, gdy wcześniej jest granica wyrazu; w źródle słowo było łamane dopiero
 	// wtedy, gdy samo nie mieściło się w wierszu.
-	breakAll := wordBreak == WBBreakAll && firstLine.ResumeAt != -1 && maxWidthV != pr.Inf
+	breakAll := wordBreak != WBNormal && firstLine.ResumeAt != -1 && maxWidthV != pr.Inf
 	if (space < 0 && canBreak) || breakAll {
 		// Is it really OK to remove hyphenation for word-break ?
 		hyphenated = false
 		firstLine = fc.WrapWordBreak(text, style, maxWidthV, true)
+		// gopdfgo: word-break: break-all pozwala łamać między literami i cyframi (traktowanymi jak
+		// znaki ideograficzne), ale reguły dla znaków przestankowych zostają (CSS Text 3 § 5.2):
+		// wiersz nie zaczyna się od kropki ani od spacji nierozdzielającej. Biblioteka łamie w dowolnym
+		// miejscu, więc cofamy podział do najbliższego dozwolonego.
+		if wordBreak == WBBreakAll && firstLine.ResumeAt > 0 && firstLine.ResumeAt < len(text) {
+			at := firstLine.ResumeAt
+			for at > 0 && !fc.breakAllAllowed(text[at-1], text[at]) {
+				at--
+			}
+			if at > 0 && at < firstLine.ResumeAt {
+				firstLine = fc.wrap(text[:at], style, pr.Inf)
+				firstLine.ResumeAt = at
+			}
+		}
 	}
 
 	if hyphenated {
@@ -1255,3 +1280,19 @@ func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []sha
 	}
 	return out
 }
+
+// breakAllAllowed mówi, czy przy word-break: break-all wolno złamać wiersz między znakami a i b:
+// litery i cyfry liczą się jak znaki ideograficzne, reszta według UAX 14.
+func (fc *FontConfigurationGotext) breakAllAllowed(a, b rune) bool {
+	ideograph := func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			return '\u4e00'
+		}
+		return r
+	}
+	return fc.CanBreakText([]rune{ideograph(a), ideograph(b)}) == pr.True
+}
+
+// isPreservedSpace: spacja zwykła i ideograficzna (U+3000), które na końcu wiersza wiszą albo, przy
+// break-spaces, przechodzą do następnego wiersza (CSS Text 3 § 4.1.3).
+func isPreservedSpace(r rune) bool { return r == ' ' || r == '\u3000' }
