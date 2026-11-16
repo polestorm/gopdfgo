@@ -22,7 +22,7 @@ i 2015 z 2844 słów przesuniętych o ponad 3 pt.
 
 1. Wartość wyliczona `border-*-width`, `outline-width` i `column-rule-width` jest przyciągana do całych
    pikseli CSS: `(0, 1)` → 1 px, powyżej 1 px w dół do liczby całkowitej. Dotyczy układu i rysowania.
-2. Parametr `Options.ExactBorderWidths` (CLI `-exact-border-widths`) wyłącza przyciąganie. W silniku
+2. (Zmienione przez ADR 0013: parametr nazywa się teraz `Options.ExactLengths`, CLI `-exact-lengths`, i obejmuje wszystkie zaokrąglenia.) Parametr `Options.ExactBorderWidths` (CLI `-exact-border-widths`) wyłącza przyciąganie. W silniku
    pole `tree.Behavior.ExactBorderWidths`.
 
 ## Skutki

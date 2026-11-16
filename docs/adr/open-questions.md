@@ -123,28 +123,8 @@ Rozstrzygnięte 2026-11-16: ADR 0012 (obszar strony z `@page`; bez parametru w `
 
 ## 21. Czy naśladować Chromium w obcinaniu `border-spacing` i w pomniejszaniu strony?
 
-Dwie różnice wobec wydruku Chromium znalezione 2026-11-16 przy szukaniu odchyleń w korpusie; żadnej nie
-opisuje norma, obie zostały bez zmian.
-
-- `border-spacing` jest w Chromium obcinane do całych pikseli: tabela z 19 wierszami i `border-spacing: 1mm`
-  (3,78 px) ma tę samą wysokość co z `3px`, u nas jest wyższa o 15 px. W korpusie dotyczy tylko jednej
-  tabeli w `17-tables` (mediana odchylenia dokumentu 1,84 pt).
-- Gdy treść wystaje poza szerokość strony (`white-space: nowrap`, szeroki obraz), Chromium pomniejsza
-  całą stronę, najwyżej 1,5 raza. Dlatego `07-images` i `10-preformatted` mają w Chromium tekst w skali
-  0,667, a u nas w skali 1 i treść wystaje za margines.
-
-Pomiar pomniejszania (2026-11-16, strona 500 px, element o szerokości 110%, 125%, 150%, 200%, 400%
-obszaru treści): skala 0,909, 0,800, 0,667, 0,667, 0,667, czyli szerokość obszaru przez szerokość treści,
-najwyżej 1,5 raza; dotyczy treści na wszystkich stronach, pola marginesów zostają bez zmian. To automat
-Chromium, nie opisuje go żadna norma.
-
-Stan po rozmowie 2026-11-16: pomniejszanie w stylu Chromium odłożone jako mało istotne. Osobną, potrzebną
-w przyszłości funkcją jest dopasowanie wydruku do strony (fit-to-page) na życzenie wywołującego; do
-zaprojektowania, gdy przyjdzie na nią kolej.
-
-Zalecenie: nie naśladować żadnej z nich. Pierwsza to ograniczenie implementacji, druga zmienia rozmiar
-pisma wbrew arkuszowi; dokument, który ma się zmieścić, powinien to zapewnić własnym CSS.
-
+Rozstrzygnięte 2026-11-16: ADR 0013 (`border-spacing` obcinane domyślnie, pod wspólnym przełącznikiem
+`ExactLengths`; pomniejszania strony nie naśladujemy, fit-to-page osobno w przyszłości).
 
 ## 22. Czy i w jakim zakresie obsłużyć pismo pionowe (`writing-mode`)?
 

@@ -682,10 +682,10 @@ Wspólne dla obu katalogów:
   (`Behavior.MonospaceFontSize`), 2026-11-16, ADR 0008: rozmiar pisma wywiedziony ze słowa kluczowego
   jest przeliczany 13/16 dla rodziny będącej samym `monospace`, jak w przeglądarkach; źródło dawało 16 px;
 - `html/tree/computed_values.go` (`borderWidth`, `snapBorderWidth`), `html/tree/tree.go`
-  (`Behavior.ExactBorderWidths`), 2026-11-16, ADR 0009, CSS Values 4 § 6.1: `border-*-width`,
+  (`Behavior.ExactLengths`, do ADR 0013 `ExactBorderWidths`), 2026-11-16, ADR 0009, CSS Values 4 § 6.1: `border-*-width`,
   `outline-width` i `column-rule-width` są przyciągane do całych pikseli CSS (poniżej 1 px rosną do 1 px,
   większe są obcinane w dół), jak w Chromium; źródło trzymało szerokości dokładne. Test odziedziczony
-  `TestLinks` (obramowanie `1pt`) i pozostałe testy `goweasyprint/pdf` renderują z `ExactBorderWidths`;
+  `TestLinks` (obramowanie `1pt`) i pozostałe testy `goweasyprint/pdf` renderują z `ExactLengths`;
 - `html/layout/block.go` (`blockContainerLayout`, `hasPlacedChild`), `html/layout/flex.go`,
   `html/boxes/boxes.go` (`MarginTopTruncated`), 2026-11-16, CSS Fragmentation 3 § 5.2: górny margines
   przylegający do zwykłego podziału strony jest obcinany do zera także dla kontenerów flex i siatki
@@ -770,6 +770,21 @@ Wspólne dla obu katalogów:
   `html/layout/layout.go` (`MediaPageArea`), 2026-11-16: cechy `width`, `height`, `aspect-ratio`
   i `orientation` w `@media` oceniane względem obszaru strony z `@page` (Media Queries 4 § 4.1, ADR 0012);
   wcześniej względem stałej strony A4 (ADR 0007);
+- paczka 2026-11-16 (szósta):
+  - `html/tree/computed_values.go` (`borderSpacing`), `html/tree/tree.go` (`Behavior.ExactLengths`,
+    wcześniej `ExactBorderWidths`), `html/tree/style.go` (`snapsLengths`): `border-spacing` obcinane do
+    całych pikseli jak w Chromium; jeden przełącznik dla wszystkich takich zaokrągleń (ADR 0013);
+  - `html/boxes/boxes.go` (`PageValues`): nazwa strony (`page`) jest brana tylko z dzieci blokowych
+    (CSS Page 3 § 6.1); źródło schodziło przez wiersz do pudełek liniowych, więc `page` na obrazie albo
+    pudełku `inline-block` zmieniało nazwę strony całego bloku;
+  - `html/layout/grid.go` (`setDefiniteHeight`, `fixedRowsHeight`, `stretchesInBlockAxis`),
+    `html/boxes/boxes.go` (`DefiniteHeight`), `html/layout/preferred.go`: element siatki w wierszach
+    o stałym rozmiarze zna swoją wysokość już przy liczeniu kolumn, więc wysokość procentowa, rozciąganie
+    i proporcje wchodzą do jego szerokości z treści (CSS Grid 2 § 12.1, CSS Sizing 4 § 5.1);
+  - `html/document/stacking.go` (`dispatch`): elementy flex i grid rysowane są jak pudełka
+    `inline-block`, każdy w całości i w kolejności dokumentu (CSS Flexbox 1 § 5.4, CSS Grid 1 § 9.5);
+    źródło rysowało je jak zwykłe bloki, więc tekst wcześniejszego elementu przebijał przez tło
+    późniejszego;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

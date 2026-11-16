@@ -32,8 +32,8 @@ func main() {
 	quiet := flag.Bool("quiet", false, "nie wypisuj ostrzeżeń")
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
-	exactBorders := flag.Bool("exact-border-widths", false,
-		"szerokości obramowań dokładnie jak podano, bez przyciągania do całych pikseli (domyślnie jak w Chromium: 0.5pt daje 1px)")
+	exactLengths := flag.Bool("exact-lengths", false,
+		"długości dokładnie jak w arkuszu, bez zaokrągleń do całych pikseli (domyślnie jak w Chromium: obramowanie 0.5pt daje 1px, border-spacing 1mm daje 3px)")
 	monospaceSize := flag.Float64("monospace-size", 0,
 		"rozmiar pisma (px) dla font-family: monospace bez podanego font-size; 0 oznacza 13 jak w przeglądarkach, 16 wyłącza regułę")
 	generic := map[string][]string{}
@@ -52,13 +52,13 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *exactBorders, *monospaceSize, *timeout, *quiet); err != nil {
+	if err := run(*in, *out, *fontDir, *root, *userCSS, generic, *marginsEscape, *exactLengths, *monospaceSize, *timeout, *quiet); err != nil {
 		fmt.Fprintln(os.Stderr, "gopdfgo:", err)
 		os.Exit(1)
 	}
 }
 
-func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactBorders bool, monospaceSize float64, timeout time.Duration, quiet bool) error {
+func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, monospaceSize float64, timeout time.Duration, quiet bool) error {
 	html, err := os.ReadFile(in)
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
-		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactBorderWidths: exactBorders})
+		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths})
 	if err != nil {
 		return err
 	}

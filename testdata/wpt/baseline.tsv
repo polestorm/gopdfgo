@@ -145,7 +145,7 @@ pass	named-pages	css/css-page/page-name-and-break-002-print.html
 pass	named-pages	css/css-page/page-name-and-break-003-print.html	
 pass	named-pages	css/css-page/page-name-and-break-004-print.html	
 pass	named-pages	css/css-page/page-name-canvas-001-print.html	
-fail	named-pages	css/css-page/page-name-canvas-002-print.html	strony 1 vs 2
+pass	named-pages	css/css-page/page-name-canvas-002-print.html	
 pass	named-pages	css/css-page/page-name-canvas-003-print.html	
 pass	named-pages	css/css-page/page-name-canvas-004-print.html	
 pass	named-pages	css/css-page/page-name-display-none-child-print.html	
@@ -157,7 +157,7 @@ pass	named-pages	css/css-page/page-name-flex-004-print.html
 pass	named-pages	css/css-page/page-name-float-001-print.html	
 pass	named-pages	css/css-page/page-name-float-002-print.html	
 pass	named-pages	css/css-page/page-name-img-001-print.html	
-fail	named-pages	css/css-page/page-name-img-002-print.html	strony 1 vs 2
+pass	named-pages	css/css-page/page-name-img-002-print.html	
 pass	named-pages	css/css-page/page-name-img-003-print.html	
 pass	named-pages	css/css-page/page-name-img-004-print.html	
 fail	named-pages	css/css-page/page-name-inline-block-001-print.html	strona 1: różne piksele 44

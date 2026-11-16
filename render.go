@@ -87,11 +87,14 @@ type Options struct {
 	// słowem monospace (<pre>, <code>, <kbd>, <samp>, <tt>). Zero oznacza 13, jak w przeglądarkach;
 	// 16 wyłącza tę regułę i daje pismo tej samej wielkości co reszta tekstu (ADR 0008).
 	MonospaceFontSize float64
-	// ExactBorderWidths wyłącza przyciąganie szerokości obramowań do całych pikseli. Domyślnie (false),
-	// jak w Chromium, border-width, outline-width i column-rule-width między 0 a 1 px rosną do 1 px
-	// (0,75 pt), a większe są obcinane w dół do całych pikseli: 0.5pt daje 0,75 pt, 1pt daje 0,75 pt,
-	// 1.5pt daje 1,5 pt. Wartość true rysuje i układa szerokości dokładnie takie, jak podano (ADR 0009).
-	ExactBorderWidths bool
+	// ExactLengths wybiera między wydrukiem jak w Chromium a wiernością arkuszowi (ADR 0013).
+	// Domyślnie (false) długości, które Chromium zaokrągla do całych pikseli CSS, są zaokrąglane tak samo:
+	//   - border-width, outline-width i column-rule-width: wartości między 0 a 1 px rosną do 1 px,
+	//     większe są obcinane w dół (0.5pt daje 0,75 pt, 1pt daje 0,75 pt, 1.5pt daje 1,5 pt; ADR 0009);
+	//   - border-spacing: obcinane w dół do całych pikseli (1mm daje 3 px).
+	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
+	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
+	ExactLengths bool
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -207,7 +210,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
 	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
-		MonospaceFontSize: opts.MonospaceFontSize, ExactBorderWidths: opts.ExactBorderWidths}
+		MonospaceFontSize: opts.MonospaceFontSize, ExactLengths: opts.ExactLengths}
 	// Cechy width, height, aspect-ratio i orientation w @media oceniamy względem obszaru strony
 	// dokumentu (ADR 0012). Arkusze czytamy najpierw z rozmiarem domyślnym; jeśli któreś zapytanie
 	// zależy od rozmiaru, a @page daje inny obszar strony, czytamy je drugi raz z tym obszarem.

@@ -1987,7 +1987,7 @@ func TestAutoQuotesByLanguage(t *testing.T) {
 }
 
 // ADR 0009: szerokości obramowań, konturów i linii między kolumnami są przyciągane do całych pikseli
-// (CSS Values 4 § 6.1, piksel urządzenia równy pikselowi CSS, jak w Chromium); ExactBorderWidths to wyłącza.
+// (CSS Values 4 § 6.1, piksel urządzenia równy pikselowi CSS, jak w Chromium); ExactLengths to wyłącza.
 func TestBorderWidthSnap(t *testing.T) {
 	page := func(style string) []byte {
 		return []byte(`<div style="width:100px;height:20px;` + style + `">a</div><p>b</p>`)
@@ -2008,7 +2008,7 @@ func TestBorderWidthSnap(t *testing.T) {
 		{"wyłączone: 0.75pt to 1px", "border:0.75pt solid", "border:1px solid", true, true},
 	}
 	for _, c := range cases {
-		options := Options{Fonts: testFonts(t), ExactBorderWidths: c.exact}
+		options := Options{Fonts: testFonts(t), ExactLengths: c.exact}
 		tested, err := Render(t.Context(), page(c.tested), options)
 		if err != nil {
 			t.Fatal(err)
@@ -2075,7 +2075,9 @@ func TestGridImplicitRowsAndGap(t *testing.T) {
 		return head + `<div style="display:grid;gap:10px">` +
 			strings.Repeat(`<div style="height:100px"></div>`, 3) + `<div style="height:100px">x</div></div>` + marker
 	}
-	plain := head + `<div style="height:320px"></div><div style="break-before:page;height:100px">x</div>`
+	// wzorzec też z elementami siatki: są rysowane jak inline-block, więc zapis różni się od zwykłych bloków
+	plain := head + `<div style="display:grid;gap:10px">` + strings.Repeat(`<div style="height:100px"></div>`, 3) +
+		`</div><div style="display:grid;break-before:page"><div style="height:100px">x</div></div>`
 	if !bytes.Equal(render(tall("")), render(plain)) {
 		t.Error("dalszy ciąg siatki nie zaczyna się od góry następnej strony")
 	}
@@ -2213,7 +2215,7 @@ func TestFlexRowPushAndFixedHeightFragments(t *testing.T) {
 			2},
 		{"element wiersza flex przechodzi na następną stronę sam",
 			page + `<div style="height:100px"></div><div style="display:flex;align-items:flex-start"><div class="i"></div><div class="i" style="height:150px"></div></div>`,
-			page + `<div style="height:100px"></div><div style="display:flex;align-items:flex-start"><div class="i"></div></div><div style="height:40px"></div><div style="display:flex;align-items:flex-start"><div style="width:50px"></div><div class="i" style="height:150px"></div></div>`,
+			page + `<div style="height:100px"></div><div style="display:flex;align-items:flex-start"><div class="i"></div></div><div style="display:flex;align-items:flex-start;break-before:page"><div class="i" style="height:0;visibility:hidden"></div><div class="i" style="height:150px"></div></div>`,
 			2},
 		{"break-before na pierwszym elemencie zagnieżdżonego kontenera flex",
 			page + `<div style="display:flex;flex-direction:column"><div style="display:flex;flex-direction:column"><div class="i"></div></div><div style="display:flex;flex-direction:column"><div class="i" style="break-before:page"></div></div></div>`,
@@ -2235,5 +2237,29 @@ func TestFlexRowPushAndFixedHeightFragments(t *testing.T) {
 		if !bytes.Equal(tested.PDF, expected.PDF) {
 			t.Errorf("%s: inny dokument niż wzorzec", c.name)
 		}
+	}
+}
+
+// TestBorderSpacingTruncation pilnuje ADR 0013: border-spacing jest domyślnie obcinane do całych pikseli
+// jak w Chromium, a ExactLengths zostawia wartość z arkusza.
+func TestBorderSpacingTruncation(t *testing.T) {
+	table := func(spacing string) []byte {
+		return []byte(`<table style="border-spacing:` + spacing + `"><tr><td style="background:green;padding:0;width:20px;height:20px"></td><td style="background:green;padding:0;width:20px;height:20px"></td></tr></table>`)
+	}
+	render := func(source []byte, exact bool) []byte {
+		result, err := Render(t.Context(), source, Options{Fonts: testFonts(t), ExactLengths: exact})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.PDF
+	}
+	if !bytes.Equal(render(table("1mm"), false), render(table("3px"), false)) {
+		t.Error("border-spacing: 1mm nie daje 3px")
+	}
+	if !bytes.Equal(render(table("3.9px 0.6px"), false), render(table("3px 0px"), false)) {
+		t.Error("border-spacing: 3.9px 0.6px nie daje 3px 0px")
+	}
+	if bytes.Equal(render(table("1mm"), true), render(table("3px"), true)) {
+		t.Error("ExactLengths: border-spacing 1mm zostało obcięte")
 	}
 }

@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-16 po paczce: podział flex między strony, blok o podanej wysokości, `@media` względem `@page`. Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-16 po paczce: przełącznik `ExactLengths`, `border-spacing`, siatka (wysokość z wiersza), kolejność rysowania. Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów, rasteryzowane w 96 dpi
@@ -12,14 +12,14 @@ w `testdata/documents` porównywanych z wydrukami Chromium.
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7094 z 9110 (77,9%)** | ściśle 6706, krawędziowo 388 |
-| Reftesty druku W3C | **240 z 340 (70,6%)** | wszystkie ściśle |
+| Sondaż ekranowy W3C | **7112 z 9110 (78,1%)** | ściśle 6724, krawędziowo 388 |
+| Reftesty druku W3C | **242 z 340 (71,2%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 19 z 21 dokumentów | wyjątki: `06-margin-boxes`, `11-edge-cases` |
-| Testy własne | 96 funkcji testowych, wszystkie przechodzą | w tym 71 w `regression_test.go` |
+| Testy własne | 97 funkcji testowych, wszystkie przechodzą | w tym 72 w `regression_test.go` |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Commity | 101 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 7 |
-| Zmiany w przejętym kodzie | 256 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 12 | otwarte pytanie: 21 |
+| Commity | 102 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 8 |
+| Zmiany w przejętym kodzie | 260 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Decyzje (ADR) | 13 | brak otwartych pytań; do decyzji: dopasowanie do strony (rozmowa 16.11) |
 
 ## Sondaż ekranowy w czasie
 
@@ -49,6 +49,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  siatka                       7048  ██████████████████████████████████████▋ 77,4%
 16.11  siatka: rozpięte, obrazy     7058  ██████████████████████████████████████▊ 77,5%
 16.11  ::first-line, abspos w siatce 7094 ██████████████████████████████████████▉ 77,9%
+16.11  siatka: wysokość z wiersza   7112  ███████████████████████████████████████  78,1%
 ```
 
 (*) Skoki z 13.11 to w dużej części poprawki metody pomiaru, nie silnika: w 40 dpi kształty o tej samej
@@ -67,6 +68,7 @@ Reftesty druku (z 340):
 16.11  230  █████████████████████████████████▊      67,6%
 16.11  232  ██████████████████████████████████      68,2%
 16.11  240  ███████████████████████████████████▎    70,6%
+16.11  242  ███████████████████████████████████▌    71,2%
 ```
 
 ## Poprawki według obszarów
@@ -101,8 +103,8 @@ obszar                          zaliczone        brakuje
 CSS 2 (5837)                    ██████████████████▊  93,8%    359
 css-tables (141)                ███████████████▋     78,7%     30
 css-lists (150)                 ███████████████▍     77,3%     34
-css-flexbox (952)               ██████████████▏      70,7%    279
-css-grid bez lanes i subgrid    █████████████▏       65,8%    219
+css-flexbox (952)               ██████████████▏      70,8%    278
+css-grid bez lanes i subgrid    █████████████▋       68,4%    202
 css-content (37)                ███████████▎         56,8%     16
 css-multicol (370)              ████████▎            41,4%    217
 css-grid: subgrid (88)          ████▊                23,9%     67
@@ -111,7 +113,7 @@ css-multicol: column-height (30) ▋                    3,3%     29
 ```
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
-jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6973 z 8127 (85,8%)**.
+jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik to **6991 z 8127 (86,0%)**.
 
 ## Co zostało do naprawienia
 
@@ -122,10 +124,11 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Temat | Skąd wiadomo | Rozmiar |
 |---|---|---|
 | Linia bazowa w siatce i flex (`last baseline`, oś kolumn) | 30 testów `css-grid/alignment`, część `css-flexbox` | średni |
-| Obrazy w siatce: rozmiar z `aspect-ratio` i procentów, `minmax` z obrazem | ok. 20 testów `grid-items`, `grid-lanes` pomijam | średni |
+| Elementy siatki: procenty i `minmax` z obrazem, tabela jako element, ponowne liczenie kolumn po wierszach | ok. 30 testów `grid-items` | średni |
+| Dopasowanie wydruku do szerokości strony (treść szersza niż strona jest dziś ucinana) | rozmowa 16.11, czeka na decyzję | średni |
 | Pola marginesów: pozostałe wymiary (część wymaga pisma pionowego) | 8 testów `margin-boxes/dimensions` | średni |
 | Podział kontenera flex między strony: żądanie podziału w środku linii zagnieżdżonej, wysoki element pływający w elemencie flex | 5 reftestów druku flex | średni |
-| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 100 z 340 niezaliczonych | duży, po kawałku |
+| Pozostałe reftesty druku: tabele (podział wierszy), pola marginesów, strony nazwane | 98 z 340 niezaliczonych | duży, po kawałku |
 | `::first-line`: `vertical-align`, `text-transform`, elementy pływające w pierwszym wierszu | 4 testy; podstawa działa od 16.11 | mały |
 | Tabela obok elementów pływających: zwężanie, żeby ominąć kolejny | `table-among-floats-001` (strata z 16.11) | mały |
 
@@ -137,7 +140,6 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Elementy pozycjonowane w siatce | 62 testy `css-grid/abspos`, większość z pismem pionowym, `rtl` albo `last baseline` | średni |
 | Elementy pływające: przypadki brzegowe z `clear` i marginesami | 58 testów CSS 2 | średni |
 | Nieobsługiwane właściwości z ostrzeżeniem: `conic-gradient`, `clip-path`, `translate/rotate/scale`, `text-wrap`, `rgb(from …)`, `round()` | lista z audytu | mały każda |
-| Dopasowanie wydruku do strony (fit-to-page) na życzenie | rozmowa 16.11, pytanie 21 | średni |
 
 ### Niska: eksperymentalne albo poza zakresem
 
@@ -150,7 +152,6 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | `column-height` | 29 testów | eksperymentalne |
 | Tekst dwukierunkowy (`bidi`) | 48 testów CSS 2 | poza zakresem (`docs/scope.md`) |
 | `@container`, `@property`, `::selection` | lista z audytu | nie dotyczą druku albo rzadkie |
-| Obcinanie `border-spacing` i pomniejszanie strony jak w Chromium | pytanie 21 | zalecenie: nie naśladować |
 
 ## Odchylenie od wydruków Chromium
 

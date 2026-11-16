@@ -202,6 +202,10 @@ type BoxFields struct {
 	// to auto: dla anonimowego pudełka blokowego wysokość pudełka zawierającego jego rodzica (ustawiana
 	// w układzie blokowym), dla komórki tabeli jej podana wysokość (ustawiana w układzie tabeli)
 	AnonymousBaseHeight pr.MaybeFloat
+	// gopdfgo: DefiniteHeight to wysokość treści znana jeszcze przed układem (element siatki w wierszach
+	// o stałym rozmiarze i jego potomkowie o wysokości procentowej); służy do liczenia szerokości z treści
+	// pudełek z proporcjami. nil: nieznana.
+	DefiniteHeight pr.MaybeFloat
 	// SplitBefore, SplitAfter: pudełko liniowe jest dalszym ciągiem (ma dalszy ciąg) pudełka rozdzielonego
 	// przez blok w środku; od tej strony nie ma marginesu, obramowania ani odstępu (CSS 2 §9.2.1.1)
 	SplitBefore, SplitAfter bool
@@ -651,7 +655,9 @@ func (b *BoxFields) PageValues() (pr.Page, pr.Page) {
 	}
 	var fistChild, lastChild Box
 	for _, child := range b.Children {
-		if child.Box().IsInNormalFlow() {
+		// gopdfgo: tylko dzieci blokowe; `page` na elemencie liniowym (obraz, inline-block) nie działa
+		// (CSS Page 3 § 6.1), a źródło schodziło przez wiersz aż do pudełek liniowych
+		if child.Box().IsInNormalFlow() && BlockLevelT.IsInstance(child) {
 			if fistChild == nil {
 				fistChild = child
 				lastChild = child

@@ -1668,6 +1668,14 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	rowSizingFunctions := extractDims(rows)
 	columnSizingFunctions := extractDims(columns)
 
+	// gopdfgo: element w wierszach o stałym rozmiarze zna swoją wysokość już przy liczeniu kolumn, więc
+	// wysokość procentowa i proporcje wchodzą do jego szerokości z treści (CSS Grid 2 § 12.1, CSS Sizing 4
+	// § 5.1); źródło liczyło wtedy procenty jak auto i kolumna wychodziła za wąska albo za szeroka.
+	for child, position := range childrenPositions {
+		setDefiniteHeight(child, fixedRowsHeight(rowSizingFunctions, position[1]-implicitY1, position[3], rowGap, box.Height),
+			stretchesInBlockAxis(child, box))
+	}
+
 	// 3.1 Resolve the sizes of the grid columns.
 	columnsSizes := resolveTracksSizes(context, columnSizingFunctions, box.Width, childrenPositions, implicitX1,
 		'x', columnGap, box_, nil)
@@ -2388,3 +2396,93 @@ var measureGridPass func(context *layoutContext, box_ Box, bottomSpace pr.Float,
 	rowExtra map[int]pr.Float) (Box, blockLayout, map[int]pr.Float)
 
 func init() { measureGridPass = gridLayoutPass }
+
+// fixedRowsHeight podaje łączną wysokość wierszy first..first+span-1, jeśli wszystkie mają stały rozmiar
+// (długość albo procent określonej wysokości kontenera); inaczej nil.
+func fixedRowsHeight(sizingFunctions [][2]pr.TaggedDim, first, span int, gap pr.Float, containerHeight pr.MaybeFloat) pr.MaybeFloat {
+	if first < 0 || span <= 0 || first+span > len(sizingFunctions) {
+		return nil
+	}
+	total := pr.Float(span-1) * gap
+	for _, functions := range sizingFunctions[first : first+span] {
+		size := functions[1]
+		if functions[0] != size || size.Tag != 0 || size.Calc != nil {
+			return nil
+		}
+		switch size.Unit {
+		case pr.Px:
+			total += size.Value
+		case pr.Perc:
+			height, definite := containerHeight.(pr.Float)
+			if !definite {
+				return nil
+			}
+			total += size.Value * height / 100
+		default:
+			return nil
+		}
+	}
+	return total
+}
+
+// stretchesInBlockAxis mówi, czy element siatki o wysokości auto wypełnia swój obszar w pionie
+// (CSS Grid 1 § 6.2): `stretch`, a dla pudełek bez proporcji i rozmiaru własnego także `normal`.
+func stretchesInBlockAxis(item Box, container *bo.BoxFields) bool {
+	style := item.Box().Style
+	if style.GetMarginTop().Tag == pr.Auto || style.GetMarginBottom().Tag == pr.Auto {
+		return false
+	}
+	alignSelf := style.GetAlignSelf()
+	if alignSelf.Has(pr.Auto) {
+		alignSelf = container.Style.GetAlignItems()
+	}
+	if alignSelf.Has(pr.Stretch) {
+		return true
+	}
+	return alignSelf.Has(pr.Normal) && !bo.ReplacedT.IsInstance(item) && style.GetAspectRatio() == 0
+}
+
+// setDefiniteHeight zapisuje na pudełku i jego potomkach wysokość treści wynikającą z wysokości bloku
+// zawierającego (base), o ile da się ją ustalić bez układu.
+func setDefiniteHeight(box_ Box, base pr.MaybeFloat, stretch bool) {
+	box := box_.Box()
+	box.DefiniteHeight = nil
+	pixels := func(d pr.TaggedDim) pr.Float {
+		if d.Tag == 0 && d.Calc == nil && d.Unit == pr.Px {
+			return d.Value
+		}
+		return 0
+	}
+	var own pr.MaybeFloat
+	height := box.Style.GetHeight()
+	baseValue, known := base.(pr.Float)
+	switch {
+	case height.Tag == 0 && height.Calc == nil && height.Unit == pr.Px:
+		own = height.Value
+	case height.Tag == 0 && height.Calc == nil && height.Unit == pr.Perc && known:
+		own = baseValue * height.Value / 100
+		box.DefiniteHeight = own
+	case height.Tag == pr.Auto && stretch && known:
+		style := box.Style
+		own = max(baseValue-pixels(style.GetMarginTop())-pixels(style.GetMarginBottom())-
+			pixels(style.GetPaddingTop())-pixels(style.GetPaddingBottom())-
+			style.GetBorderTopWidth().Value-style.GetBorderBottomWidth().Value, 0)
+		box.DefiniteHeight = own
+	}
+	setChildrenDefiniteHeight(box.Children, own)
+}
+
+func setChildrenDefiniteHeight(children []Box, base pr.MaybeFloat) {
+	for _, child := range children {
+		switch child.(type) {
+		case *bo.LineBox, *bo.InlineBox:
+			setChildrenDefiniteHeight(child.Box().Children, base)
+		case *bo.TextBox:
+		default:
+			if base == nil && child.Box().DefiniteHeight == nil {
+				continue // głębiej wartość nie mogła powstać: łańcuch wysokości jest ciągły
+			}
+			setDefiniteHeight(child, base, false)
+		}
+	}
+}

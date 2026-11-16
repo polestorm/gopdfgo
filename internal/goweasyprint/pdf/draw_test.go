@@ -150,7 +150,7 @@ func htmlToModelExt2(t *testing.T, html string, zoom utils.Fl, baseURL string, a
 	tu.AssertNoErr(t, err)
 	parsedHTML.UAStyleSheet = fonts.UAStylesheet(baseUrlFonts)
 	// gopdfgo: testy odziedziczone podają obramowania w punktach i oczekują dokładnych szerokości (ADR 0009)
-	parsedHTML.Behavior.ExactBorderWidths = true
+	parsedHTML.Behavior.ExactLengths = true
 	doc := document.Render(parsedHTML, nil, false, fontconfig)
 	output := NewOutput()
 	doc.Write(output, zoom, attachments)

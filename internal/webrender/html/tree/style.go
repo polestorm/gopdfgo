@@ -678,10 +678,11 @@ func newComputedStyle(parentStyle pr.ElementStyle, cascaded cascadedStyle,
 
 func (c *ComputedStyle) isRootElement() bool { return c.parentStyle == nil }
 
-// snapsBorderWidths (gopdfgo): czy szerokości obramowań, konturów i linii między kolumnami są
-// przyciągane do całych pikseli (ADR 0009). Styl liczony poza dokumentem (bez viewport) zostaje dokładny.
-func (c *ComputedStyle) snapsBorderWidths() bool {
-	return c.viewport != nil && c.viewport.html != nil && !c.viewport.html.Behavior.ExactBorderWidths
+// snapsLengths (gopdfgo): czy długości zaokrąglane przez Chromium (szerokości obramowań, konturów i linii
+// między kolumnami, border-spacing) są zaokrąglane do całych pikseli (ADR 0009, 0013). Styl liczony poza
+// dokumentem (bez viewport) zostaje dokładny.
+func (c *ComputedStyle) snapsLengths() bool {
+	return c.viewport != nil && c.viewport.html != nil && !c.viewport.html.Behavior.ExactLengths
 }
 
 func (c *ComputedStyle) Copy() pr.ElementStyle {

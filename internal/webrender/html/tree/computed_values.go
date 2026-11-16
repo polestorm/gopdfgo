@@ -266,6 +266,14 @@ func borderSpacing(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPropert
 	value := _value.(pr.Point)
 	values := pr.Values{value[0].Tagged(), value[1].Tagged()}
 	tmp := lengths_(computer, values)
+	if computer.snapsLengths() {
+		// gopdfgo: Chromium obcina border-spacing do całych pikseli (ADR 0013)
+		for i := range tmp {
+			if tmp[i].Calc == nil && tmp[i].Value > 0 {
+				tmp[i].Value = pr.Float(math.Floor(float64(tmp[i].Value) + 1e-4))
+			}
+		}
+	}
 	return pr.Point{tmp[0].Dimension, tmp[1].Dimension}
 }
 
@@ -452,7 +460,7 @@ func borderWidth(computer *ComputedStyle, name pr.KnownProp, _value pr.CssProper
 		return bw.ToValue()
 	}
 	d := length_(computer, value, -1, true)
-	if d.Calc == nil && computer.snapsBorderWidths() {
+	if d.Calc == nil && computer.snapsLengths() {
 		d.Value = snapBorderWidth(d.Value)
 	}
 	return d

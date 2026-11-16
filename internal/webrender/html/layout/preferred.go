@@ -70,7 +70,13 @@ func ratioContentWidth(box Box) (pr.Float, bool) {
 	style := box.Box().Style
 	ratio := pr.Float(math.Abs(float64(style.GetAspectRatio())))
 	height := style.GetHeight()
-	if ratio <= 0 || style.GetWidth().Tag != pr.Auto || height.Tag != 0 || height.Unit != pr.Px || height.Calc != nil {
+	if ratio <= 0 || style.GetWidth().Tag != pr.Auto {
+		return 0, false
+	}
+	if definite, ok := box.Box().DefiniteHeight.(pr.Float); ok {
+		return definite * ratio, true
+	}
+	if height.Tag != 0 || height.Unit != pr.Px || height.Calc != nil {
 		return 0, false
 	}
 	return height.Value * ratio, true
@@ -989,6 +995,9 @@ func replacedMinContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		height := box.Style.GetHeight()
 		if height.Tag == pr.Auto || height.Unit == pr.Perc {
 			h = pr.AutoF
+			if definite, ok := box.DefiniteHeight.(pr.Float); ok {
+				h = definite // gopdfgo: wysokość znana z wiersza siatki o stałym rozmiarze
+			}
 		} else if height.Unit == pr.Px {
 			h = height.Value
 		} else {
@@ -1032,6 +1041,9 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		height := box.Style.GetHeight()
 		if height.Tag == pr.Auto || height.Unit == pr.Perc {
 			h = pr.AutoF
+			if definite, ok := box.DefiniteHeight.(pr.Float); ok {
+				h = definite // gopdfgo: wysokość znana z wiersza siatki o stałym rozmiarze
+			}
 		} else if height.Unit == pr.Px {
 			h = height.Value
 		} else {

@@ -195,7 +195,12 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 			// Insert at the position before creating the sub-context.
 			index := len(*childContexts)
 			insertStackingContext(childContexts, index, newStackingContextFromBox(box, page, childContexts, nil))
-		} else if box.Box().IsFloated() {
+		} else if box.Box().IsFloated() || box.Box().IsFlexItem || box.Box().IsGridItem {
+			// gopdfgo: elementy flex i grid są rysowane jak pudełka inline-block, czyli każdy w całości,
+			// w kolejności dokumentu (CSS Flexbox 1 § 5.4, CSS Grid 1 § 9.5). W źródle były rysowane jak
+			// zwykłe bloki (najpierw tła wszystkich, potem treść), więc tekst wcześniejszego elementu
+			// przebijał przez tło późniejszego, który na niego zachodził. Trafiają na tę samą warstwę
+			// co elementy pływające: nad tła bloków, pod treść liniową.
 			*floats = append(*floats, newStackingContextFromBox(box, page, childContexts, innerEscape))
 		} else if bo.InlineBlockT.IsInstance(box) || bo.InlineFlexT.IsInstance(box) || bo.InlineGridT.IsInstance(box) {
 			// gopdfgo: dodane InlineGridT; rysowanie już je przewidywało, a bez tego kończyło się paniką

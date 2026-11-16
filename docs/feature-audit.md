@@ -1016,7 +1016,7 @@ Znalezione przyczyny:
 
 1. **Szerokości obramowań.** Chromium przyciąga je do całych pikseli (CSS Values 4 § 6.1): `0.4pt`
    i `0.5pt` to 1 px, `1.2pt` też 1 px. Główna przyczyna dryfu w tabelach i flex. Naprawione,
-   z parametrem `ExactBorderWidths` (ADR 0009).
+   z parametrem `ExactBorderWidths` (ADR 0009; od ADR 0013 `ExactLengths`).
 2. **Górny margines kontenera flex i siatki na początku strony** po zwykłym podziale nie był obcinany
    (CSS Fragmentation 3 § 5.2); bloki i tabele miały to dobrze. Stąd 14 pt na trzeciej stronie
    `20-invoice`. Naprawione.
@@ -1157,3 +1157,26 @@ Wynik: reftesty druku **240 z 340**, poprzednio 232 (zyskane: `single-line-colum
 ekranowy (9110 reftestów WPT, reguła ADR 0003) bez zmian: **7094**, ściśle 6706, krawędziowo 388; zmiana
 `@media` doszła po sondażu i została sprawdzona na 26 testach sondażu używających `@media`, bez zmian.
 Korpus własnych dokumentów bez zmian.
+
+## Paczka: przełącznik `ExactLengths`, `border-spacing`, siatka (wysokość z wiersza), kolejność rysowania (2026-11-16)
+
+- **`Options.ExactLengths`** (ADR 0013, decyzja użytkownika): jeden przełącznik dla zaokrągleń długości
+  jak w Chromium; zastępuje `ExactBorderWidths`. Nowe pod nim: `border-spacing` obcinane do całych
+  pikseli (pomiar w Chromium: `1mm` daje 3 px, `0.6px` daje 0, `1.9px` daje 1 px). Pomniejszania strony
+  nie naśladujemy.
+- **Siatka: szerokość kolumny z wysokości wiersza.** Element w wierszach o stałym rozmiarze zna swoją
+  wysokość przy liczeniu kolumn, więc wysokość procentowa, rozciąganie i proporcje wchodzą do szerokości
+  z treści.
+- **Elementy flex i grid rysowane jak `inline-block`**: każdy w całości, w kolejności dokumentu.
+- **Strony nazwane**: `page` na elemencie liniowym nie zmienia nazwy strony bloku.
+- Wycofane po próbie: pomijanie zmiany nazwy strony na samej górze strony i wewnątrz pudełka
+  pozycjonowanego. Testy `page-name-zero-height-001` i `page-name-display-none-child` oraz
+  `page-name-abspos-002` i `page-name-003` wymagają przy prostej regule sprzecznych wyników; mechanizm
+  przeglądarek do rozpoznania.
+- Nierozpoznane w programie testowym: reftesty druku z zakresem stron (`subpixel-page-size-001`, `-002`).
+
+Wynik (pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003): **7112 z 9110 (78,1%)**, ściśle 6724,
+krawędziowo 388, niezaliczone 1998; poprzednio 7094. Zyskane 18 (siatka 17, flex 1), straconych brak.
+Reftesty druku: **242 z 340**, poprzednio 240 (zyskane `page-name-img-002-print`,
+`page-name-canvas-002-print`). Korpus porównany po pikselach z poprzednią wersją: różnice tylko
+w `17-tables` (`border-spacing`) i 7 pikseli wygładzania w `10-preformatted`.
