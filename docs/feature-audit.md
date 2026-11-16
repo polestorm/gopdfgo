@@ -1040,3 +1040,40 @@ inne miejsca podziału stron w kontenerach flex i siatki, nie dryf.
 Wynik (pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003): **7004 z 9110 (76,9%)**, ściśle 6618,
 krawędziowo 386, niezaliczone 2106; poprzednio 7002 (ściśle 6616). Zyskane 2 (`css-multicol`,
 `css-tables`), stracone 0. Reftesty druku: 228 z 340, bez zmian.
+
+## Siatka: nadmiarowe wiersze niejawne, odstęp po podziale strony, ostatni wiersz (2026-11-16)
+
+Znalezione przy `19-flex-grid-pagination` (310 z 2313 słów odchylonych od Chromium o ponad 3 pt):
+
+- **Nadmiarowe wiersze.** Rozmieszczanie automatyczne tworzyło 3n − 4 wierszy zamiast n (36 elementów
+  w 3 kolumnach: 32 zamiast 12). Puste wiersze nie mają wysokości, ale każdy dokładał `row-gap`, więc
+  każda siatka o co najmniej trzech wierszach z odstępem była za wysoka.
+- **Odstęp na początku strony.** Dalszy ciąg siatki zaczynał się o `row-gap` poniżej góry strony.
+- **Ostatni wiersz.** Wiersz z elementami o podanej wysokości, który nie mieścił się na stronie,
+  zostawał na niej i wystawał poza stronę, jeśli był ostatni.
+
+Po poprawkach dokument ma 25 słów odchylonych o ponad 3 pt. To karty o stałej wysokości, które
+Chromium tnie na granicy strony, a gopdfgo przenosi w całości (ADR 0004).
+
+Przy okazji, z testów W3C `css-grid` (`alignment`, `grid-items`):
+
+- element z podanym wierszem i kolumną `auto` trafiał do drugiej kolumny pustego wiersza;
+- `stretch` nie rozciągał ścieżek `minmax(25px, auto)`, a rozciągał `minmax(auto, 50px)`;
+- `gap: calc(15% + 7px)` gubił część w pikselach albo procent (siatka i flex);
+- `inline-grid` i siatka pływająca nie miały szerokości z treści: liczone były jak blok.
+- ścieżka procentowa przy nieokreślonym rozmiarze kontenera liczyła się jak zero zamiast `auto`;
+- siatka pływająca, która nie mieściła się na stronie, kończyła układ paniką (wynik `nil` przeznaczony
+  dla układu blokowego).
+
+Wynik (2026-11-16, pełny sondaż ekranowy 9110 reftestów WPT, reguła ADR 0003): **7048 z 9110 (77,4%)**,
+ściśle 6661, krawędziowo 387, niezaliczone 2062; poprzednio 7004 (ściśle 6618). Zyskane 47, wszystkie
+w `css-grid`; stracone 3: `grid-lanes/items/column-flex-spanning-items` i `subgrid/standalone-axis-size-005`
+(funkcje nieobsługiwane, zaliczały się przypadkiem) oraz `grid-percent-cols-spanned-shrinkwrap-001`
+(siatka pływająca z elementem rozpiętym na trzy kolumny: szerokość z treści liczona jest teraz z kolumn,
+a rozkład miejsca dla elementu rozpiętego daje 73 px zamiast 100 px; znana słabość, następny cel
+w siatce). Po sondażu doszły dwie osłony przed paniką, sprawdzone sondażem `css-grid` i `css-multicol`
+bez zmian w zaliczeniach. Reftesty druku: **229 z 340**, poprzednio 228 (zyskany
+`css-break/grid/monolithic-overflow-print`).
+
+Zestawienie postępu od początku, z wykresami: `docs/progress.md`.
+

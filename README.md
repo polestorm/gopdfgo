@@ -11,6 +11,7 @@ czy sforkować. Szczegóły w `docs/landscape.md` i `docs/adr/open-questions.md`
 
 | Plik | Zawartość | Czytaj, gdy |
 |---|---|---|
+| `docs/progress.md` | Postęp w liczbach i wykresach: wyniki testów W3C w czasie, poprawki według obszarów, co zostało i jak ważne | pytasz „gdzie jesteśmy” |
 | `docs/vision.md` | Cztery cele projektu, co poświęcamy na rzecz rozmiaru i przewidywalności, czym silnik nie jest | chcesz zrozumieć kierunek |
 | `docs/requirements.md` | Wymagania wobec renderera: wejście, układ, wyjście, działanie | oceniasz silnik albo projektujesz interfejs |
 | `docs/scope.md` | Zakres HTML, CSS, Paged Media i SVG: musi, powinien, nie będzie | pytasz „czy to obsłużymy” |

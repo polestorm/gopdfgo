@@ -2048,3 +2048,74 @@ func TestMarginTruncatedAtPageTop(t *testing.T) {
 		}
 	}
 }
+
+// Siatka z automatycznym rozmieszczaniem ma tyle wierszy, ile zajmują elementy: przy row-gap wysokość
+// kontenera to suma wierszy i odstępów między nimi (CSS Grid 1 § 8.5). Dalszy ciąg siatki na następnej
+// stronie zaczyna się od góry strony, bez odstępu.
+func TestGridImplicitRowsAndGap(t *testing.T) {
+	render := func(source string) []byte {
+		result, err := Render(t.Context(), []byte(source), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result.PDF
+	}
+	items := func(count int) string {
+		return strings.Repeat(`<div style="height:20px;background:blue"></div>`, count)
+	}
+	head := `<style>@page { size: 300px 400px; margin: 20px } body { margin: 0 }</style>`
+	grid := head + `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">` + items(15) + `</div><p style="margin:0">po</p>`
+	// 5 wierszy po 20 px i 4 odstępy po 10 px: 140 px
+	block := head + `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;height:140px">` + items(15) + `</div><p style="margin:0">po</p>`
+	if !bytes.Equal(render(grid), render(block)) {
+		t.Error("siatka 5 wierszy z odstępem 10 px nie ma wysokości 140 px")
+	}
+	// 3 wiersze po 100 px mieszczą się na stronie 360 px (320 px z odstępami), czwarty zaczyna drugą stronę
+	tall := func(marker string) string {
+		return head + `<div style="display:grid;gap:10px">` +
+			strings.Repeat(`<div style="height:100px"></div>`, 3) + `<div style="height:100px">x</div></div>` + marker
+	}
+	plain := head + `<div style="height:320px"></div><div style="break-before:page;height:100px">x</div>`
+	if !bytes.Equal(render(tall("")), render(plain)) {
+		t.Error("dalszy ciąg siatki nie zaczyna się od góry następnej strony")
+	}
+}
+
+// Siatka: element z podanym wierszem i kolumną auto trafia do pierwszej wolnej kolumny; ścieżki
+// minmax(…, auto) są rozciągane; odstęp calc() z procentem; szerokość inline-grid wynika z kolumn.
+func TestGridPlacementStretchGapAndIntrinsicWidth(t *testing.T) {
+	cell := `<div style="background:green"></div>`
+	cases := []struct{ name, tested, expected string }{
+		{"wiersz podany, kolumna auto",
+			`<div style="display:grid;width:100px;grid-template-columns:50px 50px;grid-template-rows:50px"><div style="grid-row:1;background:green"></div></div>`,
+			`<div style="display:grid;width:100px;grid-template-columns:50px 50px;grid-template-rows:50px"><div style="grid-row:1;grid-column:1;background:green"></div></div>`},
+		{"rozciąganie minmax(25px, auto)",
+			`<div style="display:grid;width:200px;height:100px;grid-template-columns:minmax(25px,auto) minmax(25px,auto)">` + cell + cell + `</div>`,
+			`<div style="display:grid;width:200px;height:100px;grid-template-columns:100px 100px">` + cell + cell + `</div>`},
+		{"minmax(auto, 50px) nie rośnie",
+			`<div style="display:grid;width:200px;height:100px;grid-template-columns:minmax(auto,50px) minmax(auto,50px)">` + cell + cell + `</div>`,
+			`<div style="display:grid;width:200px;height:100px;grid-template-columns:50px 50px">` + cell + cell + `</div>`},
+		{"odstęp calc() z procentem",
+			`<div style="display:grid;width:200px;height:220px;gap:calc(15% + 7px) calc(10px + 5%);grid-template-columns:90px 90px;grid-template-rows:90px 90px">` + cell + cell + cell + cell + `</div>`,
+			`<div style="display:grid;width:200px;height:220px;gap:40px 20px;grid-template-columns:90px 90px;grid-template-rows:90px 90px">` + cell + cell + cell + cell + `</div>`},
+		{"szerokość inline-grid",
+			`<div style="display:inline-grid;border:2px solid;gap:16px;grid-template-columns:40px 40px;grid-template-rows:40px">` + cell + cell + `</div>`,
+			`<div style="display:inline-grid;border:2px solid;gap:16px;grid-template-columns:40px 40px;grid-template-rows:40px;width:96px">` + cell + cell + `</div>`},
+		{"odstęp procentowy w inline-grid",
+			`<div style="display:inline-grid;border:2px solid;gap:20%;grid-template-columns:40px 40px;grid-template-rows:40px 40px">` + cell + cell + cell + cell + `</div>`,
+			`<div style="display:inline-grid;border:2px solid;gap:16px;grid-template-columns:40px 40px;grid-template-rows:40px 40px;width:80px;height:80px">` + cell + cell + cell + cell + `</div>`},
+	}
+	for _, c := range cases {
+		tested, err := Render(t.Context(), []byte(c.tested), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := Render(t.Context(), []byte(c.expected), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(tested.PDF, expected.PDF) {
+			t.Errorf("%s: inny dokument niż wzorzec", c.name)
+		}
+	}
+}

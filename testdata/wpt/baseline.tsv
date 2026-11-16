@@ -97,7 +97,7 @@ fail	margin-boxes	css/css-page/margin-boxes/paint-order-002-print.html	strona 1:
 fail	margin-boxes	css/css-page/margin-boxes/paint-order-003-print.html	strona 1: różne piksele 2500
 pass	monolithic-overflow	css/css-break/abspos-in-clipped-overflow-print.html	
 pass	monolithic-overflow	css/css-break/abspos-overflow-hidden-001-print.html	
-fail	monolithic-overflow	css/css-break/grid/monolithic-overflow-print.html	strona 2: różne piksele 9600
+pass	monolithic-overflow	css/css-break/grid/monolithic-overflow-print.html	
 pass	monolithic-overflow	css/css-break/overflowed-abs-pos-with-percentage-height-print.html	
 pass	monolithic-overflow	css/css-break/overflowing-block-002-print.html	
 fail	monolithic-overflow	css/css-break/overflowing-block-print.html	strona 1: różne piksele 3440

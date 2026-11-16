@@ -54,7 +54,7 @@ func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	} else if bo.FlexContainerT.IsInstance(box) {
 		return flexMinContentWidth(context, box, outer)
 	} else if bo.GridContainerT.IsInstance(box) {
-		return blockMinContentWidth(context, box, outer)
+		return gridContentWidth(context, box, outer, true)
 	} else {
 		panic(fmt.Sprintf("min-content width for %T not handled yet", box))
 	}
@@ -99,7 +99,7 @@ func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	} else if bo.FlexContainerT.IsInstance(box) {
 		return flexMaxContentWidth(context, box, outer)
 	} else if bo.GridContainerT.IsInstance(box) {
-		return blockMaxContentWidth(context, box, outer)
+		return gridContentWidth(context, box, outer, false)
 	} else {
 		logger.WarningLogger.Printf("max-content width for %T not handled yet", box)
 		return 0

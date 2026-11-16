@@ -440,7 +440,9 @@ func getColumnPlacement(rowPlacement [2]int, columnStart, columnEnd pr.GridLine,
 			}
 		}
 	} else {
-		y := 0
+		// gopdfgo: w wierszu bez zajętych komórek element trafia do pierwszej kolumny (CSS Grid 1 § 8.5,
+		// krok 2); źródło zaczynało od zera i dodawało jeden, więc pusty wiersz dawał kolumnę drugą
+		y := -1
 		for k := range occupiedColumns {
 			if k > y {
 				y = k
@@ -600,10 +602,22 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 	implicitStart int, direction byte, gap pr.Float,
 	containingBlock bo.Box, orthogonalSizes [][2]pr.Float,
 ) [][2]pr.Float {
-	// TODO: Check that auto box size is 0 for percentages.
 	percentBoxSize := pr.Float(0)
 	if boxSize != pr.AutoF {
 		percentBoxSize = boxSize.V()
+	} else {
+		// gopdfgo: przy nieokreślonym rozmiarze kontenera ścieżka procentowa liczy się jak auto
+		// (CSS Grid 1 § 7.2.1); źródło dawało jej zero
+		withAuto := make([][2]pr.TaggedDim, len(sizingFunctions))
+		for i, funcs := range sizingFunctions {
+			for k, f := range funcs {
+				if isLength(f) && f.Unit == pr.Perc {
+					f = pr.TaggedDim{Tag: pr.Auto}
+				}
+				withAuto[i][k] = f
+			}
+		}
+		sizingFunctions = withAuto
 	}
 
 	// 1.1 Initialize track sizes.
@@ -951,8 +965,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 	if (xStretch || yStretch) && freeSpace != nil && freeSpace.V() > 0 {
 		var autoTracksSizes []*[2]pr.MaybeFloat
 		for i := range tracksSizes {
-			minFunction := sizingFunctions[i][0]
-			if minFunction.Tag == pr.Auto {
+			// gopdfgo: rozciągane są ścieżki o funkcji maksimum auto (CSS Grid 1 § 11.8); źródło
+			// patrzyło na funkcję minimum, więc minmax(25px, auto) zostawało bez rozciągnięcia
+			if sizingFunctions[i][1].Tag == pr.Auto {
 				autoTracksSizes = append(autoTracksSizes, &tracksSizes[i])
 			}
 		}
@@ -1044,6 +1059,14 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, rowExtra map[int]pr.Float,
 ) (Box, blockLayout, map[int]pr.Float) {
 	context.createBlockFormattingContext()
+	// gopdfgo: pomiar szerokości wewnętrznej siatki, zob. gridContentWidth
+	measure := context.gridMeasure
+	if measure != nil && measure.target != box_.Box() {
+		measure = nil
+	}
+	if measure != nil {
+		box_.Box().Width = measure.constraint
+	}
 
 	// gopdfgo: dzieci pozycjonowane bezwzględnie nie są elementami siatki (CSS Grid 1 § 9): nie biorą udziału
 	// w rozmieszczaniu ani w rozmiarach ścieżek. Dostają zastępnik, a gdy siatka jest ich pudełkiem
@@ -1079,6 +1102,10 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	autoColumns := style.GetGridAutoColumns().Cycle()
 	autoRowsBack := style.GetGridAutoRows().Reverse().Cycle()
 	autoColumnsBack := style.GetGridAutoColumns().Reverse().Cycle()
+	// gopdfgo: percentRowGap: row-gap z procentem przy wysokości auto. Do rozmiaru kontenera liczy się
+	// jak zero, a przy rozkładaniu wierszy odnosi się do wysokości wynikłej z samych wierszy
+	// (CSS Box Alignment 3 § 8.3), więc wiersze wychodzą poza kontener.
+	percentRowGap := false
 	var rowGap, columnGap pr.Float
 	// gopdfgo: odstęp procentowy odnosi się do rozmiaru treści kontenera
 	// w danej osi, a przy rozmiarze nieokreślonym wynosi zero (CSS Box
@@ -1089,21 +1116,27 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		if v.Unit == pr.Perc {
 			columnGap = 0
 			probe := box_.Copy()
-			if bo.GridT.IsInstance(box_) {
-				blockLevelWidth(probe, context, containingBlock)
+			if measure != nil {
+				probe.Box().Width = pr.AutoF // do rozmiaru wewnętrznego procent liczy się jak zero
+			} else if _, known := box.Width.(pr.Float); !known {
+				if bo.GridT.IsInstance(box_) {
+					blockLevelWidth(probe, context, containingBlock)
+				} else {
+					inlineBlockWidth(probe, context, containingBlock)
+				}
 			}
-			if width, ok := probe.Box().Width.(pr.Float); ok {
-				columnGap = v.Value / 100 * width
-			}
+			// calc() z procentem: część w pikselach liczy się także przy nieokreślonej podstawie
+			width, _ := probe.Box().Width.(pr.Float)
+			columnGap = pr.ResolvePercentage(v, width).V()
 		}
 	}
 	if v := style.GetRowGap(); v.Tag != pr.Normal {
 		rowGap = v.Value
 		if v.Unit == pr.Perc {
 			rowGap = 0
-			if height, ok := box.Height.(pr.Float); ok {
-				rowGap = v.Value / 100 * height
-			}
+			height, known := box.Height.(pr.Float)
+			rowGap = pr.ResolvePercentage(v, height).V()
+			percentRowGap = !known
 		}
 	}
 
@@ -1329,6 +1362,18 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		implicitY1 = min(y, implicitY1)
 		implicitY2 = max(y+height, implicitY2)
 	}
+	// gopdfgo: wiersze niejawne dopisuje wyłącznie growRows, tak żeby rows miało zawsze implicitY2
+	// wierszy za jawnym początkiem. Źródło dopisywało je w kilku miejscach i myliło się o jeden przy
+	// przejściu kursora do nowego wiersza, więc siatka o n ≥ 3 wierszach dostawała 3n − 4 ścieżki;
+	// puste nie miały wysokości, ale każda dokładała row-gap.
+	rowsEnd := len(gridAreas)
+	growRows := func(end int) {
+		for ; rowsEnd < end; rowsEnd++ {
+			rows = append(rows, autoRows.Next(), pr.GridNames{})
+		}
+		implicitY2 = max(implicitY2, end)
+	}
+	growRows(implicitY2)
 	cursorX, cursorY := implicitX1, implicitY1
 	if utils.IsIn(flow, "dense") {
 		for _, child := range remainingGridItems {
@@ -1372,13 +1417,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 						break
 					}
 				}
-				yDiff := y + height - implicitY2
-				if yDiff > 0 {
-					for c := 0; c < yDiff; c++ {
-						rows = append(rows, autoRows.Next(), pr.GridNames{})
-					}
-					implicitY2 = y + height
-				}
+				growRows(y + height)
 				// 3. Set the item’s row-start line.
 				childrenPositions[child] = rect{x, y, width, height}
 			} else {
@@ -1414,13 +1453,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 							// Free place found.
 							// 3. Set the item’s row-/column-start lines.
 							childrenPositions[child] = [4]int{x, y, width, height}
-							yDiff := cursorY + height - 1 - implicitY2
-							if yDiff > 0 {
-								for c := 0; c < yDiff; c++ {
-									rows = append(rows, autoRows.Next(), pr.GridNames{})
-								}
-								implicitY2 = cursorY + height - 1
-							}
+							growRows(y + height)
 							hasBroken = true
 							break
 						}
@@ -1429,13 +1462,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 						// No room found.
 						// 2. Return to the previous step.
 						cursorY += 1
-						yDiff := cursorY + 1 - implicitY2
-						if yDiff > 0 {
-							for c := 0; c < yDiff; c++ {
-								rows = append(rows, autoRows.Next(), pr.GridNames{})
-							}
-							implicitY2 = cursorY
-						}
+						growRows(cursorY + 1)
 						cursorX = implicitX1
 						continue
 					}
@@ -1487,13 +1514,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 						break
 					}
 				}
-				yDiff := y + height - implicitY2
-				if yDiff > 0 {
-					for c := 0; c < yDiff; c++ {
-						rows = append(rows, autoRows.Next(), pr.GridNames{})
-					}
-					implicitY2 = y + height
-				} // 3. Set the item’s row-start line.
+				growRows(y + height) // 3. Set the item’s row-start line.
 				childrenPositions[child] = [4]int{x, y, width, height}
 			} else {
 				for {
@@ -1528,6 +1549,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 							// Free place found.
 							// 2. Set the item’s row-/column-start lines.
 							childrenPositions[child] = [4]int{x, y, width, height}
+							growRows(y + height)
 							hasBroken = true
 							break
 						}
@@ -1536,13 +1558,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 						// No room found.
 						// 2. Return to the previous step.
 						cursorY += 1
-						yDiff := cursorY + 1 - implicitY2
-						if yDiff > 0 {
-							for c := 0; c < yDiff; c++ {
-								rows = append(rows, autoRows.Next(), pr.GridNames{})
-							}
-							implicitY2 = cursorY
-						}
+						growRows(cursorY + 1)
 						cursorX = implicitX1
 						continue
 					}
@@ -1569,9 +1585,6 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	for c := 0; c < -implicitY1; c++ {
 		rows = append([]pr.GridSpec{pr.GridNames{}, autoRowsBack.Next()}, rows...)
 	}
-	for c := len(gridAreas); c < implicitY2; c++ {
-		rows = append(rows, autoRows.Next(), pr.GridNames{})
-	}
 
 	columns = collapseEmptyAutoFit(columns, columnsFitFirst, columnsFitCount, -implicitX1, childrenPositions, 0)
 	rows = collapseEmptyAutoFit(rows, rowsFitFirst, rowsFitCount, -implicitY1, childrenPositions, 1)
@@ -1588,14 +1601,16 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 
 	// 2. Find the size of the grid container.
 
-	if bo.GridT.IsInstance(box_) {
+	if measure != nil {
+		// szerokość zostaje ograniczeniem pomiaru
+	} else if bo.GridT.IsInstance(box_) {
 		blockLevelWidth(box_, context, containingBlock)
 	} else {
 		// assert isinstance(box, boxes.InlineGridBox)
 		// from .inline import inlineBlockWidth
 		inlineBlockWidth(box_, context, containingBlock)
 	}
-	if box.Width == pr.AutoF {
+	if box.Width == pr.AutoF && measure == nil {
 		// TODO: Calculate max-width.
 		box.Width, _ = containingBlock.ContainingBlock()
 	}
@@ -1609,11 +1624,30 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// 3.1 Resolve the sizes of the grid columns.
 	columnsSizes := resolveTracksSizes(context, columnSizingFunctions, box.Width, childrenPositions, implicitX1,
 		'x', columnGap, box_, nil)
+	if measure != nil {
+		measure.result = pr.Float(max(len(columnsSizes)-1, 0)) * columnGap
+		for _, size := range columnsSizes {
+			// max-content: ścieżka rośnie do granicy wzrostu (CSS Grid 1 § 11.6), o ile jest skończona
+			if limit := size[1]; measure.constraint == pr.AutoF && limit > size[0] && limit < pr.Inf {
+				measure.result += limit
+			} else {
+				measure.result += size[0]
+			}
+		}
+		measure.done = true
+		context.finishBlockFormattingContext(box_)
+		return nil, blockLayout{}, nil
+	}
 
 	// 3.2 Resolve the sizes of the grid rows.
 	rowsSizes := resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
 		'y', rowGap, box_, columnsSizes)
 
+	contentHeight := pr.Float(-1)
+	if percentRowGap && skipStack == nil {
+		contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
+		rowGap = pr.ResolvePercentage(style.GetRowGap(), contentHeight).V()
+	}
 	for row, extra := range rowExtra {
 		if row < len(rowsSizes) {
 			rowsSizes[row][0] += extra
@@ -1742,7 +1776,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	var rowSkip tree.ResumeStack // dalszy ciąg elementów wiersza skipRow
 	if skipStack != nil {
 		skipRow, rowSkip = skipStack.Unpack()
-		skipHeight = (sum0(rowsSizes[:skipRow]) + pr.Float(len(rowsSizes[:skipRow])-1)*rowGap)
+		// gopdfgo: przed wierszem skipRow jest skipRow odstępów; źródło liczyło o jeden mniej, więc
+		// dalszy ciąg siatki zaczynał stronę niżej o row-gap
+		skipHeight = sum0(rowsSizes[:skipRow]) + pr.Float(skipRow)*rowGap
 	}
 	rowResume := tree.ResumeStack{} // elementy podzielone na tej stronie, według indeksu
 	resumedRow := -1
@@ -1752,7 +1788,12 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		// TODO: Check that page is not empty.
 		if context.overflowsPage(bottomSpace, rowY-skipHeight) {
 			if i == 0 {
-				return nil, blockLayout{nil, nil, tree.PageBreak{Break: "any"}, false}, nil
+				// gopdfgo: całą siatkę przenosi tylko układ blokowy; dla siatki pływającej albo w wierszu
+				// wynik nil kończył się paniką w układzie elementów pływających
+				if box.IsInNormalFlow() && bo.GridT.IsInstance(box_) {
+					return nil, blockLayout{nil, nil, tree.PageBreak{Break: "any"}, false}, nil
+				}
+				continue
 			}
 			// gopdfgo: wiersz, od którego zaczynamy tę stronę, nie mieści się na pustej stronie. Zostawiamy
 			// go tutaj (wystaje), bo wznowienie od niego samego dawało nieskończenie wiele stron
@@ -1770,6 +1811,42 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			}
 			hasBroken = true
 			break
+		}
+	}
+	// gopdfgo: pętla wyżej poznaje, że wiersz się nie mieści, po położeniu następnego, więc ostatniego
+	// wiersza nie sprawdzała wcale (działało to tylko przypadkiem, dzięki nadmiarowym wierszom niejawnym).
+	// Ostatni wiersz, który się nie mieści, przechodzi na następną stronę w całości, tak jak wiersze
+	// środkowe. Wyjątek: wiersz, od którego zaczyna się ten fragment siatki, z elementem o wysokości
+	// auto, dzieli w treści układ elementu; gdy jego elementy mają podaną wysokość, też przechodzi
+	// w całości, jak blok w ADR 0004 (w źródle zostawał i wystawał poza stronę).
+	if last := len(rowsPositions) - 1; !hasBroken && rowSkip == nil && last >= 0 && bottomSpace > -pr.Inf &&
+		context.flexMeasuring == 0 && !(last == skipRow && pageIsEmpty) &&
+		context.overflowsPage(bottomSpace, rowsPositions[last]+rowsSizes[last][0]-skipHeight) {
+		fixed, any := true, false
+		for _, child := range children {
+			_, y, _, height := childrenPositions[child].unpack()
+			if y-implicitY1 <= last && last < y-implicitY1+height {
+				any = true
+				if child.Box().Style.GetHeight().Tag == pr.Auto {
+					fixed = false
+				}
+			}
+		}
+		if any && (fixed || last > skipRow) {
+			if last == 0 {
+				// całą siatkę przenosi tylko układ blokowy; pływająca i pozycjonowana zostają na miejscu
+				if box.IsInNormalFlow() && bo.GridT.IsInstance(box_) {
+					return nil, blockLayout{nil, nil, tree.PageBreak{Break: "any"}, false}, nil
+				}
+			} else {
+				resumeRow, resumeAt, hasBroken = last, tree.ResumeStack{last: nil}, true
+			}
+			for _, child := range children {
+				_, y, _, _ := childrenPositions[child].unpack()
+				if skipRow <= y && y < last {
+					thisPageChildren = append(thisPageChildren, child)
+				}
+			}
 		}
 	}
 	// gopdfgo: wymuszony podział strony między wierszami siatki: break-before na elemencie wiersza albo
@@ -1828,6 +1905,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		}
 		rows := pySlice(rowsSizes, skipRow, slice)
 		box.Height = sum0(rows) + pr.Float(max(len(rows)-1, 0))*rowGap
+		if contentHeight >= 0 && resumeRow == -1 {
+			box.Height = contentHeight
+		}
 	}
 	// Lay out grid items.
 	justifyItems := box.Style.GetJustifyItems()
@@ -2189,3 +2269,52 @@ func pySlice[T any](s []T, start, end int) []T {
 	}
 	return s[start:end]
 }
+
+// gridMeasure (gopdfgo) to zlecenie pomiaru szerokości wewnętrznej siatki: gridLayoutPass dla pudełka
+// target liczy kolumny przy szerokości constraint i kończy przed układaniem elementów.
+type gridMeasure struct {
+	target     *bo.BoxFields
+	constraint pr.MaybeFloat
+	result     pr.Float
+	done       bool
+}
+
+// gridContentWidth (gopdfgo) liczy szerokość min-content albo max-content kontenera siatki jako sumę
+// kolumn i odstępów (CSS Grid 1 § 11.1 i § 5.2): max-content przy nieokreślonej szerokości dostępnej,
+// min-content przy zerowej. Źródło liczyło siatkę jak blok, czyli brało najszerszy element, więc
+// inline-grid, siatka pływająca albo w komórce tabeli miała szerokość jednej kolumny albo zero.
+func gridContentWidth(context *layoutContext, box Box, outer, minimum bool) pr.Float {
+	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
+		return adjust(box, outer, width.Value, true, true)
+	}
+	probe := box.Copy()
+	request := &gridMeasure{target: probe.Box(), constraint: pr.AutoF}
+	if minimum {
+		request.constraint = pr.Float(0)
+	}
+	previous := context.gridMeasure
+	context.gridMeasure = request
+	var absoluteBoxes, fixedBoxes []*AbsolutePlaceholder
+	measureGridPass(context, probe, -pr.Inf, nil, indefiniteBlock{}, false, &absoluteBoxes, &fixedBoxes, nil)
+	context.gridMeasure = previous
+	if !request.done {
+		if minimum {
+			return blockMinContentWidth(context, box, outer)
+		}
+		return blockMaxContentWidth(context, box, outer)
+	}
+	return adjust(box, outer, request.result, true, true)
+}
+
+// indefiniteBlock to pudełko zawierające o nieokreślonych rozmiarach, używane przy pomiarze siatki.
+type indefiniteBlock struct{}
+
+func (indefiniteBlock) ContainingBlock() (width, height pr.MaybeFloat) { return pr.AutoF, pr.AutoF }
+
+// measureGridPass wskazuje gridLayoutPass; przypisanie w init przerywa cykl inicjalizacji pakietu
+// (absoluteWidth → shrinkToFit → minContentWidth → gridContentWidth → gridLayoutPass → absoluteLayout).
+var measureGridPass func(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack,
+	containingBlock containingBlock, pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
+	rowExtra map[int]pr.Float) (Box, blockLayout, map[int]pr.Float)
+
+func init() { measureGridPass = gridLayoutPass }

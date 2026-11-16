@@ -137,6 +137,15 @@ opisuje norma, obie zostały bez zmian.
   całą stronę, najwyżej 1,5 raza. Dlatego `07-images` i `10-preformatted` mają w Chromium tekst w skali
   0,667, a u nas w skali 1 i treść wystaje za margines.
 
+Pomiar pomniejszania (2026-11-16, strona 500 px, element o szerokości 110%, 125%, 150%, 200%, 400%
+obszaru treści): skala 0,909, 0,800, 0,667, 0,667, 0,667, czyli szerokość obszaru przez szerokość treści,
+najwyżej 1,5 raza; dotyczy treści na wszystkich stronach, pola marginesów zostają bez zmian. To automat
+Chromium, nie opisuje go żadna norma.
+
+Stan po rozmowie 2026-11-16: pomniejszanie w stylu Chromium odłożone jako mało istotne. Osobną, potrzebną
+w przyszłości funkcją jest dopasowanie wydruku do strony (fit-to-page) na życzenie wywołującego; do
+zaprojektowania, gdy przyjdzie na nią kolej.
+
 Zalecenie: nie naśladować żadnej z nich. Pierwsza to ograniczenie implementacji, druga zmienia rozmiar
 pisma wbrew arkuszowi; dokument, który ma się zmieścić, powinien to zapewnić własnym CSS.
 

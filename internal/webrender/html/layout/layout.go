@@ -361,6 +361,7 @@ type layoutContext struct {
 	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się
 	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
 	flexMeasuring int
+	gridMeasure   *gridMeasure // gopdfgo: trwający pomiar szerokości wewnętrznej siatki
 	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
 	clipDepth int
 	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony

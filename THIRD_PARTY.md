@@ -691,6 +691,27 @@ Wspólne dla obu katalogów:
   przylegający do zwykłego podziału strony jest obcinany do zera także dla kontenerów flex i siatki
   oraz elementów zastępowanych; w źródle robiły to tylko bloki i tabele, więc np. podsumowanie faktury
   w `display: flex` z `margin-top: 5mm` zaczynało stronę 14 pt niżej niż w Chromium;
+- `html/layout/grid.go`, 2026-11-16, trzy poprawki siatki przy `row-gap` i podziale stron:
+  - rozmieszczanie automatyczne (`growRows`): wiersze niejawne dopisywane w jednym miejscu; źródło
+    dopisywało je w kilku i myliło się o jeden, więc siatka o n ≥ 3 wierszach miała 3n − 4 ścieżki,
+    a każda pusta dokładała `row-gap` do wysokości kontenera (CSS Grid 1 § 8.5);
+  - dalszy ciąg siatki po podziale strony: `skipHeight` liczy odstęp przed każdym pominiętym wierszem;
+    źródło liczyło o jeden mniej i fragment zaczynał stronę niżej o `row-gap`;
+  - ostatni wiersz, którego elementy mają podaną wysokość i który nie mieści się na stronie, przechodzi
+    na następną (ADR 0004); źródło nie sprawdzało ostatniego wiersza i zostawiało go poza stroną
+    (dla wierszy o wysokości auto działało to przypadkiem, dzięki nadmiarowym wierszom niejawnym);
+- `html/layout/grid.go`, 2026-11-16, dalsze poprawki siatki:
+  - `getColumnPlacement`: element z podanym wierszem i kolumną auto trafia do pierwszej kolumny, gdy
+    wiersz jest pusty (CSS Grid 1 § 8.5); źródło dawało kolumnę drugą;
+  - rozciąganie ścieżek (`align-content`/`justify-content: stretch`) dotyczy ścieżek o funkcji maksimum
+    `auto` (§ 11.8); źródło patrzyło na funkcję minimum;
+  - `gap` zapisany jako `calc()` z procentem zachowuje część w pikselach (także w `flex.go`); `row-gap`
+    procentowy przy wysokości auto liczy się jak zero do rozmiaru kontenera i od wynikłej wysokości przy
+    rozkładaniu wierszy; `column-gap` procentowy w `inline-grid` odnosi się do jego szerokości
+    (CSS Box Alignment 3 § 8.3);
+  - `gridContentWidth`, `gridMeasure` (nowe), `preferred.go`: szerokość min-content i max-content
+    kontenera siatki to suma kolumn i odstępów (§ 5.2, § 11.1); źródło liczyło siatkę jak blok, więc
+    `inline-grid` i siatka pływająca miały szerokość najszerszego elementu albo zero;
 - `text/quotes.go` (`GetLangQuotes`), 2026-11-16: znacznik języka dopasowywany według BCP 47 (bez
   rozróżniania wielkości liter, łącznik równoważny podkreśleniu, odcinanie podznaczników od końca).
   Źródło po nieudanym dokładnym trafieniu przeglądało mapę w losowej kolejności i brało pierwszy klucz

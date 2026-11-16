@@ -255,20 +255,21 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	if rowGap.Tag == pr.Normal {
 		rowGap.Value = 0
 	} else if rowGap.Unit == pr.Perc {
-		if box.Height == pr.AutoF || box.IndefiniteHeight {
-			rowGap.Value = 0
-		} else {
-			rowGap.Value = rowGap.Value / 100 * box.Height.V()
+		// gopdfgo: przez ResolvePercentage, żeby calc() z procentem zachowało część w pikselach
+		base := pr.Float(0)
+		if box.Height != pr.AutoF && !box.IndefiniteHeight {
+			base = box.Height.V()
 		}
+		rowGap.Value = pr.ResolvePercentage(rowGap, base).V()
 	}
 	if columnGap.Tag == pr.Normal {
 		columnGap.Value = 0
 	} else if columnGap.Unit == pr.Perc {
-		if box.Width == pr.AutoF {
-			columnGap.Value = 0
-		} else {
-			columnGap.Value = columnGap.Value / 100 * box.Width.V()
+		base := pr.Float(0)
+		if box.Width != pr.AutoF {
+			base = box.Width.V()
 		}
+		columnGap.Value = pr.ResolvePercentage(columnGap, base).V()
 	}
 
 	var mainGap, crossGap pr.Float
