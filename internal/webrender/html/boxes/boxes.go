@@ -166,10 +166,13 @@ type BoxFields struct {
 	TrailingCollapsibleSpace bool
 
 	// Default, may be overriden on instances.
-	IsTableWrapper   bool
-	IsFlexItem       bool
-	IsGridItem       bool
-	IsForRootElement bool
+	IsTableWrapper bool
+	// NarrowedBesideFloats (gopdfgo): szerokość auto kontenera flex została zmniejszona do pasa obok
+	// elementów pływających (zob. layout.narrowedBesideFloats)
+	NarrowedBesideFloats bool
+	IsFlexItem           bool
+	IsGridItem           bool
+	IsForRootElement     bool
 	// MarginTopTruncated (gopdfgo): górny margines pudełka przylega do zwykłego podziału strony i jest
 	// obcięty do zera (CSS Fragmentation 3 § 5.2). Ustawia to układ bloku nadrzędnego przed każdym
 	// ułożeniem dziecka, które nie jest blokiem; układ dziecka nie przywraca wtedy marginesu ze stylu.

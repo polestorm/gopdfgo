@@ -2349,6 +2349,18 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 
 	context.finishBlockFormattingContext(box_)
 
+	// gopdfgo: element siatki z position: relative jest przesuwany o swoje top, right, bottom, left
+	// (CSS 2.1 § 9.4.3); procenty liczą się od obszaru siatki elementu, tu w przybliżeniu od pudełka
+	// kontenera. W źródle przesunięcie dostawały tylko dzieci bloków.
+	if width, ok := box_.Box().Width.(pr.Float); ok && neededExtra == nil {
+		height, _ := box_.Box().Height.(pr.Float)
+		for _, child := range box_.Box().Children {
+			if child.Box().IsGridItem {
+				relativePositioning(child, bo.Point{width, height})
+			}
+		}
+	}
+
 	if traceMode {
 		traceLogger.DumpTree(box_, "after gridLayout")
 	}

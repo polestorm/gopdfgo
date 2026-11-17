@@ -6,3 +6,4 @@
 .DS_Store
 # pamięć podręczna skanowania fontów systemowych, tworzona przez testy forka
 font_index_*.cache
+.claude/

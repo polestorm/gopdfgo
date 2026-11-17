@@ -82,6 +82,10 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		collapsedMargin := collapseMargin(append(*adjoiningMargins, box_.MarginTop.V()))
 		bl := box.BlockLevel()
 		bl.Clearance = getClearance(context, box_, collapsedMargin)
+		if box_.IsFlexItem || box_.IsGridItem {
+			// gopdfgo: clear nie działa na elementach flex i grid (CSS Flexbox 1 § 3, CSS Grid 1 § 5.1)
+			bl.Clearance = nil
+		}
 		// gopdfgo: pozycję hipotetyczną liczy się po zwinięciu marginesów, także z marginesami pierwszych
 		// dzieci, które zwijają się przez górną krawędź pudełka (CSS 2.1 § 9.5.2 i § 8.3.1). Gdy już ona
 		// leży poniżej elementów pływających, clearance nie powstaje; gdy powstaje, górna krawędź
@@ -139,10 +143,18 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 		v = sliceTallReplaced(context, b, v, bottomSpace, skipStack)
 		return b.(bo.BlockLevelBoxITF), v, -1 // blockReplacedBoxLayout is type stable
 	} else if bo.FlexT.IsInstance(box_) {
+		original := box_
 		box_, layout := flexLayout(context, box_, bottomSpace, skipStack, containingBlock,
 			pageIsEmpty, absoluteBoxes, fixedBoxes, discard)
 		if box_ == nil { // kontener w całości przechodzi na następną stronę
 			return nil, layout, -1
+		}
+		if narrowed, ok := narrowedBesideFloats(context, original, box_, containingBlock); ok {
+			box_, layout = flexLayout(context, narrowed, bottomSpace, skipStack, containingBlock,
+				pageIsEmpty, absoluteBoxes, fixedBoxes, discard)
+			if box_ == nil {
+				return nil, layout, -1
+			}
 		}
 		avoidFloats(context, box_, containingBlock)
 		return box_.(bo.BlockLevelBoxITF), layout, -1 // flexLayout is type stable
@@ -234,6 +246,40 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	return newBox, result
 }
 
+// narrowedBesideFloats (gopdfgo): kontener flex o szerokości auto, obok którego stoją elementy pływające,
+// dostaje szerokość pasa wolnego od nich (CSS 2.1 § 9.5: pudełko z własnym kontekstem formatowania może
+// zostać zwężone, żeby zmieścić się obok elementu pływającego; tak robią przeglądarki). Zwraca kopię
+// pudełka wyjściowego z nadaną szerokością do ponownego układu.
+func narrowedBesideFloats(context *layoutContext, original, laidOut Box, containingBlock *bo.BoxFields) (Box, bool) {
+	box := laidOut.Box()
+	if box.IsFlexItem || box.IsGridItem || box.IsColumn || !box.IsInNormalFlow() || len(context.excludedShapes.list) == 0 ||
+		box.Style.GetWidth().Tag != pr.Auto || box.Style.GetWidth().Intrinsic != pr.IntrinsicNone {
+		return nil, false
+	}
+	// pas wolny od elementów pływających na wysokości pudełka: pytamy pudełkiem o zerowej szerokości,
+	// bo szerokie zostałoby od razu przesunięte pod elementy pływające
+	probe := laidOut.Copy()
+	probe.Box().Width = pr.Float(0)
+	_, _, available := avoidCollisions(context, probe, containingBlock, false)
+	if available >= box.BorderWidth()-0.01 || available <= 0 {
+		return nil, false
+	}
+	narrowed := original.Copy()
+	nb := narrowed.Box()
+	nb.Style = nb.Style.Copy()
+	width := available - (box.BorderWidth() - box.Width.V())
+	if width <= 0 {
+		return nil, false
+	}
+	nb.Style.SetWidth(pr.FToPx(width))
+	if nb.Style.GetBoxSizing() == "border-box" {
+		nb.Style.SetWidth(pr.FToPx(available))
+	}
+	nb.Width = width
+	nb.NarrowedBesideFloats = true
+	return narrowed, true
+}
+
 // leadingChildMargins zwraca górne marginesy pierwszych dzieci blokowych, które zwijają się z górnym
 // marginesem pudełka: pudełko nie ma górnego obramowania ani odstępu i nie zakłada kontekstu formatowania.
 func leadingChildMargins(box_ Box) (margins []pr.Float) {
@@ -279,7 +325,7 @@ func leadingChildMargins(box_ Box) (margins []pr.Float) {
 func avoidFloats(context *layoutContext, box_ Box, containingBlock *bo.BoxFields) {
 	box := box_.Box()
 	if box.IsFlexItem || box.IsGridItem || box.IsColumn || !box.IsInNormalFlow() || len(context.excludedShapes.list) == 0 ||
-		box.Style.GetWidth().Tag == pr.Auto {
+		(box.Style.GetWidth().Tag == pr.Auto && !box.NarrowedBesideFloats) {
 		return
 	}
 	positionX, positionY, _ := avoidCollisions(context, box_, containingBlock, false)

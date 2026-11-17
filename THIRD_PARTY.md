@@ -1012,6 +1012,14 @@ Wspólne dla obu katalogów:
     ma własną linię bazową, z której korzysta kontener nadrzędny, komórka albo `inline-block` (źródło
     szukało pierwszego wiersza tekstu w głębi); w kolumnie z `wrap-reverse` elementy wyrównane do linii
     bazowej są odbijane jako grupa i zachowują wspólną krawędź;
+  - `html/layout/flex.go`, `html/layout/grid.go` (koniec `flexLayout` i `gridLayoutPass`): element flex
+    i element siatki z `position: relative` jest przesuwany o `top`, `right`, `bottom`, `left` (CSS 2.1
+    § 9.4.3); w źródle przesunięcie dostawały tylko dzieci bloków;
+  - `html/layout/block.go` (`blockLevelLayout`): `clear` nie działa na elementach flex i grid;
+    (`narrowedBesideFloats`, `boxes.NarrowedBesideFloats`): kontener flex o szerokości auto obok
+    elementów pływających dostaje szerokość wolnego pasa i jest układany ponownie (CSS 2.1 § 9.5);
+  - `html/layout/flex.go` (krok 15): rozmiar poprzeczny wyliczony z linii jest ograniczany przez min-
+    i max- kontenera (w źródle TODO); odstęp między liniami nie jest ujemny przy braku linii;
   - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
     ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
     rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne

@@ -1630,3 +1630,24 @@ Pominięte: `content-counter-006`–`008` (zakres licznika według CSS 2.1, sprz
 którą silnik stosuje), `content-counter-013`, `-014` (kerning ponad granicą elementów liniowych),
 `margin-bottom-applies-to-012`–`015` (wzorzec niezgodny z testem), testy z pismem od prawej do lewej.
 
+## Flex i siatka: przesunięcie względne, elementy pływające (2026-11-17)
+
+Pełny sondaż dziesięciu obszarów (siatka powtórzona po wycofaniu jednej zmiany): siedem obszarów 7370 z 9123
+(ściśle 6975, krawędziowo 395), `css-flexbox` 726 z 952. Korpus bez zmian.
+
+- element flex i element siatki z `position: relative` są przesuwane (wcześniej tylko dzieci bloków);
+- `clear` nie działa na elementach flex; kontener flex o szerokości auto zwęża się obok elementu pływającego;
+- min- i max- ograniczają rozmiar poprzeczny kontenera flex wyliczony z linii.
+
+Stracony: `css-grid/layout-algorithm/flex-sizing-rows-indefinite-height-002`. Przechodził przypadkiem: wiersze
+`fr` przy nieokreślonej wysokości wychodzą 0 i 100 zamiast 32 i 68, a brak przesunięcia względnego to
+kompensował. Do naprawy: drugi przebieg rozmiarów wierszy elastycznych (CSS Grid 1 § 11.7.1).
+
+Próbowane i wycofane: brakująca nazwana linia siatki jako pierwsza linia niejawna (poprawne dla siatki
+z jawnymi ścieżkami, ale bez zysku w testach i ze stratą w `grid-lanes`; siatka bez jawnych ścieżek liczy
+linie inaczej i wymaga osobnego rozpoznania).
+
+Praca równoległa: dwaj pomocnicy w osobnych kopiach roboczych (`font-size-adjust`; `text-indent` z `each-line`
+i `hanging`, `text-justify: none`, `word-spacing` w procentach, `text-wrap: nowrap`) zostali przerwani przed
+pierwszym commitem; zadania pozostają do zrobienia.
+

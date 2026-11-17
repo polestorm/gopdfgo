@@ -2780,6 +2780,18 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	// dwa elementy zastępowane obok siebie nie nakładają się
 	same("replaced-side-by-side", `<div style="display:flex;height:50px"><canvas class=b width=100 height=50></canvas><canvas class=g width=100 height=50></canvas></div>`,
 		`<div style="display:flex;height:50px"><div class=b style="width:100px"></div><div class=g style="width:100px"></div></div>`)
+	// position: relative przesuwa element flex i element siatki
+	same("relative-flex-item", `<div style="display:flex;width:200px;height:100px"><div class=g style="position:relative;left:50px;top:20px;width:40px;height:40px"></div></div>`,
+		`<div class=g style="margin:20px 0 0 50px;width:40px;height:40px"></div>`)
+	same("relative-grid-item", `<div style="display:grid;width:200px;height:100px"><div class=g style="position:relative;left:50px;top:20px;width:40px;height:40px"></div></div>`,
+		`<div class=g style="margin:20px 0 0 50px;width:40px;height:40px"></div>`)
+	// clear nie działa na elemencie flex; kontener flex o szerokości auto zwęża się obok elementu pływającego
+	same("flex-beside-float", `<div class=b style="float:left;width:60px;height:60px"></div>
+		<div style="display:flex"><div class=g style="clear:both;flex:1;height:40px"></div></div>`,
+		`<div class=b style="float:left;width:60px;height:60px"></div><div class=g style="margin-left:60px;height:40px"></div>`)
+	// min-width ogranicza szerokość kontenera kolumnowego wyliczoną z (braku) linii
+	same("column-wrap-min-width", `<div class=g style="display:flex;flex-flow:column wrap;column-gap:10px;width:max-content;min-width:100px;height:40px"></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

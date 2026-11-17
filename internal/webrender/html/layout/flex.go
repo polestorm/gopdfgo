@@ -1031,7 +1031,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			for _, line := range flexLines {
 				extraCrossSize -= line.crossSize
 			}
-			extraCrossSize -= pr.Float(len(flexLines)-1) * crossGap
+			extraCrossSize -= pr.Float(max(len(flexLines)-1, 0)) * crossGap
 
 			if extraCrossSize != 0 {
 				for i, line := range flexLines {
@@ -1432,11 +1432,22 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		// TODO: Handle min-max.
 		// TODO: What about align-content here?
 		crossSize := sumCross(flexLines)
-		crossSize += pr.Float(len(flexLines)-1) * crossGap
+		crossSize += pr.Float(max(len(flexLines)-1, 0)) * crossGap
+		// gopdfgo: rozmiar poprzeczny z linii jest ograniczany przez min- i max- kontenera
+		// (CSS Flexbox 1 § 9.4 krok 15); w źródle "TODO: Handle min-max".
+		clamp := func(size pr.Float, lower, upper pr.MaybeFloat) pr.Float {
+			if v, ok := upper.(pr.Float); ok {
+				size = min(size, v)
+			}
+			if v, ok := lower.(pr.Float); ok {
+				size = max(size, v)
+			}
+			return size
+		}
 		if cross == pr.PHeight {
-			box.Height = crossSize
+			box.Height = clamp(crossSize, box.MinHeight, box.MaxHeight)
 		} else {
-			box.Width = crossSize
+			box.Width = clamp(crossSize, box.MinWidth, box.MaxWidth)
 		}
 	}
 	// gopdfgo: przesunięcie każdej linii przez align-content, potrzebne do linii bazowej kontenera
@@ -1445,7 +1456,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		// 15 If the cross size property is a definite size, use that…
 		extraCrossSize := getAttr(box, cross, "").V()
 		extraCrossSize -= sumCross(flexLines)
-		extraCrossSize -= pr.Float(len(flexLines)-1) * crossGap
+		extraCrossSize -= pr.Float(max(len(flexLines)-1, 0)) * crossGap
 		// 16 Align all flex lines per align-content.
 		var crossTranslate pr.Float
 		direction := directionX
@@ -1831,6 +1842,17 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 
 	box_.RemoveDecoration(box, false, resumeAt != nil && !discard)
+
+	// gopdfgo: element flex z position: relative jest przesuwany o swoje top, right, bottom, left
+	// (CSS 2.1 § 9.4.3, CSS Flexbox 1 § 4); w źródle przesunięcie dostawały tylko dzieci bloków.
+	if width, ok := box.Width.(pr.Float); ok {
+		height, _ := box.Height.(pr.Float)
+		for _, child := range box.Children {
+			if child.Box().IsFlexItem {
+				relativePositioning(child, bo.Point{width, height})
+			}
+		}
+	}
 
 	if traceMode {
 		traceLogger.DumpTree(box_, "end flexLayout")

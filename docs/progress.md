@@ -30,7 +30,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7367 z 9123 (80,8%)** | ściśle 6972, krawędziowo 395; tryb ciągły; od 17.11 zestaw większy o 13 testów |
+| Sondaż ekranowy W3C | **7370 z 9123 (80,8%)** | ściśle 6975, krawędziowo 395; tryb ciągły; od 17.11 zestaw większy o 13 testów |
 | Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1351 z 1839 (73,5%)** | ściśle 1313, krawędziowo 38; `css-text` 664 z 909, `css-backgrounds` 502 z 603, `css-fonts` 185 z 327; od 17.11 zestaw większy o 71 testów |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
@@ -138,8 +138,8 @@ CSS 2 (5846)                    ████████████████
 css-backgrounds (603)           ████████████████▋    83,3%    101
 css-tables (141)                ████████████████     80,1%     28
 css-lists (151)                 ███████████████▌     77,5%     34
-css-flexbox (952)               ███████████████▏     75,8%    230
-css-grid bez lanes i subgrid    ██████████████▍      71,9%    180
+css-flexbox (952)               ███████████████▎     76,3%    226
+css-grid bez lanes i subgrid    ██████████████▎      71,7%    181
 css-multicol (370)              █████████████▉       69,5%    113
 css-text (909)                  ██████████████▌      73,0%    245
 css-fonts (327)                 ███████████▎         56,6%    142
@@ -151,7 +151,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7239 z 8140 (88,9%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7242 z 8140 (89,0%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 
