@@ -919,6 +919,17 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- `border-image`, 2026-11-17 (CSS Backgrounds 3 § 6; testy W3C `css-backgrounds`),
+  `html/document/draw_border.go` (`drawBorderImage`) i nowy `images/crop.go` (`Crop`):
+  - powiększany wycinek obrazu rastrowego jest rysowany jako osobny, wycięty obraz; źródło rysowało
+    cały obraz przycięty maską, więc przy wygładzaniu na krawędzi wycinka pojawiała się smuga koloru
+    z sąsiedniego obszaru obrazu (wycinki są skalowane niezależnie, § 6.2);
+  - przy `repeat` kafelki są wyśrodkowane w swoim obszarze (§ 6.4); źródło zaczynało od lewej i górnej
+    krawędzi. Odstęp przy `space` jest liczony w tej samej skali co kafelki;
+  - szerokości obrazu obramowania, które po przeciwnych stronach przekraczają obszar, są zmniejszane
+    proporcjonalnie (§ 6.3);
+  - środek z `fill`: skala pionowa brana z dolnej krawędzi, gdy górna ma zerową (w źródle pomyłka nazw
+    zmiennych);
 - siatka, 2026-11-17 (CSS Grid 1; testy W3C `css-grid`), `html/layout/grid.go`:
   - `fitContentItemWidth`: element, który nie jest rozciągany (`justify-self` inne niż `stretch`,
     marginesy `auto`), dostaje szerokość treści; źródło wpisywało szerokość zewnętrzną, więc był szerszy

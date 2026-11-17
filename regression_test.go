@@ -3,8 +3,12 @@ package gopdfgo
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"math"
 	"os"
 	"os/exec"
@@ -2808,4 +2812,47 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
 	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)
+}
+
+// border-image (CSS Backgrounds 3 § 6): powiększany wycinek obrazu rastrowego nie miesza się na
+// krawędzi z sąsiednim obszarem obrazu; szerokości przekraczające obszar są zmniejszane proporcjonalnie.
+func TestBorderImageSlicesDoNotBleed(t *testing.T) {
+	// obraz 3x3: zielona ramka, czerwony środek
+	source := image.NewNRGBA(image.Rect(0, 0, 3, 3))
+	for y := 0; y < 3; y++ {
+		for x := 0; x < 3; x++ {
+			source.Set(x, y, color.NRGBA{G: 128, A: 255})
+		}
+	}
+	source.Set(1, 1, color.NRGBA{R: 255, A: 255})
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, source); err != nil {
+		t.Fatal(err)
+	}
+	uri := "data:image/png;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())
+	head := `<style>@page { size: 300px 300px; margin: 0 } body { margin: 0 }
+		div { width: 100px; height: 100px; border: 30px solid green }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(head+body), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	reference := page("ref", `<div></div>`)
+	// (do kilku pikseli na narożnikach; z przeciekaniem koloru środka różni się cała wewnętrzna krawędź)
+	if n := differentPixels(page("slices", `<div style="border-image:url(`+uri+`) 1"></div>`), reference); n > 4 {
+		t.Errorf("wycinki: %d pikseli różni się od jednolitej ramki", n)
+	}
+	// szerokości po przeciwnych stronach większe niż obszar są skalowane tak, żeby się zmieścić
+	if n := differentPixels(page("scaled-down", `<div style="width:0;height:0;border-width:80px;border-image:url(`+uri+`) 1 / 80px 80px 160px 80px"></div>`),
+		page("scaled-ref", `<div style="width:0;height:0;border-width:80px;border-image:url(`+uri+`) 1 / 53.333px 53.333px 106.667px 53.333px"></div>`)); n != 0 {
+		t.Errorf("zmniejszanie szerokości: %d pikseli różni się od wzorca", n)
+	}
 }

@@ -263,8 +263,9 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 	}
 
 	// See https://drafts.csswg.org/css-backgrounds-3/#border-images
-	width, height, ratio := image.GetIntrinsicSize(
+	width_, height, ratio := image.GetIntrinsicSize(
 		box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
+	width := width_
 	intrinsicWidth_, intrinsicHeight_ := layout.DefaultImageSizing(width, height, ratio, nil, nil,
 		box.BorderWidth(), box.BorderHeight())
 	intrinsicWidth, intrinsicHeight := fl(intrinsicWidth_), fl(intrinsicHeight_)
@@ -336,6 +337,20 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 	borderBottom = computeWidthAdjustment(widths[2], borderBottom, sliceBottom, h)
 	borderLeft = computeWidthAdjustment(widths[3], borderLeft, sliceLeft, w)
 
+	// gopdfgo: gdy szerokości obrazu obramowania po przeciwnych stronach razem przekraczają obszar,
+	// wszystkie są proporcjonalnie zmniejszane (CSS Backgrounds 3 § 6.3); źródło pozwalało im nachodzić
+	// na siebie.
+	factor := fl(1)
+	if sum := borderLeft + borderRight; sum > w && sum > 0 {
+		factor = min(factor, w/sum)
+	}
+	if sum := borderTop + borderBottom; sum > h && sum > 0 {
+		factor = min(factor, h/sum)
+	}
+	if factor < 1 {
+		borderTop, borderRight, borderBottom, borderLeft = borderTop*factor, borderRight*factor, borderBottom*factor, borderLeft*factor
+	}
+
 	// repeatX="stretch", repeatY="stretch",
 	// scaleX=None, scaleY=None
 	drawBorderImage := func(x, y, width, height, sliceX, sliceY,
@@ -406,15 +421,40 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 			return scaleX, scaleY
 		}
 
+		// gopdfgo: przy repeat kafelki są wyśrodkowane w swoim obszarze (CSS Backgrounds 3 § 6.4):
+		// środek jednego kafelka wypada w środku obszaru. Źródło zaczynało od lewej i górnej krawędzi.
+		var shiftX, shiftY fl
+		if repeatX == "repeat" {
+			tile := sliceWidth * scaleX
+			nRepeatsX = 2*int(utils.Ceil((width/tile-1)/2)) + 1
+			shiftX = (width - fl(nRepeatsX)*tile) / 2
+		}
+		if repeatY == "repeat" {
+			tile := sliceHeight * scaleY
+			nRepeatsY = 2*int(utils.Ceil((height/tile-1)/2)) + 1
+			shiftY = (height - fl(nRepeatsY)*tile) / 2
+		}
+
 		renderedWidth := intrinsicWidth * scaleX
 		renderedHeight := intrinsicHeight * scaleY
 		offsetX := renderedWidth * sliceX / intrinsicWidth
 		offsetY := renderedHeight * sliceY / intrinsicHeight
 
+		// gopdfgo: wycinek obrazu rastrowego o całkowitych współrzędnych rysujemy jako osobny, wycięty
+		// obraz (zob. images.Crop), gdy jest powiększany; pozostałe (SVG, gradienty, wycinki ułamkowe,
+		// pomniejszanie) jak w źródle: cały obraz przycięty do wycinka.
+		var part images.Image
+		isWhole := func(v fl) bool { return v == fl(int(v)) }
+		if (scaleX > 1 || scaleY > 1) && isWhole(sliceX) && isWhole(sliceY) && isWhole(sliceWidth) && isWhole(sliceHeight) && pr.Is(width_) && fl(width_.V()) == intrinsicWidth && box.Style.GetImageResolution().Value == 1 {
+			if cropped, ok := images.Crop(image, int(sliceX), int(sliceY), int(sliceWidth), int(sliceHeight)); ok {
+				part = cropped
+			}
+		}
+
 		ctx.dst.OnNewStack(func() {
 			ctx.dst.Rectangle(x, y, width, height)
 			ctx.dst.State().Clip(false)
-			ctx.dst.State().Transform(matrix.Translation(x-offsetX+extraDx, y-offsetY+extraDy))
+			ctx.dst.State().Transform(matrix.Translation(x-offsetX+extraDx*scaleX+shiftX, y-offsetY+extraDy*scaleY+shiftY))
 			ctx.dst.State().Transform(matrix.Scaling(scaleX, scaleY))
 			for i := 0; i < nRepeatsX; i++ {
 				for j := 0; j < nRepeatsY; j++ {
@@ -422,6 +462,11 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 						translateX := fl(i) * (sliceWidth + extraDx)
 						translateY := fl(j) * (sliceHeight + extraDy)
 						ctx.dst.State().Transform(matrix.Translation(translateX, translateY))
+						if part != nil {
+							ctx.dst.State().Transform(matrix.Translation(offsetX/scaleX, offsetY/scaleY))
+							part.Draw(ctx.dst, ctx, sliceWidth, sliceHeight, string(box.Style.GetImageRendering()))
+							return
+						}
 						ctx.dst.Rectangle(offsetX/scaleX, offsetY/scaleY, sliceWidth, sliceHeight)
 						ctx.dst.State().Clip(false)
 						image.Draw(ctx.dst, ctx, intrinsicWidth, intrinsicHeight,
@@ -473,8 +518,8 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 		if scaleLeft == 0 {
 			scaleLeft = scaleRight
 		}
-		if sliceTop == 0 {
-			sliceTop = scaleBottom
+		if scaleTop == 0 { // gopdfgo: w źródle pomyłka nazw (sliceTop zamiast scaleTop)
+			scaleTop = scaleBottom
 		}
 		drawBorderImage(x+borderLeft, y+borderTop, w-borderLeft-borderRight, h-borderTop-borderBottom, sliceLeft, sliceTop,
 			intrinsicWidth-sliceLeft-sliceRight, intrinsicHeight-sliceTop-sliceBottom,
