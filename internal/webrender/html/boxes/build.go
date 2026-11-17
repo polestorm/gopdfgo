@@ -87,7 +87,6 @@ func (r rootStyleFor) Get(element tree.Element, pseudoType string) pr.ElementSty
 }
 
 var (
-	lineFeedRe = regexp.MustCompile(`\r\n?`)
 	tabRe      = regexp.MustCompile(`[\t ]*\n[\t ]*`)
 	spaceRe    = regexp.MustCompile(`[\t ]+`)
 )
@@ -1902,8 +1901,10 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 			return followingCollapsibleSpace
 		}
 
-		// Normalize line feeds
-		text = lineFeedRe.ReplaceAllString(text, "\n")
+		// gopdfgo: źródło zamieniało CR i CRLF na znak nowego wiersza. Końce wierszy normalizuje już
+		// parser HTML (i XML), więc CR, który tu dociera, pochodzi z odwołania znakowego (&#x0D;); taki
+		// znak traktujemy dokładnie jak spację (CSS Text 3 § 4.1; test WPT control-chars-00D).
+		text = strings.ReplaceAll(text, "\r", " ")
 		// gopdfgo: znaki sterujące (kategoria Cc) inne niż tabulator i znak nowego wiersza mają być
 		// widoczne (CSS Text 3 § 2.1); rysujemy w ich miejscu znak zastępczy U+FFFD. W źródle znikały.
 		text = visibleControls(text)
