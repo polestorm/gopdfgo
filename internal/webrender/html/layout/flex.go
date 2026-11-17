@@ -243,7 +243,16 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	children := append([]Box{}, box.Children...)
 	// gopdfgo: sortowanie stabilne; w źródle sort.Slice, które przy równych wartościach order nie gwarantuje
 	// zachowania kolejności dokumentu (dla więcej niż 12 elementów).
-	sort.SliceStable(children, func(i, j int) bool { return children[i].Box().Style.GetOrder() < children[j].Box().Style.GetOrder() })
+	// gopdfgo: dzieci pozycjonowane bezwzględnie nie są elementami flex, więc order ich nie przestawia
+	// (CSS Flexbox 1 § 4.1, § 5.4); wszystkie mają ten sam klucz i zachowują kolejność dokumentu. W źródle
+	// order zmieniał ich kolejność rysowania.
+	orderOf := func(child Box) int {
+		if child.Box().IsAbsolutelyPositioned() {
+			return 0
+		}
+		return int(child.Box().Style.GetOrder())
+	}
+	sort.SliceStable(children, func(i, j int) bool { return orderOf(children[i]) < orderOf(children[j]) })
 
 	var skip int
 	if skipStack != nil {

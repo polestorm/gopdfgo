@@ -1156,6 +1156,9 @@ Wspólne dla obu katalogów:
   - `html/layout/block.go` (`blockContainerLayout`): dolny margines ostatniego dziecka zostaje w elemencie
     flex i siatki (własny kontekst formatowania, CSS Flexbox 1 § 3, CSS Grid 1 § 6.1); źródło zachowywało
     tylko górny;
+  - `html/layout/flex.go` (sortowanie według `order`): dzieci pozycjonowane bezwzględnie nie są elementami
+    flex, więc `order` nie zmienia ich kolejności (CSS Flexbox 1 § 4.1, § 5.4); w źródle zmieniał kolejność
+    ich rysowania;
   - `css/validation/validation.go` (`getKeywordT`): słowa `flow-start` i `flow-end` w właściwościach
     wyrównania działają jak `flex-start` i `flex-end` (CSS Align 3 § 4.3); źródło ich nie znało;
   - `css/validation/calc.go` (`calcValue`): stałe `infinity`, `-infinity`, `pi`, `e` w `calc()` (CSS Values 4
