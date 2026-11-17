@@ -412,6 +412,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					row.Height = max(row.Height.V(), m)
 					rowBottomY = row.PositionY + row.Height.V()
 				}
+			} else if height, ok := row.Height.(pr.Float); ok {
+				// gopdfgo: wiersz bez komórek ma podaną wysokość (CSS 2.1 § 17.5.3: wysokość wiersza
+				// to większa z podanej i wymaganej przez komórki); w źródle miał zawsze zero (test WPT
+				// border-collapse-empty-row)
+				rowBottomY = row.PositionY + height
 			} else {
 				rowBottomY = row.PositionY
 				row.Height = pr.Float(0)
