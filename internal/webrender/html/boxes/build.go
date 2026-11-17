@@ -97,6 +97,7 @@ func CreateAnonymousBox(box Box) Box {
 	box = AnonymousTableBoxes(box)
 	box = FlexBoxes(box)
 	box = GridBoxes(box)
+	box = MulticolWrappers(box) // gopdfgo: komórki i pudełka liniowo-blokowe z kolumnami
 	box = InlineInBlock(box)
 	box = BlockInInline(box)
 	return box

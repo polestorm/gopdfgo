@@ -919,6 +919,19 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- kolumny w komórce tabeli i pudełku liniowo-blokowym, 2026-11-17 (CSS Multicol 1 § 2; testy W3C
+  `css-multicol/table/*`, `intrinsic-size-001`, `-004`, `css-tables/table-cell-overflow-explicit-height-002`):
+  - `html/boxes/multicol_wrap.go` (`MulticolWrappers`, wołane z `CreateAnonymousBox` w `build.go`): komórka
+    tabeli i `inline-block` z `column-count` lub `column-width` są kontenerami kolumn; ich treść trafia przy
+    budowie drzewa do anonimowego bloku z właściwościami kolumn, a pudełko dostaje dla nich wartości
+    początkowe. Źródło układało w kolumnach tylko zwykłe bloki;
+  - `html/layout/preferred.go` (`blockContentWidth`, `multicolContentWidth`): szerokość wewnętrzna kontenera
+    kolumn o szerokości auto to liczba kolumn razy szerokość kolumny (co najmniej `column-width`) plus odstępy;
+    elementy rozpinające wchodzą do niej bez mnożenia (tak liczą Blink i Gecko, norma tego nie definiuje);
+  - `html/layout/tables.go`, `layout.go` (`cellHeightRemaining`): `max-height` nie ogranicza komórki tabeli
+    (CSS 2.2 § 10.7: skutek nieokreślony, przeglądarki go pomijają); komórka o podanej wysokości dzielona
+    między strony albo kolumny sięga najwyżej do końca fragmentatora, a resztę wysokości przenosi do dalszego
+    ciągu (CSS Fragmentation 3 § 5.1). Test własny `TestMulticolTableCell`;
 - kolumny zagnieżdżone, 2026-11-17 (CSS Multicol 1 § 8.1, CSS Fragmentation 3 § 4.4, § 5.1, § 5.2, § 5.4;
   testy W3C `css-multicol/multicol-nested-*`):
   - `html/layout/column.go` (`columnsLayout`): kontener kolumn zagnieżdżony w kolumnie, który nie zaczyna

@@ -415,6 +415,9 @@ type layoutContext struct {
 	fixedHeightRemaining map[uintptr]pr.Float
 	// gopdfgo: reszta min-height kontenera kolumn podzielonego między fragmentatory; klucz jak wyżej
 	minHeightRemaining map[uintptr]pr.Float
+	// gopdfgo: reszta podanej wysokości komórki tabeli podzielonej między fragmentatory; klucz to stos
+	// wznowienia komórki (resumeKey), zob. tables.go
+	cellHeightRemaining map[uintptr]pr.Float
 
 	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
 	// klucz to znacznik w stanie wznowienia linii (resumeKey)

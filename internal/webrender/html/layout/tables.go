@@ -231,6 +231,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// test_table_break_children_margin.
 				// Pretend that height is not set, keeping computed height as a minimum.
 				cell.ComputedHeight = cell.Height
+				if remaining, ok := context.cellHeightRemaining[resumeKey(cellSkipStack)]; ok && cellSkipStack != nil {
+					cell.ComputedHeight = remaining // dalszy ciąg komórki: zob. niżej
+				}
 				// gopdfgo: komórka o podanej wysokości jest podstawą wysokości procentowych swoich dzieci
 				// (CSS Tables 3 § 3.10.3), choć sama jest układana jak pudełko o wysokości auto. W źródle
 				// procenty w komórce liczyły się zawsze jak auto.
@@ -239,6 +242,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					cell.AnonymousBaseHeight = specified
 				}
 				cell.Height = pr.AutoF
+				// gopdfgo: max-height nie ogranicza komórki tabeli, której wysokość wyznacza treść i wiersz
+				// (CSS 2.2 § 10.7 zostawia skutek max-height dla komórek nieokreślonym; przeglądarki go
+				// pomijają, test WPT table-cell-multicol-nested-002). W źródle ostatni fragment komórki był
+				// przycinany do max-height, a treść wystawała z wiersza.
+				cell.MaxHeight = pr.Inf
 				originalStyle := cell.Style
 				if cell.Style.GetHeight().Tag != pr.Auto {
 					styleCopy := cell.Style.Copy()
@@ -287,7 +295,22 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				}
 
 				cell.ContentHeight = cell.Height.V()
-				if cell.ComputedHeight != pr.AutoF {
+				if computed, ok := cell.ComputedHeight.(pr.Float); ok && cellResumeAt != nil && newCell != nil {
+					// gopdfgo: komórka o podanej wysokości dzielona między strony albo kolumny sięga
+					// najwyżej do końca fragmentatora, a resztę podanej wysokości przenosi do dalszego
+					// ciągu (CSS Fragmentation 3 § 5.1, jak blok w block.go). W źródle każdy fragment
+					// dostawał całą wysokość: wiersz wystawał poza fragmentator i przechodził w całości
+					// dalej (test WPT table-cell-multicol-nested-003).
+					available := context.pageBottom - bottomSpace - cell.ContentBoxY()
+					used := max(cell.Height.V(), min(computed, available))
+					if remaining := computed - used; remaining > 0 {
+						if context.cellHeightRemaining == nil {
+							context.cellHeightRemaining = map[uintptr]pr.Float{}
+						}
+						context.cellHeightRemaining[resumeKey(cellResumeAt)] = remaining
+					}
+					cell.Height = used
+				} else if cell.ComputedHeight != pr.AutoF {
 					cell.Height = max(cell.Height.V(), cell.ComputedHeight.V())
 				}
 				newRowChildren = append(newRowChildren, cell_)
