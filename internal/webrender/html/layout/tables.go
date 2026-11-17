@@ -418,7 +418,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			}
 
 			if len(baselineCells) == 0 {
-				row.Baseline = rowBottomY
+				// gopdfgo: bez komórek wyrównanych do linii bazowej linią bazową wiersza jest najniższa dolna
+				// krawędź treści komórek (CSS 2.1 § 17.5.3), ustalana niżej, po rozciągnięciu komórek;
+				// w źródle była to bezwzględna współrzędna dołu wiersza zapisana jako odległość od jego góry.
+				row.Baseline = nil
 			}
 
 			// Add extra padding to make the cells the same height as the row
@@ -572,9 +575,18 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if row.Baseline == nil {
 				if len(row.Children) != 0 {
 					// Set baseline to lowest bottom content edge.
+					// gopdfgo: komórka rozciągnięta do wysokości wiersza ma treść sięgającą jego dołu (dodatek
+					// do wysokości jest tu dopisany do odstępu dolnego, więc liczymy od krawędzi obramowania
+					// z odstępem dolnym z CSS, jak Chromium); w źródle brana była wysokość treści sprzed
+					// rozciągnięcia.
 					var max pr.Float
-					for _, cell := range row.Children {
-						if v := cell.Box().ContentBoxY() + cell.Box().Height.V(); v > max {
+					for _, cell_ := range row.Children {
+						cell := cell_.Box()
+						paddingBottom := cell.PaddingBottom.V()
+						if pb := cell.Style.GetPaddingBottom(); pb.Unit == pr.Px && pb.Tag != pr.Auto {
+							paddingBottom = min(paddingBottom, pb.Value)
+						}
+						if v := cell.BorderBoxY() + cell.BorderHeight() - cell.BorderBottomWidth.V() - paddingBottom; v > max {
 							max = v
 						}
 					}
@@ -1029,6 +1041,11 @@ func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
 				continue
 			}
 			row.Height = row.Height.V() + share
+			// gopdfgo: wiersz bez komórek wyrównanych do linii bazowej ma ją na dolnej krawędzi treści
+			// komórek, która schodzi razem z dołem wiersza (CSS 2.1 § 17.5.3)
+			if baseline, ok := row.Baseline.(pr.Float); ok && !rowHasBaselineCells(row_) {
+				row.Baseline = baseline + share
+			}
 			for _, cell_ := range row.Children {
 				cell := cell_.Box()
 				switch cell.VerticalAlign {
@@ -1363,6 +1380,16 @@ func tableWrapperWidthForced(context *layoutContext, wrapper_ Box, containingBlo
 		}
 	}
 	wrapper.Width = tableBox.BorderWidth()
+}
+
+// rowHasBaselineCells (gopdfgo) podaje, czy w wierszu jest komórka wyrównana do linii bazowej.
+func rowHasBaselineCells(row Box) bool {
+	for _, cell := range row.Box().Children {
+		if cell.Box().VerticalAlign == pr.Baseline {
+			return true
+		}
+	}
+	return false
 }
 
 // Return the y position of a cell’s baseline from the top of its border box.

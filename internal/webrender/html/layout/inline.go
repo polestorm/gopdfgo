@@ -858,7 +858,10 @@ func inlineBlockBaseline(box_ Box) pr.Float {
 			if bo.TableT.IsInstance(child) {
 				if cc := child.Box().Children; len(cc) != 0 && len(cc[0].Box().Children) != 0 {
 					firstRow := cc[0].Box().Children[0]
-					return firstRow.Box().Baseline.V()
+					// gopdfgo: linia bazowa wiersza jest liczona od jego górnej krawędzi, a wynik ma być
+					// liczony od górnej krawędzi marginesu tabeli (pudełko leży tu w y = 0); w źródle
+					// pomijane były obramowanie tabeli, odstęp między komórkami i podpis nad tabelą.
+					return firstRow.Box().PositionY - box.PositionY + firstRow.Box().Baseline.V()
 				}
 			}
 		}
