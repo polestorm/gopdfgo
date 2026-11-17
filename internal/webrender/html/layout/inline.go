@@ -57,6 +57,8 @@ type lineBoxeIterator struct {
 	// każdego wiersza; balanced mówi, że szerokość już wybrano
 	shrink   pr.Float
 	balanced bool
+	// maxLines: ile wierszy zostaje do obcięcia przez line-clamp (max-lines), -1 bez ograniczenia
+	maxLines int
 }
 
 func (l *lineBoxeIterator) Has() bool {
@@ -129,6 +131,12 @@ func (l *lineBoxeIterator) balance() {
 	}
 	lines := l.trialLines(0)
 	if lines < 2 || lines > maxBalancedLines {
+		return
+	}
+	if l.maxLines >= 0 && lines > l.maxLines {
+		// Norma każe najpierw obciąć wiersze (line-clamp), a potem wyrównać pozostałe z miejscem na
+		// wielokropek; wielokropek bloku dokładamy dopiero przy rysowaniu, więc układ nie zna jego
+		// szerokości. Obcinanego bloku nie wyrównujemy.
 		return
 	}
 	low, high := pr.Float(0), width.V()
@@ -217,7 +225,7 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 		indentNext: skipStack == nil && (!box.AfterBlock || indent.EachLine),
 		box:        box, context: context, positionY: positionY, bottomSpace: bottomSpace, containingBlock: containingBlock,
 		absoluteBoxes: absoluteBoxes, fixedBoxes: fixedBoxes, skipStack: skipStack, firstLetterStyle: firstLetterStyle,
-		firstLine: skipStack == nil,
+		firstLine: skipStack == nil, maxLines: -1,
 	}
 }
 
