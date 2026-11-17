@@ -223,6 +223,9 @@ type BoxFields struct {
 	// SplitBefore, SplitAfter: pudełko liniowe jest dalszym ciągiem (ma dalszy ciąg) pudełka rozdzielonego
 	// przez blok w środku; od tej strony nie ma marginesu, obramowania ani odstępu (CSS 2 §9.2.1.1)
 	SplitBefore, SplitAfter bool
+	// RelativeInlineAncestors (gopdfgo): pudełka liniowe z position: relative, w których leżał blok
+	// wydzielony z treści liniowej; ich przesunięcie dotyczy też tego bloku (CSS 2.1 § 9.2.1.1).
+	RelativeInlineAncestors []Box
 
 	// gopdfgo: ramka fieldset z legendą. LegendPrepared: style ramki i legendy zostały już dostosowane;
 	// BorderGapX i BorderGapWidth: odcinek górnego obramowania przerwany pod legendą.

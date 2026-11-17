@@ -593,6 +593,23 @@ func relativePositioning(box_ Box, containingBlock bo.Point) {
 
 		box_.Translate(translateX, translateY, false)
 	}
+	// gopdfgo: przesunięcie względne pudełek liniowych, z których wydzielono ten blok (CSS 2.1 § 9.2.1.1)
+	for _, ancestor_ := range box.RelativeInlineAncestors {
+		ancestor := ancestor_.Box()
+		resolvePositionPercentages(ancestor, containingBlock)
+		var translateX, translateY pr.Float
+		if ancestor.Left != pr.AutoF && (ancestor.Right == pr.AutoF || ancestor.Style.GetDirection() == pr.Ltr) {
+			translateX = ancestor.Left.V()
+		} else if ancestor.Right != pr.AutoF {
+			translateX = -ancestor.Right.V()
+		}
+		if ancestor.Top != pr.AutoF {
+			translateY = ancestor.Top.V()
+		} else if ancestor.Bottom != pr.AutoF {
+			translateY = -ancestor.Bottom.V()
+		}
+		box_.Translate(translateX, translateY, false)
+	}
 	if IsLine(box_) {
 		for _, child := range box.Children {
 			relativePositioning(child, containingBlock)

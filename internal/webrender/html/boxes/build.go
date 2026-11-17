@@ -2294,6 +2294,12 @@ func innerBlockInInline(box Box, skipStack tree.ResumeStack) (Box, Box, tree.Res
 			if InlineT.IsInstance(child) {
 				newChild, blockLevelBox, resumeAt = innerBlockInInline(child, skipStack)
 				skipStack = nil
+				// gopdfgo: blok wydzielony z pudełka liniowego przesuniętego względnie przesuwa się razem z nim
+				// (CSS 2.1 § 9.2.1.1); w źródle przesunięcie gubiło się przy wydzielaniu (testy WPT
+				// block-in-inline-relpos-001, -002).
+				if blockLevelBox != nil && child.Box().Style.GetPosition().String == "relative" {
+					blockLevelBox.Box().RelativeInlineAncestors = append(blockLevelBox.Box().RelativeInlineAncestors, child)
+				}
 			} else {
 				if skipStack != nil {
 					panic("Should not skip here")
