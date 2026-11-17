@@ -138,14 +138,14 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5846)                    ███████████████████▏  95,7%    254
+CSS 2 (5846)                    ███████████████████▏ 95,7%    254
 css-backgrounds (603)           ████████████████▋    83,3%    101
-css-tables (141)                ████████████████▍     82,3%     25
+css-tables (141)                ████████████████▍    82,3%     25
 css-lists (151)                 ███████████████▌     77,5%     34
-css-flexbox (952)               ████████████████▏     81,2%    179
-css-grid bez lanes i subgrid    ███████████████▏      75,8%    155
-css-multicol (370)              ███████████████▏      75,7%     90
-css-text (909)                  ███████████████       75,2%    225
+css-flexbox (952)               ████████████████▏    81,2%    179
+css-grid bez lanes i subgrid    ███████████████▏     75,8%    155
+css-multicol (370)              ███████████████▏     75,7%     90
+css-text (909)                  ███████████████      75,2%    225
 css-fonts (327)                 █████████████▏       65,7%    112
 css-content (40)                ██████████▌          52,5%     19
 css-grid: subgrid (88)          ████▊                23,9%     67
