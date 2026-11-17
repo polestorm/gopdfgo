@@ -1681,3 +1681,29 @@ Strat brak; korpus co do piksela bez zmian.
 Czas: pomocnicy pracowali 10 i 21 minut; scalenie gałęzi tekstu wymagało ręcznego rozwiązania konfliktów
 w tablicach właściwości (obie gałęzie dopisywały na końcu listy) i odtworzenia plików generowanych.
 
+## Druga paczka równoległa: balance, alternates, ogon flex i siatki (2026-11-17)
+
+Pełny sondaż dziesięciu obszarów po scaleniu dwóch pomocników (trzeci, kolumny zagnieżdżone, jeszcze pracuje).
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7389 | 7415 (ściśle 7020, krawędziowo 395) |
+| tekst, tła, fonty (1839) | 1372 | 1401 (ściśle 1360, krawędziowo 41) |
+| zyski według obszaru | | fonty 19, flex 17, tekst 11, siatka 9 |
+
+Stracony 1: `text-wrap-balance-line-clamp-001`, wymaga `-webkit-line-clamp` (nieobsługiwane); wcześniej
+przechodził, bo bez wyrównywania wynik był równy wzorcowi. Korpus co do piksela bez zmian, czas korpusu bez zmian.
+
+- **Pomocnik:** `text-wrap-style` i `text-wrap: balance` (11 z 20 testów; testy z `line-clamp` pominięte,
+  bo wielokropek bloku powstaje dopiero przy rysowaniu).
+- **Pomocnik:** `@font-feature-values` i funkcje `font-variant-alternates` (19 testów, wszystkie docelowe).
+  Font testowy Source Sans 3 (OFL) skopiowany do `testdata/fonts/features/`.
+- **Flex:** tabela jako element flex (`flex-basis` wygrywa z `width`/`height` tabeli, dolna granica to
+  szerokość minimalna treści według CSS Tables 3 § 3.9.1), proporcje rozciągniętych elementów
+  z `aspect-ratio` w kontenerze o podanej wysokości, syntetyczna linia bazowa kontenera z pustym
+  pierwszym elementem, `min-height`/`max-height` jako rozmiary wewnętrzne w kolumnie.
+- **Siatka:** wysokości procentowe jak auto przy wkładzie elementu w wiersz.
+
+Narzędzie `bench/survey/tools/chk.sh` (celowana kontrola listy testów wobec stanu bazowego) nie przycina
+strony do okna, więc testy wyższe niż 600 px pokazuje jako fałszywe straty; testy samego `mismatch` pomija.
+
