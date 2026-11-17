@@ -71,7 +71,23 @@ func floatLayout(context *layoutContext, box_ Box, containingBlock *bo.BoxFields
 		resumeAt tree.ResumeStack
 		tmp      blockLayout
 	)
-	if bo.BlockContainerT.IsInstance(box_) {
+	laidOutAsColumns := false
+	if multicol, ok := box_.(bo.BlockBoxITF); ok && bo.BlockT.IsInstance(box_) &&
+		(box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto") {
+		// gopdfgo: element pływający może być kontenerem kolumn (CSS Multicol 1 § 2); w źródle jego
+		// treść była układana jak w zwykłym bloku, bez kolumn. Gdy w kolumnach nie mieści się nic,
+		// zostaje układ źródła.
+		context.createBlockFormattingContext()
+		laidOut, columnsResult := columnsLayout(context, multicol, bottomSpace, skipStack, containingBlock,
+			true, absoluteBoxes, fixedBoxes, nil)
+		if laidOut != nil {
+			box_, resumeAt, laidOutAsColumns = laidOut, columnsResult.resumeAt, true
+		}
+		context.finishBlockFormattingContext(box_)
+	}
+	if laidOutAsColumns {
+		// ułożony wyżej
+	} else if bo.BlockContainerT.IsInstance(box_) {
 		context.createBlockFormattingContext()
 		box_, tmp, _ = blockContainerLayout(context, box_, bottomSpace,
 			skipStack, true, absoluteBoxes, fixedBoxes, new([]pr.Float), false, -1)
