@@ -279,6 +279,8 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	}
 
 	linebox.PositionY = positionY
+	shapesAtStart := len(context.excludedShapes.list)
+	shapesPrefix := slices.Clone(context.excludedShapes.list)
 
 	if len(context.excludedShapes.list) != 0 {
 		// Width and height must be calculated to avoid floats
@@ -303,6 +305,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		linebox.PositionX, linebox.PositionY = positionX, positionY
 		originalPositionX, originalPositionY := positionX, positionY
 		originalWidth := linebox.Width.V()
+		originalAvailable := availableWidth
 		waitingFloats = waitingFloats[:0] // reset
 
 		// gopdfgo: shrink zwęża wiersz przy text-wrap-style: balance (lineBoxeIterator.balance)
@@ -337,7 +340,16 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 
 		removeLastWhitespace(context, line_)
 
+		// gopdfgo: miejsce do wyrównania liczy się na całej wysokości wiersza znanej z poprzedniego
+		// przebiegu (candidateHeight); wysokość z splitInlineBox bywa jeszcze wysokością rozpórki, więc
+		// element pływający niżej w pasie wiersza nie był widziany i wiersz wyrównany do prawej
+		// nachodził na niego (test WPT floats-wrap-top-below-inline-001r).
+		splitHeight := linebox.Height
+		if candidateHeight != nil && linebox.Height != nil && candidateHeight.V() > linebox.Height.V() {
+			linebox.Height = candidateHeight
+		}
 		newPositionX, _, newAvailableWidth := avoidCollisions(context, linebox, containingBlock, false)
+		linebox.Height = splitHeight
 		newAvailableWidth -= floatWidths.right
 		alignmentAvailableWidth := newAvailableWidth + newPositionX - linebox.PositionX
 		// gopdfgo: przy white-space: pre-wrap spacje i tabulatory na końcu wiersza wiszą (CSS Text 3
@@ -388,6 +400,13 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			condition = positionX+line.Width.V() == originalPositionX+originalWidth && positionY == originalPositionY
 		}
 
+		// gopdfgo: wiersz wyższy niż przyjęty zajmuje też pas niżej; gdy stoi tam szerszy element pływający
+		// po stronie końca wiersza, pas jest węższy, choć początek wiersza się nie zmienia, i wiersz trzeba
+		// ułożyć ponownie (CSS 2.1 § 9.5: wiersz obok elementu pływającego jest skracany na całej wysokości;
+		// test WPT floats-wrap-top-below-inline-001r). W źródle porównywano tylko początek wiersza.
+		if condition && availableWidth < originalAvailable-0.01 {
+			condition = false
+		}
 		if condition {
 			context.excludedShapes = newExcludedShapes
 			break
@@ -420,6 +439,31 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			placeholder.Translate(line.PositionX-placeholder.Box().PositionX.V(),
 				positionY+line.Height.V()-placeholder.Box().PositionY.V(), false)
 		}
+	}
+
+	// gopdfgo: element pływający ułożony w części wiersza, która po złamaniu przeszła do następnego
+	// wiersza, zostawał na liście wykluczeń, choć nie ma go w drzewie: przy ponownym układzie
+	// w następnym wierszu stawał obok swojego widma (test WPT float-nowrap-4). Usuwamy z listy elementy
+	// pływające dopisane w tym wierszu, których w wierszu nie ma.
+	if len(context.excludedShapes.list) > shapesAtStart && slices.Equal(context.excludedShapes.list[:shapesAtStart], shapesPrefix) {
+		placed := map[*bo.BoxFields]bool{}
+		var walk func(Box)
+		walk = func(b Box) {
+			for _, child := range b.Box().Children {
+				if child.Box().IsFloated() {
+					placed[child.Box()] = true
+				}
+				walk(child)
+			}
+		}
+		walk(line_)
+		kept := context.excludedShapes.list[:shapesAtStart]
+		for _, shape := range context.excludedShapes.list[shapesAtStart:] {
+			if placed[shape] {
+				kept = append(kept, shape)
+			}
+		}
+		context.excludedShapes.list = kept
 	}
 
 	var floatChildren []Box
@@ -1174,6 +1218,18 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 					maxX -= child.MarginWidth()
 				}
 			}
+			if context.floatOnlyLine {
+				// gopdfgo: element pływający szerszy niż pusty wiersz zajmuje ten wiersz sam; dalsza treść
+				// zaczyna następny wiersz, który schodzi pod element pływający, jeśli obok się nie mieści
+				// (zob. inlineOutOfFlowLayout)
+				context.floatOnlyLine = false
+				if index+1 < len(box.Children) {
+					children = append(children, waitingChildren...)
+					waitingChildren = nil
+					resumeAt = tree.ResumeStack{index + 1: nil}
+					break
+				}
+			}
 			continue
 		}
 
@@ -1181,6 +1237,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		availableWidth := maxX
 		var childWaitingFloats []Box
 		childSkipStack := skipStack
+		shapesBefore := len(context.excludedShapes.list)
 		v := splitInlineLevel(context, child_, positionX, availableWidth, bottomSpace, skipStack,
 			containingBlock, absoluteBoxes, fixedBoxes, linePlaceholders, &childWaitingFloats, lineChildren)
 		resumeAt = v.resumeAt
@@ -1199,6 +1256,13 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			// TODO: we should take care of children added into absoluteBoxes,
 			// fixedBoxes and other lists.
 			availableWidth -= endSpacing
+			// gopdfgo: elementy pływające umieszczone przy pierwszym układzie dziecka są układane jeszcze
+			// raz, więc znikają z listy wykluczeń i oczekujących; w źródle zostawały i drugi egzemplarz
+			// stawał obok pierwszego (test WPT float-in-inline-002)
+			if len(context.excludedShapes.list) > shapesBefore {
+				context.excludedShapes.list = context.excludedShapes.list[:shapesBefore]
+			}
+			childWaitingFloats = nil
 			v := splitInlineLevel(context, child_, positionX, availableWidth, bottomSpace, skipStack,
 				containingBlock, absoluteBoxes, fixedBoxes, linePlaceholders, &childWaitingFloats, lineChildren)
 			newChild, resumeAt, preserved, first, last, newFloatWidths = v.newBox, v.resumeAt, v.preservedLineBreak, v.firstLetter, v.lastLetter, v.floatWidths
@@ -1467,7 +1531,15 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 			floatWidth -= trailingWhitespaceSize(context, nonFloatingChildren[Lf-1], true)
 		}
 
-		if floatWidth > maxX-positionX || len(*waitingFloats) != 0 {
+		// gopdfgo: w pustym jeszcze wierszu element pływający szerszy niż wiersz i tak nigdzie się nie
+		// zmieści, więc staje na wysokości wiersza, a wiersz schodzi pod niego (CSS 2.1 § 9.5.1, reguła 8:
+		// jak najwyżej; test WPT float-wider-than-line-inside-inline-with-block). W źródle czekał na koniec
+		// wiersza i stawał pod nim.
+		emptyLine := len(lineChildren) == 0 && len(children) == 0 && len(*waitingChildren) == 0
+		if floatWidth > maxX-positionX && emptyLine && len(*waitingFloats) == 0 {
+			context.floatOnlyLine = true
+		}
+		if (floatWidth > maxX-positionX && !emptyLine) || len(*waitingFloats) != 0 {
 			// TODO: the absolute and fixed boxes in the floats must be
 			// added here, and not in iterLineBoxes
 			*waitingFloats = append(*waitingFloats, child_)

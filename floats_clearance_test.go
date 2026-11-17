@@ -74,4 +74,47 @@ func TestFloatsAndClearance(t *testing.T) {
 		<div style="float:left;width:0;height:50px"></div>
 		<div style="overflow:hidden;margin:0 -50px;height:100px;background:green"></div></div>`,
 		page+`<div style="width:200px;height:100px;background:green"></div>`)
+	// pudełko z własnym kontekstem, które obok górnego elementu pływającego byłoby za szerokie dla
+	// niższego, jest układane ponownie w węższym pasie i zostaje na górze
+	same("bfc-relayout-beside-floats", page+`<div style="width:300px">
+		<div style="float:left;clear:left;width:100px;height:25px"></div>
+		<div style="float:left;clear:left;width:200px;height:25px"></div>
+		<div style="overflow:hidden;background:green"><div style="float:left;width:100px;height:50px"></div>
+		<div style="float:left;width:100px;height:50px"></div></div></div>`,
+		page+`<div style="margin-left:200px;width:100px;height:100px;background:green"></div>`)
+	// tabela o szerokości auto zwęża się do pasa obok obu elementów pływających
+	same("table-among-floats", page+`<div style="width:200px;overflow:hidden">
+		<div style="width:75px;height:100px;float:left;clear:left;background:green"></div>
+		<div style="width:125px;height:100px;float:left;clear:left;background:green"></div>
+		<table cellpadding="0" cellspacing="0"><td><div style="float:left;width:75px;height:100px;background:green"></div>
+		<div style="float:left;width:75px;height:100px;background:green"></div></td></table>
+		<div style="position:absolute;left:75px;top:0;width:50px;height:100px;background:green"></div></div>`,
+		page+`<div style="width:200px;height:200px;background:green"></div>`)
+	// margines auto pudełka z własnym kontekstem dzieli pas obok elementu pływającego
+	same("auto-margin-beside-float", page+`<div style="width:300px"><div style="float:right;width:100px;height:50px"></div>
+		<div style="overflow:hidden;width:100px;height:50px;margin-left:auto;background:green"></div></div>`,
+		page+`<div style="margin-left:100px;width:100px;height:50px;background:green"></div>`)
+	// element pływający w zagnieżdżonym pudełku liniowym z odstępami stoi przy krawędzi bloku
+	same("float-in-nested-inline", page+`<span style="padding:30px;margin:40px"><span>
+		<span style="float:left;width:100px;height:100px;background:green"></span></span></span>`,
+		page+`<div style="width:100px;height:100px;background:green"></div>`)
+	// wiersz z samym <br> mieści się obok elementu pływającego; dalsza treść schodzi pod niego
+	same("br-line-beside-float", page+`<div style="width:100px;line-height:0">
+		<div style="float:left;width:50px;height:50px;background:green"></div><br>
+		<span style="display:inline-block;vertical-align:top;width:100px;height:20px;background:blue"></span></div>`,
+		page+`<div style="width:50px;height:50px;background:green"></div><div style="width:100px;height:20px;background:blue"></div>`)
+	// clear podpisu tabeli nie widzi elementów pływających spoza tabeli
+	same("caption-clear-inside-wrapper", page+`<div style="float:left;width:100px;height:50px"></div>
+		<div style="display:table-caption;clear:both;width:50px;height:50px;background:green"></div>`,
+		page+`<div style="margin-left:100px;width:50px;height:50px;background:green"></div>`)
+	// element pływający szerszy niż pusty wiersz stoi na jego wysokości, a treść schodzi pod niego
+	same("wide-float-in-empty-line", page+`<div style="width:40px;line-height:0"><span>
+		<div style="float:left;width:100px;height:20px;background:green"></div><span style="display:inline-block;vertical-align:top;width:20px;height:20px;background:blue"></span></span></div>`,
+		page+`<div style="width:100px;height:20px;background:green"></div><div style="width:20px;height:20px;background:blue"></div>`)
+	// element pływający o zerowej wysokości stoi tam, gdzie wypada, i skraca wiersz obejmujący jego położenie
+	same("zero-height-float", page+`<div style="width:200px;line-height:0">
+		<div style="float:left;width:10px;height:30px"></div><div style="float:left;clear:left;width:100px;height:0"></div>
+		<span style="display:inline-block;vertical-align:bottom;height:20px;width:150px;background:blue"></span>
+		<span style="display:inline-block;vertical-align:bottom;height:20px;width:100px;background:green"></span></div>`,
+		page+`<div style="margin-left:10px;width:150px;height:20px;background:blue"></div><div style="margin-left:100px;width:100px;height:20px;background:green"></div>`)
 }

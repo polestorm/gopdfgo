@@ -425,6 +425,9 @@ type layoutContext struct {
 	// gopdfgo: pudełka omijające elementy pływające, których margines oddziela się od przylegających
 	// elementów pływających (zob. inFlowLayout); górna krawędź obramowania staje bez ich marginesu
 	separatedFromFloats map[*bo.BoxFields]bool
+	// gopdfgo: w pustym wierszu umieszczono element pływający szerszy niż wiersz; wiersz kończy się
+	// zaraz za nim (zob. inlineOutOfFlowLayout)
+	floatOnlyLine bool
 	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
 	clipDepth int
 	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony
@@ -578,6 +581,17 @@ func (l *layoutContext) finishBlockFormattingContext(rootBox_ Box) {
 		}
 		rootBox.Height = rootBox.Height.V() + maxShapeBottom - boxBottom
 	}
+	l.excludedShapesLists = l.excludedShapesLists[:len(l.excludedShapesLists)-1]
+	if L := len(l.excludedShapesLists); L != 0 {
+		l.excludedShapes = &l.excludedShapesLists[L-1]
+	} else {
+		l.excludedShapes = nil
+	}
+}
+
+// discardBlockFormattingContext (gopdfgo) zamyka kontekst bez dopasowania wysokości pudełka
+// (układ przerwany, pudełka nie ma).
+func (l *layoutContext) discardBlockFormattingContext() {
 	l.excludedShapesLists = l.excludedShapesLists[:len(l.excludedShapesLists)-1]
 	if L := len(l.excludedShapesLists); L != 0 {
 		l.excludedShapes = &l.excludedShapesLists[L-1]

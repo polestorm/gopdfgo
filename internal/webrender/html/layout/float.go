@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"sort"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
@@ -276,9 +277,9 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 		boxHeight = box.MarginHeight()
 	}
 
-	if box.BorderHeight() == 0 && box.IsFloated() {
-		return 0, 0, containingBlock.Width.V()
-	}
+	// gopdfgo: element pływający o zerowej wysokości jest umieszczany według tych samych reguł co inne
+	// (CSS 2.1 § 9.5.1) i jako wykluczenie skraca wiersze, których pas obejmuje jego położenie (test WPT
+	// floats-zero-height-wrap-002). Źródło zwracało dla niego pozycję (0, 0) strony.
 	var maxLeftBound, maxRightBound pr.Float
 	for {
 		var collidingShapes []*bo.BoxFields
@@ -431,4 +432,98 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 	}
 
 	return positionX, positionY, availableWidth
+}
+
+// bandAvailable (gopdfgo) podaje szerokość pasa dla pudełka obramowania box między elementami
+// pływającymi na wysokościach [y, y+height), z marginesami poziomymi pudełka, jak avoidCollisions
+// z outer=false, ale bez przesuwania w dół.
+func bandAvailable(context *layoutContext, box_ Box, containingBlock *bo.BoxFields, y, height pr.Float) pr.Float {
+	box := box_.Box()
+	left := containingBlock.ContentBoxX() + box.MarginLeft.V()
+	right := containingBlock.ContentBoxX() + containingBlock.Width.V() - box.MarginRight.V()
+	height = max(height, 0.01)
+	for _, shape := range context.excludedShapes.list {
+		if shape.MarginWidth() <= 0 || shape.PositionY >= y+height || shape.PositionY+shape.MarginHeight() <= y {
+			continue
+		}
+		switch shape.Style.GetFloat() {
+		case "left":
+			left = max(left, shape.PositionX+shape.MarginWidth())
+		case "right":
+			right = min(right, shape.PositionX)
+		}
+	}
+	return right - left
+}
+
+// relayoutBesideFloats (gopdfgo): pudełko z własnym kontekstem formatowania albo tabela o szerokości
+// auto, ułożone na pozycji hipotetycznej w pasie obok elementów pływających, okazało się na całej
+// wysokości szersze niż pas (bo niżej stoją elementy pływające szersze niż na górze), więc avoidCollisions
+// zepchnęłoby je pod elementy pływające. Zgodnie z CSS 2.1 § 9.5 takie pudełko może zostać zwężone,
+// żeby zmieścić się obok elementów pływających; próbujemy kolejno: tę samą wysokość z pasem zwężonym
+// do najwęższego miejsca na wysokości pudełka, potem następne wysokości (dolne krawędzie elementów
+// pływających). Tak robią przeglądarki (testy WPT floats-bfc-003, table-among-floats-001,
+// table-sizing-with-adjacent-floats, floats-wrap-bfc-002-*). relayout układa pudełko ponownie
+// w pasie o podanej szerokości (dla tabeli: szerokość dostępna). Gdy nic się nie mieści, zostaje
+// układ pierwotny (pod elementami pływającymi).
+func relayoutBesideFloats(context *layoutContext, original, laidOut Box, containingBlock *bo.BoxFields,
+	relayout func(width pr.Float) (Box, blockLayout),
+) (Box, blockLayout, bool) {
+	box := original.Box()
+	if len(context.excludedShapes.list) == 0 || box.IsFlexItem || box.IsGridItem || box.IsColumn || !box.IsInNormalFlow() ||
+		!(box.IsTableWrapper || bo.EstablishesFormattingContext(original)) {
+		return nil, blockLayout{}, false
+	}
+	if _, ok := containingBlock.Width.(pr.Float); !ok {
+		return nil, blockLayout{}, false
+	}
+	if box.IsTableWrapper {
+		if width := box.GetWrappedTable().Box().Style.GetWidth(); width.Tag != pr.Auto || width.Intrinsic != pr.IntrinsicNone {
+			return nil, blockLayout{}, false
+		}
+	} else if width := box.Style.GetWidth(); width.Tag != pr.Auto || width.Intrinsic != pr.IntrinsicNone {
+		return nil, blockLayout{}, false
+	}
+	laid := laidOut.Box()
+	y0 := laid.BorderBoxY()
+	_, marginY, _ := avoidCollisions(context, laidOut, containingBlock, false)
+	finalY := marginY + laid.MarginTop.V()
+	if finalY <= y0+0.01 {
+		return nil, blockLayout{}, false
+	}
+	candidates := []pr.Float{y0}
+	for _, shape := range context.excludedShapes.list {
+		if bottom := shape.PositionY + shape.MarginHeight(); bottom > y0+0.01 && bottom < finalY-0.01 {
+			candidates = append(candidates, bottom)
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i] < candidates[j] })
+	originalWidth := laid.BorderWidth()
+	if box.IsTableWrapper {
+		originalWidth = containingBlock.Width.V()
+	}
+	for i, y := range candidates {
+		if i > 0 && y-candidates[i-1] < 0.01 {
+			continue
+		}
+		width := bandAvailable(context, laidOut, containingBlock, y, 0)
+		for try := 0; try < 3 && width > 0; try++ {
+			relaid, layout := relayout(width)
+			if relaid == nil {
+				return relaid, layout, true
+			}
+			rb := relaid.Box()
+			fit := bandAvailable(context, relaid, containingBlock, y, rb.BorderHeight())
+			if rb.BorderWidth() <= fit+0.01 {
+				relaid.Translate(0, y-rb.BorderBoxY(), false)
+				return relaid, layout, true
+			}
+			if fit >= width-0.01 {
+				break
+			}
+			width = fit
+		}
+	}
+	relaid, layout := relayout(originalWidth)
+	return relaid, layout, true
 }
