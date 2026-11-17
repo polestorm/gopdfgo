@@ -584,7 +584,9 @@ func computeAttrFunction(computer *ComputedStyle, values pr.AttrData) (out pr.Co
 	}
 
 	var prop pr.InnerContent
-	attrValue := node.Get(attrName)
+	// gopdfgo: w dokumencie HTML nazwy atrybutów są pisane małymi literami, więc nazwę z attr() też do nich
+	// sprowadzamy (CSS Values 5 § 7.7; WPT content-attr-case-001); źródło szukało nazwy dosłownie
+	attrValue := node.Get(strings.ToLower(attrName))
 	if attrValue == "" && fallback != nil {
 		atrValue_, ok := fallback.(pr.InnerContent)
 		if !ok {

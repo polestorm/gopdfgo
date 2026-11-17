@@ -924,6 +924,8 @@ Wspólne dla obu katalogów:
     arkusza wewnątrz łańcucha albo `url(` to tylko błąd parsowania, a token pozostaje ważny (CSS Syntax 3
     § 4.3.5, § 4.3.6); tokenizer dokłada za nim znacznik błędu, który w źródle unieważniał deklarację
     i regułę `@import`;
+  - `html/tree/computed_values.go` (`computeAttrFunction`): nazwa atrybutu w `attr()` sprowadzana do małych
+    liter, jak nazwy atrybutów w dokumencie HTML (CSS Values 5 § 7.7); źródło szukało jej dosłownie;
   - `css/selector/parser.go` (`htmlCaseInsensitiveAttributes`): wartości atrybutów z listy HTML § 4.16.2
     (m.in. `lang`, `type`, `dir`) porównywane bez rozróżniania wielkości liter, flaga `s` to wyłącza
     (Selectors 4 § 6.3); źródło nie znało ani listy, ani flagi `s`;
