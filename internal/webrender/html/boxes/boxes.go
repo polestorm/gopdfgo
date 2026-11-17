@@ -204,7 +204,8 @@ type BoxFields struct {
 	GridArea *[4]pr.Float
 	// StaticAlign: dla dziecka siatki pozycjonowanego bezwzględnie prostokąt pozycji statycznej (x, y,
 	// szerokość, wysokość) oraz ułamki wyrównania w obu osiach (0 początek, 0,5 środek, 1 koniec);
-	// stosowane w osi, w której oba przesunięcia to auto (CSS Grid 1 § 9.2)
+	// stosowane w osi, w której oba przesunięcia to auto (CSS Grid 1 § 9.2); ułamek powiększony o 10
+	// oznacza wyrównanie „safe”. Ustawiane także dla dzieci kontenera flex (CSS Flexbox 1 § 4.1)
 	StaticAlign *[6]pr.Float
 	// AnonymousBaseHeight: podstawa procentowych wysokości dzieci pudełka, którego własna wysokość w układzie
 	// to auto: dla anonimowego pudełka blokowego wysokość pudełka zawierającego jego rodzica (ustawiana

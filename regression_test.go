@@ -2822,6 +2822,11 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	same("column-max-height-min-content", `<div style="display:flex;flex-direction:column;width:100px;height:150px">
 		<div class=g style="max-height:min-content;flex-basis:150px"><div style="height:40px"></div></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
+	// pozycja statyczna dziecka absolutnego w kontenerze flex wynika z justify-content i align-items,
+	// także gdy kontener jest elementem pływającym
+	same("abspos-static-in-flex", `<div style="position:relative;float:left;margin-left:20px;display:flex;justify-content:center;align-items:flex-end;width:100px;height:100px">
+		<div class=g style="position:absolute;width:40px;height:20px"></div></div>`,
+		`<div class=g style="margin:80px 0 0 50px;width:40px;height:20px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

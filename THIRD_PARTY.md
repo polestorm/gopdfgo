@@ -1143,6 +1143,12 @@ Wspólne dla obu katalogów:
   - `html/layout/block.go` (`blockContainerLayout`): dolny margines ostatniego dziecka zostaje w elemencie
     flex i siatki (własny kontekst formatowania, CSS Flexbox 1 § 3, CSS Grid 1 § 6.1); źródło zachowywało
     tylko górny;
+  - `html/layout/flex.go` (koniec `flexLayout`), `absolute.go` (`AbsolutePlaceholder.Translate`): pozycja
+    statyczna dziecka pozycjonowanego bezwzględnie w kontenerze flex to miejsce jedynego elementu flex jego
+    rozmiaru, wyrównanego według `justify-content` i `align-self` (CSS Flexbox 1 § 4.1), przez
+    `BoxFields.StaticAlign` jak w siatce; prostokąt przesuwa się razem z pudełkiem (kontener pływający);
+    przy `safe` przepełnienie sprawdzamy wobec pudełka zawierającego, jak Chromium (zagadnienie CSSWG 11934).
+    Źródło stawiało dziecko w lewym górnym rogu treści kontenera;
   - `html/layout/flex.go` (krok 3): `min-height` i `max-height` jako `min-content`, `max-content`,
     `fit-content` w kontenerze kolumnowym to wysokość treści elementu (CSS Sizing 3 § 2.1); źródło
     traktowało je jak auto;

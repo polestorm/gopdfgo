@@ -43,6 +43,14 @@ func (abs *AbsolutePlaceholder) Translate(dx, dy pr.Float, ignoreFloats bool) {
 		// Descendants do not have a position yet.
 		abs.AliasBox.Box().PositionX += dx
 		abs.AliasBox.Box().PositionY += dy
+		// gopdfgo: prostokąt pozycji statycznej (dziecko kontenera flex albo siatki) przesuwa się
+		// razem z pudełkiem, np. gdy kontener jest elementem pływającym przesuwanym po układzie
+		if static := abs.AliasBox.Box().StaticAlign; static != nil {
+			moved := *static
+			moved[0] += dx
+			moved[1] += dy
+			abs.AliasBox.Box().StaticAlign = &moved
+		}
 	}
 }
 
@@ -336,12 +344,29 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 	if static := box.Box().StaticAlign; static != nil && newBox != nil {
 		// gopdfgo: wyrównanie pozycji statycznej dziecka siatki w osi bez podanych przesunięć
 		style, laidOut := newBox.Box().Style, newBox.Box()
+		// ułamek ≥ 10 oznacza wyrównanie „safe”: gdy wyrównane pudełko wychodzi poza pudełko zawierające,
+		// wraca do początku (CSS Align 3 § 4.4). Przepełnienie sprawdzamy wobec pudełka zawierającego,
+		// nie prostokąta pozycji statycznej, jak Chromium (zagadnienie CSSWG 11934, testy WPT
+		// flex-abspos-align-self-safe-outer-cb-*)
+		cb := containingBlock.Box()
+		resolve := func(start, free, size, fraction, cbStart, cbSize pr.Float) pr.Float {
+			if fraction >= 10 {
+				fraction -= 10
+				position := start + free*fraction
+				if position < cbStart-0.01 || position+size > cbStart+cbSize+0.01 {
+					return start
+				}
+			}
+			return start + free*fraction
+		}
 		var dx, dy pr.Float
 		if style.GetLeft().Tag == pr.Auto && style.GetRight().Tag == pr.Auto {
-			dx = static[0] + (static[2]-laidOut.MarginWidth())*static[4] - laidOut.PositionX
+			dx = resolve(static[0], static[2]-laidOut.MarginWidth(), laidOut.MarginWidth(), static[4],
+				cb.PaddingBoxX(), cb.PaddingWidth()) - laidOut.PositionX
 		}
 		if style.GetTop().Tag == pr.Auto && style.GetBottom().Tag == pr.Auto {
-			dy = static[1] + (static[3]-laidOut.MarginHeight())*static[5] - laidOut.PositionY
+			dy = resolve(static[1], static[3]-laidOut.MarginHeight(), laidOut.MarginHeight(), static[5],
+				cb.PaddingBoxY(), cb.PaddingHeight()) - laidOut.PositionY
 		}
 		if dx != 0 || dy != 0 {
 			newBox.Translate(dx, dy, false)

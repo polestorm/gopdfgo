@@ -1806,6 +1806,68 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		box.Height = max(context.pageBottom-bottomSpace-box.ContentBoxY(), 0)
 	}
 
+	// gopdfgo: pozycja statyczna dziecka pozycjonowanego bezwzględnie to miejsce, które zająłby jedyny
+	// element flex o jego rozmiarze: wyrównanie według justify-content w osi głównej i align-self
+	// w poprzecznej (CSS Flexbox 1 § 4.1); źródło stawiało je w lewym górnym rogu treści kontenera.
+	if width, ok := box.Width.(pr.Float); ok {
+		height, _ := box.Height.(pr.Float)
+		reverse := strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse")
+		wrapReverse := box.Style.GetFlexWrap() == "wrap-reverse"
+		mainFraction := func() pr.Float {
+			jc := box.Style.GetJustifyContent()
+			switch {
+			case jc.Intersects(pr.Center, pr.SpaceAround, pr.SpaceEvenly):
+				return 0.5
+			case jc.Has(pr.FlexEnd):
+				if reverse {
+					return 0
+				}
+				return 1
+			case jc.Intersects(pr.End, pr.Right) && main == pr.PWidth:
+				return 1
+			case jc.Has(pr.End):
+				return 1
+			case jc.Intersects(pr.FlexStart, pr.Normal, pr.SpaceBetween, pr.Stretch):
+				if reverse {
+					return 1
+				}
+			}
+			return 0
+		}()
+		for _, child_ := range box.Children {
+			child := child_.Box()
+			if !child.IsAbsolutelyPositioned() || child.StaticAlign != nil {
+				continue
+			}
+			alignSelf := child.Style.GetAlignSelf()
+			if alignSelf.Has(pr.Auto) || len(alignSelf) == 0 {
+				alignSelf = box.Style.GetAlignItems()
+			}
+			var crossFraction pr.Float
+			switch {
+			case alignSelf.Has(pr.Center):
+				crossFraction = 0.5
+			case alignSelf.Intersects(pr.End, pr.SelfEnd, pr.FlexEnd):
+				crossFraction = 1
+			}
+			if wrapReverse && !alignSelf.Has(pr.Center) {
+				crossFraction = 1 - crossFraction
+			}
+			if alignSelf.Has(pr.Safe) {
+				crossFraction += 10
+			}
+			mainFraction := mainFraction
+			if box.Style.GetJustifyContent().Has(pr.Safe) {
+				mainFraction += 10
+			}
+			static := [6]pr.Float{box.ContentBoxX(), box.ContentBoxY(), width, height, mainFraction, crossFraction}
+			if main == pr.PHeight {
+				static[4], static[5] = crossFraction, mainFraction
+			}
+			child.StaticAlign = &static
+		}
+	}
+
 	if box.Style.GetPosition().String == "relative" {
 		// New containing block, resolve the layout of the absolute descendants.
 		for _, absoluteBox := range *absoluteBoxes {
