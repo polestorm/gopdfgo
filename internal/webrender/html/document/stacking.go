@@ -171,6 +171,12 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	// § 6.4); źródło wymagało position innego niż static
 	zIndexApplies := positioned || box.Box().IsFlexItem || box.Box().IsGridItem
 	absoluteAndZIndex := zIndexApplies && style.GetZIndex().String != "auto"
+	// gopdfgo: pudełko z position: fixed (i sticky) zawsze tworzy kontekst nakładania (CSS Positioned
+	// Layout 3 § 3.4, tak jak w przeglądarkach); w źródle tylko z z-index innym niż auto (test WPT
+	// fixed-pos-stacking-001)
+	if position == "fixed" || position == "sticky" {
+		absoluteAndZIndex = true
+	}
 	if absoluteAndZIndex || style.GetOpacity() < 1 ||
 		// "transform: none" gives a "falsy" empty list here
 		hasTransform || bo.ClipsOverflow(box) {

@@ -564,10 +564,25 @@ func blockLevelWidth_(box_ Box, _ *layoutContext, containingBlock_ containingBlo
 }
 
 // Translate the “box“ if it is relatively positioned.
+// resolveRelativeOffsets (gopdfgo) rozwiązuje top, right, bottom i left pudełka przesuniętego względnie;
+// ujemna wysokość bloku zawierającego oznacza wysokość zależną od treści, przy której procentowe top
+// i bottom liczą się jak auto.
+func resolveRelativeOffsets(box *bo.BoxFields, containingBlock bo.Point) {
+	resolvePositionPercentages(box, containingBlock)
+	if containingBlock[1] < 0 {
+		if top := box.Style.GetTop(); top.Tag != pr.Auto && top.Unit == pr.Perc {
+			box.Top = pr.AutoF
+		}
+		if bottom := box.Style.GetBottom(); bottom.Tag != pr.Auto && bottom.Unit == pr.Perc {
+			box.Bottom = pr.AutoF
+		}
+	}
+}
+
 func relativePositioning(box_ Box, containingBlock bo.Point) {
 	box := box_.Box()
 	if box.Style.GetPosition().String == "relative" {
-		resolvePositionPercentages(box, containingBlock)
+		resolveRelativeOffsets(box, containingBlock)
 		var translateX, translateY pr.Float
 		if box.Left != pr.AutoF && box.Right != pr.AutoF {
 			if box.Style.GetDirection() == pr.Ltr {
@@ -596,7 +611,7 @@ func relativePositioning(box_ Box, containingBlock bo.Point) {
 	// gopdfgo: przesunięcie względne pudełek liniowych, z których wydzielono ten blok (CSS 2.1 § 9.2.1.1)
 	for _, ancestor_ := range box.RelativeInlineAncestors {
 		ancestor := ancestor_.Box()
-		resolvePositionPercentages(ancestor, containingBlock)
+		resolveRelativeOffsets(ancestor, containingBlock)
 		var translateX, translateY pr.Float
 		if ancestor.Left != pr.AutoF && (ancestor.Right == pr.AutoF || ancestor.Style.GetDirection() == pr.Ltr) {
 			translateX = ancestor.Left.V()
@@ -1124,8 +1139,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		}
 	}
 
+	// gopdfgo: przy wysokości bloku zawierającego zależnej od treści procentowe top i bottom liczą się jak
+	// auto (CSS 2.1 § 10.5 i errata do § 9.3.2, tak jak w Chromium); ujemna wysokość to sygnał dla
+	// relativePositioning. W źródle procent liczył się od wysokości ułożonego bloku (test WPT top-115).
+	cbHeight := newBox.Height.V()
+	if box.Height == pr.AutoF && !bo.TableCellT.IsInstance(newBox_) {
+		cbHeight = -1
+	}
 	for _, child := range newBox.Children {
-		relativePositioning(child, bo.Point{newBox.Width.V(), newBox.Height.V()})
+		relativePositioning(child, bo.Point{newBox.Width.V(), cbHeight})
 	}
 
 	if bo.EstablishesFormattingContext(newBox_) || wrapperContext {
