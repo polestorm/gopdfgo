@@ -123,7 +123,23 @@ func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer,
 		// though they were the following: width: auto"
 		// https://dbaron.org/css/intrinsic/#outer-intrinsic
 		var max, floats pr.Float
-		for _, child_ := range box.Box().Children {
+		children := box.Box().Children
+		multicol := bo.BlockContainerT.IsInstance(box) && !box.Box().IsTableWrapper && bo.IsMulticol(box.Box().Style)
+		var spannersWidth pr.Float
+		if multicol {
+			// elementy rozpinające (także zagnieżdżone, zob. hoistSpanners) mają szerokość kontenera,
+			// nie kolumny, więc nie mnożymy ich przez liczbę kolumn
+			hoisted, _ := hoistSpanners(children)
+			children = nil
+			for _, child := range hoisted {
+				if bo.IsColumnSpanner(child) {
+					spannersWidth = pr.Maxs(spannersWidth, function(context, child, true))
+				} else {
+					children = append(children, child)
+				}
+			}
+		}
+		for _, child_ := range children {
 			child := child_.Box()
 			if child.IsAbsolutelyPositioned() {
 				continue
@@ -166,6 +182,9 @@ func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer,
 			max = floats
 		}
 		widthValue = max
+		if multicol {
+			widthValue = pr.Maxs(multicolContentWidth(box.Box().Style, widthValue), spannersWidth)
+		}
 	} else {
 		if width.Unit != pr.Px {
 			panic(fmt.Sprintf("expected Px got %d", width.Unit))
@@ -174,6 +193,32 @@ func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer,
 	}
 
 	return adjust(box, outer, widthValue, true, true)
+}
+
+// multicolContentWidth zamienia szerokość wewnętrzną treści jednej kolumny na szerokość kontenera
+// kolumn: kolumna ma co najmniej column-width, a kontener mieści column-count kolumn z odstępami
+// (przy column-count: auto jedną).
+//
+// gopdfgo: źródło liczyło szerokość wewnętrzną kontenera kolumn jak zwykłego bloku, czyli jednej
+// kolumny, więc komórka tabeli albo element pływający z kolumnami o szerokości auto dostawał szerokość
+// jednej kolumny dzieloną na wszystkie. CSS Multicol 1 nie definiuje tych rozmiarów wprost; robimy
+// to samo co Blink i Gecko. Odstęp procentowy liczymy jako 0 (CSS Sizing 3, procent cykliczny
+// w rozmiarze wewnętrznym).
+func multicolContentWidth(style pr.ElementStyle, columnWidth pr.Float) pr.Float {
+	if width := style.GetColumnWidth(); width.Tag != pr.Auto {
+		columnWidth = max(columnWidth, width.Value)
+	}
+	count := pr.Float(1)
+	if c := style.GetColumnCount(); c.String != "auto" && c.Int > 1 {
+		count = pr.Float(c.Int)
+	}
+	var gap pr.Float
+	if gapV := style.GetColumnGap(); gapV.Tag == pr.Normal {
+		gap = style.GetFontSize().Value
+	} else if gapV.Unit != pr.Perc {
+		gap = gapV.Value
+	}
+	return count*columnWidth + (count-1)*gap
 }
 
 // Get box width from given width and box min- and max-widths.
