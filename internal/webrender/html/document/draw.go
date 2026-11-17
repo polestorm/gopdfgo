@@ -3,6 +3,7 @@ package document
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -741,6 +742,11 @@ func (ctx drawContext) drawCollapsedBorders(table *bo.TableBox) {
 			addHorizontal(x, y+1)
 		}
 	}
+	// gopdfgo: przy równej sile obramowań narożnik należy do odcinków komórki leżącej wyżej i bardziej
+	// na lewo (tak jak rozstrzyga się sam konflikt kolorów w CSS 2.1 § 17.6.2.1 i jak rysuje Chromium;
+	// testy WPT border-conflict-element-001d, -001e), więc te odcinki rysujemy na końcu. W źródle
+	// rysowane były w kolejności dodawania i dolne narożniki przykrywał odcinek komórki po prawej.
+	slices.Reverse(segments)
 
 	// Sort bigger scores last (painted later, on top)
 	sort.SliceStable(segments, func(i, j int) bool {
