@@ -2867,6 +2867,14 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	same("fr-rows-indefinite", `<div class=b style="display:grid;width:100px;grid-template-rows:repeat(2, minmax(0,0.4fr))">
 		<div class=g style="grid-row:2;height:100px"></div></div>`,
 		`<div class=b style="width:100px;height:80px"><div style="height:32px"></div><div class=g style="height:100px"></div></div>`)
+	// element pozycjonowany wskazuje linie także za zwiniętymi ścieżkami auto-fit
+	same("abspos-collapsed-auto-fit", `<div style="display:grid;position:relative;width:300px;column-gap:10px;grid-template-columns:repeat(auto-fit, 50px)">
+		<div style="grid-column:3;height:40px"><div class=g style="position:absolute;inset:0;grid-column:3 / 4"></div></div>
+		<div style="grid-column:5;height:40px"><div class=b style="position:absolute;inset:0;grid-column:5 / 6"></div></div></div>`,
+		`<div style="display:flex;gap:10px"><div class=g style="width:50px;height:40px"></div><div class=b style="width:50px;height:40px"></div></div>`)
+	// max-height ogranicza wysokość siatki wyliczoną z wierszy
+	same("grid-max-height", `<div style="display:grid;position:relative;grid-template-columns:100px;grid-template-rows:200px;max-width:100px;max-height:60px">
+		<div class=g style="position:absolute;width:100%;height:100%"></div></div>`, `<div class=g style="width:100px;height:60px"></div>`)
 	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
 	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)

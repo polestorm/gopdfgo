@@ -997,6 +997,10 @@ Wspólne dla obu katalogów:
   - `resolveTracksSizes` (`frContent`), `gridLayoutPass`: przy nieokreślonej wysokości ułamek `fr`
     wierszy wynika także z wysokości treści elementów (§ 11.7; w źródle TODO), a gdy suma współczynników
     jest mniejsza od 1, wiersze są rozwiązywane drugi raz w wysokości z pierwszego przebiegu (§ 11.1);
+  - `collapseEmptyAutoFit`, `gridLayoutPass` (`edges`): linie podane przez element pozycjonowany są
+    przeliczane po zwinięciu pustych ścieżek `auto-fit` (CSS Grid 2 § 7.2.3.2); w źródle element
+    wskazujący linię za zwiniętą ścieżką dostawał cały kontener jako pudełko zawierające;
+  - wysokość siatki wyliczona z wierszy jest ograniczana przez `max-height` i `min-height` kontenera;
   - `definiteTrackSize`: przy liczeniu powtórzeń `repeat(auto-fill | auto-fit, …)` maksimum ścieżki nie
     schodzi poniżej jej minimum, gdy oba są określone (§ 7.2.3.2);
   - niejawne nazwy linii z `grid-template-areas` (§ 7.3.2): każdy obszar daje nazwy `<obszar>-start`

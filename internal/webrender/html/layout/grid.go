@@ -199,9 +199,11 @@ func autoFitRange(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float)
 // jest taki sam jak po usunięciu ścieżki, bo żaden element jej nie obejmuje.
 // Źródło układało auto-fit jak auto-fill, więc elementy nie rozkładały się
 // na całą szerokość kontenera.
-func collapseEmptyAutoFit(specs []pr.GridSpec, first, count, implicitBefore int, positions map[Box]rect, axis int) []pr.GridSpec {
+// removed: numery usuniętych ścieżek (w numeracji sprzed zwijania), potrzebne do przeliczenia linii
+// podanych przez elementy pozycjonowane.
+func collapseEmptyAutoFit(specs []pr.GridSpec, first, count, implicitBefore int, positions map[Box]rect, axis int) (_ []pr.GridSpec, removed []int) {
 	if count == 0 {
-		return specs
+		return specs, nil
 	}
 	occupied := map[int]bool{}
 	for _, r := range positions {
@@ -214,6 +216,7 @@ func collapseEmptyAutoFit(specs []pr.GridSpec, first, count, implicitBefore int,
 			continue
 		}
 		specs = append(specs[:2*k+1:2*k+1], specs[2*k+3:]...)
+		removed = append(removed, k)
 		for child, r := range positions {
 			if r[axis]+implicitBefore > k {
 				r[axis]--
@@ -221,7 +224,7 @@ func collapseEmptyAutoFit(specs []pr.GridSpec, first, count, implicitBefore int,
 			}
 		}
 	}
-	return specs
+	return specs, removed
 }
 
 type maybeInt struct {
@@ -1649,8 +1652,8 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		rows = append([]pr.GridSpec{pr.GridNames{}, autoRowsBack.Next()}, rows...)
 	}
 
-	columns = collapseEmptyAutoFit(columns, columnsFitFirst, columnsFitCount, -implicitX1, childrenPositions, 0)
-	rows = collapseEmptyAutoFit(rows, rowsFitFirst, rowsFitCount, -implicitY1, childrenPositions, 1)
+	columns, collapsedColumns := collapseEmptyAutoFit(columns, columnsFitFirst, columnsFitCount, -implicitX1, childrenPositions, 0)
+	rows, collapsedRows := collapseEmptyAutoFit(rows, rowsFitFirst, rowsFitCount, -implicitY1, childrenPositions, 1)
 
 	if columnFlow {
 		rows, columns = columns, rows
@@ -2267,7 +2270,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// Zastępniki dzieci pozycjonowanych, z obszarem siatki jako pudełkiem zawierającym.
 	for _, child_ := range append(positionedChildren[:len(positionedChildren):len(positionedChildren)], nil) {
 		edges := func(start, end pr.GridLine, names []pr.GridNames, positions []pr.Float, sizes [][2]pr.Float,
-			implicitBefore int, paddingStart, paddingSize pr.Float,
+			implicitBefore int, paddingStart, paddingSize pr.Float, collapsed []int,
 		) (pr.Float, pr.Float, bool) {
 			from, to, placed := paddingStart, paddingStart+paddingSize, false
 			resolve := func(line pr.GridLine, side string) (int, bool) {
@@ -2276,6 +2279,15 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				}
 				_, _, _, coord := getLine(line, names, side)
 				index := coord.i + implicitBefore
+				// gopdfgo: linie zwiniętych ścieżek auto-fit zlewają się z sąsiednią (CSS Grid 2 § 7.2.3.2);
+				// numer linii sprzed zwijania przeliczamy na pozycję wśród pozostałych ścieżek
+				shift := 0
+				for _, track := range collapsed {
+					if track < index {
+						shift++
+					}
+				}
+				index -= shift
 				if !coord.valid || index < 0 || index > len(positions) || len(positions) == 0 {
 					return 0, false
 				}
@@ -2312,9 +2324,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 					}
 					style := descendant.Style
 					x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
-						columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth())
+						columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth(), collapsedColumns)
 					y, height, placedY := edges(style.GetGridRowStart(), style.GetGridRowEnd(), explicitRowNames,
-						rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight())
+						rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight(), collapsedRows)
 					if placedX || placedY {
 						descendant.GridArea = &[4]pr.Float{x, y, width, height}
 					}
@@ -2325,9 +2337,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		child := child_.Box()
 		style := child.Style
 		x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
-			columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth())
+			columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth(), collapsedColumns)
 		y, height, placedY := edges(style.GetGridRowStart(), style.GetGridRowEnd(), explicitRowNames,
-			rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight())
+			rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight(), collapsedRows)
 		child.PositionX, child.PositionY = box.ContentBoxX(), box.ContentBoxY()
 		child.GridArea = nil
 		// pozycja statyczna: jak jedyny element w obszarze o krawędziach treści kontenera albo wskazanych linii

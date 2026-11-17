@@ -521,6 +521,14 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 		if scaleTop == 0 { // gopdfgo: w źródle pomyłka nazw (sliceTop zamiast scaleTop)
 			scaleTop = scaleBottom
 		}
+		// gopdfgo: gdy żadna krawędź nie wyznacza skali (wycinek albo szerokość obramowania równe zero),
+		// środek nie jest skalowany (CSS Backgrounds 3 § 6.4); źródło dopasowywało go wtedy do obszaru
+		if scaleLeft == 0 {
+			scaleLeft = 1
+		}
+		if scaleTop == 0 {
+			scaleTop = 1
+		}
 		drawBorderImage(x+borderLeft, y+borderTop, w-borderLeft-borderRight, h-borderTop-borderBottom, sliceLeft, sliceTop,
 			intrinsicWidth-sliceLeft-sliceRight, intrinsicHeight-sliceTop-sliceBottom,
 			repeats[0], repeats[1], scaleLeft, scaleTop)
