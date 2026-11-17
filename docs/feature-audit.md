@@ -1494,3 +1494,49 @@ Chromium, pomijane), próg pozycji tabulatora (7), `word-space-transform` (7, ek
 `text-transform` z regułami językowymi (6), dzielenie wyrazów w innych językach (8, brak słowników),
 rozmiary wewnętrzne przy `pre-wrap` i `break-spaces`, pismo od prawej do lewej.
 
+## Tekst, paczka trzecia, i pierwsza paczka flex (2026-11-17)
+
+Pomiar: pełny sondaż dziesięciu obszarów w trybie ciągłym (`bench/survey`, 10 962 testy), ta sama metoda
+co stan bazowy z 17.11, z jedną poprawką miary: kilka odnośników `rel="match"` to alternatywy (13 zaliczeń
+z samej zmiany miary: 9 w tekście, 4 w CSS 2).
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7240 | 7270 (ściśle 6871, krawędziowo 399) |
+| tekst, tła, fonty (1839) | 1240 | 1333 (ściśle 1293, krawędziowo 40) |
+| `css-text` (909) | 565 | 658 |
+| `css-flexbox` (952) | 680 | 705 |
+
+Stracone względem stanu bazowego: 0. Reftesty druku bez zmian: 243 z 340.
+
+Tekst:
+
+- **Odstępy na końcu wiersza.** Biblioteka go-text odbierała szerokość każdemu końcowemu glifowi bez
+  obrysu. Teraz traci ją tylko zwykła spacja; spacja nierozdzielająca zachowuje szerokość i nie wisi,
+  a pozostałe odstępy (ideograficzny i inne kategorii Zs) wiszą z szerokością i tłem. Widoczne w zwykłych
+  dokumentach: tło albo podkreślenie elementu kończącego się spacją nierozdzielającą było za krótkie.
+- **`pre-wrap`**: wiszące spacje nie liczą się do wyrównania i justowania także wtedy, gdy podział wypada
+  na granicy elementów; tekst `pre-wrap` jest justowany (wybór normy, jak Chromium).
+- **Tabulatory**: pozycje tabulacji od początku wiersza, a nie fragmentu tekstu (tabulator po `<b>` w `<pre>`
+  trafiał w złe miejsce), jednostka z fontu bloku, próg pół znaku, ułamkowy `tab-size`.
+- **Łamanie w dowolnym miejscu między elementami liniowymi** (`overflow-wrap: anywhere`, `break-word`,
+  `word-break: break-all`, `line-break: anywhere`) i `word-break: break-word`.
+- **Tolerancja zaokrągleń przy zawijaniu**: N znaków fontu o stałej szerokości mieści się w pudełku `N ch`.
+
+Flex:
+
+- kontener o podanej szerokości ma ją jako szerokość wewnętrzną (10 testów `flexbox_stf-*`); `column-gap`
+  i `flex-basis` elementów nieelastycznych liczą się do szerokości wewnętrznej;
+- marginesy `auto` w kierunku kolumny, przy przepełnieniu i przy `align-content`;
+- suma współczynników flex poniżej 1, odrzucanie ujemnych;
+- automatyczne minimum obrazu z proporcjami liczone z podanego rozmiaru poprzecznego.
+
+Pominięte zgodnie z przyjętymi regułami: pismo od prawej do lewej (pytanie 24), pismo pionowe (ADR 0010),
+`visibility: collapse` na elementach flex (Chromium nie obsługuje), `letter-spacing` z tabulatorami
+(model odstępów go-text: połowa przed znakiem i połowa po nim), `white-space-trim`, `text-fit`,
+`hanging-punctuation` (Chromium nie obsługuje). Nowe pytanie 25: parser XML dla dokumentów XHTML.
+
+Co zostało: `css-text` 251 (z tego ok. 60 pismo od prawej do lewej i `letter-spacing`, 19 `text-wrap: balance`,
+15 `white-space-trim`, 10 `text-fit`, 10 `hanging-punctuation`), `css-flexbox` 247 (ok. 40 pismo pionowe
+i od prawej do lewej, ok. 20 linia bazowa, 8 tabela jako element, reszta pojedyncze przypadki).
+

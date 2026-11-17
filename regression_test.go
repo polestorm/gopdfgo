@@ -2739,6 +2739,10 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	same("auto-margin-overflow", `<div style="display:flex;width:100px;height:40px"><div class=g style="flex:none;width:80px;margin:0 auto"></div>
 		<div class=b style="flex:none;width:80px;margin:0 auto"></div></div>`,
 		`<div style="display:flex;width:160px;height:40px"><div class=g style="flex:none;width:80px"></div><div class=b style="flex:none;width:80px"></div></div>`)
+	// automatyczne minimum obrazu wynika z podanej wysokości i proporcji, nie z rozmiaru własnego
+	square := `src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='green'/%3E%3C/svg%3E"`
+	same("image-auto-minimum", `<div style="display:flex;width:0"><img style="height:60px;flex-basis:10px" `+square+`></div>`,
+		`<img style="height:60px;width:60px;display:block" `+square+`>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

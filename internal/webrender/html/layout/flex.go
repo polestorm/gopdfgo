@@ -381,9 +381,19 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				image := replaced.Replaced().Replacement
 				_, intrinsicHeight, intrinsicRatio := image.GetIntrinsicSize(
 					child.Style.GetImageResolution().Value, child.Style.GetFontSize().Value)
-				if pr.Is(intrinsicRatio) && pr.Is(intrinsicHeight) {
-					transferredSize = intrinsicHeight.V() * intrinsicRatio.V()
+				// gopdfgo: gdy rozmiar poprzeczny jest podany, rozmiar przeniesiony przez proporcje
+				// liczy się z niego, a nie z rozmiaru własnego obrazu (CSS Flexbox 1 § 4.5)
+				if height, ok := child.Height.(pr.Float); ok && pr.Is(intrinsicRatio) {
+					height = max(child.MinHeight.V(), min(child.MaxHeight.V(), height))
+					transferredSize = height * intrinsicRatio.V()
+					contentSize = transferredSize.V()
+				} else if pr.Is(intrinsicRatio) && pr.Is(intrinsicHeight) {
+					// ...a bez niego rozmiar treści ograniczają min-height i max-height przeliczone proporcją
+					ratio := intrinsicRatio.V()
+					low, high := child.MinHeight.V()*ratio, child.MaxHeight.V()*ratio
+					transferredSize = max(low, min(high, intrinsicHeight.V()*ratio))
 					contentSize = max(child.MinWidth.V(), min(child.MaxWidth.V(), contentSize))
+					contentSize = max(low, min(high, contentSize))
 				}
 			}
 			if specifiedSize != pr.AutoF {
@@ -429,9 +439,22 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				image := replaced.Replaced().Replacement
 				intrinsicWidth, _, intrinsicRatio := image.GetIntrinsicSize(
 					child.Style.GetImageResolution().Value, child.Style.GetFontSize().Value)
-				if pr.Is(intrinsicRatio) && pr.Is(intrinsicWidth) {
-					transferredSize = intrinsicWidth.V() / intrinsicRatio.V()
+				if width, ok := child.Width.(pr.Float); ok && pr.Is(intrinsicRatio) && child.Style.GetWidth().Tag != pr.Auto {
+					width = max(child.MinWidth.V(), min(child.MaxWidth.V(), width))
+					transferredSize = width / intrinsicRatio.V()
+					contentSize = transferredSize.V()
+				} else if pr.Is(intrinsicRatio) && pr.Is(intrinsicWidth) {
+					ratio := intrinsicRatio.V()
+					low, high := pr.Float(0), pr.Inf
+					if minWidth := child.Style.GetMinWidth(); minWidth.Tag != pr.Auto && minWidth.Unit == pr.Px {
+						low = minWidth.Value / ratio
+					}
+					if maxWidth := child.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px {
+						high = maxWidth.Value / ratio
+					}
+					transferredSize = max(low, min(high, intrinsicWidth.V()/ratio))
 					contentSize = max(child.MinHeight.V(), min(child.MaxHeight.V(), contentSize))
+					contentSize = max(low, min(high, contentSize))
 				} else if !pr.Is(intrinsicWidth) {
 					// TODO: wrongly set by block_level_layout, would be OK with
 					// min_content_height.

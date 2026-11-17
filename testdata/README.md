@@ -75,6 +75,10 @@ wyżej dochodzą `/fonts/`, `/images/`, `/css/css-grid/`, `/css/css-multicol/`, 
 nie w katalogu tymczasowym: system czyści `/tmp` z plików starszych niż kilka dni (2026-11-17 skasował
 w ten sposób poprzedni klon).
 
+Test z kilkoma odnośnikami `rel="match"` jest zaliczony, gdy zgadza się z którymkolwiek z nich (konwencja WPT:
+odnośniki na tym samym poziomie to alternatywy); odnośniki `mismatch` muszą różnić się wszystkie. Testy druku
+w `manifest.tsv` mają po jednym odnośniku, więc `TestWPTReftests` tej reguły nie potrzebuje.
+
 ## Czego w korpusie nie ma
 
 - print-css.rocks (lekcje PrintCSS): repozytorium nie ma pliku licencji, więc nie kopiujemy; można uruchamiać z klonu.

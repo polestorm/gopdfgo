@@ -1085,7 +1085,7 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
-			if basis, ok := inflexibleBasis(child); ok {
+			if basis, ok := inflexibleBasis(context, box, child); ok {
 				v = basis
 			}
 			sum += v
@@ -1107,13 +1107,20 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 // inflexibleBasis (gopdfgo): element flex, który ani nie rośnie, ani się nie kurczy, i ma flex-basis
 // podane długością, wnosi do szerokości wewnętrznej kontenera wierszowego właśnie tę długość
 // (CSS Flexbox 1 § 9.9.1), a nie szerokość swojej treści.
-func inflexibleBasis(child Box) (pr.Float, bool) {
+// Tylko w kontenerze wierszowym (w kolumnie flex-basis jest wysokością); automatyczne minimum
+// elementu (§ 4.5) nie pozwala zejść poniżej szerokości min-content jego treści.
+func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bool) {
 	style := child.Box().Style
 	basis := style.GetFlexBasis()
-	if style.GetFlexGrow() != 0 || style.GetFlexShrink() != 0 || basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
+	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") ||
+		style.GetFlexGrow() != 0 || style.GetFlexShrink() != 0 || basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
 		return 0, false
 	}
-	return adjust(child, true, basis.Value, true, true), true
+	width := adjust(child, true, basis.Value, true, true)
+	if minWidth := style.GetMinWidth(); minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone && style.GetOverflow() == "visible" {
+		width = max(width, minContentWidth(context, child, true))
+	}
+	return width, true
 }
 
 // flexMainGaps (gopdfgo): suma odstępów column-gap między elementami kontenera flex w wierszu; liczy
@@ -1246,7 +1253,7 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
-			if basis, ok := inflexibleBasis(child); ok {
+			if basis, ok := inflexibleBasis(context, box, child); ok {
 				v = basis
 			}
 			sum += v
