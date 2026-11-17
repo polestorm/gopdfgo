@@ -815,11 +815,13 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	if style.breakSpaces() && textWrap && dir.Progression() == di.FromTopLeft {
 		for attempt := 0; attempt < 2; attempt++ {
 			end := wLine.NextLine
-			if end <= 0 || end > len(text) || !isPreservedSpace(text[end-1]) {
+			// gopdfgo: także tabulatory: przy break-spaces wiersz wolno złamać po każdym zachowanym
+			// białym znaku, tabulator nie wisi (CSS Text 3 § 5.1, § 4.1.3; testy WPT break-spaces-tab-*)
+			if end <= 0 || end > len(text) || !isBreakSpace(text[end-1]) {
 				break
 			}
 			spaces := 0
-			for end-spaces-1 >= 0 && isPreservedSpace(text[end-spaces-1]) {
+			for end-spaces-1 >= 0 && isBreakSpace(text[end-spaces-1]) {
 				spaces++
 			}
 			lastRun := &line[len(line)-1]
@@ -1595,3 +1597,7 @@ func IsOtherSpaceSeparator(r rune) bool {
 // isPreservedSpace: spacja zwykła i ideograficzna (U+3000), które na końcu wiersza wiszą albo, przy
 // break-spaces, przechodzą do następnego wiersza (CSS Text 3 § 4.1.3).
 func isPreservedSpace(r rune) bool { return r == ' ' || r == '\u3000' }
+
+// isBreakSpace (gopdfgo): zachowany biały znak, po którym przy white-space: break-spaces wolno złamać
+// wiersz: spacja, spacja ideograficzna i tabulator.
+func isBreakSpace(r rune) bool { return isPreservedSpace(r) || r == '\t' }
