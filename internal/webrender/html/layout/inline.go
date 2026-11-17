@@ -115,7 +115,11 @@ func (l *lineBoxeIterator) Has() bool {
 		l.done = true
 	}
 	l.skipStack = resumeAt
-	l.indentNext = l.eachLine && forcedBreak
+	// gopdfgo: wiersz z samym elementem pływającym nie jest wierszem sformatowanym (elementy pływające
+	// nie należą do wierszy, CSS Text 3 § 7.1), więc wcięcie przechodzi na następny wiersz
+	if forcedBreak || hasInFlowContent(line) {
+		l.indentNext = l.eachLine && forcedBreak
+	}
 	l.firstLetterStyle = nil
 	l.emitted++
 	if l.forced = forcedBreak; forcedBreak {
@@ -2107,6 +2111,23 @@ func breaksAnywhere(style pr.ElementStyle, intrinsic bool) bool {
 // reguły dla znaków przestankowych (wiersz nie zaczyna się od kropki).
 func breakAllOnly(style pr.ElementStyle) bool {
 	return style.GetWordBreak() == "break-all" && style.GetOverflowWrap() == "normal" && style.GetLineBreak() != "anywhere"
+}
+
+// hasInFlowContent mówi, czy w pudełku liniowym jest treść w przepływie (tekst albo pudełko atomowe);
+// puste pudełka liniowe się nie liczą.
+func hasInFlowContent(box Box) bool {
+	for _, child := range box.Box().Children {
+		if !child.Box().IsInNormalFlow() || isNilTextBox(child) {
+			continue
+		}
+		if textBox, ok := child.(*bo.TextBox); ok && len(textBox.Text) == 0 {
+			continue
+		}
+		if !IsLine(child) || hasInFlowContent(child) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasInFlowBox mówi, czy wśród pudełek jest choć jedno w normalnym przepływie.

@@ -1446,6 +1446,12 @@ func applyTabs(out *shaping.Output, text []rune, columnWidth, runStart, threshol
 			// (runStart + advance + updatedTabAdvance) % columnWith == 0
 			glyphStartF := float64(runStart+advance) / 64
 			remainder := math.Mod(glyphStartF, columnWidthF)
+			if remainder < 0 {
+				// gopdfgo: przed krawędzią bloku (ujemne text-indent) następną pozycją tabulatora może
+				// być sama krawędź, bo pozycje są wielokrotnościami tab-size od niej (CSS Text 3 § 4.2);
+				// math.Mod zwraca tu resztę ujemną, a źródło pomijało tę pozycję
+				remainder += columnWidthF
+			}
 			toNextStop := columnWidthF - remainder
 			// gopdfgo: gdy do pozycji tabulatora brakuje mniej niż pół znaku, obowiązuje następna
 			// (CSS Text 3 § 4.2). W źródle tekst kończący się dokładnie na pozycji tabulatora, z błędem
