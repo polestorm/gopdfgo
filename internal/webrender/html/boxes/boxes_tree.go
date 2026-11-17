@@ -47,6 +47,8 @@ type TextBox struct {
 
 	TextLayout     text.EngineLayout // setup during layout
 	FirstLineIsRTL bool              // setup during layout
+	Hyphenated     bool              // gopdfgo: wiersz kończy się w tym pudełku dzieleniem wyrazu
+	SplitInside    bool              // gopdfgo: wiersz złamał się wewnątrz tekstu tego pudełka
 
 	Text []rune
 }

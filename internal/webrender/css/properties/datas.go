@@ -184,6 +184,7 @@ var (
 		PLineBreak,
 		PFontSizeAdjust,
 		PTextJustify,
+		PHyphenateLimitLines,
 		PTextWrapMode,
 		PTextWrapStyle,
 	)

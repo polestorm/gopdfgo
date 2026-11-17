@@ -62,6 +62,8 @@ type lineBoxeIterator struct {
 	emitted  int // liczba wydanych wierszy
 	// maxLines: ile wierszy zostaje do obcięcia przez line-clamp (max-lines), -1 bez ograniczenia
 	maxLines int
+	// hyphenatedLines: liczba kolejnych wierszy zakończonych dzieleniem wyrazu (hyphenate-limit-lines)
+	hyphenatedLines int
 }
 
 func (l *lineBoxeIterator) Has() bool {
@@ -78,8 +80,20 @@ func (l *lineBoxeIterator) Has() bool {
 	} else {
 		l.box.TextIndent = pr.Float(0)
 	}
+	// gopdfgo: hyphenate-limit-lines (CSS Text 4 § 6.6): po tylu kolejnych wierszach zakończonych
+	// dzieleniem wyrazu następny wiersz nie dzieli wyrazów automatycznie. Źródło właściwości nie znało.
+	savedNoAutoHyphens := l.context.noAutoHyphens
+	if limit := l.box.Style.GetHyphenateLimitLines(); limit.Tag != pr.None && l.hyphenatedLines >= limit.I {
+		l.context.noAutoHyphens = true
+	}
 	line, resumeAt, forcedBreak := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
 		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, l.shrink)
+	l.context.noAutoHyphens = savedNoAutoHyphens
+	if line != nil && resumeAt != nil && endsHyphenated(line) {
+		l.hyphenatedLines++
+	} else {
+		l.hyphenatedLines = 0
+	}
 	if line != nil {
 		l.firstLine = false
 	}
@@ -330,6 +344,9 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			traceLogger.DumpTree(line_, "line in getNextLinebox")
 		}
 
+		if resumeAt != nil && !preservedLineBreak {
+			addSoftHyphenAtBoxEnd(context, line_)
+		}
 		line := line_.Box()
 		linebox.Width, linebox.Height = line.Width, line.Height
 
@@ -1627,7 +1644,11 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 	if fontSize == pr.FToV(0) || len(text_) == 0 {
 		return nil, -1, false
 	}
-	v := text.SplitFirstLineAt(text_, box.Style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
+	var style pr.StyleAccessor = box.Style
+	if context.noAutoHyphens && box.Style.GetHyphens() == "auto" {
+		style = manualHyphensStyle{box.Style}
+	}
+	v := text.SplitFirstLineAt(text_, style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
 	layout, length, resumeIndex, width, height := v.Layout, v.Length, v.ResumeAt, v.Width, v.Height
 	if resumeIndex == 0 {
 		panic("resumeAt should not be 0 here")
@@ -1639,6 +1660,9 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 
 	if newText := layout.Text(); length > 0 {
 		box = box.CopyWithText(newText)
+		// gopdfgo: układ wiersza dzielonego zawiera znak dzielenia, którego nie ma w tekście
+		box.Hyphenated = resumeIndex != -1 && len(newText) > length
+		box.SplitInside = resumeIndex != -1
 		box.Width = width
 		box.TextLayout = layout
 		box.FirstLineIsRTL = v.FirstLineRTL
@@ -1685,6 +1709,65 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 	}
 
 	return box, resumeIndex, preservedLineBreak
+}
+
+// addSoftHyphenAtBoxEnd (gopdfgo) pokazuje znak dzielenia, gdy wiersz złamał się na granicy
+// elementów tuż po miękkim łączniku (U+00AD) kończącym pudełko tekstu: miękki łącznik jest miejscem
+// podziału, a przy podziale w nim widać znak z hyphenate-character (CSS Text 3 § 5.4). Źródło
+// dodawało znak tylko przy podziale wewnątrz jednego pudełka tekstu.
+func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
+	var chain []Box
+	box := line
+	for IsLine(box) {
+		chain = append(chain, box)
+		children := box.Box().Children
+		box = nil
+		for i := len(children) - 1; i >= 0; i-- {
+			if children[i].Box().IsInNormalFlow() && !isNilTextBox(children[i]) {
+				box = children[i]
+				break
+			}
+		}
+	}
+	textBox, ok := box.(*bo.TextBox)
+	if !ok || textBox.Hyphenated || textBox.SplitInside || len(textBox.Text) == 0 || textBox.Text[len(textBox.Text)-1] != '\u00ad' ||
+		textBox.Style.GetHyphens() == "none" || textBox.TextLayout == nil {
+		return
+	}
+	hyphenated := append(slices.Clone(textBox.Text), []rune(string(textBox.Style.GetHyphenateCharacter()))...)
+	v := text.SplitFirstLine(hyphenated, textBox.Style, context, pr.Inf, false, false)
+	if v.Layout == nil {
+		return
+	}
+	delta := v.Width - textBox.Width.V()
+	textBox.Text, textBox.TextLayout, textBox.Hyphenated = v.Layout.Text(), v.Layout, true
+	textBox.Width = v.Width
+	for _, parent := range chain {
+		parent.Box().Width = parent.Box().Width.V() + delta
+	}
+}
+
+// manualHyphensStyle (gopdfgo) wyłącza automatyczne dzielenie wyrazów (hyphens: auto działa jak
+// manual) po wyczerpaniu limitu hyphenate-limit-lines (CSS Text 4 § 6.6).
+type manualHyphensStyle struct{ pr.StyleAccessor }
+
+func (manualHyphensStyle) GetHyphens() pr.String { return "manual" }
+
+// endsHyphenated mówi, czy wiersz kończy się dzieleniem wyrazu.
+func endsHyphenated(box Box) bool {
+	if textBox, ok := box.(*bo.TextBox); ok {
+		return textBox.Hyphenated
+	}
+	if !IsLine(box) {
+		return false
+	}
+	children := box.Box().Children
+	for i := len(children) - 1; i >= 0; i-- {
+		if children[i].Box().IsInNormalFlow() && !isNilTextBox(children[i]) {
+			return endsHyphenated(children[i])
+		}
+	}
+	return false
 }
 
 type boxMinMax struct {

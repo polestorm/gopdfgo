@@ -1926,6 +1926,20 @@ func (s *ComputedStyle) SetWrapInside(v pr.String) { s.propsCache.setKnown(pr.PW
 func (s *AnonymousStyle) GetWrapInside() pr.String  { return s.Get(pr.PWrapInside.Key()).(pr.String) }
 func (s *AnonymousStyle) SetWrapInside(v pr.String) { s.propsCache.setKnown(pr.PWrapInside, v) }
 
+func (s *ComputedStyle) GetHyphenateLimitLines() pr.TaggedInt {
+	return s.Get(pr.PHyphenateLimitLines.Key()).(pr.TaggedInt)
+}
+func (s *ComputedStyle) SetHyphenateLimitLines(v pr.TaggedInt) {
+	s.propsCache.setKnown(pr.PHyphenateLimitLines, v)
+}
+
+func (s *AnonymousStyle) GetHyphenateLimitLines() pr.TaggedInt {
+	return s.Get(pr.PHyphenateLimitLines.Key()).(pr.TaggedInt)
+}
+func (s *AnonymousStyle) SetHyphenateLimitLines(v pr.TaggedInt) {
+	s.propsCache.setKnown(pr.PHyphenateLimitLines, v)
+}
+
 func (s *ComputedStyle) GetFontSizeAdjust() pr.SBoolFloat {
 	return s.Get(pr.PFontSizeAdjust.Key()).(pr.SBoolFloat)
 }

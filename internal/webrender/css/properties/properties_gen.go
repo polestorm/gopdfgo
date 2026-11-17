@@ -590,6 +590,9 @@ func (s Properties) SetObjectPosition(v CenterPos) { s[PObjectPosition] = v }
 func (s Properties) GetWrapInside() String  { return s[PWrapInside].(String) }
 func (s Properties) SetWrapInside(v String) { s[PWrapInside] = v }
 
+func (s Properties) GetHyphenateLimitLines() TaggedInt  { return s[PHyphenateLimitLines].(TaggedInt) }
+func (s Properties) SetHyphenateLimitLines(v TaggedInt) { s[PHyphenateLimitLines] = v }
+
 func (s Properties) GetFontSizeAdjust() SBoolFloat  { return s[PFontSizeAdjust].(SBoolFloat) }
 func (s Properties) SetFontSizeAdjust(v SBoolFloat) { s[PFontSizeAdjust] = v }
 
@@ -1179,6 +1182,9 @@ type StyleAccessor interface {
 	GetWrapInside() String
 	SetWrapInside(v String)
 
+	GetHyphenateLimitLines() TaggedInt
+	SetHyphenateLimitLines(v TaggedInt)
+
 	GetFontSizeAdjust() SBoolFloat
 	SetFontSizeAdjust(v SBoolFloat)
 
@@ -1385,6 +1391,7 @@ var propsNames = [...]string{
 	PObjectFit:               "object-fit",
 	PObjectPosition:          "object-position",
 	PWrapInside:              "wrap-inside",
+	PHyphenateLimitLines:     "hyphenate-limit-lines",
 	PFontSizeAdjust:          "font-size-adjust",
 	PTextJustify:             "text-justify",
 	PTextWrapMode:            "text-wrap-mode",
@@ -1585,6 +1592,7 @@ var PropsFromNames = map[string]KnownProp{
 	"object-fit":                 PObjectFit,
 	"object-position":            PObjectPosition,
 	"wrap-inside":                PWrapInside,
+	"hyphenate-limit-lines":      PHyphenateLimitLines,
 	"font-size-adjust":           PFontSizeAdjust,
 	"text-justify":               PTextJustify,
 	"text-wrap-mode":             PTextWrapMode,

@@ -263,6 +263,7 @@ var (
 		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PTextJustify:             textJustify,
 		pr.PWrapInside:              wrapInside,
+		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PTextWrapMode:            textWrapMode,
 		pr.PTextWrapStyle:           textWrapStyle,
 		pr.PGridAutoColumns:         gridAuto,
@@ -2738,6 +2739,21 @@ func wrapInside(tokens []Token, _ string) pr.CssProperty {
 	default:
 		return nil
 	}
+}
+
+// gopdfgo: “hyphenate-limit-lines“ (CSS Text 4 § 6.6): no-limit albo nieujemna liczba całkowita
+// kolejnych wierszy zakończonych dzieleniem wyrazu. Źródło właściwości nie znało.
+func hyphenateLimitLines(tokens []Token, _ string) pr.CssProperty {
+	if len(tokens) != 1 {
+		return nil
+	}
+	if number, ok := tokens[0].(pa.Number); ok && number.IsInt() && number.Int() >= 0 {
+		return pr.TaggedInt{I: number.Int()}
+	}
+	if getKeyword(tokens[0]) == "no-limit" {
+		return pr.TaggedInt{Tag: pr.None}
+	}
+	return nil
 }
 
 // gopdfgo: “text-wrap-mode“ (CSS Text 4 § 5.1): nowrap wyłącza miękkie łamanie wierszy bez zmiany
