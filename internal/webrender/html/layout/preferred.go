@@ -445,7 +445,7 @@ func orZero(v pr.MaybeFloat) pr.Float {
 func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 	minimum bool, skipStack tree.ResumeStack, firstLine bool,
 ) []pr.Float {
-	out, hang := inlineLineWidthsHang(context, box_, outer, isLineStart, minimum, skipStack, firstLine)
+	out, hang, _ := inlineLineWidthsHang(context, box_, outer, isLineStart, minimum, skipStack, firstLine)
 	if last := len(out) - 1; hang != 0 && !(firstLine && last > 0) {
 		out[last] = max(0, out[last]-hang)
 	}
@@ -453,12 +453,14 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 }
 
 // inlineLineWidthsHang (gopdfgo) działa jak inlineLineWidths, ale wiszących odstępów na końcu
-// ostatniego wiersza nie odejmuje, tylko zwraca ich szerokość.
+// ostatniego wiersza nie odejmuje, tylko zwraca ich szerokość. Zwraca też tekst, którego zwijalna
+// spacja kończy ostatni wiersz (przy max-content), bo i ona znika, gdy dalej jest wymuszone złamanie.
 func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 	minimum bool, skipStack tree.ResumeStack, firstLine bool,
-) (_ []pr.Float, trailingHang pr.Float) {
+) (_ []pr.Float, trailingHang pr.Float, trailingSpace *bo.TextBox) {
 	var (
-		pendingHang             pr.Float // gopdfgo: wiszące odstępy na końcu bieżącego wiersza
+		pendingHang             pr.Float    // gopdfgo: wiszące odstępy na końcu bieżącego wiersza
+		pendingSpace            *bo.TextBox // gopdfgo: tekst ze zwijalną spacją na końcu bieżącego wiersza
 		textIndent, currentLine pr.Float
 		lineEnded               bool     // gopdfgo: przy firstLine pierwszy wiersz skończył się wewnątrz
 		restIndent              pr.Float // gopdfgo: wcięcie wierszy po pierwszym
@@ -498,11 +500,12 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 		firstLineEnds := false
 		// nil is used in "lines" to track line breaks, transformed to 0 when yielded.
 		var lines []pr.MaybeFloat
-		var childHang pr.Float // gopdfgo: wiszące odstępy na końcu ostatniego wiersza dziecka
+		var childHang pr.Float     // gopdfgo: wiszące odstępy na końcu ostatniego wiersza dziecka
+		var childSpace *bo.TextBox // gopdfgo: tekst ze zwijalną spacją na końcu ostatniego wiersza dziecka
 		if bo.InlineT.IsInstance(child) {
 			// Inline box, call function recursively.
-			lines_, nestedHang := inlineLineWidthsHang(context, child, outer, isLineStart, minimum, skipStack, firstLine)
-			childHang = nestedHang
+			lines_, nestedHang, nestedSpace := inlineLineWidthsHang(context, child, outer, isLineStart, minimum, skipStack, firstLine)
+			childHang, childSpace = nestedHang, nestedSpace
 			// gopdfgo: przy pierwszym wierszu złamanie wewnątrz pudełka (np. <br>) kończy wiersz, więc dalsze
 			// dzieci się nie liczą; w źródle szerokość następnego słowa doliczała się do pierwszego wiersza,
 			// a wiersz z samym <br> obok elementu pływającego spadał pod niego (test WPT
@@ -615,6 +618,9 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 				// Add all possible line breaks for minimal width.
 				lines = append(lines, nil)
 			}
+			if !minimum && spaceCollapse && len(childText) != 0 && childText[len(childText)-1] == ' ' {
+				childSpace = textBox
+			}
 			if len(lines) > 1 && childHang != 0 && lines[len(lines)-1] == nil {
 				// gopdfgo: po tekście jest złamanie wiersza, więc jego końcowe odstępy wiszą
 				if i := len(lines) - 2; lines[i] != nil {
@@ -646,7 +652,7 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 		// The first text line goes on the current line
 		currentLine += orZero(lines[0])
 		if orZero(lines[0]) != 0 {
-			pendingHang = 0
+			pendingHang, pendingSpace = 0, nil
 		}
 		if firstLineEnds {
 			lineEnded = true
@@ -655,8 +661,13 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 		if len(lines) > 1 {
 			// Forced line break(s).
 			// gopdfgo: ujemne wcięcie nie daje ujemnej szerokości wiersza
+			// gopdfgo: przed wymuszonym złamaniem zwijalna spacja z końca wiersza znika (CSS Text 3
+			// § 4.1.2), a wiszące odstępy się nie liczą; test WPT white-space-intrinsic-size-024
+			if pendingSpace != nil {
+				currentLine -= trailingWhitespaceSize(context, pendingSpace, false)
+			}
 			out = append(out, max(0, currentLine-pendingHang+textIndent))
-			pendingHang = 0
+			pendingHang, pendingSpace = 0, nil
 			textIndent = restIndent
 			if len(lines) > 2 {
 				for _, v := range lines[1 : len(lines)-1] {
@@ -668,6 +679,9 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 		if childHang != 0 {
 			pendingHang = childHang
 		}
+		if childSpace != nil {
+			pendingSpace = childSpace
+		}
 		isLineStart = lines[len(lines)-1] == nil
 		skipStack = nil
 	}
@@ -675,9 +689,9 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 	if lineEnded {
 		// gopdfgo: znak dla wywołującego, że pierwszy wiersz skończył się w tym pudełku
 		out = append(out, 0)
-		pendingHang = 0
+		pendingHang, pendingSpace = 0, nil
 	}
-	return out, pendingHang
+	return out, pendingHang, pendingSpace
 }
 
 // Return the percentage contribution of a cell, column or column group.
