@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"sort"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
@@ -171,6 +172,98 @@ func getClearance(context *layoutContext, box *bo.BoxFields, collapsedMargin pr.
 	return clearance
 }
 
+// forcedClearanceFor (gopdfgo) liczy clearance pudełka, które bez niego pociągnęłoby za sobą przylegający
+// element pływający (zob. inFlowLayout): górna krawędź obramowania staje równo z dołem najniższego
+// oczyszczanego elementu pływającego, niezależnie od wielkości marginesu (CSS 2.1 § 9.5.2; pozycja
+// hipotetyczna przesuwa w takim przypadku i sam element pływający, więc nigdy nie leży poniżej niego).
+// Zwraca nil, gdy nie ma czego oczyszczać.
+func forcedClearanceFor(context *layoutContext, box *bo.BoxFields, collapsedMargin pr.Float) pr.MaybeFloat {
+	clear := box.Style.GetClear()
+	bottom, found := pr.Float(0), false
+	for _, shape := range context.excludedShapes.list {
+		if clear == shape.Style.GetFloat() || clear == "both" {
+			if b := shape.PositionY + shape.MarginHeight(); !found || b > bottom {
+				bottom, found = b, true
+			}
+		}
+	}
+	if !found {
+		return nil
+	}
+	return bottom - (box.PositionY + collapsedMargin)
+}
+
+// avoidsFloats (gopdfgo): pudełko blokowe, którego obramowanie nie może nachodzić na elementy pływające
+// (CSS 2.1 § 9.5): tabela, element zastępowany i pudełko zakładające własny kontekst formatowania.
+func avoidsFloats(box_ Box) bool {
+	box := box_.Box()
+	if box.IsFloated() || !box.IsInNormalFlow() || box.IsFlexItem || box.IsGridItem {
+		return false
+	}
+	return box.IsTableWrapper || bo.BlockReplacedT.IsInstance(box_) || bo.EstablishesFormattingContext(box_)
+}
+
+// fitsBesideFloats (gopdfgo) sprawdza, czy pudełko omijające elementy pływające zmieści się obok nich,
+// gdy górna krawędź jego obramowania leży na wysokości y w bloku zawierającym cb. Szerokość i wysokość
+// są brane ze stylu; gdy szerokość nie jest podana w px albo procentach, przyjmujemy, że się zmieści
+// (pudełko o szerokości auto jest zwężane).
+func fitsBesideFloats(context *layoutContext, box_ Box, y pr.Float, cb *bo.BoxFields) bool {
+	style := box_.Box().Style
+	cbWidth, ok := cb.Width.(pr.Float)
+	if !ok {
+		return true
+	}
+	length := func(v pr.TaggedDim) (pr.Float, bool) {
+		if v.Calc != nil || v.Tag == pr.Auto {
+			return 0, false
+		}
+		switch v.Unit {
+		case pr.Px:
+			return v.Value, true
+		case pr.Perc:
+			return v.Value * cbWidth / 100, true
+		}
+		return 0, v.Value == 0
+	}
+	width, ok := length(style.GetWidth())
+	if !ok || style.GetWidth().Intrinsic != pr.IntrinsicNone {
+		return true
+	}
+	if style.GetBoxSizing() != "border-box" {
+		for _, side := range []pr.TaggedDim{style.GetPaddingLeft(), style.GetPaddingRight()} {
+			v, ok := length(side)
+			if !ok {
+				return true
+			}
+			width += v
+		}
+		if style.GetBorderLeftStyle() != "none" && style.GetBorderLeftStyle() != "hidden" {
+			width += style.GetBorderLeftWidth().Value
+		}
+		if style.GetBorderRightStyle() != "none" && style.GetBorderRightStyle() != "hidden" {
+			width += style.GetBorderRightWidth().Value
+		}
+	}
+	var height pr.Float
+	if h := style.GetHeight(); h.Unit == pr.Px && h.Calc == nil && h.Tag != pr.Auto {
+		height = h.Value
+	}
+	height = max(height, 0.01)
+	left, right := cb.ContentBoxX(), cb.ContentBoxX()+cbWidth
+	for _, shape := range context.excludedShapes.list {
+		if shape.PositionY >= y+height || shape.PositionY+shape.MarginHeight() <= y || shape.MarginHeight() <= 0 {
+			continue
+		}
+		switch shape.Style.GetFloat() {
+		case "left":
+			left = max(left, shape.PositionX+shape.MarginWidth())
+		case "right":
+			right = min(right, shape.PositionX)
+		}
+	}
+	return width <= right-left+0.01
+}
+
 // outer=true
 func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFields, outer bool) (pr.Float, pr.Float, pr.Float) {
 	excludedShapes := context.excludedShapes
@@ -184,16 +277,32 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 		boxHeight = box.MarginHeight()
 	}
 
-	if box.BorderHeight() == 0 && box.IsFloated() {
-		return 0, 0, containingBlock.Width.V()
-	}
+	// gopdfgo: element pływający o zerowej wysokości jest umieszczany według tych samych reguł co inne
+	// (CSS 2.1 § 9.5.1) i jako wykluczenie skraca wiersze, których pas obejmuje jego położenie (test WPT
+	// floats-zero-height-wrap-002). Źródło zwracało dla niego pozycję (0, 0) strony.
 	var maxLeftBound, maxRightBound pr.Float
 	for {
 		var collidingShapes []*bo.BoxFields
 		for _, shape := range excludedShapes.list {
+			// gopdfgo: element pływający o zerowej szerokości nie ma pola, na które można by nachodzić
+			// (CSS 2.1 § 9.5), więc nie zwęża pudełek z własnym kontekstem formatowania ani wierszy;
+			// w źródle wyznaczał granicę, choć pudełko z ujemnym marginesem mogło ją przekroczyć
+			// (test WPT zero-width-floats).
+			if !outer && shape.MarginWidth() <= 0 {
+				continue
+			}
 			// Assign locals to avoid slow attribute lookups.
 			shapePositionY := shape.PositionY
 			shapeMarginHeight := shape.MarginHeight()
+			if shapeMarginHeight <= 0 {
+				// gopdfgo: element pływający o zerowej wysokości wyklucza tylko pasy, które obejmują jego
+				// położenie w środku; pudełko zaczynające się na tej wysokości go nie widzi (testy WPT
+				// floats-zero-height-wrap-002, float-006, floats-placement-001)
+				if positionY < shapePositionY && shapePositionY < positionY+boxHeight {
+					collidingShapes = append(collidingShapes, shape)
+				}
+				continue
+			}
 			if (shapePositionY < positionY && positionY < shapePositionY+shapeMarginHeight) ||
 				(shapePositionY < positionY+boxHeight && positionY+boxHeight < shapePositionY+shapeMarginHeight) ||
 				(shapePositionY >= positionY && shapePositionY+shapeMarginHeight <= positionY+boxHeight) {
@@ -241,8 +350,33 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 				}
 			}
 
+			// gopdfgo: dla elementu pływającego krawędź bloku zawierającego ogranicza go tylko wtedy, gdy
+			// po tej samej stronie stoi inny element pływający (CSS 2.1 § 9.5.1, reguła 7); bez niego element
+			// szerszy niż blok zawierający mieści się, dopóki nie sięga elementu pływającego z przeciwnej
+			// strony (reguła 3). W źródle zawsze porównywano z krawędzią bloku, więc taki element spadał
+			// pod element pływający przeciwnej strony (testy WPT floats-rule3-outside-*).
+			fitLeft, fitRight := maxLeftBound, maxRightBound
+			if outer {
+				switch box.Style.GetFloat() {
+				case "left":
+					if len(leftBounds) == 0 {
+						fitRight = pr.Inf
+						if len(rightBounds) != 0 {
+							fitRight = pr.Mins(rightBounds...)
+						}
+					}
+				case "right":
+					if len(rightBounds) == 0 {
+						fitLeft = -pr.Inf
+						if len(leftBounds) != 0 {
+							fitLeft = pr.Maxs(leftBounds...)
+						}
+					}
+				}
+			}
+
 			// Points 3, 7 && 8
-			if boxWidth > maxRightBound-maxLeftBound+endMargin {
+			if boxWidth > fitRight-fitLeft+endMargin {
 				// The box does not fit here
 				min := pr.Inf
 				for _, shape := range collidingShapes {
@@ -307,4 +441,98 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 	}
 
 	return positionX, positionY, availableWidth
+}
+
+// bandAvailable (gopdfgo) podaje szerokość pasa dla pudełka obramowania box między elementami
+// pływającymi na wysokościach [y, y+height), z marginesami poziomymi pudełka, jak avoidCollisions
+// z outer=false, ale bez przesuwania w dół.
+func bandAvailable(context *layoutContext, box_ Box, containingBlock *bo.BoxFields, y, height pr.Float) pr.Float {
+	box := box_.Box()
+	left := containingBlock.ContentBoxX() + box.MarginLeft.V()
+	right := containingBlock.ContentBoxX() + containingBlock.Width.V() - box.MarginRight.V()
+	height = max(height, 0.01)
+	for _, shape := range context.excludedShapes.list {
+		if shape.MarginWidth() <= 0 || shape.PositionY >= y+height || shape.PositionY+shape.MarginHeight() <= y {
+			continue
+		}
+		switch shape.Style.GetFloat() {
+		case "left":
+			left = max(left, shape.PositionX+shape.MarginWidth())
+		case "right":
+			right = min(right, shape.PositionX)
+		}
+	}
+	return right - left
+}
+
+// relayoutBesideFloats (gopdfgo): pudełko z własnym kontekstem formatowania albo tabela o szerokości
+// auto, ułożone na pozycji hipotetycznej w pasie obok elementów pływających, okazało się na całej
+// wysokości szersze niż pas (bo niżej stoją elementy pływające szersze niż na górze), więc avoidCollisions
+// zepchnęłoby je pod elementy pływające. Zgodnie z CSS 2.1 § 9.5 takie pudełko może zostać zwężone,
+// żeby zmieścić się obok elementów pływających; próbujemy kolejno: tę samą wysokość z pasem zwężonym
+// do najwęższego miejsca na wysokości pudełka, potem następne wysokości (dolne krawędzie elementów
+// pływających). Tak robią przeglądarki (testy WPT floats-bfc-003, table-among-floats-001,
+// table-sizing-with-adjacent-floats, floats-wrap-bfc-002-*). relayout układa pudełko ponownie
+// w pasie o podanej szerokości (dla tabeli: szerokość dostępna). Gdy nic się nie mieści, zostaje
+// układ pierwotny (pod elementami pływającymi).
+func relayoutBesideFloats(context *layoutContext, original, laidOut Box, containingBlock *bo.BoxFields,
+	relayout func(width pr.Float) (Box, blockLayout),
+) (Box, blockLayout, bool) {
+	box := original.Box()
+	if len(context.excludedShapes.list) == 0 || box.IsFlexItem || box.IsGridItem || box.IsColumn || !box.IsInNormalFlow() ||
+		!(box.IsTableWrapper || bo.EstablishesFormattingContext(original)) {
+		return nil, blockLayout{}, false
+	}
+	if _, ok := containingBlock.Width.(pr.Float); !ok {
+		return nil, blockLayout{}, false
+	}
+	if box.IsTableWrapper {
+		if width := box.GetWrappedTable().Box().Style.GetWidth(); width.Tag != pr.Auto || width.Intrinsic != pr.IntrinsicNone {
+			return nil, blockLayout{}, false
+		}
+	} else if width := box.Style.GetWidth(); width.Tag != pr.Auto || width.Intrinsic != pr.IntrinsicNone {
+		return nil, blockLayout{}, false
+	}
+	laid := laidOut.Box()
+	y0 := laid.BorderBoxY()
+	_, marginY, _ := avoidCollisions(context, laidOut, containingBlock, false)
+	finalY := marginY + laid.MarginTop.V()
+	if finalY <= y0+0.01 {
+		return nil, blockLayout{}, false
+	}
+	candidates := []pr.Float{y0}
+	for _, shape := range context.excludedShapes.list {
+		if bottom := shape.PositionY + shape.MarginHeight(); bottom > y0+0.01 && bottom < finalY-0.01 {
+			candidates = append(candidates, bottom)
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i] < candidates[j] })
+	originalWidth := laid.BorderWidth()
+	if box.IsTableWrapper {
+		originalWidth = containingBlock.Width.V()
+	}
+	for i, y := range candidates {
+		if i > 0 && y-candidates[i-1] < 0.01 {
+			continue
+		}
+		width := bandAvailable(context, laidOut, containingBlock, y, 0)
+		for try := 0; try < 3 && width > 0; try++ {
+			relaid, layout := relayout(width)
+			if relaid == nil {
+				return relaid, layout, true
+			}
+			rb := relaid.Box()
+			fit := bandAvailable(context, relaid, containingBlock, y, rb.BorderHeight())
+			if rb.BorderWidth() <= fit+0.01 {
+				relaid.Translate(0, y-rb.BorderBoxY(), false)
+				return relaid, layout, true
+			}
+			if fit >= width-0.01 {
+				break
+			}
+			width = fit
+		}
+	}
+	relaid, layout := relayout(originalWidth)
+	return relaid, layout, true
 }

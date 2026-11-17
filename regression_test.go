@@ -3027,9 +3027,15 @@ func TestRootPositioningTableOverflowAndInlineBlockBaseline(t *testing.T) {
 	same("clearance-child-margin", page+`<div style="float:left;width:50px;height:50px;background:blue"></div>
 		<div style="clear:left"><div style="margin-top:30px;width:50px;height:50px;background:green"></div></div>`,
 		page+`<div style="width:50px;height:50px;background:blue"></div><div style="width:50px;height:50px;background:green"></div>`)
-	same("no-clearance-large-child-margin", page+`<div style="float:left;width:50px;height:50px;background:blue"></div>
+	// element pływający przylega do góry body, więc zwinięty margines dziecka przesunąłby go w dół:
+	// clearance jest wymuszone i krawędź staje pod elementem pływającym (CSS 2.1 § 9.5.2, WPT
+	// adjoining-float-nested-forced-clearance); z obramowaniem u rodzica (niżej) element nie przylega
+	same("forced-clearance-adjoining-float", page+`<div style="float:left;width:50px;height:50px;background:blue"></div>
 		<div style="clear:left"><div style="margin-top:80px;width:50px;height:50px;background:green"></div></div>`,
-		page+`<div style="width:50px;height:50px;background:blue"></div><div style="margin-top:30px;width:50px;height:50px;background:green"></div>`)
+		page+`<div style="width:50px;height:50px;background:blue"></div><div style="width:50px;height:50px;background:green"></div>`)
+	same("no-clearance-large-child-margin", page+`<div style="border-top:1px solid white"><div style="float:left;width:50px;height:50px;background:blue"></div>
+		<div style="clear:left"><div style="margin-top:80px;width:50px;height:50px;background:green"></div></div></div>`,
+		page+`<div style="border-top:1px solid white"><div style="width:50px;height:50px;background:blue"></div><div style="margin-top:30px;width:50px;height:50px;background:green"></div></div>`)
 	// inline-block z overflow: linia bazowa z ostatniego wiersza, gdy ten leży w pudełku
 	baseline := page + `<style>p { margin: 0; font: 20px/60px sans-serif } span { display: inline-block; line-height: 20px; height: 40px; margin-bottom: 8px }</style>`
 	same("inline-block-baseline", baseline+`<p>a <span style="overflow:hidden">b</span>`, baseline+`<p>a <span>b</span>`)

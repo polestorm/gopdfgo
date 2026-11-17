@@ -919,6 +919,33 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- elementy pływające i clearance, 2026-11-17 (CSS 2.1 § 8.3.1, § 9.5, § 9.5.1, § 9.5.2, § 17.4; testy W3C
+  `css/CSS2/floats`, `floats-clear`):
+  - `html/layout/block.go` (`blockLevelLayout`, `blockBoxLayout`, `blockContainerLayout`, `inFlowLayout`,
+    `leadingChildMargins`, nowe `leadingChildChain`, `marginChainOpen`), `html/layout/float.go`
+    (`avoidCollisions`, nowe `forcedClearanceFor`, `avoidsFloats`, `fitsBesideFloats`, `bandAvailable`,
+    `relayoutBesideFloats`), `html/layout/layout.go` (`forcedClearance`, `separatedFromFloats`,
+    `floatOnlyLine`, `discardBlockFormattingContext`): górny margines rodzica zwija się z marginesami
+    dzieci za pustymi dziećmi, a przylegające elementy pływające przesuwają się z nim; clearance przy
+    przylegającym elemencie pływającym jest wymuszone; pudełko z własnym kontekstem, które obok się nie
+    mieści, oddziela margines; pozycja hipotetyczna liczy się z marginesami potomków; puste pudełko
+    z własnym kontekstem nie przepuszcza marginesów, a pudełko z przechodzącymi marginesami ma wysokość 0;
+    pudełko z własnym kontekstem i tabela o szerokości auto są układane ponownie w pasie wolnym od
+    elementów pływających na całej wysokości, a marginesy auto dzielą ten pas; pudełko opakowujące tabelę
+    zakłada kontekst formatowania. Reguła 3 dla elementu szerszego niż blok zawierający; element o zerowej
+    szerokości nie zwęża pudełek ani wierszy; element o zerowej wysokości jest umieszczany normalnie
+    (źródło dawało mu pozycję (0, 0) strony) i wyklucza tylko pasy obejmujące go w środku;
+  - `html/layout/inline.go` (`getNextLinebox`, `splitInlineBox`, `inlineOutOfFlowLayout`): elementy pływające
+    z cofniętej części wiersza znikają z listy wykluczeń; ponowny układ dziecka nie dubluje elementów
+    pływających; element szerszy niż pusty wiersz stoi na jego wysokości, a treść zaczyna następny wiersz;
+    wiersz liczy wolne miejsce i wyrównanie na całej swojej wysokości;
+  - `html/layout/preferred.go` (`blockContentWidth`, `inlineLineWidths`): przy max-content wiersze opływające
+    wcześniejsze elementy pływające stoją obok nich; zachowany znak nowego wiersza na końcu tekstu łamie
+    wiersz, a przy pierwszym wierszu złamanie wewnątrz pudełka kończy liczenie;
+  - `html/document/draw.go` (`drawBackground`): kolor tła o zerowym polu malowania nie jest rysowany
+    (CSS Backgrounds 3 § 3.7); źródło wstawiało prostokąt zerowej wysokości widoczny jako linia.
+    Test własny `floats_clearance_test.go`; przypadek `no-clearance-large-child-margin` w `regression_test.go`
+    poprawiony (bez obramowania u rodzica clearance jest wymuszone; dopisany wariant z obramowaniem);
 - wyrównanie do linii bazowej w siatce, 2026-11-17 (CSS Grid 1 § 10.6, § 10.7, § 11.5; CSS Align 3 § 9;
   testy W3C `css-grid/alignment/*baseline*`, `grid-container-baseline-synthesized-*`):
   - `html/layout/grid.go` (`gridLayout`, `gridLayoutPass`, `resolveTracksSizes`, `distributeExtraSpace`,

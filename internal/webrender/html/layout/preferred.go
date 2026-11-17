@@ -169,6 +169,11 @@ func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer,
 			if bo.EstablishesFormattingContext(child_) || bo.ReplacedT.IsInstance(child_) || child.IsTableWrapper ||
 				bo.FlexContainerT.IsInstance(child_) || bo.GridContainerT.IsInstance(child_) {
 				v += floats
+			} else if len(child.Children) != 0 && bo.LineT.IsInstance(child.Children[0]) {
+				// gopdfgo: wiersze bloku z treścią liniową opływają wcześniejsze elementy pływające, więc
+				// przy szerokości max-content stoją obok nich (test WPT intrinsic-size-float-and-line);
+				// w źródle szerokości się nie sumowały i wiersz spadał pod element pływający.
+				v += floats
 			}
 			if floats > max {
 				max = floats
@@ -437,6 +442,7 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 ) []pr.Float {
 	var (
 		textIndent, currentLine pr.Float
+		lineEnded               bool     // gopdfgo: przy firstLine pierwszy wiersz skończył się wewnątrz
 		restIndent              pr.Float // gopdfgo: wcięcie wierszy po pierwszym
 		skip                    int
 		out                     []pr.Float
@@ -471,11 +477,17 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 			continue
 		}
 		textBox, isTextBox := child.(*bo.TextBox)
+		firstLineEnds := false
 		// nil is used in "lines" to track line breaks, transformed to 0 when yielded.
 		var lines []pr.MaybeFloat
 		if bo.InlineT.IsInstance(child) {
 			// Inline box, call function recursively.
 			lines_ := inlineLineWidths(context, child, outer, isLineStart, minimum, skipStack, firstLine)
+			// gopdfgo: przy pierwszym wierszu złamanie wewnątrz pudełka (np. <br>) kończy wiersz, więc dalsze
+			// dzieci się nie liczą; w źródle szerokość następnego słowa doliczała się do pierwszego wiersza,
+			// a wiersz z samym <br> obok elementu pływającego spadał pod niego (test WPT
+			// float-no-content-beside-001)
+			firstLineEnds = firstLine && len(lines_) > 1
 			if firstLine {
 				lines_ = lines_[0:1]
 			}
@@ -541,7 +553,16 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 			if firstLine && newResumeIndex != -1 && newResumeIndex != 0 {
 				// We only need the first line, break early.
 				currentLine += orZero(lines[0])
+				lineEnded = true
 				break
+			}
+			// gopdfgo: zachowany znak nowego wiersza na końcu tekstu (np. treść <br>) też łamie wiersz:
+			// dalsza treść zaczyna następny (CSS Text 3 § 4.1.1); w źródle złamanie widać było tylko
+			// wtedy, gdy po znaku nowego wiersza był jeszcze tekst w tym samym pudełku.
+			if newResumeIndex == -1 && len(childText) != 0 && childText[len(childText)-1] == '\n' &&
+				(whiteSpace == pr.Pre || whiteSpace == pr.PreWrap || whiteSpace == pr.PreLine || whiteSpace == pr.BreakSpaces) {
+				lines = append(lines, nil)
+				firstLineEnds = firstLine
 			}
 			// TODO: use the real next character instead of 'a' to detect line breaks.
 			sample := []rune{'a'}
@@ -581,6 +602,10 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		}
 		// The first text line goes on the current line
 		currentLine += orZero(lines[0])
+		if firstLineEnds {
+			lineEnded = true
+			break
+		}
 		if len(lines) > 1 {
 			// Forced line break(s).
 			// gopdfgo: ujemne wcięcie nie daje ujemnej szerokości wiersza
@@ -597,6 +622,10 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		skipStack = nil
 	}
 	out = append(out, max(0, currentLine+textIndent))
+	if lineEnded {
+		// gopdfgo: znak dla wywołującego, że pierwszy wiersz skończył się w tym pudełku
+		out = append(out, 0)
+	}
 	return out
 }
 

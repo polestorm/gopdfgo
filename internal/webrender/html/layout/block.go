@@ -84,6 +84,25 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		collapsedMargin := collapseMargin(append(*adjoiningMargins, box_.MarginTop.V()))
 		bl := box.BlockLevel()
 		bl.Clearance = getClearance(context, box_, collapsedMargin)
+		// gopdfgo: clearance wymuszone przez przylegające elementy pływające (zob. inFlowLayout)
+		forced := context.forcedClearance[box_] && bl.Clearance != pr.MaybeFloat(pr.Inf)
+		delete(context.forcedClearance, box_)
+		if forced {
+			if c := forcedClearanceFor(context, box_, collapsedMargin); c != nil {
+				bl.Clearance = c
+			} else {
+				forced = false
+			}
+		}
+		if context.separatedFromFloats[box_] {
+			// gopdfgo: margines oddzielony od przylegających elementów pływających (zob. inFlowLayout):
+			// krawędź obramowania staje na końcu łańcucha marginesów bez własnego marginesu, a niżej
+			// pudełko omija elementy pływające (avoidCollisions)
+			delete(context.separatedFromFloats, box_)
+			if bl.Clearance == nil {
+				bl.Clearance = collapseMargin(*adjoiningMargins) - collapsedMargin
+			}
+		}
 		if box_.IsFlexItem || box_.IsGridItem {
 			// gopdfgo: clear nie działa na elementach flex i grid (CSS Flexbox 1 § 3, CSS Grid 1 § 5.1)
 			bl.Clearance = nil
@@ -94,9 +113,16 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		// obramowania (wspólna z tymi dziećmi) staje równo z dołem elementu pływającego. Źródło brało
 		// tylko margines samego pudełka, więc margines dziecka dochodził jeszcze pod clearance.
 		own := box_.MarginTop.V()
-		if inner := leadingChildMargins(box); bl.Clearance != nil && len(inner) != 0 {
+		if inner := leadingChildMargins(context, box, box_.PositionY, append(append([]pr.Float(nil), *adjoiningMargins...), own)); len(inner) != 0 &&
+			(bl.Clearance != nil || (box_.Style.GetClear() != "none" && !box_.IsFlexItem && !box_.IsGridItem)) {
+			// gopdfgo: także gdy sam margines pudełka mija elementy pływające, a ujemny margines dziecka
+			// cofa pozycję hipotetyczną nad nie (test WPT adjoining-float-nested-forced-clearance-003)
 			withChildren := collapseMargin(append(append(append([]pr.Float(nil), *adjoiningMargins...), own), inner...))
-			bl.Clearance = getClearance(context, box_, withChildren)
+			if forced {
+				bl.Clearance = forcedClearanceFor(context, box_, withChildren)
+			} else {
+				bl.Clearance = getClearance(context, box_, withChildren)
+			}
 			if bl.Clearance != nil {
 				topBorderEdge := box_.PositionY + withChildren + bl.Clearance.V()
 				box_.PositionY = topBorderEdge - collapseMargin(append([]pr.Float{own}, inner...))
@@ -214,8 +240,33 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	blockLevelWidth(box_, nil, containingBlock)
 	narrowBesideFloats(context, box_, containingBlock, *adjoiningMargins)
 
+	savedPositionY, savedMargins := box.PositionY, append([]pr.Float(nil), *adjoiningMargins...)
 	newBox__, result, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+	// gopdfgo: pudełko z własnym kontekstem i tabela o szerokości auto, które obok elementów pływających
+	// zajęłyby pas węższy niż ich szerokość na całej wysokości, są układane ponownie w węższym pasie
+	// albo niżej, w następnym miejscu (CSS 2.1 § 9.5); zob. relayoutBesideFloats.
+	if newBox__ != nil && skipStack == nil && result.resumeAt == nil {
+		relayout := func(width pr.Float) (Box, blockLayout) {
+			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
+			box.PositionY = savedPositionY
+			*adjoiningMargins = append((*adjoiningMargins)[:0], savedMargins...)
+			if box.IsTableWrapper {
+				table := box.GetWrappedTable().Box()
+				table.Width = pr.AutoF
+				tableWrapperWidthForced(context, box_, bo.MaybePoint{width, containingBlock.Height}, -1)
+			} else {
+				box.Width = width - (box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V())
+			}
+			laidOut, layout, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+				absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+			newBox__ = laidOut
+			return laidOut, layout
+		}
+		if relaid, layout, ok := relayoutBesideFloats(context, box_, newBox__, containingBlock, relayout); ok {
+			newBox__, result = relaid, layout
+		}
+	}
 	// gopdfgo: tabela będąca elementem flex o wysokości wyznaczonej przez układ flex (rozmiar docelowy
 	// w kolumnie, rozciągnięcie w wierszu) rośnie do tej wysokości: brakującą różnicę dostaje sama tabela,
 	// podpisy zostają przy swojej. W źródle rosło tylko pudełko opakowujące, a tabela zostawała niska.
@@ -248,8 +299,37 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	if newBox.Box().IsTableWrapper || bo.EstablishesFormattingContext(newBox) {
 		// Don't collide with floats
 		// https://www.w3.org/TR/CSS21/visuren.html#floats
-		positionX, positionY, _ := avoidCollisions(context, newBox, containingBlock, false)
-		newBox.Translate(positionX-newBox.Box().PositionX, positionY-newBox.Box().PositionY, false)
+		nb := newBox.Box()
+		autoLeft, autoRight := nb.Style.GetMarginLeft().Tag == pr.Auto, nb.Style.GetMarginRight().Tag == pr.Auto
+		if (autoLeft || autoRight) && len(context.excludedShapes.list) != 0 && containingBlock.Style.GetDirection() == pr.Ltr {
+			// gopdfgo: marginesy auto pudełka omijającego elementy pływające dzielą miejsce pasa obok nich,
+			// nie całego bloku zawierającego (CSS 2.1 § 9.5 pozwala postawić pudełko obok elementów
+			// pływających; tak robią przeglądarki, test WPT floats-wrap-top-below-bfc-001r). W źródle
+			// margines auto liczony od całego bloku zabierał miejsce i spychał pudełko pod elementy pływające.
+			oldContentX := nb.ContentBoxX()
+			if autoLeft {
+				nb.MarginLeft = pr.Float(0)
+			}
+			if autoRight {
+				nb.MarginRight = pr.Float(0)
+			}
+			positionX, positionY, available := avoidCollisions(context, newBox, containingBlock, false)
+			if free := available - nb.BorderWidth(); free > 0 {
+				switch {
+				case autoLeft && autoRight:
+					nb.MarginLeft, nb.MarginRight = free/2, free/2
+				case autoLeft:
+					nb.MarginLeft = free
+				default:
+					nb.MarginRight = free
+				}
+			}
+			newBox.Translate(positionX+nb.MarginLeft.V()-(oldContentX-nb.BorderLeftWidth.V()-nb.PaddingLeft.V()), positionY-nb.PositionY, false)
+			nb.PositionX = positionX
+		} else {
+			positionX, positionY, _ := avoidCollisions(context, newBox, containingBlock, false)
+			newBox.Translate(positionX-newBox.Box().PositionX, positionY-newBox.Box().PositionY, false)
+		}
 	}
 
 	return newBox, result
@@ -291,18 +371,58 @@ func narrowedBesideFloats(context *layoutContext, original, laidOut Box, contain
 
 // leadingChildMargins zwraca górne marginesy pierwszych dzieci blokowych, które zwijają się z górnym
 // marginesem pudełka: pudełko nie ma górnego obramowania ani odstępu i nie zakłada kontekstu formatowania.
-func leadingChildMargins(box_ Box) (margins []pr.Float) {
+// base i outer (marginesy do marginesu pudełka włącznie) wyznaczają pozycję hipotetyczną, zob. leadingChildChain.
+func leadingChildMargins(context *layoutContext, box_ Box, base pr.Float, outer []pr.Float) (margins []pr.Float) {
+	margins, _ = leadingChildChain(context, box_, base, outer)
+	return margins
+}
+
+// leadingChildChain (gopdfgo) działa jak leadingChildMargins, ale podaje też najgłębsze pudełko, którego
+// margines trafił na listę (nil, gdy lista jest pusta). Łańcuch kończy się przed dzieckiem z clear,
+// które na pozycji hipotetycznej (base i wszystkie marginesy łańcucha zwinięte) nie minęłoby elementów
+// pływających, które ma oczyścić: dostanie clearance, więc jego margines nie zwija się z resztą (CSS 2.1
+// § 9.5.2). Dziecko z clear, które je mija, zostaje w łańcuchu (test WPT
+// no-clearance-due-to-large-margin-after-left-right).
+func leadingChildChain(context *layoutContext, box_ Box, base pr.Float, outer []pr.Float) (margins []pr.Float, last Box) {
+	margins, boxes := leadingChildBoxes(box_)
+	if len(margins) == 0 {
+		return nil, nil
+	}
+	hypothetical := base + collapseMargin(append(append([]pr.Float(nil), outer...), margins...))
+	for k, b := range boxes {
+		clear := b.Box().Style.GetClear()
+		if clear == "none" {
+			continue
+		}
+		for _, shape := range context.excludedShapes.list {
+			if (clear == "both" || clear == shape.Style.GetFloat()) && shape.PositionY+shape.MarginHeight() > hypothetical {
+				margins, boxes = margins[:k], boxes[:k]
+				break
+			}
+		}
+		if len(boxes) == k {
+			break
+		}
+	}
+	if len(boxes) != 0 {
+		last = boxes[len(boxes)-1]
+	}
+	return margins, last
+}
+
+// leadingChildBoxes zbiera łańcuch pierwszych dzieci i ich górnych marginesów bez sprawdzania clear.
+func leadingChildBoxes(box_ Box) (margins []pr.Float, boxes []Box) {
 	for depth := 0; depth < 16; depth++ {
 		box := box_.Box()
 		if !bo.BlockT.IsInstance(box_) || bo.EstablishesFormattingContext(box_) || box.IsTableWrapper {
-			return margins
+			return margins, boxes
 		}
 		style := box.Style
 		if border := style.GetBorderTopWidth(); border.Value != 0 && style.GetBorderTopStyle() != "none" && style.GetBorderTopStyle() != "hidden" {
-			return margins
+			return margins, boxes
 		}
 		if padding := style.GetPaddingTop(); padding.Value != 0 {
-			return margins
+			return margins, boxes
 		}
 		var first Box
 		for _, child := range box.Children {
@@ -311,20 +431,24 @@ func leadingChildMargins(box_ Box) (margins []pr.Float) {
 				break
 			}
 		}
-		if first == nil || !bo.BlockLevelT.IsInstance(first) || first.Box().Style.GetClear() != "none" {
-			return margins
+		if first == nil || !bo.BlockLevelT.IsInstance(first) {
+			if first == nil && len(boxes) != 0 && style.GetHeight().Tag == pr.Auto && slices.ContainsFunc(margins, func(m pr.Float) bool { return m < 0 }) {
+				// łańcuch kończy się pustym pudełkiem, przez które marginesy przechodzą dalej: przy
+				// ujemnych marginesach zostaje dotychczasowe liczenie (test WPT
+				// adjoining-float-nested-forced-clearance-002)
+				return nil, nil
+			}
+			return margins, boxes
 		}
 		margin := first.Box().Style.GetMarginTop()
 		if margin.Tag == pr.Auto || margin.Unit != pr.Px || margin.Calc != nil {
-			return margins
-		}
-		if margin.Value < 0 {
-			return nil // marginesy ujemne: zostaje dotychczasowe liczenie
+			return margins, boxes
 		}
 		margins = append(margins, margin.Value)
+		boxes = append(boxes, first)
 		box_ = first
 	}
-	return margins
+	return margins, boxes
 }
 
 // avoidFloats (gopdfgo): kontener flex albo grid w przepływie blokowym zakłada własny kontekst
@@ -507,7 +631,11 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	}
 
 	// See https://www.w3.org/TR/CSS21/visuren.html#block-formatting
-	if bo.EstablishesFormattingContext(box_) {
+	// gopdfgo: pudełko opakowujące tabelę zakłada kontekst formatowania blokowego (CSS 2.1 § 17.4),
+	// więc elementy pływające spoza niego nie działają na podpis tabeli (clear, wiersze); w źródle podpis
+	// z clear schodził pod element pływający stojący obok tabeli (test WPT clear-applies-to-015).
+	wrapperContext := box.IsTableWrapper && !bo.EstablishesFormattingContext(box_)
+	if bo.EstablishesFormattingContext(box_) || wrapperContext {
 		context.createBlockFormattingContext()
 	}
 
@@ -705,6 +833,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				bottomSpace, positionY, skipStack, firstLetterStyle, collapsingWithChildren, discard, maxLines)
 			skipStack = nil
 			adjoiningMargins = &adjoiningMarginsV
+			if collapsingWithChildren && !stop && !abort && marginChainOpen(newChildren) {
+				// gopdfgo: dziecko było puste i marginesy przeszły przez nie, więc górny margines tego
+				// pudełka (i jego przodków, które dzielą z nim listę marginesów) zwija się także
+				// z marginesami następnego dziecka (CSS 2.1 § 8.3.1). W źródle lista była zastępowana
+				// nową i pudełko ustawiało się bez marginesów dzieci stojących za pustym.
+				*thisBoxAdjoiningMargins = adjoiningMarginsV
+				adjoiningMargins = thisBoxAdjoiningMargins
+			}
 
 			if newMaxLines != -1 && maxLines != -1 {
 				maxLines = newMaxLines
@@ -752,6 +888,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				context.unlayoutFootnote(footnote)
 			}
 
+			if wrapperContext { // gopdfgo: zamknięcie kontekstu pudełka opakowującego tabelę
+				context.discardBlockFormattingContext()
+			}
 			return nil, blockLayout{nextPage: tree.PageBreak{Break: "any", Page: page_, HasPage: true}}, maxLines
 		} else if stop {
 			if box.Height != pr.AutoF {
@@ -836,6 +975,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			delete(context.brokenOutOfFlow, child)
 		}
 
+		if wrapperContext { // gopdfgo: zamknięcie kontekstu pudełka opakowującego tabelę
+			context.discardBlockFormattingContext()
+		}
 		return nil, blockLayout{nextPage: tree.PageBreak{Break: "any"}}, maxLines
 	}
 
@@ -857,7 +999,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	if lastInFlowChild == nil {
 		collapsedMargin := collapseMargin(*adjoiningMargins)
 		// top && bottom margin of this box
-		if (box.Height == pr.AutoF || box.Height == pr.Float(0)) &&
+		// gopdfgo: marginesy pudełka zakładającego własny kontekst formatowania nie przechodzą przez nie
+		// (CSS 2.1 § 8.3.1); w źródle puste pudełko z overflow: hidden przepuszczało marginesy.
+		if (box.Height == pr.AutoF || box.Height == pr.Float(0)) && !bo.EstablishesFormattingContext(box_) &&
 			getClearance(context, box, collapsedMargin) == nil &&
 			box.MinHeight == pr.Float(0) && box.BorderTopWidth == pr.Float(0) && box.PaddingTop == pr.Float(0) &&
 			box.BorderBottomWidth == pr.Float(0) && box.PaddingBottom == pr.Float(0) {
@@ -911,6 +1055,11 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		}
 		if positionY == newBox.ContentBoxY() && positionY == pr.Inf {
 			newBox.Height = pr.Float(0)
+		} else if collapsingThrough {
+			// gopdfgo: pudełko, przez które przechodzą marginesy, nie ma treści w przepływie, więc ma
+			// wysokość zero (CSS 2.1 § 10.6.3); w źródle różnica między pozycją treści a pozycją pudełka
+			// przesuniętego o ujemny zwinięty margines dawała mu dodatnią wysokość.
+			newBox.Height = pr.Float(0)
 		} else {
 			newBox.Height = positionY - newBox.ContentBoxY()
 		}
@@ -950,7 +1099,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		relativePositioning(child, bo.Point{newBox.Width.V(), newBox.Height.V()})
 	}
 
-	if bo.EstablishesFormattingContext(newBox_) {
+	if bo.EstablishesFormattingContext(newBox_) || wrapperContext {
 		context.finishBlockFormattingContext(newBox_)
 	}
 
@@ -1030,6 +1179,27 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		resumeAt: resumeAt, nextPage: nextPage,
 		adjoiningMargins: *adjoiningMargins, collapsingThrough: collapsingThrough,
 	}, maxLines
+}
+
+// marginChainOpen (gopdfgo) podaje, czy górny margines rodzica nadal przylega do górnego marginesu
+// następnego dziecka: wszystkie dotychczasowe dzieci w przepływie są puste, marginesy przez nie
+// przechodzą i żadne nie dostało clearance (CSS 2.1 § 8.3.1). Puste wiersze się nie liczą.
+func marginChainOpen(children []Box) bool {
+	for _, child := range children {
+		if line, isLine := child.(*bo.LineBox); isLine && line.Height == pr.Float(0) && isEmptyLinebox(line) {
+			continue
+		}
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if !child.Box().CollapsedThrough {
+			return false
+		}
+		if bl, ok := child.(bo.BlockLevelBoxITF); ok && bl.BlockLevel().Clearance != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // allCollapsedThrough podaje, czy marginesy wszystkich dzieci w przepływie zwijają się przez nie
@@ -1398,7 +1568,13 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 
 	if !newContainingBlock.IsTableWrapper {
 		resolveSizesBox(context, child_, newContainingBlock)
-		if lastInFlowChild == nil && collapsingWithChildren {
+		// gopdfgo: górny margines rodzica zwija się nie tylko z marginesem pierwszego dziecka, ale też
+		// z marginesami kolejnych, dopóki poprzednie dzieci są puste i marginesy przez nie przechodzą
+		// (CSS 2.1 § 8.3.1). Elementy pływające z tych pustych dzieci i stojące przed nimi przylegają
+		// do górnej krawędzi rodzica, więc przesuwają się razem z nią (§ 8.3.1: górna krawędź pudełka,
+		// którego margines zwija się z marginesem rodzica, jest krawędzią rodzica). W źródle działo się
+		// to tylko dla pierwszego dziecka w przepływie i bez marginesów jego pierwszych dzieci.
+		if collapsingWithChildren && marginChainOpen(newChildren) {
 			oldCollapsedMargin := collapseMargin(*adjoiningMargins)
 			childMarginTop := child.MarginTop
 			if childMarginTop == pr.AutoF {
@@ -1412,13 +1588,85 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 				// przylega do podziału kolumny (CSS Fragmentation 3 § 5.2)
 				childMarginTop = pr.Float(0)
 			}
-			newCollapsedMargin := collapseMargin(append(*adjoiningMargins, childMarginTop.V()))
+			chain := append(append([]pr.Float(nil), *adjoiningMargins...), childMarginTop.V())
+			var avoider Box // pudełko omijające elementy pływające, którego margines należy do łańcucha
+			if avoidsFloats(child_) {
+				avoider = child_
+			}
+			if childMarginTop == child.MarginTop && !box.MarginTopTruncated {
+				// gopdfgo: z marginesami pierwszych dzieci, które zwijają się przez górną krawędź pudełka
+				inner, last := leadingChildChain(context, child_, child.PositionY, chain)
+				if last != nil && avoidsFloats(last) {
+					avoider = last
+				}
+				chain = append(chain, inner...)
+			}
+			newCollapsedMargin := collapseMargin(chain)
 			collapsedMarginDifference := newCollapsedMargin - oldCollapsedMargin
+			shapesBefore := make([]pr.Float, len(context.excludedShapes.list))
+			for i, shape := range context.excludedShapes.list {
+				shapesBefore[i] = shape.PositionY
+			}
 			for _, previousNewChild := range newChildren {
 				previousNewChild.Translate(0, collapsedMarginDifference, false)
 			}
+			movedShapes := false
+			for i, shape := range context.excludedShapes.list {
+				if i < len(shapesBefore) && shape.PositionY != shapesBefore[i] {
+					movedShapes = true
+				}
+			}
 
-			if clearance := getClearance(context, child, newCollapsedMargin); clearance != nil {
+			// gopdfgo: pudełko z własnym kontekstem formatowania (także tabela i element zastępowany), które
+			// na pozycji hipotetycznej nie mieści się obok przylegających elementów pływających, oddziela
+			// swój margines od nich jak przy clearance: elementy pływające zostają na miejscu, a pudełko staje
+			// pod nimi bez względu na margines (CSS 2.1 § 9.5: takie pudełko implementacja ma „oczyścić”;
+			// testy WPT new-fc-separates-from-float-*). W źródle margines pociągał elementy pływające w dół.
+			if avoider != nil && movedShapes &&
+				!fitsBesideFloats(context, avoider, child.PositionY+newCollapsedMargin, box) {
+				for _, previousNewChild := range newChildren {
+					previousNewChild.Translate(0, -collapsedMarginDifference, false)
+				}
+				if context.separatedFromFloats == nil {
+					context.separatedFromFloats = map[*bo.BoxFields]bool{}
+				}
+				context.separatedFromFloats[avoider.Box()] = true
+				if avoider == child_ {
+					chain = chain[:len(*adjoiningMargins)]
+				} else {
+					chain = chain[:len(chain)-1]
+				}
+				newCollapsedMargin = collapseMargin(chain)
+				collapsedMarginDifference = newCollapsedMargin - oldCollapsedMargin
+				for _, previousNewChild := range newChildren {
+					previousNewChild.Translate(0, collapsedMarginDifference, false)
+				}
+				if avoider == child_ {
+					// łańcuch marginesów rodzica kończy się przed tym pudełkiem
+					shift := oldCollapsedMargin - box.MarginTop.V()
+					box.PositionY += shift
+					positionY = box.ContentBoxY()
+					box.PositionY -= shift
+					child.PositionY = positionY
+					adjoiningMargins = new([]pr.Float)
+				}
+			} else if clearance := getClearance(context, child, newCollapsedMargin); clearance != nil {
+				// gopdfgo: gdy bez clearance pudełko pociągnęłoby za sobą przylegający element pływający,
+				// który ma oczyścić, clearance jest konieczne bez względu na wielkość marginesu, a krawędź
+				// pudełka staje pod tym elementem (CSS 2.1 § 9.5.2, test WPT adjoining-float-before-clearance).
+				// W źródle po cofnięciu elementów pływających pozycja hipotetyczna liczyła się od nowa i duży
+				// margines znosił clearance.
+				clear := child.Style.GetClear()
+				for i, shape := range context.excludedShapes.list {
+					if i < len(shapesBefore) && shape.PositionY != shapesBefore[i] &&
+						(clear == "both" || clear == shape.Style.GetFloat()) {
+						if context.forcedClearance == nil {
+							context.forcedClearance = map[*bo.BoxFields]bool{}
+						}
+						context.forcedClearance[child] = true
+						break
+					}
+				}
 				for _, previousNewChild := range newChildren {
 					previousNewChild.Translate(0, -collapsedMarginDifference, false)
 				}
