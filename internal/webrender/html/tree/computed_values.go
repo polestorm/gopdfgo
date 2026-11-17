@@ -98,7 +98,7 @@ var (
 		pr.PPaddingRight:            length,
 		pr.PPaddingBottom:           length,
 		pr.PPaddingLeft:             length,
-		pr.PTextIndent:              length,
+		pr.PTextIndent:              textIndent,
 		pr.POutlineOffset:           length,
 		pr.PHyphenateLimitZone:      length,
 		pr.PFlexBasis:               length,
@@ -307,6 +307,13 @@ func break_(_ *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssPrope
 func length(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
 	value := _value.(pr.TaggedDim)
 	return length_(computer, value, -1, false)
+}
+
+// gopdfgo: text-indent niesie obok długości słowa hanging i each-line (CSS Text 3 § 7.1)
+func textIndent(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.TextIndent)
+	value.TaggedDim = length_(computer, value.TaggedDim, -1, false)
+	return value
 }
 
 func asPixels(v pr.TaggedDim, pixelsOnly bool) pr.TaggedDim {

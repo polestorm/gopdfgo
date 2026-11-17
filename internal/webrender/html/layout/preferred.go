@@ -392,13 +392,27 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 ) []pr.Float {
 	var (
 		textIndent, currentLine pr.Float
+		restIndent              pr.Float // gopdfgo: wcięcie wierszy po pierwszym
 		skip                    int
 		out                     []pr.Float
 		box                     = box_.Box()
 	)
 	// Set text indent.
 	if bo.LineT.IsInstance(box_) && box.Style.GetTextIndent().Unit != pr.Perc {
-		textIndent = box.Style.GetTextIndent().Value
+		// gopdfgo: hanging wcina wiersze po pierwszym, each-line wiersze po wymuszonym złamaniu
+		// (CSS Text 3 § 7.1). Tu nie odróżniamy złamań wymuszonych od miękkich: przy szerokości
+		// max-content wszystkie są wymuszone, przy min-content przyjmujemy miękkie.
+		indent := box.Style.GetTextIndent()
+		textIndent = indent.Value
+		switch {
+		case indent.Hanging:
+			if !indent.EachLine || minimum {
+				restIndent = textIndent
+			}
+			textIndent = 0
+		case indent.EachLine && !minimum:
+			restIndent = textIndent
+		}
 	}
 
 	// Yield widths for each line.
@@ -526,10 +540,10 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 			// Forced line break(s).
 			// gopdfgo: ujemne wcięcie nie daje ujemnej szerokości wiersza
 			out = append(out, max(0, currentLine+textIndent))
-			textIndent = 0
+			textIndent = restIndent
 			if len(lines) > 2 {
 				for _, v := range lines[1 : len(lines)-1] {
-					out = append(out, orZero(v))
+					out = append(out, max(0, orZero(v)+textIndent))
 				}
 			}
 			currentLine = orZero(lines[len(lines)-1])

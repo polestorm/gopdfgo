@@ -53,6 +53,8 @@ var expanders = [...]expander{
 	pr.SGridTemplate:   genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas)(_expandGridTemplate),
 	pr.SGrid:           genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas, pr.PGridAutoColumns, pr.PGridAutoRows, pr.PGridAutoFlow)(_expandGrid),
 	pr.SGap:            genericExpander(pr.PColumnGap, pr.PRowGap)(_expandGap),
+	pr.SWhiteSpace:     genericExpander(pr.PWhiteSpace, pr.PTextWrapMode)(_expandWhiteSpace),
+	pr.STextWrap:       genericExpander(pr.PTextWrapMode)(_expandTextWrap),
 }
 
 var borderExpanders = [...]expander{
@@ -1047,6 +1049,36 @@ func _expandFont(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, error)
 	}
 	out = append(out, namedTokens{name: pr.PFontFamily, tokens: tokens})
 	return out, nil
+}
+
+// gopdfgo: white-space jest skrótem (CSS Text 4 § 3): obok sposobu traktowania spacji ustawia
+// text-wrap-mode, żeby późniejsza deklaracja white-space znosiła wcześniejsze text-wrap-mode: nowrap
+// i odwrotnie. Wartość white-space zostaje w całości we właściwości white-space, a tryb zawijania
+// nakłada się na nią przy obliczaniu stylu (tree.effectiveWhiteSpace). W źródle white-space było
+// zwykłą właściwością.
+func _expandWhiteSpace(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, error) {
+	keyword, ok := whiteSpace(tokens, "").(pr.Keyword)
+	if !ok {
+		return nil, ErrInvalidValue
+	}
+	mode := "wrap"
+	if keyword == pr.Nowrap || keyword == pr.Pre {
+		mode = "nowrap"
+	}
+	return []namedTokens{
+		{name: pr.PWhiteSpace, tokens: tokens},
+		{name: pr.PTextWrapMode, tokens: []Token{pa.NewIdent(mode, tokens[0].Pos())}},
+	}, nil
+}
+
+// gopdfgo: ze skrótu text-wrap (CSS Text 4 § 5.4) działają wartości wrap i nowrap, czyli część
+// text-wrap-mode. Pozostałe (balance, pretty, stable) są odrzucane jak dotąd, gdy właściwości nie
+// było wcale.
+func _expandTextWrap(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, error) {
+	if textWrapMode(tokens, "") == nil {
+		return nil, ErrInvalidValue
+	}
+	return []namedTokens{{name: pr.PTextWrapMode, tokens: tokens}}, nil
 }
 
 // Expand the “word-wrap“ legacy property.

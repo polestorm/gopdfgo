@@ -111,7 +111,11 @@ type TextStyle struct {
 
 	WordSpacing   pr.Fl
 	LetterSpacing pr.Fl // 0 for 'normal'
-	TabSize       TabSize
+	// gopdfgo: część word-spacing podana procentem szerokości spacji (CSS Text 4 § 10.1); calc()
+	// z min(), max() albo clamp() i procentem zostaje wyrażeniem liczonym przy znanej szerokości spacji
+	WordSpacingPercent pr.Fl
+	WordSpacingCalc    *pr.CalcNode
+	TabSize            TabSize
 	// TabOffset (gopdfgo) to odległość początku tekstu od początku wiersza: pozycje tabulacji liczą
 	// się od krawędzi bloku, nie od początku fragmentu tekstu (CSS Text 3 § 4.2).
 	TabOffset pr.Fl
@@ -161,7 +165,12 @@ func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
 	out.HyphenateLimitZone = newHyphenateZone(style.GetHyphenateLimitZone())
 
 	if !ignoreSpacing {
-		out.WordSpacing = pr.Fl(style.GetWordSpacing().Value)
+		// gopdfgo: procent zostaje do chwili, gdy znana jest szerokość spacji w foncie
+		if ws := style.GetWordSpacing(); ws.Unit == pr.Perc {
+			out.WordSpacing, out.WordSpacingPercent, out.WordSpacingCalc = pr.Fl(ws.Offset), pr.Fl(ws.Value), ws.Calc
+		} else {
+			out.WordSpacing = pr.Fl(ws.Value)
+		}
 		if ls := style.GetLetterSpacing(); ls.Tag != pr.Normal {
 			out.LetterSpacing = pr.Fl(ls.Value)
 		}
@@ -194,12 +203,14 @@ type styleKey struct {
 	HyphenateLimitChars pr.Limits
 	HyphenateLimitZone  HyphenateZone
 
-	WordSpacing   pr.Fl
-	LetterSpacing pr.Fl // 0 for 'normal'
-	TabSize       TabSize
-	TabOffset     pr.Fl
-	TabUnit       pr.Fl
-	HasTabUnit    bool
+	WordSpacing        pr.Fl
+	LetterSpacing      pr.Fl // 0 for 'normal'
+	WordSpacingPercent pr.Fl // gopdfgo: jak w TextStyle
+	WordSpacingCalc    *pr.CalcNode
+	TabSize            TabSize
+	TabOffset          pr.Fl
+	TabUnit            pr.Fl
+	HasTabUnit         bool
 
 	Direction pr.Keyword
 }
@@ -220,6 +231,8 @@ func (ts *TextStyle) key() styleKey {
 		ts.HyphenateLimitZone,
 		ts.WordSpacing,
 		ts.LetterSpacing,
+		ts.WordSpacingPercent,
+		ts.WordSpacingCalc,
 		ts.TabSize,
 		ts.TabOffset,
 		ts.TabUnit,

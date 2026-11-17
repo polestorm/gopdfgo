@@ -845,6 +845,10 @@ func (c *ComputedStyle) compute(key pr.PropKey) pr.CssProperty {
 		if c.parentStyle != nil {
 			value = c.parentStyle.GetPage()
 		}
+	} else if ws, ok := value.(pr.Keyword); ok && key.KnownProp == pr.PWhiteSpace && key.Var == "" {
+		// gopdfgo: text-wrap-mode nakłada się na white-space także wtedy, gdy white-space jest
+		// odziedziczone, więc reszta kodu czyta jedną wartość
+		return effectiveWhiteSpace(ws, c.GetTextWrapMode())
 	} else if save {
 		// Value already computed.
 		return value.(pr.CssProperty)
@@ -856,6 +860,30 @@ func (c *ComputedStyle) compute(key pr.PropKey) pr.CssProperty {
 		out = fn(c, key.KnownProp, out)
 	}
 	return out
+}
+
+// effectiveWhiteSpace (gopdfgo) składa white-space z text-wrap-mode (CSS Text 4 § 3 i § 5.1) w jedno
+// słowo white-space, z którego korzysta układ: nowrap odbiera zawijanie (normal → nowrap, pre-wrap
+// i break-spaces → pre), wrap je przywraca (nowrap → normal, pre → pre-wrap). Deklaracja white-space
+// ustawia obie właściwości, więc bez osobnego text-wrap-mode wynik jest wartością white-space.
+// Dla pre-line nie ma słowa bez zawijania: zostaje pre-line.
+func effectiveWhiteSpace(ws pr.Keyword, mode pr.String) pr.Keyword {
+	if mode == "nowrap" {
+		switch ws {
+		case pr.Normal:
+			return pr.Nowrap
+		case pr.PreWrap, pr.BreakSpaces:
+			return pr.Pre
+		}
+		return ws
+	}
+	switch ws {
+	case pr.Nowrap:
+		return pr.Normal
+	case pr.Pre:
+		return pr.PreWrap
+	}
+	return ws
 }
 
 // Rozmiar pisma monospace (gopdfgo, ADR 0008). W przeglądarkach font-size: medium znaczy 13 px, gdy

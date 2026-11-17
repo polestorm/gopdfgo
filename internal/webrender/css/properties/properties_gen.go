@@ -210,8 +210,8 @@ func (s Properties) SetTextAlignAll(v String) { s[PTextAlignAll] = v }
 func (s Properties) GetTextAlignLast() String  { return s[PTextAlignLast].(String) }
 func (s Properties) SetTextAlignLast(v String) { s[PTextAlignLast] = v }
 
-func (s Properties) GetTextIndent() TaggedDim  { return s[PTextIndent].(TaggedDim) }
-func (s Properties) SetTextIndent(v TaggedDim) { s[PTextIndent] = v }
+func (s Properties) GetTextIndent() TextIndent  { return s[PTextIndent].(TextIndent) }
+func (s Properties) SetTextIndent(v TextIndent) { s[PTextIndent] = v }
 
 func (s Properties) GetTextTransform() String  { return s[PTextTransform].(String) }
 func (s Properties) SetTextTransform(v String) { s[PTextTransform] = v }
@@ -590,6 +590,12 @@ func (s Properties) SetObjectPosition(v CenterPos) { s[PObjectPosition] = v }
 func (s Properties) GetFontSizeAdjust() SBoolFloat  { return s[PFontSizeAdjust].(SBoolFloat) }
 func (s Properties) SetFontSizeAdjust(v SBoolFloat) { s[PFontSizeAdjust] = v }
 
+func (s Properties) GetTextJustify() String  { return s[PTextJustify].(String) }
+func (s Properties) SetTextJustify(v String) { s[PTextJustify] = v }
+
+func (s Properties) GetTextWrapMode() String  { return s[PTextWrapMode].(String) }
+func (s Properties) SetTextWrapMode(v String) { s[PTextWrapMode] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -795,8 +801,8 @@ type StyleAccessor interface {
 	GetTextAlignLast() String
 	SetTextAlignLast(v String)
 
-	GetTextIndent() TaggedDim
-	SetTextIndent(v TaggedDim)
+	GetTextIndent() TextIndent
+	SetTextIndent(v TextIndent)
 
 	GetTextTransform() String
 	SetTextTransform(v String)
@@ -1166,6 +1172,12 @@ type StyleAccessor interface {
 
 	GetFontSizeAdjust() SBoolFloat
 	SetFontSizeAdjust(v SBoolFloat)
+
+	GetTextJustify() String
+	SetTextJustify(v String)
+
+	GetTextWrapMode() String
+	SetTextWrapMode(v String)
 }
 
 var propsNames = [...]string{
@@ -1361,6 +1373,8 @@ var propsNames = [...]string{
 	PObjectFit:               "object-fit",
 	PObjectPosition:          "object-position",
 	PFontSizeAdjust:          "font-size-adjust",
+	PTextJustify:             "text-justify",
+	PTextWrapMode:            "text-wrap-mode",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1557,4 +1571,6 @@ var PropsFromNames = map[string]KnownProp{
 	"object-fit":                 PObjectFit,
 	"object-position":            PObjectPosition,
 	"font-size-adjust":           PFontSizeAdjust,
+	"text-justify":               PTextJustify,
+	"text-wrap-mode":             PTextWrapMode,
 }

@@ -195,7 +195,7 @@ var (
 		pr.PFootnotePolicy:          footnotePolicy,
 		pr.PImageResolution:         imageResolution,
 		pr.PLetterSpacing:           spacing,
-		pr.PWordSpacing:             spacing,
+		pr.PWordSpacing:             wordSpacing,
 		pr.PLineHeight:              lineHeight,
 		pr.PListStylePosition:       listStylePosition,
 		pr.PListStyleType:           listStyleType,
@@ -261,6 +261,8 @@ var (
 		pr.PWordBreak:               wordBreak,
 		pr.PLineBreak:               lineBreak,
 		pr.PFontSizeAdjust:          fontSizeAdjust,
+		pr.PTextJustify:             textJustify,
+		pr.PTextWrapMode:            textWrapMode,
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2389,6 +2391,16 @@ func imageResolution(tokens []Token, _ string) pr.CssProperty {
 // @singleToken
 // Validation for “letter-spacing“ && “word-spacing“.
 func spacing(tokens []Token, _ string) pr.CssProperty {
+	return spacingValue(tokens, false)
+}
+
+// gopdfgo: word-spacing przyjmuje też procent, liczony od szerokości znaku U+0020 w foncie elementu
+// (CSS Text 4 § 10.1). Źródło przyjmowało samą długość.
+func wordSpacing(tokens []Token, _ string) pr.CssProperty {
+	return spacingValue(tokens, true)
+}
+
+func spacingValue(tokens []Token, percentage bool) pr.CssProperty {
 	if len(tokens) != 1 {
 		return nil
 	}
@@ -2396,7 +2408,7 @@ func spacing(tokens []Token, _ string) pr.CssProperty {
 	if getKeyword(token) == "normal" {
 		return pr.TaggedDim{Tag: pr.Normal}
 	}
-	length := getLength(token, true, false)
+	length := getLength(token, true, percentage)
 	if !length.IsNone() {
 		return length.Tagged()
 	}
@@ -2690,6 +2702,30 @@ func lineBreak(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "auto", "loose", "normal", "strict", "anywhere":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “text-justify“ (CSS Text 3 § 6.4). Działa wartość none (tekst nie ma miejsc justowania);
+// inter-word i inter-character justują jak auto, czyli na spacjach. Źródło właściwości nie znało.
+func textJustify(tokens []Token, _ string) pr.CssProperty {
+	keyword := getSingleKeyword(tokens)
+	switch keyword {
+	case "auto", "none", "inter-word", "inter-character":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “text-wrap-mode“ (CSS Text 4 § 5.1): nowrap wyłącza miękkie łamanie wierszy bez zmiany
+// sposobu zwijania spacji. Źródło właściwości nie znało.
+func textWrapMode(tokens []Token, _ string) pr.CssProperty {
+	keyword := getSingleKeyword(tokens)
+	switch keyword {
+	case "wrap", "nowrap":
 		return pr.String(keyword)
 	default:
 		return nil
@@ -3061,16 +3097,38 @@ func outlineOffset(tokens []Token, _ string) pr.CssProperty {
 // @validator()
 // @singleToken
 // “text-indent“ property validation.
+//
+// gopdfgo: składnia <length-percentage> && hanging? && each-line? (CSS Text 3 § 7.1), części w dowolnej
+// kolejności. Źródło przyjmowało samą długość, więc deklaracja ze słowem kluczowym przepadała.
 func textIndent(tokens []Token, _ string) pr.CssProperty {
-	if len(tokens) != 1 {
+	var (
+		out       pr.TextIndent
+		hasLength bool
+	)
+	for _, token := range tokens {
+		switch getKeyword(token) {
+		case "hanging":
+			if out.Hanging {
+				return nil
+			}
+			out.Hanging = true
+		case "each-line":
+			if out.EachLine {
+				return nil
+			}
+			out.EachLine = true
+		default:
+			l := getLength(token, true, true)
+			if l.IsNone() || hasLength {
+				return nil
+			}
+			out.TaggedDim, hasLength = l.Tagged(), true
+		}
+	}
+	if !hasLength {
 		return nil
 	}
-	token := tokens[0]
-	l := getLength(token, true, true)
-	if l.IsNone() {
-		return nil
-	}
-	return l.Tagged()
+	return out
 }
 
 // @validator()
