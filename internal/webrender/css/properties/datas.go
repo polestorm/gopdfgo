@@ -182,6 +182,7 @@ var (
 		PWordSpacing,
 		PWordBreak,
 		PLineBreak,
+		PFontSizeAdjust,
 	)
 
 	// http://www.w3.org/TR/CSS21/tables.html#model

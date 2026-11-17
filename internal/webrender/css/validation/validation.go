@@ -260,6 +260,7 @@ var (
 		pr.PMaxLines:                maxLines,
 		pr.PWordBreak:               wordBreak,
 		pr.PLineBreak:               lineBreak,
+		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2276,6 +2277,46 @@ func fontStretch(tokens []Token, _ string) pr.CssProperty {
 		"normal", "semi-expanded", "expanded", "extra-expanded", "ultra-expanded":
 		return pr.String(keyword)
 	default:
+		return nil
+	}
+}
+
+// gopdfgo: “font-size-adjust“ (CSS Fonts 5 § 2.7):
+// none | [ ex-height | cap-height | ch-width | ic-width | ic-height ]? [ from-font | <number [0,∞]> ].
+// Wynik to pr.SBoolFloat: String = metryka (pusty dla none; sama liczba oznacza ex-height),
+// Bool = from-font, Float = podana liczba. Źródło właściwości nie znało.
+func fontSizeAdjust(tokens []Token, _ string) pr.CssProperty {
+	if len(tokens) == 0 || len(tokens) > 2 {
+		return nil
+	}
+	out := pr.SBoolFloat{String: "ex-height"}
+	hasMetric := len(tokens) == 2
+	if hasMetric {
+		switch metric := getKeyword(tokens[0]); metric {
+		case "ex-height", "cap-height", "ch-width", "ic-width", "ic-height":
+			out.String = metric
+		default:
+			return nil
+		}
+		tokens = tokens[1:]
+	}
+	switch token := tokens[0].(type) {
+	case pa.Number:
+		if token.ValueF < 0 {
+			return nil
+		}
+		out.Float = pr.Fl(token.ValueF)
+		return out
+	default:
+		switch getKeyword(token) {
+		case "from-font":
+			out.Bool = true
+			return out
+		case "none":
+			if !hasMetric {
+				return pr.SBoolFloat{}
+			}
+		}
 		return nil
 	}
 }

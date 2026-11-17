@@ -253,5 +253,7 @@ const (
 	PObjectFit
 	PObjectPosition
 
+	PFontSizeAdjust // gopdfgo: CSS Fonts 5 § 2.7; dziedziczona
+
 	nbProperties
 )

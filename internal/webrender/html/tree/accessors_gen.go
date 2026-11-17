@@ -1919,3 +1919,17 @@ func (s *AnonymousStyle) GetObjectPosition() pr.CenterPos {
 func (s *AnonymousStyle) SetObjectPosition(v pr.CenterPos) {
 	s.propsCache.setKnown(pr.PObjectPosition, v)
 }
+
+func (s *ComputedStyle) GetFontSizeAdjust() pr.SBoolFloat {
+	return s.Get(pr.PFontSizeAdjust.Key()).(pr.SBoolFloat)
+}
+func (s *ComputedStyle) SetFontSizeAdjust(v pr.SBoolFloat) {
+	s.propsCache.setKnown(pr.PFontSizeAdjust, v)
+}
+
+func (s *AnonymousStyle) GetFontSizeAdjust() pr.SBoolFloat {
+	return s.Get(pr.PFontSizeAdjust.Key()).(pr.SBoolFloat)
+}
+func (s *AnonymousStyle) SetFontSizeAdjust(v pr.SBoolFloat) {
+	s.propsCache.setKnown(pr.PFontSizeAdjust, v)
+}

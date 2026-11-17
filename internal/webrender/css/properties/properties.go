@@ -178,6 +178,7 @@ var InitialValues = Properties{
 	PWhiteSpace:          Normal,
 	PWordBreak:           String("normal"),
 	PLineBreak:           String("auto"), // gopdfgo
+	PFontSizeAdjust:      SBoolFloat{},   // gopdfgo: none
 	PWordSpacing:         TaggedDim{}, // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
