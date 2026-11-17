@@ -2180,12 +2180,21 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		parent.Box().Height = heightF
 		newChild, itemLayout, _ := blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
 			pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
-		if stretchedTableHeight >= 0 && newChild != nil && itemLayout.resumeAt == nil && newChild.Box().MarginHeight() < childHeight-0.5 {
+		laidOutTableHeight := func() pr.Float { // wysokość pudełka obramowania ułożonej tabeli
+			for _, part := range newChild.Box().Children {
+				if bo.TableT.IsInstance(part) {
+					return part.Box().Height.V()
+				}
+			}
+			return stretchedTableHeight
+		}
+		if stretchedTableHeight >= 0 && newChild != nil && itemLayout.resumeAt == nil && laidOutTableHeight() < stretchedTableHeight-0.5 {
 			removePlaceholders(context, []Box{newChild}, absoluteBoxes, fixedBoxes)
 			table := childB.GetWrappedTable().Box()
 			style := table.Style.Copy()
 			style.SetHeight(pr.FToPx(stretchedTableHeight))
 			table.Style = style
+			table.Height = stretchedTableHeight // wartość rozwiązana wcześniej ze stylu
 			newChild, itemLayout, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
 				pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
 		}
