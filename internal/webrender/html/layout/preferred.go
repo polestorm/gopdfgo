@@ -1149,6 +1149,9 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
+			if content, ok := flexibleItemContentWidth(context, box, child); ok && content > v {
+				v = content
+			}
 			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {
 				v = ratioWidth
 			}
@@ -1172,6 +1175,33 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		}
 		return adjust(box, outer, max, true, true)
 	}
+}
+
+// flexibleItemContentWidth (gopdfgo): wkład min-content elementu flex w kontenerze wierszowym to większa
+// z wartości: rozmiar min-content i podana szerokość (CSS Flexbox 1 § 9.9.1), ograniczona przez max-width.
+// Źródło brało szerokość wewnętrzną pudełka z podaną szerokością, czyli samą podaną szerokość, więc
+// element węższy niż jego treść zwężał kontener. Zwraca szerokość zewnętrzną treści; false, gdy
+// element nie ma podanej szerokości albo nie może ani rosnąć, ani się kurczyć.
+func flexibleItemContentWidth(context *layoutContext, container, child Box) (pr.Float, bool) {
+	style := child.Box().Style
+	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") || style.GetWidth().Tag == pr.Auto ||
+		(style.GetFlexGrow() == 0 && style.GetFlexShrink() == 0) {
+		return 0, false
+	}
+	if _, isReplaced := child.(bo.ReplacedBoxITF); isReplaced {
+		return 0, false
+	}
+	probe := child.Copy()
+	if bo.ParentT.IsInstance(child) {
+		probe = bo.CopyWithChildren(child, child.Box().Children)
+	}
+	probe.Box().Style = style.Copy()
+	probe.Box().Style.SetWidth(pr.TagToV(pr.Auto))
+	content := minContentWidth(context, probe, true)
+	if maxWidth := style.GetMaxWidth(); maxWidth.Unit == pr.Px && maxWidth.Calc == nil && maxWidth.Tag == 0 {
+		content = min(content, adjust(probe, true, maxWidth.Value, true, true))
+	}
+	return content, true
 }
 
 // inflexibleBasis (gopdfgo): element flex, który ani nie rośnie, ani się nie kurczy, i ma flex-basis

@@ -1156,6 +1156,9 @@ Wspólne dla obu katalogów:
   - `html/layout/block.go` (`blockContainerLayout`): dolny margines ostatniego dziecka zostaje w elemencie
     flex i siatki (własny kontekst formatowania, CSS Flexbox 1 § 3, CSS Grid 1 § 6.1); źródło zachowywało
     tylko górny;
+  - `html/layout/preferred.go` (`flexibleItemContentWidth` w `flexMinContentWidth`): wkład min-content
+    elementu flex, który może rosnąć albo się kurczyć, to większa z wartości: rozmiar min-content i podana
+    szerokość, ograniczona przez `max-width` (CSS Flexbox 1 § 9.9.1); źródło brało samą podaną szerokość;
   - `html/layout/flex.go` (sortowanie według `order`): dzieci pozycjonowane bezwzględnie nie są elementami
     flex, więc `order` nie zmienia ich kolejności (CSS Flexbox 1 § 4.1, § 5.4); w źródle zmieniał kolejność
     ich rysowania;

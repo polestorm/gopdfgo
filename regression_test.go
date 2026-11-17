@@ -2849,6 +2849,9 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	same("abspos-ignores-order", `<div style="display:flex"><div style="position:absolute;order:10"><div class=b style="width:40px;height:40px"></div></div>
 		<div style="position:absolute;order:5"><div class=g style="width:40px;height:40px"></div></div></div>`,
 		`<div class=g style="width:40px;height:40px"></div>`)
+	// wkład min-content elementu elastycznego to większa z wartości: treść i podana szerokość
+	same("flex-min-content-contribution", `<div style="display:flex;width:min-content"><div style="flex:auto;width:5px"><div class=g style="width:40px;height:40px"></div></div></div>`,
+		`<div class=g style="width:40px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
