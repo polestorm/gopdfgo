@@ -70,10 +70,7 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty {
 			// When an unforced break occurs before or after a block-level box,
 			// any margins adjoining the break are truncated to zero.
-			// gopdfgo: pierwsze pudełko kolumny po podziale kolumn przylega do podziału tak jak pierwsze
-			// pudełko strony, choć kolumna nie zwija marginesów z dziećmi
-			if collapseWithPage := containingBlock.IsForRootElement || len(*adjoiningMargins) != 0 ||
-				(containingBlock.IsColumn && context.columnBreak != columnBreakNone); collapseWithPage {
+			if collapseWithPage := containingBlock.IsForRootElement || len(*adjoiningMargins) != 0; collapseWithPage {
 				if box_.Style.GetMarginBreak() == "discard" {
 					box_.MarginTop = pr.Float(0)
 				} else if box_.Style.GetMarginBreak() == "auto" {
@@ -1399,6 +1396,10 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 				if mb := box.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !forcedBreak) {
 					childMarginTop = pr.Float(0)
 				}
+			} else if box.MarginTopTruncated {
+				// gopdfgo: margines pierwszego dziecka zwija się z obciętym marginesem rodzica, więc też
+				// przylega do podziału kolumny (CSS Fragmentation 3 § 5.2)
+				childMarginTop = pr.Float(0)
 			}
 			newCollapsedMargin := collapseMargin(append(*adjoiningMargins, childMarginTop.V()))
 			collapsedMarginDifference := newCollapsedMargin - oldCollapsedMargin
@@ -1425,6 +1426,14 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 		}
 	}
 	child.MarginTopTruncated = false
+	// gopdfgo: pierwsze pudełko kolumny stojącej za podziałem kolumn przylega do tego podziału jak
+	// pierwsze pudełko strony, choć kolumna nie zwija marginesów z dziećmi, a przy równoważeniu kolumny
+	// nie są układane jako puste (CSS Fragmentation 3 § 5.2). W źródle margines zostawał.
+	if box.IsColumn && lastInFlowChild == nil && context.columnBreak != columnBreakNone && child.IsInNormalFlow() {
+		if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && context.columnBreak == columnBreakUnforced) {
+			child.MarginTopTruncated = true
+		}
+	}
 	if len(*adjoiningMargins) != 0 {
 		if box.IsTableWrapper { // should not be a special case
 			collapsedMargin := collapseMargin(*adjoiningMargins)

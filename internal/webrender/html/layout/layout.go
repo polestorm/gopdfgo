@@ -413,6 +413,8 @@ type layoutContext struct {
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)
 	fixedHeightRemaining map[uintptr]pr.Float
+	// gopdfgo: reszta min-height kontenera kolumn podzielonego między fragmentatory; klucz jak wyżej
+	minHeightRemaining map[uintptr]pr.Float
 
 	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
 	// klucz to znacznik w stanie wznowienia linii (resumeKey)

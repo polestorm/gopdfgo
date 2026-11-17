@@ -76,6 +76,11 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	// w źródle każdy fragment kontenera kolumn je zachowywał.
 	if skipStack != nil {
 		box_.RemoveDecoration(box, true, false)
+		// gopdfgo: min-height dotyczy sumy fragmentów (CSS Fragmentation 3 § 5.1): dalszy ciąg dostaje
+		// to, czego nie zużyły poprzednie fragmenty. W źródle każdy fragment miał całe min-height.
+		if remaining, ok := context.minHeightRemaining[resumeKey(skipStack)]; ok {
+			box.MinHeight = remaining
+		}
 	}
 	// gopdfgo: własny górny margines kontenera kolumn zwija się z marginesami sąsiednimi (CSS 2 § 8.3.1);
 	// w źródle nie był do nich doliczany, więc kontener z marginesem większym niż margines poprzednika
@@ -666,9 +671,22 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	// Update the latest columns’ height to respect min-height
-	if box.MinHeight != pr.AutoF && box.MinHeight.V() > box.Height.V() {
-		heightDifference += box.MinHeight.V() - box.Height.V()
-		box.Height = box.MinHeight
+	fragmented := spannerResume != nil || columnSkipStack != nil || breakPage
+	var minHeight pr.Float
+	if box.MinHeight != pr.AutoF {
+		minHeight = box.MinHeight.V()
+	}
+	usedMinHeight := minHeight
+	// gopdfgo: fragment, po którym kontener ciągnie się dalej, nie wystaje z powodu min-height poza
+	// fragmentator; reszta min-height przechodzi na dalszy ciąg (CSS Fragmentation 3 § 5.1)
+	if fragmented && originalBottomSpace > -pr.Inf {
+		if available := context.pageBottom - originalBottomSpace - box.ContentBoxY(); available < usedMinHeight {
+			usedMinHeight = max(available, box.Height.V())
+		}
+	}
+	if usedMinHeight > box.Height.V() {
+		heightDifference += usedMinHeight - box.Height.V()
+		box.Height = usedMinHeight
 	}
 	for _, child := range reversedBoxes(newChildren) {
 		if child.Box().IsColumn {
@@ -698,6 +716,12 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	// dopełnienia (CSS Fragmentation 3 § 5.4); w źródle je zachowywał.
 	if skipStack != nil {
 		box_.RemoveDecoration(box, false, true)
+	}
+	if fragmented && skipStack != nil && minHeight > 0 {
+		if context.minHeightRemaining == nil {
+			context.minHeightRemaining = map[uintptr]pr.Float{}
+		}
+		context.minHeightRemaining[resumeKey(skipStack)] = max(0, minHeight-box.Height.V())
 	}
 	if fragmentedFixed && skipStack != nil {
 		if context.fixedHeightRemaining == nil {
