@@ -3021,16 +3021,38 @@ func outlineOffset(tokens []Token, _ string) pr.CssProperty {
 // @validator()
 // @singleToken
 // “text-indent“ property validation.
+//
+// gopdfgo: składnia <length-percentage> && hanging? && each-line? (CSS Text 3 § 7.1), części w dowolnej
+// kolejności. Źródło przyjmowało samą długość, więc deklaracja ze słowem kluczowym przepadała.
 func textIndent(tokens []Token, _ string) pr.CssProperty {
-	if len(tokens) != 1 {
+	var (
+		out       pr.TextIndent
+		hasLength bool
+	)
+	for _, token := range tokens {
+		switch getKeyword(token) {
+		case "hanging":
+			if out.Hanging {
+				return nil
+			}
+			out.Hanging = true
+		case "each-line":
+			if out.EachLine {
+				return nil
+			}
+			out.EachLine = true
+		default:
+			l := getLength(token, true, true)
+			if l.IsNone() || hasLength {
+				return nil
+			}
+			out.TaggedDim, hasLength = l.Tagged(), true
+		}
+	}
+	if !hasLength {
 		return nil
 	}
-	token := tokens[0]
-	l := getLength(token, true, true)
-	if l.IsNone() {
-		return nil
-	}
-	return l.Tagged()
+	return out
 }
 
 // @validator()

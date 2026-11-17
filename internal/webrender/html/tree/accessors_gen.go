@@ -718,15 +718,15 @@ func (s *AnonymousStyle) GetTextAlignLast() pr.String {
 }
 func (s *AnonymousStyle) SetTextAlignLast(v pr.String) { s.propsCache.setKnown(pr.PTextAlignLast, v) }
 
-func (s *ComputedStyle) GetTextIndent() pr.TaggedDim {
-	return s.Get(pr.PTextIndent.Key()).(pr.TaggedDim)
+func (s *ComputedStyle) GetTextIndent() pr.TextIndent {
+	return s.Get(pr.PTextIndent.Key()).(pr.TextIndent)
 }
-func (s *ComputedStyle) SetTextIndent(v pr.TaggedDim) { s.propsCache.setKnown(pr.PTextIndent, v) }
+func (s *ComputedStyle) SetTextIndent(v pr.TextIndent) { s.propsCache.setKnown(pr.PTextIndent, v) }
 
-func (s *AnonymousStyle) GetTextIndent() pr.TaggedDim {
-	return s.Get(pr.PTextIndent.Key()).(pr.TaggedDim)
+func (s *AnonymousStyle) GetTextIndent() pr.TextIndent {
+	return s.Get(pr.PTextIndent.Key()).(pr.TextIndent)
 }
-func (s *AnonymousStyle) SetTextIndent(v pr.TaggedDim) { s.propsCache.setKnown(pr.PTextIndent, v) }
+func (s *AnonymousStyle) SetTextIndent(v pr.TextIndent) { s.propsCache.setKnown(pr.PTextIndent, v) }
 
 func (s *ComputedStyle) GetTextTransform() pr.String {
 	return s.Get(pr.PTextTransform.Key()).(pr.String)

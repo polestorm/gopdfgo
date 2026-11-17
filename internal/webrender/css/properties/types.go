@@ -458,6 +458,14 @@ type TaggedDim struct {
 	Intrinsic IntrinsicSize
 }
 
+// TextIndent (gopdfgo) to wartość text-indent: długość albo procent oraz słowa hanging i each-line
+// (CSS Text 3 § 7.1).
+type TextIndent struct {
+	TaggedDim
+	Hanging  bool // wcięte są wiersze, które bez tego słowa wcięte by nie były, a pozostałe nie
+	EachLine bool // wcięcie dotyczy też każdego wiersza po wymuszonym złamaniu
+}
+
 // IntrinsicSize to słowo kluczowe rozmiaru wewnętrznego w width, min-width, max-width i odpowiednikach
 // dla wysokości.
 type IntrinsicSize uint8

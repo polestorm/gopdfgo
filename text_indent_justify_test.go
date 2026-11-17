@@ -52,3 +52,28 @@ func TestTextJustifyNone(t *testing.T) {
 	same("inter-word", `<div style="width:220px;text-align:justify;text-justify:inter-word">X X X XXXXXXXXXXX</div>`,
 		`<div style="white-space:pre">X    X    X<br>XXXXXXXXXXX</div>`)
 }
+
+func TestTextIndentHangingEachLine(t *testing.T) {
+	same := ahemComparer(t)
+	indented := `<span style="padding-left:40px">XX</span>`
+	// samo wcięcie: tylko pierwszy wiersz, nie wiersz po <br>
+	same("plain", `<div style="text-indent:40px">XX<br>XX</div>`, `<div>`+indented+`<br>XX</div>`)
+	// each-line: wiersz po wymuszonym złamaniu tak, po miękkim nie
+	same("each-line", `<div style="width:100px;text-indent:40px each-line">XX XX<br>XX</div>`,
+		`<div>`+indented+`<br>XX<br>`+indented+`</div>`)
+	// hanging: wszystkie wiersze poza pierwszym; kolejność części wartości jest dowolna
+	same("hanging", `<div style="width:100px;text-indent:hanging 40px">XXXX XX<br>XX</div>`,
+		`<div>XXXX<br>`+indented+`<br>`+indented+`</div>`)
+	// oba słowa: wcięte są tylko wiersze po miękkim złamaniu
+	same("each-line-hanging", `<div style="width:100px;text-indent:40px each-line hanging">XXXX XX<br>XX</div>`,
+		`<div>XXXX<br>`+indented+`<br>XX</div>`)
+	// tekst po pudełku blokowym nie jest pierwszym sformatowanym wierszem kontenera...
+	block := `<div style="height:10px;background:blue"></div>`
+	same("after-block", `<div style="text-indent:40px">XX`+block+`XX</div>`, `<div>`+indented+block+`XX</div>`)
+	// ...ale z each-line pudełko blokowe liczy się jak wymuszone złamanie
+	same("each-line-after-block", `<div style="text-indent:40px each-line">XX`+block+`XX</div>`,
+		`<div>`+indented+block+indented+`</div>`)
+	// hanging powiększa szerokość max-content wierszy po wymuszonym złamaniu
+	same("hanging-max-content", `<div style="float:left;background:blue;text-indent:40px hanging">XX<br>XX</div>`,
+		`<div style="float:left;background:blue">XX<br>`+indented+`</div>`)
+}

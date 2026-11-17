@@ -210,8 +210,8 @@ func (s Properties) SetTextAlignAll(v String) { s[PTextAlignAll] = v }
 func (s Properties) GetTextAlignLast() String  { return s[PTextAlignLast].(String) }
 func (s Properties) SetTextAlignLast(v String) { s[PTextAlignLast] = v }
 
-func (s Properties) GetTextIndent() TaggedDim  { return s[PTextIndent].(TaggedDim) }
-func (s Properties) SetTextIndent(v TaggedDim) { s[PTextIndent] = v }
+func (s Properties) GetTextIndent() TextIndent  { return s[PTextIndent].(TextIndent) }
+func (s Properties) SetTextIndent(v TextIndent) { s[PTextIndent] = v }
 
 func (s Properties) GetTextTransform() String  { return s[PTextTransform].(String) }
 func (s Properties) SetTextTransform(v String) { s[PTextTransform] = v }
@@ -795,8 +795,8 @@ type StyleAccessor interface {
 	GetTextAlignLast() String
 	SetTextAlignLast(v String)
 
-	GetTextIndent() TaggedDim
-	SetTextIndent(v TaggedDim)
+	GetTextIndent() TextIndent
+	SetTextIndent(v TextIndent)
 
 	GetTextTransform() String
 	SetTextTransform(v String)

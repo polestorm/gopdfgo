@@ -2101,6 +2101,7 @@ func InlineInBlock(box Box) Box {
 				// Inlines are consecutive no more: add this line box
 				// and create a new one.
 				lineBox := LineBoxAnonymousFrom(box, newLineChildren)
+				markAfterBlock(lineBox, newChildren)
 				anonymous := BlockBoxAnonymousFrom(box, []Box{lineBox})
 				newChildren = append(newChildren, anonymous)
 				newLineChildren = nil
@@ -2111,6 +2112,7 @@ func InlineInBlock(box Box) Box {
 	if len(newLineChildren) > 0 {
 		// There were inlines at the end
 		lineBox := LineBoxAnonymousFrom(box, newLineChildren)
+		markAfterBlock(lineBox, newChildren)
 		if len(newChildren) > 0 {
 			anonymous := BlockBoxAnonymousFrom(box, []Box{lineBox})
 			newChildren = append(newChildren, anonymous)
@@ -2206,6 +2208,7 @@ func BlockInInline(box Box) Box {
 				if block == nil {
 					break
 				}
+				markAfterBlock(newLine, newChildren)
 				anon := BlockBoxAnonymousFrom(box, []Box{newLine})
 				newChildren = append(newChildren, anon)
 				newChildren = append(newChildren, BlockInInline(block))
@@ -2215,6 +2218,7 @@ func BlockInInline(box Box) Box {
 			if len(newChildren) > 0 {
 				// Some children were already added, this became a block
 				// context.
+				markAfterBlock(newLine, newChildren)
 				newChild = BlockBoxAnonymousFrom(box, []Box{newLine})
 			} else {
 				// Keep the single line box as-is, without anonymous blocks.
@@ -2234,6 +2238,22 @@ func BlockInInline(box Box) Box {
 		box.Box().Children = newChildren
 	}
 	return box
+}
+
+// markAfterBlock (gopdfgo) zaznacza pudełko wiersza, przed którym kontener blokowy ma już treść
+// w normalnym przepływie: text-indent wcina tylko pierwszy sformatowany wiersz kontenera
+// (CSS Text 3 § 7.1), a źródło wcinało pierwszy wiersz każdego anonimowego bloku.
+func markAfterBlock(line Box, previous []Box) {
+	lineBox, ok := line.(*LineBox)
+	if !ok {
+		return
+	}
+	for _, sibling := range previous {
+		if sibling.Box().IsInNormalFlow() {
+			lineBox.AfterBlock = true
+			return
+		}
+	}
 }
 
 // Find a block-level box in an inline formatting context.

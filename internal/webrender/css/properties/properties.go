@@ -173,7 +173,7 @@ var InitialValues = Properties{
 	PTabSize:             Dimension{Value: 8}.Tagged(),
 	PTextAlignAll:        String("start"),
 	PTextAlignLast:       String("auto"),
-	PTextIndent:          ZeroPixels.Tagged(),
+	PTextIndent:          TextIndent{TaggedDim: ZeroPixels.Tagged()},
 	PTextTransform:       String("none"),
 	PWhiteSpace:          Normal,
 	PWordBreak:           String("normal"),

@@ -25,8 +25,11 @@ type BlockBox struct {
 type LineBox struct {
 	BoxFields
 
-	ResumeAt      tree.ResumeStack
-	TextIndent    pr.MaybeFloat
+	ResumeAt   tree.ResumeStack
+	TextIndent pr.MaybeFloat
+	// gopdfgo: przed tym pudełkiem wiersza jest w kontenerze blokowym treść w normalnym przepływie,
+	// więc jego pierwszy wiersz nie jest pierwszym sformatowanym wierszem kontenera (CSS Text 3 § 7.1)
+	AfterBlock    bool
 	TextOverflow  string
 	BlockEllipsis pr.TaggedString
 }

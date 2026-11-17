@@ -44,19 +44,26 @@ type lineBoxeIterator struct {
 	absoluteBoxes          *[]*AbsolutePlaceholder
 	positionY, bottomSpace pr.Float
 
-	resetTextIndent bool
-	done            bool
-	firstLine       bool // gopdfgo: następny wiersz jest pierwszym wierszem pudełka (`::first-line`)
+	// gopdfgo: text-indent z hanging i each-line (CSS Text 3 § 7.1). W źródle wcięcie dostawał
+	// pierwszy wiersz, a potem było zerowane (resetTextIndent).
+	textIndent        pr.Float // wartość użyta wcięcia
+	indentNext        bool     // następny wiersz jest pierwszym wierszem albo wierszem po wymuszonym złamaniu
+	hanging, eachLine bool
+	done              bool
+	firstLine         bool // gopdfgo: następny wiersz jest pierwszym wierszem pudełka (`::first-line`)
 }
 
 func (l *lineBoxeIterator) Has() bool {
-	if l.resetTextIndent {
-		l.box.TextIndent = pr.Float(0)
-	}
 	if l.done {
+		l.box.TextIndent = pr.Float(0)
 		return false
 	}
-	line, resumeAt := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
+	if l.indentNext != l.hanging {
+		l.box.TextIndent = l.textIndent
+	} else {
+		l.box.TextIndent = pr.Float(0)
+	}
+	line, resumeAt, forcedBreak := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
 		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine)
 	if line != nil {
 		l.firstLine = false
@@ -79,7 +86,7 @@ func (l *lineBoxeIterator) Has() bool {
 		l.done = true
 	}
 	l.skipStack = resumeAt
-	l.resetTextIndent = true
+	l.indentNext = l.eachLine && forcedBreak
 	l.firstLetterStyle = nil
 	return true
 }
@@ -103,14 +110,18 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 	absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, firstLetterStyle pr.ElementStyle,
 ) *lineBoxeIterator {
 	resolvePercentages(box, bo.MaybePoint{containingBlock.Box().Width, containingBlock.Box().Height})
-	if skipStack == nil {
-		// TODO: wrong, see https://github.com/Kozea/WeasyPrint/issues/679
-		box.TextIndent = resolveOnePercentage(box.Style.GetTextIndent(), pr.PTextIndent, containingBlock.Box().Width.V())
-	} else {
-		box.TextIndent = pr.Float(0)
-	}
+	// gopdfgo: wcięcie dostaje pierwszy sformatowany wiersz kontenera blokowego, a z each-line także
+	// każdy wiersz po wymuszonym złamaniu, w tym po pudełku blokowym; hanging odwraca wybór wierszy
+	// (CSS Text 3 § 7.1). Źródło wcinało pierwszy wiersz każdego pudełka wiersza, także tego po bloku
+	// (https://github.com/Kozea/WeasyPrint/issues/679). Po podziale strony nie wiemy, czy poprzedni
+	// wiersz kończył się wymuszonym złamaniem, więc wiersz wznowiony liczy się jak zwykły.
+	indent := box.Style.GetTextIndent()
+	textIndent := resolveOnePercentage(indent.TaggedDim, pr.PTextIndent, containingBlock.Box().Width.V()).V()
+	box.TextIndent = pr.Float(0)
 	return &lineBoxeIterator{
-		box: box, context: context, positionY: positionY, bottomSpace: bottomSpace, containingBlock: containingBlock,
+		textIndent: textIndent, hanging: indent.Hanging, eachLine: indent.EachLine,
+		indentNext: skipStack == nil && (!box.AfterBlock || indent.EachLine),
+		box:        box, context: context, positionY: positionY, bottomSpace: bottomSpace, containingBlock: containingBlock,
 		absoluteBoxes: absoluteBoxes, fixedBoxes: fixedBoxes, skipStack: skipStack, firstLetterStyle: firstLetterStyle,
 		firstLine: skipStack == nil,
 	}
@@ -119,7 +130,7 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bottomSpace pr.Float, skipStack tree.ResumeStack,
 	containingBlock_ Box, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
 	firstLetterStyle pr.ElementStyle, firstLine bool,
-) (line_ *bo.LineBox, resumeAt tree.ResumeStack) {
+) (line_ *bo.LineBox, resumeAt tree.ResumeStack, forcedBreak bool) {
 	if traceMode {
 		traceLogger.DumpTree(linebox, "getNextLinebox")
 	}
@@ -184,6 +195,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			&lineAbsolutes, &lineFixed, &linePlaceholders, &waitingFloats, nil)
 		context.lineStartX, context.lineTabUnit, context.inLine = savedStart, savedTabUnit, savedInLine
 		resumeAt, preservedLineBreak, floatWidths = spi.resumeAt, spi.preservedLineBreak, spi.floatWidths
+		forcedBreak = preservedLineBreak
 		line_ = spi.newBox.(*bo.LineBox) // splitInlineBox preserve the concrete type
 
 		if traceMode {
@@ -303,7 +315,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	}
 	line.Children = append(line.Children, floatChildren...)
 
-	return line_, resumeAt
+	return line_, resumeAt, forcedBreak
 }
 
 // firstLineBox (gopdfgo) zwraca kopię pudełka wiersza ze stylami przeliczonymi tak, jakby treść
