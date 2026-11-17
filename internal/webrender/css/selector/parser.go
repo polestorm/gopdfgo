@@ -416,9 +416,15 @@ func (p *parser) parseAttributeSelector() (attrSelector, error) {
 	}
 
 	// check if the attribute contains an ignore case flag
-	ignoreCase := false
+	// gopdfgo: w dokumencie HTML wartości atrybutów z listy w HTML § 4.16.2 („case-sensitivity of
+	// selectors”) porównujemy bez rozróżniania wielkości liter, chyba że selektor ma flagę s (Selectors 4
+	// § 6.3); źródło nie znało ani tej listy, ani flagi s
+	ignoreCase := htmlCaseInsensitiveAttributes[toLowerASCII(key)]
 	if p.s[p.i] == 'i' || p.s[p.i] == 'I' {
 		ignoreCase = true
+		p.i++
+	} else if p.s[p.i] == 's' || p.s[p.i] == 'S' {
+		ignoreCase = false
 		p.i++
 	}
 
@@ -962,4 +968,17 @@ func (p *parser) parseRelativeHas() (Sel, bool, error) {
 		return nil, true, errExpectedClosingParenthesis
 	}
 	return out, true, nil
+}
+
+// htmlCaseInsensitiveAttributes (gopdfgo): atrybuty, których wartości w dokumentach HTML są przy
+// dopasowaniu selektorów niewrażliwe na wielkość liter ASCII (HTML § 4.16.2).
+var htmlCaseInsensitiveAttributes = map[string]bool{
+	"accept": true, "accept-charset": true, "align": true, "alink": true, "axis": true, "bgcolor": true,
+	"charset": true, "checked": true, "clear": true, "codetype": true, "color": true, "compact": true,
+	"declare": true, "defer": true, "dir": true, "direction": true, "disabled": true, "enctype": true,
+	"face": true, "frame": true, "hreflang": true, "http-equiv": true, "lang": true, "language": true,
+	"link": true, "media": true, "method": true, "multiple": true, "nohref": true, "noresize": true,
+	"noshade": true, "nowrap": true, "readonly": true, "rel": true, "rev": true, "rules": true,
+	"scope": true, "scrolling": true, "selected": true, "shape": true, "target": true, "text": true,
+	"type": true, "valign": true, "valuetype": true, "vlink": true,
 }

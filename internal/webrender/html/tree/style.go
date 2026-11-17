@@ -1982,6 +1982,11 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 				}
 
 				tokens := pa.RemoveWhitespace(rule.Prelude)
+				// gopdfgo: znacznik końca arkusza w niezamkniętym url( nie jest częścią zapytania o media
+				// (CSS Syntax 3 § 4.3.6); w źródle unieważniał regułę
+				if n := len(tokens); n > 0 && pa.IsEOFError(tokens[n-1]) {
+					tokens = tokens[:n-1]
+				}
 				var url string
 				if len(tokens) > 0 {
 					switch str := tokens[0].(type) {

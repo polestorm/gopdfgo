@@ -919,6 +919,14 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- parser i selektory, 2026-11-17 (testy W3C `css/CSS2/syntax`, `selectors`):
+  - `css/parser/parser.go` (`parseDeclaration`, nowe `IsEOFError`), `html/tree/style.go` (`@import`): koniec
+    arkusza wewnątrz łańcucha albo `url(` to tylko błąd parsowania, a token pozostaje ważny (CSS Syntax 3
+    § 4.3.5, § 4.3.6); tokenizer dokłada za nim znacznik błędu, który w źródle unieważniał deklarację
+    i regułę `@import`;
+  - `css/selector/parser.go` (`htmlCaseInsensitiveAttributes`): wartości atrybutów z listy HTML § 4.16.2
+    (m.in. `lang`, `type`, `dir`) porównywane bez rozróżniania wielkości liter, flaga `s` to wyłącza
+    (Selectors 4 § 6.3); źródło nie znało ani listy, ani flagi `s`;
 - elementy pływające i clearance, 2026-11-17 (CSS 2.1 § 8.3.1, § 9.5, § 9.5.1, § 9.5.2, § 17.4; testy W3C
   `css/CSS2/floats`, `floats-clear`):
   - `html/layout/block.go` (`blockLevelLayout`, `blockBoxLayout`, `blockContainerLayout`, `inFlowLayout`,

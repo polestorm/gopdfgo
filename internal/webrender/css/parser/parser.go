@@ -115,8 +115,14 @@ func parseDeclaration(firstToken Token, tokens *TokensIter, nested bool) Compoun
 		containsSimpleBlock   = false
 	)
 	for tokens.HasNext() {
-		i += 1
 		token := tokens.Next()
+		// gopdfgo: koniec arkusza wewnątrz łańcucha albo url( to tylko błąd parsowania; token łańcucha
+		// i adresu zostaje ważny (CSS Syntax 3 § 4.3.5, § 4.3.6). Tokenizer dokłada za nim znacznik błędu,
+		// który w źródle unieważniał całą deklarację.
+		if IsEOFError(token) {
+			continue
+		}
+		i += 1
 		if state == sValue && IsLiteral(token, "!") {
 			state = sBang
 			bangPosition = i
@@ -159,6 +165,13 @@ func parseDeclaration(firstToken Token, tokens *TokensIter, nested bool) Compoun
 		Value:     value,
 		Important: state == sImportant,
 	}
+}
+
+// IsEOFError (gopdfgo): czy token jest znacznikiem końca arkusza wewnątrz łańcucha albo url(; to tylko
+// błąd parsowania, token przed nim pozostaje ważny (CSS Syntax 3 § 4.3.5, § 4.3.6).
+func IsEOFError(token Token) bool {
+	parseError, ok := token.(ParseError)
+	return ok && (parseError.kind == errEofInString || parseError.kind == errEofInUrl)
 }
 
 // Like `parseDeclaration`, but stop at the first “;“.

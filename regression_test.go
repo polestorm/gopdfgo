@@ -3036,6 +3036,10 @@ func TestRootPositioningTableOverflowAndInlineBlockBaseline(t *testing.T) {
 	same("no-clearance-large-child-margin", page+`<div style="border-top:1px solid white"><div style="float:left;width:50px;height:50px;background:blue"></div>
 		<div style="clear:left"><div style="margin-top:80px;width:50px;height:50px;background:green"></div></div></div>`,
 		page+`<div style="border-top:1px solid white"><div style="width:50px;height:50px;background:blue"></div><div style="margin-top:30px;width:50px;height:50px;background:green"></div></div>`)
+	// koniec arkusza wewnątrz łańcucha nie unieważnia deklaracji; lang porównywany bez wielkości liter
+	same("eof-in-string-and-lang-case", page+`<style>[lang="es"] { background: green } p::before { content: "x`+"\\"+`</style>
+		<p lang="ES" style="width:50px;height:20px;margin:0"></p>`,
+		page+`<p style="width:50px;height:20px;margin:0;background:green">x</p>`)
 	// inline-block z overflow: linia bazowa z ostatniego wiersza, gdy ten leży w pudełku
 	baseline := page + `<style>p { margin: 0; font: 20px/60px sans-serif } span { display: inline-block; line-height: 20px; height: 40px; margin-bottom: 8px }</style>`
 	same("inline-block-baseline", baseline+`<p>a <span style="overflow:hidden">b</span>`, baseline+`<p>a <span>b</span>`)
