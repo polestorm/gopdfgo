@@ -583,7 +583,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				newChild.Style.SetMaxWidth(pr.FToPx(pr.Inf))
 
 				child.FlexBaseSize = maxContentWidth(context, newChild_, false)
-				child.MainOuterExtra = maxContentWidth(context, child_, true) - child.FlexBaseSize
+				// gopdfgo: marginesy, obramowania i odstępy liczymy na tej samej kopii bez min- i max-width;
+				// źródło brało pudełko z max-width, więc przy treści szerszej niż max-width wychodziła
+				// wartość ujemna i element nie brał udziału w kurczeniu
+				child.MainOuterExtra = maxContentWidth(context, newChild_, true) - child.FlexBaseSize
 			} else {
 				// … the item’s min and max main sizes are ignored.
 				newChild.Style.SetMinHeight(pr.ZeroPixels.Tagged())
@@ -1097,16 +1100,18 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	if justifyContent.Has(pr.Normal) {
 		justifyContent = pr.JustifyOrAlign{pr.FlexStart}
 	}
+	// gopdfgo: „safe”: gdy elementy nie mieszczą się w osi głównej, wyrównanie działa jak start
+	// (CSS Align 3 § 4.4); źródło ignorowało to słowo. Zapamiętujemy je, bo zamiana flex-start
+	// i flex-end niżej zostawia samą wartość położenia.
+	safeJustify := justifyContent.Has(pr.Safe)
 	if strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") {
 		if justifyContent.Has(pr.FlexStart) {
 			justifyContent = pr.JustifyOrAlign{pr.FlexEnd}
 		} else if justifyContent.Has(pr.FlexEnd) {
 			justifyContent = pr.JustifyOrAlign{pr.FlexStart}
-		} else if justifyContent.Has(pr.Start) {
-			justifyContent = pr.JustifyOrAlign{pr.End}
-		} else if justifyContent.Has(pr.End) {
-			justifyContent = pr.JustifyOrAlign{pr.Start}
 		}
+		// gopdfgo: start i end odnoszą się do kierunku pisma, nie do osi głównej (CSS Align 3 § 4.1),
+		// więc przy kierunku odwróconym się nie zamieniają; źródło zamieniało je jak flex-start i flex-end.
 	}
 
 	for _, line := range flexLines {
@@ -1207,6 +1212,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					justifyContent = flexStart
 				}
 			}
+		}
+
+		if freeSpace < 0 && safeJustify {
+			justifyContent = pr.JustifyOrAlign{pr.FlexStart}
 		}
 
 		if box.Style.GetDirection() == pr.Rtl && main == pr.PWidth {
@@ -1806,6 +1815,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 						delta = top + box.Height.V() - (groupTop - top) - (groupBottom - groupTop) - groupTop
 					} else {
 						delta = top + box.Height.V() - (child.PositionY - top) - child.MarginHeight() - child.PositionY
+					}
+					// gopdfgo: „safe” w align-content: element wyższy niż kontener zostaje przy początku
+					// (górze), zamiast wystawać ponad kontener po odbiciu (CSS Align 3 § 4.4)
+					if alignContent.Has(pr.Safe) && len(finalLines) == 1 && child.MarginHeight() > box.Height.V() {
+						delta = top - child.PositionY
 					}
 					v.Translate(0, delta, false)
 					// gopdfgo: linię bazową kontenera wyznacza linia leżąca najwyżej, czyli po odwróceniu

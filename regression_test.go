@@ -2792,6 +2792,23 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	// min-width ogranicza szerokość kontenera kolumnowego wyliczoną z (braku) linii
 	same("column-wrap-min-width", `<div class=g style="display:flex;flex-flow:column wrap;column-gap:10px;width:max-content;min-width:100px;height:40px"></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
+	// element, który nie może się kurczyć, wnosi flex-basis do szerokości kontenera także gdy może rosnąć
+	same("basis-grow-no-shrink", `<div class=g style="display:flex;float:left;height:40px"><div style="flex:1 0 100px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
+	// flex-basis i max-width przy box-sizing: border-box opisują pudełko obramowania
+	same("basis-border-box", `<div class=g style="display:flex;width:max-content;height:40px">
+		<div style="flex:0 0 200px;border:10px solid transparent;box-sizing:border-box;max-width:100px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
+	// rozmiar bazowy z treści nie zależy od max-width: oba elementy kurczą się od 300 px
+	same("base-size-ignores-max-width", `<div style="display:flex;width:300px"><div class=g style="min-width:0;max-width:100px;height:40px"><div style="width:300px"></div></div>
+		<div class=b style="min-width:0;height:40px"><div style="width:300px"></div></div></div>`,
+		`<div style="display:flex;width:300px"><div class=g style="width:100px;height:40px"></div><div class=b style="width:200px;height:40px"></div></div>`)
+	// justify-content: end przy row-reverse to prawa krawędź (koniec w kierunku pisma), start to lewa
+	same("end-row-reverse", `<div style="display:flex;flex-direction:row-reverse;justify-content:end;width:200px"><div class=g style="width:50px;height:40px"></div></div>`,
+		`<div class=g style="margin-left:150px;width:50px;height:40px"></div>`)
+	// safe: element szerszy niż kontener zostaje przy początku zamiast wystawać w lewo
+	same("safe-overflow", `<div style="display:flex;flex-direction:row-reverse;justify-content:safe flex-start;width:90px;margin-left:50px"><div class=g style="flex:none;width:120px;height:40px"></div></div>`,
+		`<div class=g style="margin-left:50px;width:120px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
@@ -2845,6 +2862,11 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	// kontener siatki o podanej szerokości staje obok elementu pływającego, nie pod nim
 	same("grid-avoids-float", `<div class=b style="float:left;width:50px;height:100px"></div><div class=g style="display:grid;width:50px;height:100px"></div>`,
 		`<div class=b style="float:left;width:50px;height:100px"></div><div class=g style="margin-left:50px;width:50px;height:100px"></div>`)
+	// wiersze fr przy wysokości auto: ułamek z treści elementu, a przy sumie współczynników poniżej 1
+	// drugi przebieg w wysokości z pierwszego (2 x 0.4fr, element 100 px w drugim wierszu: wiersze po 32 px)
+	same("fr-rows-indefinite", `<div class=b style="display:grid;width:100px;grid-template-rows:repeat(2, minmax(0,0.4fr))">
+		<div class=g style="grid-row:2;height:100px"></div></div>`,
+		`<div class=b style="width:100px;height:80px"><div style="height:32px"></div><div class=g style="height:100px"></div></div>`)
 	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
 	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)

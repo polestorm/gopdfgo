@@ -702,6 +702,11 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 	// 1.2.1 Shim baseline-aligned items.
 	// TODO: Shim items.
 	// 1.2.2 Size tracks to fit non-spanning items.
+	// gopdfgo: wysokość treści elementów leżących w jednym wierszu elastycznym; przy nieokreślonej
+	// wysokości kontenera wyznacza ułamek fr (CSS Grid 1 § 11.7: wkład max-content elementu podzielony
+	// przez sumę współczynników, nie mniejszą niż 1). W źródle "TODO: Respect grid items max-content
+	// contribution", więc wiersz minmax(0, Nfr) z treścią miał wysokość zero.
+	frContent := make([]pr.Float, len(tracksSizes))
 	tracksChildren := make([][]Box, len(tracksSizes))
 	for child, rect := range childrenPositions {
 		x, y, width, height := rect.unpack()
@@ -744,6 +749,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				child, _, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, nil,
 					parent.Box(), true, nil, nil, nil, false, -1)
 				height = max(height, child.Box().MarginHeight())
+			}
+			if isFr(maxFunction) {
+				frContent[i] = height
 			}
 			if minFunction.Tag == pr.MinContent || minFunction.Tag == pr.MaxContent || minFunction.Tag == pr.Auto {
 				sizes[0] = height
@@ -1000,7 +1008,11 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				}
 			}
 		}
-		// TODO: Respect grid items max-content contribution.
+		for i, content := range frContent {
+			if maxFunction := sizingFunctions[i][1]; isFr(maxFunction) && content > 0 {
+				flexFraction = max(flexFraction, content/max(maxFunction.Value, 1))
+			}
+		}
 		// TODO: Respect min-* constraint.
 	}
 	for i, sizes := range tracksSizes {
@@ -1723,6 +1735,22 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 
 	contentHeight := pr.Float(-1)
+	// gopdfgo: gdy suma współczynników fr wierszy jest mniejsza od 1, wysokość kontenera wynika
+	// z pierwszego przebiegu, a wiersze są rozwiązywane drugi raz w tej już określonej wysokości
+	// (CSS Grid 1 § 11.1 krok 2 i § 11.7.1); źródło robiło jeden przebieg.
+	if box.Height == pr.AutoF && measure == nil && skipStack == nil && rowExtra == nil {
+		var factors pr.Float
+		for _, function := range rowSizingFunctions {
+			if isFr(function[1]) {
+				factors += function[1].Value
+			}
+		}
+		if factors > 0 && factors < 1 {
+			contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
+			rowsSizes = resolveTracksSizes(context, rowSizingFunctions, contentHeight, childrenPositions, implicitY1,
+				'y', rowGap, box_, columnsSizes)
+		}
+	}
 	if percentRowGap && skipStack == nil {
 		contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
 		rowGap = pr.ResolvePercentage(style.GetRowGap(), contentHeight).V()
@@ -1986,6 +2014,17 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		box.Height = sum0(rows) + pr.Float(max(len(rows)-1, 0))*rowGap
 		if contentHeight >= 0 && resumeRow == -1 {
 			box.Height = contentHeight
+		}
+		// gopdfgo: wysokość z wierszy jest ograniczana przez max-height i min-height kontenera
+		// (CSS 2.1 § 10.7); źródło ich tu nie stosowało, więc siatka z wierszami wyższymi niż
+		// max-height miała pełną wysokość wierszy. Tylko dla siatki niedzielonej między strony.
+		if skipStack == nil && resumeRow == -1 {
+			if maxHeight, ok := box.MaxHeight.(pr.Float); ok && maxHeight < box.Height.V() {
+				box.Height = maxHeight
+			}
+			if minHeight, ok := box.MinHeight.(pr.Float); ok && minHeight > box.Height.V() {
+				box.Height = minHeight
+			}
 		}
 	}
 	// Lay out grid items.

@@ -1086,6 +1086,9 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
 			if basis, ok := inflexibleBasis(context, box, child); ok {
+				if child.Box().Style.GetFlexGrow() != 0 && v > basis {
+					basis = v
+				}
 				v = basis
 			}
 			sum += v
@@ -1112,11 +1115,34 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bool) {
 	style := child.Box().Style
 	basis := style.GetFlexBasis()
+	// element, który nie może się kurczyć, nie zejdzie poniżej flex-basis; gdy może rosnąć, szerokość
+	// treści nadal może dać więcej
 	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") ||
-		style.GetFlexGrow() != 0 || style.GetFlexShrink() != 0 || basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
+		style.GetFlexShrink() != 0 || basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
 		return 0, false
 	}
-	width := adjust(child, true, basis.Value, true, true)
+	pixels := func(d pr.TaggedDim) pr.Float {
+		if d.Tag != 0 || d.Unit != pr.Px || d.Calc != nil {
+			return 0
+		}
+		return d.Value
+	}
+	var width pr.Float
+	if style.GetBoxSizing() == "border-box" {
+		// flex-basis, min-width i max-width opisują pudełko obramowania (§ 7.2.1)
+		frame := pixels(style.GetPaddingLeft()) + pixels(style.GetPaddingRight()) +
+			pixels(style.GetBorderLeftWidth()) + pixels(style.GetBorderRightWidth())
+		border := max(basis.Value, frame)
+		if maxWidth := style.GetMaxWidth(); maxWidth.Tag == 0 && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
+			border = min(border, max(maxWidth.Value, frame))
+		}
+		if minWidth := style.GetMinWidth(); minWidth.Tag == 0 && minWidth.Unit == pr.Px {
+			border = max(border, minWidth.Value)
+		}
+		width = border + pixels(style.GetMarginLeft()) + pixels(style.GetMarginRight())
+	} else {
+		width = adjust(child, true, basis.Value, true, true)
+	}
 	if minWidth := style.GetMinWidth(); minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone && style.GetOverflow() == "visible" {
 		width = max(width, minContentWidth(context, child, true))
 	}
@@ -1254,6 +1280,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
 			if basis, ok := inflexibleBasis(context, box, child); ok {
+				if child.Box().Style.GetFlexGrow() != 0 && v > basis {
+					basis = v
+				}
 				v = basis
 			}
 			sum += v

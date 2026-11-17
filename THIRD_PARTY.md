@@ -979,6 +979,9 @@ Wspólne dla obu katalogów:
     z wierszem;
   - `min-height` kontenera o wysokości auto: gdy treść jest niższa i jest ścieżka `auto`, wiersze są
     rozwiązywane ponownie w tej wysokości i ścieżki `auto` się rozciągają (§ 11.1, § 11.8);
+  - `resolveTracksSizes` (`frContent`), `gridLayoutPass`: przy nieokreślonej wysokości ułamek `fr`
+    wierszy wynika także z wysokości treści elementów (§ 11.7; w źródle TODO), a gdy suma współczynników
+    jest mniejsza od 1, wiersze są rozwiązywane drugi raz w wysokości z pierwszego przebiegu (§ 11.1);
   - `definiteTrackSize`: przy liczeniu powtórzeń `repeat(auto-fill | auto-fit, …)` maksimum ścieżki nie
     schodzi poniżej jej minimum, gdy oba są określone (§ 7.2.3.2);
   - niejawne nazwy linii z `grid-template-areas` (§ 7.3.2): każdy obszar daje nazwy `<obszar>-start`
@@ -1020,6 +1023,15 @@ Wspólne dla obu katalogów:
     elementów pływających dostaje szerokość wolnego pasa i jest układany ponownie (CSS 2.1 § 9.5);
   - `html/layout/flex.go` (krok 15): rozmiar poprzeczny wyliczony z linii jest ograniczany przez min-
     i max- kontenera (w źródle TODO); odstęp między liniami nie jest ujemny przy braku linii;
+  - `html/layout/preferred.go` (`inflexibleBasis`): do szerokości wewnętrznej kontenera wierszowego
+    wchodzi `flex-basis` każdego elementu, który nie może się kurczyć (także gdy może rosnąć); przy
+    `box-sizing: border-box` `flex-basis`, `min-width` i `max-width` opisują pudełko obramowania;
+  - `html/layout/flex.go` (krok 3.E): marginesy, obramowania i odstępy elementu przy rozmiarze bazowym
+    z treści liczone na kopii bez `max-width` (w źródle wartość ujemna, gdy treść była szersza niż
+    `max-width`, i element nie brał udziału w kurczeniu);
+  - `html/layout/flex.go` (krok 12): `justify-content: start` i `end` nie zamieniają się przy kierunku
+    odwróconym (CSS Align 3 § 4.1); słowo `safe` przy przepełnieniu daje wyrównanie do początku, także
+    w `align-content` przy `wrap-reverse` (§ 4.4); źródło `safe` ignorowało;
   - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
     ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
     rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne
