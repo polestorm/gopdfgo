@@ -2842,6 +2842,9 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	// tabulator i znaki nowego wiersza między elementami nie tworzą elementu flex także przy white-space: pre
 	same("flex-pre-whitespace-dropped", "<div style=\"display:flex;white-space:pre;justify-content:space-around;width:100px\"><div class=g style=\"width:20px;height:40px\"></div> \t\n </div>",
 		`<div class=g style="margin-left:40px;width:20px;height:40px"></div>`)
+	// flow-start działa jak flex-start (przy row-reverse: prawa krawędź)
+	same("flow-start-alias", `<div style="display:flex;flex-direction:row-reverse;justify-content:flow-start;width:100px"><div class=g style="width:20px;height:40px"></div></div>`,
+		`<div class=g style="margin-left:80px;width:20px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

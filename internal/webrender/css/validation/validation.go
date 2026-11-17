@@ -740,7 +740,16 @@ func getKeyword(token Token) string {
 
 func getKeywordT(token Token) pr.Keyword {
 	if ident, ok := token.(pa.Ident); ok {
-		return pr.NewKeyword(utils.AsciiLower(ident.Value))
+		// gopdfgo: flow-start i flow-end w układzie flex wyrównują jak flex-start i flex-end
+		// (CSS Align 3 § 4.3); źródło ich nie znało. Innych właściwości z tymi słowami nie ma.
+		switch keyword := utils.AsciiLower(ident.Value); keyword {
+		case "flow-start":
+			return pr.FlexStart
+		case "flow-end":
+			return pr.FlexEnd
+		default:
+			return pr.NewKeyword(keyword)
+		}
 	}
 	return 0
 }
