@@ -3157,7 +3157,8 @@ func textIndent(tokens []Token, _ string) pr.CssProperty {
 func textTransform(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
-	case "none", "uppercase", "lowercase", "capitalize", "full-width":
+	case "none", "uppercase", "lowercase", "capitalize", "full-width",
+		"math-auto": // gopdfgo: wartość z CSS Text 4 § 2.1.1, nieznana w źródle
 		return pr.String(keyword)
 	default:
 		return nil

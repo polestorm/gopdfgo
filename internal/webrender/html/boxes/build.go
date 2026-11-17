@@ -1957,35 +1957,92 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 // Capitalize words according to CSS’s "text-transform: capitalize".
 func capitalize(text string) string {
 	letterFound := false
+	return capitalizeLang(text, language.Und, &letterFound)
+}
+
+// capitalizeLang (gopdfgo) zamienia pierwszą literę każdego słowa na wielką literę tytułową
+// (titlecase, CSS Text 3 § 2.1.1), z odwzorowaniem pełnym (ligatura ﬁ -> Fi) i z regułami języka
+// (niderlandzkie ij -> IJ). letterFound przechodzi między pudełkami tekstu, bo słowo może być
+// podzielone na kilka elementów. W źródle: unicode.ToUpper na pojedynczym znaku, osobno w każdym
+// pudełku.
+func capitalizeLang(text string, lang language.Tag, letterFound *bool) string {
+	title := cases.Title(lang, cases.NoLower)
+	dutch := false
+	if base, _ := lang.Base(); base.String() == "nl" {
+		dutch = true
+	}
+	runes := []rune(text)
 	var out strings.Builder
-	for _, letter := range text {
+	for i := 0; i < len(runes); i++ {
+		letter := runes[i]
 		isLN := unicode.Is(unicode.L, letter) || unicode.Is(unicode.N, letter)
-		if !letterFound && isLN {
-			letterFound = true
-			letter = unicode.ToUpper(letter)
+		if !*letterFound && isLN {
+			*letterFound = true
+			if dutch && (letter == 'i' || letter == 'I') && i+1 < len(runes) && (runes[i+1] == 'j' || runes[i+1] == 'J') {
+				out.WriteString("IJ")
+				i++
+				continue
+			}
+			out.WriteString(title.String(string(letter)))
+			continue
 		} else if isZ := unicode.Is(unicode.Z, letter); isZ {
-			letterFound = false
+			*letterFound = false
 		}
 		out.WriteRune(letter)
 	}
 	return out.String()
 }
 
+// textTransformLanguage zwraca język treści dla reguł zmiany wielkości liter (CSS Text 3 § 2.1:
+// odwzorowanie zależy od języka elementu).
+func textTransformLanguage(style pr.ElementStyle) language.Tag {
+	if lang := style.GetLang().S; lang != "" {
+		if tag, err := language.Parse(lang); err == nil {
+			return tag
+		}
+	}
+	return language.Und
+}
+
 func ProcessTextTransform(box Box) {
+	// gopdfgo: capitalize zależy od tekstu przed pudełkiem, więc pudełka liniowe przetwarzamy dopiero
+	// z najbliższym przodkiem blokowym, który przechodzi cały swój tekst po kolei
+	_, inline := box.(*InlineBox)
+	letterFound := false
+	processTextTransform(box, !inline, &letterFound)
+}
+
+func processTextTransform(box Box, withCapitalize bool, letterFound *bool) {
 	if tb, ok := box.(*TextBox); ok {
 		text, style := tb.TextS(), tb.Style
 		textTransform := tb.Style.GetTextTransform()
 		if textTransform != "none" {
+			lang := textTransformLanguage(style)
 			switch textTransform {
-			// gopdfgo: pełne odwzorowanie wielkości liter z Unicode (CSS Text 3 § 2.1), np. ß -> SS;
-			// w źródle odwzorowanie proste, znak po znaku.
+			// gopdfgo: pełne odwzorowanie wielkości liter z Unicode (CSS Text 3 § 2.1), np. ß -> SS,
+			// z regułami języka elementu (np. greckie wielkie litery bez tonosu); w źródle odwzorowanie
+			// proste, znak po znaku.
 			case "uppercase":
-				text = cases.Upper(language.Und).String(text)
+				if base, _ := lang.Base(); base.String() == "el" {
+					text = greekUpper(text)
+				} else {
+					text = cases.Upper(lang).String(text)
+				}
 			case "lowercase":
-				text = cases.Lower(language.Und).String(text)
+				text = cases.Lower(lang).String(text)
 			// Python’s unicode.captitalize is not the same.
 			case "capitalize":
-				text = capitalize(text)
+				if !withCapitalize {
+					tb.Text = []rune(text)
+					return // gopdfgo: zrobi to przodek blokowy
+				}
+				text = capitalizeLang(text, lang, letterFound)
+			case "math-auto":
+				// gopdfgo: pojedynczy znak dostaje odpowiednik z kursywy matematycznej (CSS Text 4
+				// § 2.1.1, odwzorowanie z MathML Core § 8.3); dłuższy tekst zostaje bez zmian
+				if runes := []rune(text); len(runes) == 1 {
+					text = string(mathItalic(runes[0]))
+				}
 			case "full-width":
 				text = strings.Map(func(u rune) rune {
 					rep, in := asciiToWide[u]
@@ -1996,6 +2053,16 @@ func ProcessTextTransform(box Box) {
 				}, text)
 			}
 		}
+		if textTransform != "capitalize" && withCapitalize {
+			// stan słowa dla następnego pudełka z capitalize
+			for _, r := range text {
+				if unicode.Is(unicode.L, r) || unicode.Is(unicode.N, r) {
+					*letterFound = true
+				} else if unicode.Is(unicode.Z, r) {
+					*letterFound = false
+				}
+			}
+		}
 		if style.GetHyphens() == "none" {
 			text = strings.ReplaceAll(text, "\u00AD", "") //  U+00AD SOFT HYPHEN (SHY)
 		}
@@ -2004,7 +2071,7 @@ func ProcessTextTransform(box Box) {
 		// recursion
 		for _, child := range box.Box().Children {
 			if TextT.IsInstance(child) || InlineT.IsInstance(child) {
-				ProcessTextTransform(child)
+				processTextTransform(child, withCapitalize, letterFound)
 			}
 		}
 	}
