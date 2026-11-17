@@ -766,7 +766,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		for _, run := range line {
 			total += run.Advance
 		}
-		if total > mw {
+		// gopdfgo: wiersz, który mieści się po uwzględnieniu reszt zaokrągleń, zostaje (test WPT
+		// white-space-pre-034: 16 znaków ze spacjami nierozdzielającymi w pudełku o szerokości 16ch)
+		if total > mw && !fc.fitsPrecisely(line, text, total, wrapingMaxWidth) {
 			glyphs := line[len(line)-1].Glyphs
 			var trailing fixed.Int26_6
 			count := 0
@@ -871,9 +873,20 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 				lastRun = &line[len(line)-1]
 			}
 			keep := spaces
-			if content+spacesWidth > mw {
+			// gopdfgo: szerokość każdego glifu jest zaokrąglona do 1/64 piksela z błędem najwyżej pół
+			// jednostki, więc suma może przekroczyć dostępną szerokość, choć dokładna się mieści (zob.
+			// LineWrap); dopuszczamy taki błąd (test WPT white-space-pre-034)
+			limit := mw
+			if wrapingMaxWidth < pr.Float(math.MaxInt32>>6) {
+				glyphCount := 0
+				for _, run := range line {
+					glyphCount += len(run.Glyphs)
+				}
+				limit = max(mw, floatToFixed(pr.Fl(wrapingMaxWidth))+fixed.Int26_6(glyphCount+1)/2)
+			}
+			if content+spacesWidth > limit {
 				keep = 0
-				for used := content; keep < spaces && used+trailing[keep].Advance <= mw; keep++ {
+				for used := content; keep < spaces && used+trailing[keep].Advance <= limit; keep++ {
 					used += trailing[keep].Advance
 				}
 				keep = max(minKeep, keep)
@@ -1181,7 +1194,22 @@ func hangingExtra(runs shaping.Line, text []rune, style *TextStyle, dir di.Direc
 // contentWidth zwraca szerokość treści wiersza bez końcowych odstępów: zaokrągloną (1/64 px) oraz
 // dokładną, z resztami zaokrągleń (1/4096 px).
 func (fc *FontConfigurationGotext) contentWidth(line shaping.Line, text []rune) (rounded fixed.Int26_6, precise int64) {
-	trailing := true
+	return fc.lineWidth(line, text, true)
+}
+
+// fitsPrecisely (gopdfgo) mówi, czy cały wiersz (z końcowymi odstępami) o zaokrąglonej szerokości
+// total mieści się w maxWidth po uwzględnieniu reszt zaokrągleń (zob. LineWrap).
+func (fc *FontConfigurationGotext) fitsPrecisely(line shaping.Line, text []rune, total fixed.Int26_6, maxWidth pr.Float) bool {
+	if fc.residuals == nil || len(fc.residuals) != len(text) || maxWidth > math.MaxInt32>>6 || float64(total) > float64(maxWidth)*64+32 {
+		return false
+	}
+	_, precise := fc.lineWidth(line, text, false)
+	return float64(precise) <= float64(maxWidth)*64*shapingPrecision+1
+}
+
+// lineWidth zwraca szerokość wiersza, z skipTrailing bez końcowych odstępów (zob. contentWidth).
+func (fc *FontConfigurationGotext) lineWidth(line shaping.Line, text []rune, skipTrailing bool) (rounded fixed.Int26_6, precise int64) {
+	trailing := skipTrailing
 	for r := len(line) - 1; r >= 0; r-- {
 		glyphs := line[r].Glyphs
 		for g := len(glyphs) - 1; g >= 0; g-- {
