@@ -1923,7 +1923,7 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 			// CSS3: https://www.w3.org/TR/css3-text/#line-break-transform
 			text = strings.ReplaceAll(text, "\n", " ")
 		}
-		// gopdfgo: word-space-transform (CSS Text 4 § 3.1) zamienia spację zerowej szerokości (także
+		// gopdfgo: word-space-transform (CSS Text 4, #word-space-transform) zamienia spację zerowej szerokości (także
 		// z <wbr>) na spację albo spację ideograficzną między fazą 1 a 2 przetwarzania odstępów, więc
 		// wstawione spacje zwijają się z sąsiednimi jak zwykłe. Źródło właściwości nie znało.
 		if wst := string(box_.Style.GetWordSpaceTransform()); wst != "none" && strings.ContainsRune(text, '​') {
@@ -2049,7 +2049,7 @@ func processTextTransform(box Box, withCapitalize bool, letterFound *bool) {
 				text = capitalizeLang(text, lang, letterFound)
 			case "math-auto":
 				// gopdfgo: pojedynczy znak dostaje odpowiednik z kursywy matematycznej (CSS Text 4
-				// § 2.1.1, odwzorowanie z MathML Core § 8.3); dłuższy tekst zostaje bez zmian
+				// § 2.1.1, odwzorowanie z MathML Core, #italic-mappings); dłuższy tekst zostaje bez zmian
 				if runes := []rune(text); len(runes) == 1 {
 					text = string(mathItalic(runes[0]))
 				}

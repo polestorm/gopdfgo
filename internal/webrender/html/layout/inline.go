@@ -80,7 +80,7 @@ func (l *lineBoxeIterator) Has() bool {
 	} else {
 		l.box.TextIndent = pr.Float(0)
 	}
-	// gopdfgo: hyphenate-limit-lines (CSS Text 4 § 6.6): po tylu kolejnych wierszach zakończonych
+	// gopdfgo: hyphenate-limit-lines (CSS Text 4, #hyphenate-limit-lines): po tylu kolejnych wierszach zakończonych
 	// dzieleniem wyrazu następny wiersz nie dzieli wyrazów automatycznie. Źródło właściwości nie znało.
 	savedNoAutoHyphens := l.context.noAutoHyphens
 	if limit := l.box.Style.GetHyphenateLimitLines(); limit.Tag != pr.None && l.hyphenatedLines >= limit.I {
@@ -1343,7 +1343,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 
 		// gopdfgo: pudełko z wrap-inside: avoid, które musiało się złamać w środku, przechodzi w całości
-		// do następnego wiersza, jeśli tuż przed nim wolno złamać wiersz (CSS Text 4 § 5.4: podział
+		// do następnego wiersza, jeśli tuż przed nim wolno złamać wiersz (CSS Text 4, #wrap-inside: podział
 		// wewnątrz tylko w ostateczności). Pudełko zewnętrzne sprawdza to przed wewnętrznym, więc ma
 		// pierwszeństwo. Źródło właściwości nie znało.
 		if resumeAt != nil && canBreak == pr.True && !preserved && childSkipStack == nil &&
@@ -1781,7 +1781,7 @@ func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
 }
 
 // manualHyphensStyle (gopdfgo) wyłącza automatyczne dzielenie wyrazów (hyphens: auto działa jak
-// manual) po wyczerpaniu limitu hyphenate-limit-lines (CSS Text 4 § 6.6).
+// manual) po wyczerpaniu limitu hyphenate-limit-lines (CSS Text 4, #hyphenate-limit-lines).
 type manualHyphensStyle struct{ pr.StyleAccessor }
 
 func (manualHyphensStyle) GetHyphens() pr.String { return "manual" }

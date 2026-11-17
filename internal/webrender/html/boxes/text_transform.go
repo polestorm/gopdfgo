@@ -88,7 +88,7 @@ func greekUpper(text string) string {
 }
 
 // mathItalic (gopdfgo) zwraca znak z bloku Mathematical Alphanumeric Symbols odpowiadający literze
-// w kursywie matematycznej (MathML Core § 8.3, tabela italic); inne znaki zwraca bez zmian.
+// w kursywie matematycznej (MathML Core, #italic-mappings, tabela italic); inne znaki zwraca bez zmian.
 func mathItalic(r rune) rune {
 	switch {
 	case r == 'h':

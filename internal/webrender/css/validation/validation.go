@@ -2731,7 +2731,7 @@ func textJustify(tokens []Token, _ string) pr.CssProperty {
 	}
 }
 
-// gopdfgo: “wrap-inside“ (CSS Text 4 § 5.4): avoid odsuwa łamanie wewnątrz pudełka liniowego na
+// gopdfgo: “wrap-inside“ (CSS Text 4, #wrap-inside): avoid odsuwa łamanie wewnątrz pudełka liniowego na
 // ostateczność. Źródło właściwości nie znało.
 func wrapInside(tokens []Token, _ string) pr.CssProperty {
 	switch keyword := getSingleKeyword(tokens); keyword {
@@ -2742,7 +2742,7 @@ func wrapInside(tokens []Token, _ string) pr.CssProperty {
 	}
 }
 
-// gopdfgo: “hyphenate-limit-lines“ (CSS Text 4 § 6.6): no-limit albo nieujemna liczba całkowita
+// gopdfgo: “hyphenate-limit-lines“ (CSS Text 4, #hyphenate-limit-lines): no-limit albo nieujemna liczba całkowita
 // kolejnych wierszy zakończonych dzieleniem wyrazu. Źródło właściwości nie znało.
 func hyphenateLimitLines(tokens []Token, _ string) pr.CssProperty {
 	if len(tokens) != 1 {
@@ -2757,7 +2757,7 @@ func hyphenateLimitLines(tokens []Token, _ string) pr.CssProperty {
 	return nil
 }
 
-// gopdfgo: “word-space-transform“ (CSS Text 4 § 3.1): none | [ space | ideographic-space ] && auto-phrase?
+// gopdfgo: “word-space-transform“ (CSS Text 4, #word-space-transform): none | [ space | ideographic-space ] && auto-phrase?
 // Wartość obliczona to słowa kluczowe w kolejności z gramatyki. auto-phrase jest przyjmowane, ale
 // układ go nie używa (wymaga podziału tekstu na frazy). Źródło właściwości nie znało.
 func wordSpaceTransform(tokens []Token, _ string) pr.CssProperty {
@@ -3219,7 +3219,7 @@ func textTransform(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "none", "uppercase", "lowercase", "capitalize", "full-width",
-		"math-auto": // gopdfgo: wartość z CSS Text 4 § 2.1.1, nieznana w źródle
+		"math-auto": // gopdfgo: wartość z CSS Text 4, #valdef-text-transform-math-auto, nieznana w źródle
 		return pr.String(keyword)
 	default:
 		return nil
