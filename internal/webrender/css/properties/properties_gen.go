@@ -590,6 +590,9 @@ func (s Properties) SetObjectPosition(v CenterPos) { s[PObjectPosition] = v }
 func (s Properties) GetTextJustify() String  { return s[PTextJustify].(String) }
 func (s Properties) SetTextJustify(v String) { s[PTextJustify] = v }
 
+func (s Properties) GetTextWrapMode() String  { return s[PTextWrapMode].(String) }
+func (s Properties) SetTextWrapMode(v String) { s[PTextWrapMode] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1166,6 +1169,9 @@ type StyleAccessor interface {
 
 	GetTextJustify() String
 	SetTextJustify(v String)
+
+	GetTextWrapMode() String
+	SetTextWrapMode(v String)
 }
 
 var propsNames = [...]string{
@@ -1361,6 +1367,7 @@ var propsNames = [...]string{
 	PObjectFit:               "object-fit",
 	PObjectPosition:          "object-position",
 	PTextJustify:             "text-justify",
+	PTextWrapMode:            "text-wrap-mode",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1557,4 +1564,5 @@ var PropsFromNames = map[string]KnownProp{
 	"object-fit":                 PObjectFit,
 	"object-position":            PObjectPosition,
 	"text-justify":               PTextJustify,
+	"text-wrap-mode":             PTextWrapMode,
 }

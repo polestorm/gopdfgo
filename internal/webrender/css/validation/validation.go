@@ -261,6 +261,7 @@ var (
 		pr.PWordBreak:               wordBreak,
 		pr.PLineBreak:               lineBreak,
 		pr.PTextJustify:             textJustify,
+		pr.PTextWrapMode:            textWrapMode,
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2660,6 +2661,18 @@ func textJustify(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "auto", "none", "inter-word", "inter-character":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “text-wrap-mode“ (CSS Text 4 § 5.1): nowrap wyłącza miękkie łamanie wierszy bez zmiany
+// sposobu zwijania spacji. Źródło właściwości nie znało.
+func textWrapMode(tokens []Token, _ string) pr.CssProperty {
+	keyword := getSingleKeyword(tokens)
+	switch keyword {
+	case "wrap", "nowrap":
 		return pr.String(keyword)
 	default:
 		return nil

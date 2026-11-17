@@ -179,6 +179,7 @@ var InitialValues = Properties{
 	PWordBreak:           String("normal"),
 	PLineBreak:           String("auto"), // gopdfgo
 	PTextJustify:         String("auto"), // gopdfgo
+	PTextWrapMode:        String("wrap"), // gopdfgo
 	PWordSpacing:         TaggedDim{}, // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
@@ -312,6 +313,8 @@ const (
 	SGridTemplate
 	SGrid
 	SGap
+	SWhiteSpace // gopdfgo: white-space ustawia też text-wrap-mode (CSS Text 4 § 3)
+	STextWrap   // gopdfgo: z text-wrap działają wartości wrap i nowrap (CSS Text 4 § 5.4)
 )
 
 // NewShortand return the tag for 's' or 0 if not supported
@@ -387,6 +390,10 @@ func NewShortand(s string) Shortand {
 		return SGrid
 	case "gap":
 		return SGap
+	case "white-space":
+		return SWhiteSpace
+	case "text-wrap":
+		return STextWrap
 	default:
 		return 0
 	}
@@ -465,6 +472,10 @@ func (sh Shortand) String() string {
 		return "grid"
 	case SGap:
 		return "gap"
+	case SWhiteSpace:
+		return "white-space"
+	case STextWrap:
+		return "text-wrap"
 	default:
 		return ""
 	}

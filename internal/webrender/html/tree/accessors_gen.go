@@ -1925,3 +1925,11 @@ func (s *ComputedStyle) SetTextJustify(v pr.String) { s.propsCache.setKnown(pr.P
 
 func (s *AnonymousStyle) GetTextJustify() pr.String  { return s.Get(pr.PTextJustify.Key()).(pr.String) }
 func (s *AnonymousStyle) SetTextJustify(v pr.String) { s.propsCache.setKnown(pr.PTextJustify, v) }
+
+func (s *ComputedStyle) GetTextWrapMode() pr.String  { return s.Get(pr.PTextWrapMode.Key()).(pr.String) }
+func (s *ComputedStyle) SetTextWrapMode(v pr.String) { s.propsCache.setKnown(pr.PTextWrapMode, v) }
+
+func (s *AnonymousStyle) GetTextWrapMode() pr.String {
+	return s.Get(pr.PTextWrapMode.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetTextWrapMode(v pr.String) { s.propsCache.setKnown(pr.PTextWrapMode, v) }

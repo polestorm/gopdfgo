@@ -183,6 +183,7 @@ var (
 		PWordBreak,
 		PLineBreak,
 		PTextJustify,
+		PTextWrapMode,
 	)
 
 	// http://www.w3.org/TR/CSS21/tables.html#model

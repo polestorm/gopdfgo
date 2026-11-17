@@ -89,3 +89,21 @@ func TestWordSpacingPercentage(t *testing.T) {
 	same("inherited", `<div style="word-spacing:200%"><span style="font-size:10px">X X</span></div>`,
 		`<div><span style="font-size:10px;white-space:pre">X   X</span></div>`)
 }
+
+func TestTextWrapMode(t *testing.T) {
+	same := ahemComparer(t)
+	wrapped, single := `<div>XX<br>XX</div>`, `<div>XX XX</div>`
+	// nowrap wyłącza miękkie łamanie, spacje zwijają się jak dotąd
+	same("mode-nowrap", `<div style="width:60px;text-wrap-mode:nowrap">XX   XX</div>`, single)
+	same("shorthand-nowrap", `<div style="width:60px;text-wrap:nowrap">XX XX</div>`, single)
+	// pre-wrap bez zawijania zachowuje spacje
+	same("pre-wrap-nowrap", `<div style="width:60px;white-space:pre-wrap;text-wrap-mode:nowrap">XX  XX</div>`,
+		`<div style="white-space:pre">XX  XX</div>`)
+	// potomek przywraca zawijanie: text-wrap-mode: wrap znosi odziedziczone white-space: nowrap i odwrotnie
+	same("child-wrap", `<div style="width:60px;white-space:nowrap"><span style="text-wrap-mode:wrap">XX XX</span></div>`, wrapped)
+	same("child-white-space", `<div style="width:60px;text-wrap-mode:nowrap"><span style="white-space:normal">XX XX</span></div>`, wrapped)
+	// późniejsza deklaracja white-space znosi wcześniejsze text-wrap-mode
+	same("cascade", `<div style="width:60px;text-wrap-mode:nowrap;white-space:normal">XX XX</div>`, wrapped)
+	// wartości text-wrap spoza wrap i nowrap nie zmieniają zawijania
+	same("balance", `<div style="width:60px;text-wrap:balance">XX XX</div>`, wrapped)
+}
