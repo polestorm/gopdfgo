@@ -919,6 +919,21 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- `font-size-adjust`, 2026-11-17 (CSS Fonts 5 § 2.7; testy W3C `css-fonts/font-size-adjust-*`). Źródło
+  właściwości nie znało: deklaracja była odrzucana, a tekst składany zawsze w obliczonym rozmiarze fontu.
+  - `css/properties` (`PFontSizeAdjust`, dziedziczona, wartość `pr.SBoolFloat`: String = metryka,
+    Bool = from-font, Float = liczba), `css/validation/validation.go` (`fontSizeAdjust`): składnia
+    `none | [ ex-height | cap-height | ch-width | ic-width | ic-height ]? [ from-font | <number> ]`,
+    liczba także przez `calc()`;
+  - `text/style.go` (`TextStyle.SizeAdjust`), `text/fonts.go` i `text/engine_gotext.go`
+    (`sizeAdjustFactor`): mnożnik = podana liczba podzielona przez stosunek metryki pierwszego dostępnego
+    fontu do firetu (wysokość x i wersalików z tablicy OS/2, `ch` z posunięcia „0”, `ic` z U+6C34 albo 1em);
+  - `text/text.go` (`adjustedTextStyle`, `strutLayout`, `CharacterRatio`): tekst jest składany, mierzony
+    i rysowany w rozmiarze używanym; `line-height` podany liczbą mnoży nadal rozmiar obliczony; jednostki
+    `ex` i `ch` idą za rozmiarem używanym, `em` zostaje przy obliczonym;
+  - ograniczenia: fonty zastępcze dostają mnożnik fontu podstawowego (norma każe liczyć go dla każdego
+    fontu osobno), więc `from-font` nie zmienia rozmiaru; skrót `font` nie przywraca `none`; brak
+    współpracy z deskryptorami metryk w `@font-face`. Test: `font_size_adjust_test.go`;
 - CSS 2.1, ogon grup, 2026-11-17 (testy W3C `css/CSS2`):
   - `html/layout/pages.go` (`makePage`): element główny z `position: absolute` albo `fixed` jest układany
     jak pudełko pozycjonowane względem początkowego bloku zawierającego (§ 10.1 pkt 4); źródło ignorowało
@@ -1028,7 +1043,9 @@ Wspólne dla obu katalogów:
     `box-sizing: border-box` `flex-basis`, `min-width` i `max-width` opisują pudełko obramowania;
   - `html/layout/flex.go` (krok 3.E): marginesy, obramowania i odstępy elementu przy rozmiarze bazowym
     z treści liczone na kopii bez `max-width` (w źródle wartość ujemna, gdy treść była szersza niż
-    `max-width`, i element nie brał udziału w kurczeniu);
+    `max-width`, i element nie brał udziału w kurczeniu); test źródłowy `TestFlexImageMinWidth`
+    (`html/layout/flex_test.go`) oczekiwał 10 px, bo źródło doliczało `min-width` do marginesów przy
+    liczeniu wolnego miejsca; poprawiony według § 9.7 na 11,5 px;
   - `html/layout/flex.go` (krok 12): `justify-content: start` i `end` nie zamieniają się przy kierunku
     odwróconym (CSS Align 3 § 4.1); słowo `safe` przy przepełnieniu daje wyrównanie do początku, także
     w `align-content` przy `wrap-reverse` (§ 4.4); źródło `safe` ignorowało;

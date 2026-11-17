@@ -2023,5 +2023,9 @@ func TestFlexImageMinWidth(t *testing.T) {
 	body := unpack1(html)
 	article := unpack1(body)
 	img, div := unpack2(article)
-	assertEquals(t, article.Box().Height, img.Box().Height, img.Box().Width, div.Box().Height, Fl(10))
+	// gopdfgo: rozmiar bazowy obrazu to 4 px (szerokość własna, bez min-width), więc wolne miejsce
+	// 20 - 4 - 1 = 15 px dzieli się po równo: obraz ma 11,5 px, co spełnia min-width: 10px
+	// (CSS Flexbox 1 § 9.7). Test źródłowy oczekiwał 10 px, bo źródło doliczało min-width do
+	// marginesów elementu przy liczeniu wolnego miejsca.
+	assertEquals(t, article.Box().Height, img.Box().Height, img.Box().Width, div.Box().Height, Fl(11.5))
 }
