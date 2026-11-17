@@ -305,7 +305,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	// resolve gaps and stores it into rowGap.Value
 	if rowGap.Tag == pr.Normal {
 		rowGap.Value = 0
-	} else if rowGap.Unit == pr.Perc {
+	} else if rowGap.Unit == pr.Perc || rowGap.Calc != nil { // gopdfgo: także calc() z procentem
 		// gopdfgo: przez ResolvePercentage, żeby calc() z procentem zachowało część w pikselach
 		base := pr.Float(0)
 		if box.Height != pr.AutoF && !box.IndefiniteHeight {
@@ -315,10 +315,14 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 	if columnGap.Tag == pr.Normal {
 		columnGap.Value = 0
-	} else if columnGap.Unit == pr.Perc {
+	} else if columnGap.Unit == pr.Perc || columnGap.Calc != nil { // gopdfgo: także calc() z procentem
 		base := pr.Float(0)
 		if box.Width != pr.AutoF {
 			base = box.Width.V()
+		} else if horizontal := map[bool]pr.Float{true: availableMainSpace, false: availableCrossSpace}[main == pr.PWidth]; horizontal < pr.Inf {
+			// gopdfgo: kontener blokowy o szerokości auto ma szerokość pudełka zawierającego bez marginesów,
+			// obramowań i dopełnień (CSS 2 § 10.3.3); źródło liczyło wtedy procent od zera
+			base = max(horizontal, 0)
 		}
 		columnGap.Value = pr.ResolvePercentage(columnGap, base).V()
 	}
@@ -644,10 +648,17 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				newChild.Style.SetMaxWidth(pr.FToPx(pr.Inf))
 
 				child.FlexBaseSize = maxContentWidth(context, newChild_, false)
-				// gopdfgo: marginesy, obramowania i odstępy liczymy na tej samej kopii bez min- i max-width;
-				// źródło brało pudełko z max-width, więc przy treści szerszej niż max-width wychodziła
-				// wartość ujemna i element nie brał udziału w kurczeniu
-				child.MainOuterExtra = maxContentWidth(context, newChild_, true) - child.FlexBaseSize
+				// gopdfgo: marginesy, obramowania i odstępy bierzemy z wartości rozwiązanych względem kontenera;
+				// źródło liczyło je jako różnicę szerokości zewnętrznej i wewnętrznej pudełka z max-width, więc
+				// przy treści szerszej niż max-width wychodziła wartość ujemna, a marginesy procentowe
+				// (w szerokościach wewnętrznych równe zero) nie zmniejszały wolnego miejsca
+				child.MainOuterExtra = child.BorderLeftWidth.V() + child.BorderRightWidth.V() + child.PaddingLeft.V() + child.PaddingRight.V()
+				if child.MarginLeft != pr.AutoF {
+					child.MainOuterExtra += child.MarginLeft.V()
+				}
+				if child.MarginRight != pr.AutoF {
+					child.MainOuterExtra += child.MarginRight.V()
+				}
 			} else {
 				// … the item’s min and max main sizes are ignored.
 				newChild.Style.SetMinHeight(pr.ZeroPixels.Tagged())

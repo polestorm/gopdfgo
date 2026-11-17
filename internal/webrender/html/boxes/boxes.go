@@ -685,7 +685,11 @@ func EstablishesFormattingContext(box_ Box) bool {
 		(BlockT.IsInstance(box_) && (HasContainment(box_, "layout") || HasContainment(box_, "paint"))) ||
 		// gopdfgo: podpis tabeli zakłada kontekst formatowania blokowego (CSS 2 §17.4), więc marginesy
 		// jego dzieci nie wychodzą poza podpis; w źródle podpis nie był tu uwzględniony.
-		TableCaptionT.IsInstance(box_))
+		TableCaptionT.IsInstance(box_) ||
+		// gopdfgo: element flex i element siatki zakładają niezależny kontekst formatowania (CSS Flexbox 1
+		// § 4, CSS Grid 1 § 6.1); w źródle elementy pływające w środku dzieliły listę wykluczeń z otoczeniem
+		// i nie liczyły się do wysokości elementu
+		(BlockT.IsInstance(box_) && (box.IsFlexItem || box.IsGridItem)))
 }
 
 // ClipsOverflow (gopdfgo): czy pudełko przycina treść według overflow. Właściwość dotyczy kontenerów

@@ -1132,6 +1132,12 @@ func _expandFlex(_ string, _ pr.Shortand, tokens []Token) (out []namedTokens, er
 			// must be interpreted as a flex factor."
 			number, ok := token.(pa.Number)
 			forcedFlexFactor := ok && number.Int() == 0 && !(growFound && shrinkFound)
+			// gopdfgo: calc() o wyniku liczbowym to współczynnik, nie flex-basis (CSS Flexbox 1 § 7.1)
+			if _, isFunction := token.(pa.FunctionBlock); isFunction && !(growFound && shrinkFound) {
+				if _, isFactor := _flexGrowShrink([]Token{token}); isFactor {
+					forcedFlexFactor = true
+				}
+			}
 			if !basisFound && !forcedFlexFactor {
 				newBasis := flexBasis([]Token{token}, "")
 				if newBasis != nil {

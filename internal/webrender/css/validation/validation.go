@@ -3289,6 +3289,23 @@ func _flexGrowShrink(tokens []Token) (pr.Fl, bool) {
 		}
 		return number.ValueF, true
 	}
+	// gopdfgo: calc() o wyniku liczbowym, także calc(infinity); wartość ujemna przycinana do zera,
+	// nieskończoność do największej skończonej (CSS Values 4 § 10.12, § 10.9); źródło calc() odrzucało
+	if function, ok := token.(pa.FunctionBlock); ok {
+		node := parseCalcFunction(function)
+		if node == nil {
+			return 0, false
+		}
+		result, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v })
+		if err != nil || !result.IsNumber || math.IsNaN(float64(result.Pixels)) {
+			return 0, false
+		}
+		value := max(0, float64(result.Pixels))
+		if math.IsInf(value, 1) {
+			value = math.MaxFloat32
+		}
+		return pr.Fl(value), true
+	}
 	return 0, false
 }
 

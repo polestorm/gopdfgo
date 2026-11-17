@@ -1143,6 +1143,17 @@ Wspólne dla obu katalogów:
   - `html/layout/block.go` (`blockContainerLayout`): dolny margines ostatniego dziecka zostaje w elemencie
     flex i siatki (własny kontekst formatowania, CSS Flexbox 1 § 3, CSS Grid 1 § 6.1); źródło zachowywało
     tylko górny;
+  - `css/validation/calc.go` (`calcValue`): stałe `infinity`, `-infinity`, `pi`, `e` w `calc()` (CSS Values 4
+    § 10.7.1); `validation.go` (`_flexGrowShrink`) i `expanders.go` (`_expandFlex`): `flex-grow`
+    i `flex-shrink` przyjmują `calc()` o wyniku liczbowym, także w skrócie `flex`; nieskończoność przycinana
+    do największej skończonej wartości (§ 10.9). Źródło `calc()` w tych właściwościach odrzucało;
+  - `html/layout/flex.go` (krok 2, krok 3.E): procentowy `row-gap`/`column-gap`, także w `calc()`, liczony
+    w kontenerze o szerokości auto od szerokości dostępnej (źródło: od zera); marginesy, obramowania i odstępy
+    elementu przy rozmiarze bazowym z treści brane z wartości rozwiązanych (źródło liczyło je przez szerokość
+    wewnętrzną, w której marginesy procentowe są zerem, więc nie zmniejszały wolnego miejsca);
+  - `html/boxes/boxes.go` (`EstablishesFormattingContext`): element flex i element siatki zakładają
+    niezależny kontekst formatowania (CSS Flexbox 1 § 4, CSS Grid 1 § 6.1); w źródle elementy pływające
+    w środku dzieliły listę wykluczeń z otoczeniem, nachodziły na siebie i nie liczyły się do wysokości;
   - `html/layout/flex.go` (koniec `flexLayout`), `absolute.go` (`AbsolutePlaceholder.Translate`): pozycja
     statyczna dziecka pozycjonowanego bezwzględnie w kontenerze flex to miejsce jedynego elementu flex jego
     rozmiaru, wyrównanego według `justify-content` i `align-self` (CSS Flexbox 1 § 4.1), przez

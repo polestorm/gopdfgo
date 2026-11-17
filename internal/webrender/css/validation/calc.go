@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"math"
 	"strings"
 
 	pa "github.com/polestorm/gopdfgo/internal/webrender/css/parser"
@@ -150,6 +151,18 @@ func calcValue(token pa.Token) *pr.CalcNode {
 		return calcSum(withoutWhitespace(token.Arguments))
 	case pa.FunctionBlock:
 		return calcFunction(token)
+	case pa.Ident:
+		// gopdfgo: stałe liczbowe calc() (CSS Values 4 § 10.7.1); źródło ich nie znało
+		switch strings.ToLower(string(token.Value)) {
+		case "infinity":
+			return &pr.CalcNode{Value: pr.Float(math.Inf(1)), Unit: pr.Scalar}
+		case "-infinity":
+			return &pr.CalcNode{Value: pr.Float(math.Inf(-1)), Unit: pr.Scalar}
+		case "pi":
+			return &pr.CalcNode{Value: math.Pi, Unit: pr.Scalar}
+		case "e":
+			return &pr.CalcNode{Value: math.E, Unit: pr.Scalar}
+		}
 	}
 	return nil
 }

@@ -2827,6 +2827,18 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	same("abspos-static-in-flex", `<div style="position:relative;float:left;margin-left:20px;display:flex;justify-content:center;align-items:flex-end;width:100px;height:100px">
 		<div class=g style="position:absolute;width:40px;height:20px"></div></div>`,
 		`<div class=g style="margin:80px 0 0 50px;width:40px;height:20px"></div>`)
+	// element flex zakłada własny kontekst formatowania: elementy pływające w nim stoją obok siebie
+	// i liczą się do jego wysokości
+	same("flex-item-contains-floats", `<div style="display:flex;width:100px"><div class=b style="flex:none">
+		<div class=g style="float:left;width:30px;height:40px"></div><div class=g style="float:left;width:30px;height:40px"></div></div></div>`,
+		`<div class=g style="width:60px;height:40px"></div>`)
+	// procentowy gap w kontenerze o szerokości auto i procentowy margines elementu zmniejszają wolne miejsce
+	same("percent-gap-and-margin", `<div style="width:400px"><div style="display:flex;gap:calc(10% - 20px)">
+		<div class=g style="flex:1 1 auto;height:40px"></div><div class=b style="flex:1 1 auto;height:40px;margin-left:10%"></div></div></div>`,
+		`<div style="display:flex;width:400px"><div class=g style="width:170px;height:40px"></div><div class=b style="margin-left:60px;width:170px;height:40px"></div></div>`)
+	// współczynnik calc(infinity) w skrócie flex zabiera całe wolne miejsce
+	same("flex-grow-infinity", `<div style="display:flex;width:100px;height:40px"><div class=g style="flex:calc(infinity) 0 0px"></div><div class=b style="flex:1 0 0px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
