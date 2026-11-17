@@ -1214,7 +1214,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		resumeAt                  tree.ResumeStack
 		children, waitingChildren []indexedBoxC
 		firstLetter, lastLetter   rune
-		lastBreakAll              bool // gopdfgo: poprzednie dziecko ma word-break: break-all
+		lastStyle                 pr.ElementStyle // gopdfgo: styl poprzedniego dziecka w przepływie
 		preservedLineBreak        = false
 		floatWidths               widths
 	)
@@ -1317,7 +1317,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				// (CSS Text 3 § 5.2) także na granicy elementów: liczy się styl strony, z której pochodzi
 				// znak. W źródle granica elementów zawsze sprawdzała same znaki.
 				a, b := lastLetter, first
-				if lastBreakAll && (unicode.IsLetter(a) || unicode.IsDigit(a)) {
+				if lastStyle != nil && lastStyle.GetWordBreak() == "break-all" && (unicode.IsLetter(a) || unicode.IsDigit(a)) {
 					a = '\u4e00'
 				}
 				if child.Style.GetWordBreak() == "break-all" && (unicode.IsLetter(b) || unicode.IsDigit(b)) {
@@ -1352,7 +1352,8 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		} else {
 			lastLetter = last
 		}
-		lastBreakAll = child.Style.GetWordBreak() == "break-all"
+		previousStyle := lastStyle
+		lastStyle = child.Style
 
 		if asTextBox, ok := newChild.(*bo.TextBox); newChild == nil || (ok && asTextBox == nil) {
 			// May be nil where we have an empty TextBox.
@@ -1378,6 +1379,16 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				// możliwy tylko wewnątrz jednego fragmentu tekstu.
 				// Tylko na poziomie wiersza: dopiero tu wiadomo, że wcześniej w wierszu nie było
 				// miejsca podziału (słowo, które mieści się w następnym wierszu, przechodzi do niego całe).
+				// gopdfgo: granica elementów jest awaryjnym miejscem podziału także wtedy, gdy łamanie
+				// w dowolnym miejscu pozwala styl tekstu przed nią (overflow-wrap: anywhere na elemencie,
+				// który kończy się przed pudełkiem niemieszczącym się w wierszu)
+				if bo.LineT.IsInstance(box_) && !breaksAnywhere(child.Style, false) && previousStyle != nil &&
+					breaksAnywhere(previousStyle, false) && !breakAllOnly(previousStyle) && len(waitingChildren) != 0 {
+					children = append(children, waitingChildren...)
+					waitingChildren = nil
+					resumeAt = tree.ResumeStack{index: nil}
+					break
+				}
 				if bo.LineT.IsInstance(box_) && breaksAnywhere(child.Style, false) {
 					// najpierw próba złamania samego pudełka tak, żeby jego początek dopełnił wiersz
 					savedForce := context.forceWordBreak
