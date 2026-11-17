@@ -2172,7 +2172,7 @@ func countExpandableSpaces(box Box) int {
 		}
 		var count int
 		for _, r := range text {
-			if r == ' ' || r == '\u00a0' {
+			if isWordSeparator(r) {
 				count++
 			}
 		}
@@ -2186,6 +2186,18 @@ func countExpandableSpaces(box Box) int {
 	} else {
 		return 0
 	}
+}
+
+// isWordSeparator (gopdfgo) mówi, czy znak jest separatorem słów, czyli miejscem justowania
+// (CSS Text 3 § 6.4 i 4.3: spacja, spacja nierozdzielająca i separatory słów innych pism). Lista
+// zgadza się z tą, którą go-text poszerza przy justowaniu (shaping.AddWordSpacing); w źródle liczyły
+// się tylko spacja i spacja nierozdzielająca, więc odstęp wychodził za szeroki.
+func isWordSeparator(r rune) bool {
+	switch r {
+	case ' ', '\u00a0', '\u1361', '\U00010100', '\U00010101', '\U0001039F', '\U0001091F':
+		return true
+	}
+	return false
 }
 
 func addWordSpacing(context *layoutContext, box_ Box, justificationSpacing, xAdvance pr.Float) pr.Float {

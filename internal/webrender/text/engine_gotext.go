@@ -320,14 +320,12 @@ func (l *TextLayoutGotext) ApplyJustification() {
 			}
 		}
 	}
-	// gopdfgo: spacje przed początkiem justowania (część wiersza przed ostatnim tabulatorem) zasłaniamy
-	// znakiem, który nie jest odstępem, żeby AddSpacing ich nie poszerzał
+	// gopdfgo: tekst przed początkiem justowania (część wiersza przed ostatnim tabulatorem) zasłaniamy
+	// znakiem, który nie jest separatorem słów, żeby AddSpacing go nie poszerzał
 	if l.justifyStart > 0 {
 		text = append([]rune(nil), text...)
 		for i := 0; i < l.justifyStart && i < len(text); i++ {
-			if text[i] == ' ' || text[i] == '\u00a0' {
-				text[i] = 'x'
-			}
+			text[i] = 'x'
 		}
 	}
 	// wiszące spacje na końcu wiersza zachowują swoją szerokość
