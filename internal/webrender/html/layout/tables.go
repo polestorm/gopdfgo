@@ -1462,6 +1462,13 @@ func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr
 			if result != nil {
 				return result
 			}
+			// gopdfgo: blok z overflow innym niż visible bez wierszy w środku ma przy szukaniu ostatniej
+			// linii bazowej linię bazową na dolnej krawędzi marginesu (jak samo inline-block z overflow,
+			// CSS 2.1 § 10.8.1; tak robi Chromium, test WPT baseline-block-with-overflow-001); w źródle
+			// szukanie szło dalej, do wcześniejszych pudełek.
+			if last && bo.BlockT.IsInstance(child) && child.Box().Style.GetOverflow() != "visible" {
+				return child.Box().PositionY + child.Box().MarginHeight()
+			}
 		}
 	}
 	// gopdfgo: kontener flex w wierszu, którego elementy nie mają linii bazowej, ma ją syntetyzowaną
