@@ -1199,6 +1199,9 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		firstLetter, lastLetter   rune
 		preservedLineBreak        = false
 		floatWidths               widths
+		// gopdfgo: położenie, od którego wiersz kończy się samymi wiszącymi odstępami (-1: nie kończy się
+		// nimi); pozwala uznać za wiszący ciąg odstępów rozłożony na kilka pudełek
+		hangStart pr.Float = -1
 	)
 
 	for ; i < L; i++ {
@@ -1321,7 +1324,27 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			}
 			// Check that text doesn’t overflow.
 			newPositionX := newChild.Box().PositionX + newChild.Box().MarginWidth()
-			if newPositionX-trailingWhitespaceSize(context, newChild, true)-trailingPreservedWidth(newChild) > maxX {
+			// gopdfgo: pudełko o zerowej szerokości (np. <wbr>, pusty element) nie może przepełnić wiersza;
+			// gdy wiersz wystaje już przed nim, to przez wiszące odstępy poprzedniego tekstu, przyjęte
+			// wcześniej (CSS Text 3 § 4.1.3; test WPT trailing-other-space-separators-002). Źródło
+			// sprawdzało je jak każde inne i łamało wiersz przed tym tekstem.
+			// gopdfgo: pudełko złożone z samych wiszących odstępów przedłuża ciąg odstępów poprzedniego
+			// pudełka, więc treść wiersza kończy się tam, gdzie ten ciąg się zaczyna (CSS Text 3 § 4.1.3)
+			width, trailing := newChild.Box().MarginWidth(), trailingWhitespaceSize(context, newChild, true)+trailingPreservedWidth(newChild)
+			contentEnd := newPositionX - trailing
+			if width != 0 && trailing >= width {
+				contentEnd = newChild.Box().PositionX
+				if hangStart >= 0 {
+					contentEnd = hangStart
+				}
+			}
+			if width != 0 {
+				hangStart = -1
+				if trailing > 0 {
+					hangStart = contentEnd
+				}
+			}
+			if width != 0 && contentEnd > maxX {
 				// Text overflows, find previous break point.
 				previousResumeAt := breakWaitingChildren(context, containingBlock, bottomSpace, initialSkipStack, absoluteBoxes, fixedBoxes,
 					linePlaceholders, waitingFloats, lineChildren, &children, waitingChildren)

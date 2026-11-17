@@ -437,10 +437,28 @@ func orZero(v pr.MaybeFloat) pr.Float {
 
 // Yield line width for each line.
 // firstLine=false
+//
+// gopdfgo: wiszące odstępy inne niż spacja (np. U+3000, U+2000–U+200A) na końcu ostatniego wiersza
+// tekstu nie są odejmowane od razu, bo za tekstem może być dalsza treść tego samego wiersza (choćby
+// w następnym pudełku); wiszą tylko na końcu wiersza (CSS Text 3 § 4.1.3). Odejmujemy je przy
+// złamaniu wiersza i na końcu treści.
 func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 	minimum bool, skipStack tree.ResumeStack, firstLine bool,
 ) []pr.Float {
+	out, hang := inlineLineWidthsHang(context, box_, outer, isLineStart, minimum, skipStack, firstLine)
+	if last := len(out) - 1; hang != 0 && !(firstLine && last > 0) {
+		out[last] = max(0, out[last]-hang)
+	}
+	return out
+}
+
+// inlineLineWidthsHang (gopdfgo) działa jak inlineLineWidths, ale wiszących odstępów na końcu
+// ostatniego wiersza nie odejmuje, tylko zwraca ich szerokość.
+func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
+	minimum bool, skipStack tree.ResumeStack, firstLine bool,
+) (_ []pr.Float, trailingHang pr.Float) {
 	var (
+		pendingHang             pr.Float // gopdfgo: wiszące odstępy na końcu bieżącego wiersza
 		textIndent, currentLine pr.Float
 		lineEnded               bool     // gopdfgo: przy firstLine pierwszy wiersz skończył się wewnątrz
 		restIndent              pr.Float // gopdfgo: wcięcie wierszy po pierwszym
@@ -480,9 +498,11 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		firstLineEnds := false
 		// nil is used in "lines" to track line breaks, transformed to 0 when yielded.
 		var lines []pr.MaybeFloat
+		var childHang pr.Float // gopdfgo: wiszące odstępy na końcu ostatniego wiersza dziecka
 		if bo.InlineT.IsInstance(child) {
 			// Inline box, call function recursively.
-			lines_ := inlineLineWidths(context, child, outer, isLineStart, minimum, skipStack, firstLine)
+			lines_, nestedHang := inlineLineWidthsHang(context, child, outer, isLineStart, minimum, skipStack, firstLine)
+			childHang = nestedHang
 			// gopdfgo: przy pierwszym wierszu złamanie wewnątrz pudełka (np. <br>) kończy wiersz, więc dalsze
 			// dzieci się nie liczą; w źródle szerokość następnego słowa doliczała się do pierwszego wiersza,
 			// a wiersz z samym <br> obok elementu pływającego spadał pod niego (test WPT
@@ -531,6 +551,11 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 					context, maxWidth, true, isLineStart)
 				newResumeIndex = tmp.ResumeAt
 				lineWidth := tmp.Width - tmp.Hang
+				childHang = 0
+				if newResumeIndex == -1 {
+					// gopdfgo: ostatni wiersz tekstu: odstępy wiszą tylko, gdy wiersz tu się kończy
+					lineWidth, childHang = tmp.Width, tmp.Hang
+				}
 				if minimum && whiteSpace == pr.PreWrap && newResumeIndex > 0 {
 					// gopdfgo: zachowane spacje na końcu złamanego wiersza wiszą poza nim i nie liczą się
 					// do szerokości min-content (CSS Text 3 § 4.1.3); źródło je doliczało
@@ -579,6 +604,13 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 				// Add all possible line breaks for minimal width.
 				lines = append(lines, nil)
 			}
+			if len(lines) > 1 && childHang != 0 && lines[len(lines)-1] == nil {
+				// gopdfgo: po tekście jest złamanie wiersza, więc jego końcowe odstępy wiszą
+				if i := len(lines) - 2; lines[i] != nil {
+					lines[i] = max(0, lines[i].V()-childHang)
+				}
+				childHang = 0
+			}
 		} else {
 			// Replaced elements, inline blocks…
 			// https://www.w3.org/TR/css3-text/#line-break-details
@@ -602,6 +634,9 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		}
 		// The first text line goes on the current line
 		currentLine += orZero(lines[0])
+		if orZero(lines[0]) != 0 {
+			pendingHang = 0
+		}
 		if firstLineEnds {
 			lineEnded = true
 			break
@@ -609,7 +644,8 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 		if len(lines) > 1 {
 			// Forced line break(s).
 			// gopdfgo: ujemne wcięcie nie daje ujemnej szerokości wiersza
-			out = append(out, max(0, currentLine+textIndent))
+			out = append(out, max(0, currentLine-pendingHang+textIndent))
+			pendingHang = 0
 			textIndent = restIndent
 			if len(lines) > 2 {
 				for _, v := range lines[1 : len(lines)-1] {
@@ -618,6 +654,9 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 			}
 			currentLine = orZero(lines[len(lines)-1])
 		}
+		if childHang != 0 {
+			pendingHang = childHang
+		}
 		isLineStart = lines[len(lines)-1] == nil
 		skipStack = nil
 	}
@@ -625,8 +664,9 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 	if lineEnded {
 		// gopdfgo: znak dla wywołującego, że pierwszy wiersz skończył się w tym pudełku
 		out = append(out, 0)
+		pendingHang = 0
 	}
-	return out
+	return out, pendingHang
 }
 
 // Return the percentage contribution of a cell, column or column group.
