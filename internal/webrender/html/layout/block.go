@@ -65,14 +65,19 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 			box_.MarginTop = pr.Float(0)
 		}
 
-		if context.currentPage > 1 && pageIsEmpty {
+		// gopdfgo: także na początku kolejnej kolumny (CSS Fragmentation 3 § 5.2); w źródle tylko na
+		// początku strony innej niż pierwsza.
+		if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty {
 			// When an unforced break occurs before or after a block-level box,
 			// any margins adjoining the break are truncated to zero.
-			if collapseWithPage := containingBlock.IsForRootElement || len(*adjoiningMargins) != 0; collapseWithPage {
+			// gopdfgo: pierwsze pudełko kolumny po podziale kolumn przylega do podziału tak jak pierwsze
+			// pudełko strony, choć kolumna nie zwija marginesów z dziećmi
+			if collapseWithPage := containingBlock.IsForRootElement || len(*adjoiningMargins) != 0 ||
+				(containingBlock.IsColumn && context.columnBreak != columnBreakNone); collapseWithPage {
 				if box_.Style.GetMarginBreak() == "discard" {
 					box_.MarginTop = pr.Float(0)
 				} else if box_.Style.GetMarginBreak() == "auto" {
-					if !context.forcedBreak {
+					if !forcedBreak {
 						box_.MarginTop = pr.Float(0)
 					}
 				}
@@ -1390,8 +1395,8 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			childMarginTop := child.MarginTop
 			if childMarginTop == pr.AutoF {
 				childMarginTop = pr.Float(0)
-			} else if context.currentPage > 1 && pageIsEmpty {
-				if mb := box.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !context.forcedBreak) {
+			} else if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty {
+				if mb := box.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !forcedBreak) {
 					childMarginTop = pr.Float(0)
 				}
 			}
@@ -1433,8 +1438,8 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			// gopdfgo: margines przylegający do zwykłego podziału strony jest obcinany do zera także
 			// dla kontenerów flex i siatki oraz elementów zastępowanych (CSS Fragmentation 3 § 5.2).
 			// W źródle robiły to tylko bloki, bo tylko one dostają adjoiningMargins.
-			if context.currentPage > 1 && pageIsEmpty && !hasPlacedChild(newChildren) {
-				if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !context.forcedBreak) {
+			if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty && !hasPlacedChild(newChildren) {
+				if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !forcedBreak) {
 					marginTop = 0
 					child.MarginTopTruncated = true
 				}
