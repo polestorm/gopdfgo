@@ -350,13 +350,20 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvas
 	if bo.MarginT.IsInstance(rootBox_) {
 		panic("unexpected margin box as first child of page")
 	}
+	// gopdfgo: gdy element główny jest tabelą, jego tło leży na pudełku tabeli wewnątrz pudełka
+	// opakowującego; to ono przechodzi na płótno (CSS 2.1 § 14.2). Źródło patrzyło tylko na pudełko
+	// opakowujące, które tła nie ma.
+	if rootBox.IsTableWrapper && rootBox.Background == nil {
+		if table := rootBox.GetWrappedTable(); table != nil && table.Box().Background != nil {
+			rootBox_, rootBox = table, table.Box()
+		}
+	}
 	chosenBox_ := rootBox_
 	if strings.ToLower(rootBox.ElementTag()) == "html" && rootBox.Background == nil {
-		for _, child := range rootBox.Children {
-			if strings.ToLower(child.Box().ElementTag()) == "body" {
-				chosenBox_ = child
-				break
-			}
+		// gopdfgo: body bywa głębiej niż bezpośrednie dziecko, gdy element główny jest tabelą (pudełka
+		// anonimowe wiersza i komórki) albo gdy body jest pozycjonowane
+		if body := findBodyBox(rootBox_, 6); body != nil {
+			chosenBox_ = body
 		}
 	}
 	chosenBox := chosenBox_.Box()
@@ -378,4 +385,30 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvas
 	} else {
 		page.CanvasBackground = nil
 	}
+}
+
+// findBodyBox szuka pudełka elementu body wśród potomków elementu głównego, do podanej głębokości.
+func findBodyBox(box Box, depth int) Box {
+	if placeholder, ok := box.(*AbsolutePlaceholder); ok {
+		box = placeholder.AliasBox
+	}
+	for _, child := range box.Box().Children {
+		if strings.ToLower(child.Box().ElementTag()) == "body" {
+			if placeholder, ok := child.(*AbsolutePlaceholder); ok {
+				return placeholder.AliasBox
+			}
+			return child
+		}
+	}
+	if depth > 0 {
+		for _, child := range box.Box().Children {
+			if tag := strings.ToLower(child.Box().ElementTag()); tag != "html" && tag != "" {
+				continue // tylko pudełka anonimowe elementu głównego
+			}
+			if found := findBodyBox(child, depth-1); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }

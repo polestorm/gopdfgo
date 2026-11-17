@@ -919,6 +919,26 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- CSS 2.1, ogon grup, 2026-11-17 (testy W3C `css/CSS2`):
+  - `html/layout/pages.go` (`makePage`): element główny z `position: absolute` albo `fixed` jest układany
+    jak pudełko pozycjonowane względem początkowego bloku zawierającego (§ 10.1 pkt 4); źródło ignorowało
+    `position` na elemencie głównym;
+  - `html/layout/background.go` (`layoutBackgrounds`, `findBodyBox`): tło na płótno przechodzi także
+    z pudełka tabeli, gdy element główny ma `display: table`, oraz z `body` leżącego głębiej (pudełka
+    anonimowe tabeli, `body` pozycjonowane) (§ 14.2);
+  - `css/properties/datas.go` (`TableWrapperBoxProperties`): `overflow` zostaje na pudełku tabeli, a nie
+    na pudełku opakowującym (errata s.11.1.1b: podpis leży poza przycięciem); `html/boxes/boxes.go`
+    (`ClipsOverflow`), `html/document/stacking.go`, `draw.go`: `overflow` nie przycina na wierszach,
+    grupach wierszy, kolumnach i grupach kolumn (§ 11.1.1);
+  - `html/document/draw.go` (`drawStackingContext`): tabela, która sama tworzy kontekst nakładania,
+    rysuje swoje tła (własne, kolumn, wierszy, komórek) i zwinięte obramowania; w źródle tabela była
+    rysowana tylko jako dziecko cudzego kontekstu;
+  - `css/validation/utils.go`: łańcuch znaków jako styl w `counter()` i `counters()` jest odrzucany
+    (CSS Lists 3 § 4.7);
+  - `html/layout/inline.go` (`inlineBlockBaseline`): `inline-block` z `overflow` innym niż `visible`
+    bierze linię bazową z ostatniego wiersza, gdy ten leży w pudełku, inaczej z dolnej krawędzi
+    marginesu (CSS 2.1 § 10.8.1 każe zawsze brać krawędź marginesu; przyjęte zachowanie Chromium,
+    zgodne z testami `inline-block-baseline-003` i `vertical-align-baseline-005a`);
 - kolumny w trybie ciągłym, 2026-11-17 (ADR 0017 pkt 5), `html/layout/column.go` (`unpaged`): kontener
   poza innymi kolumnami tworzy nadmiarowe kolumny w osi wiersza także przy wysokości auto, zostawia
   w kolumnie treść, która się w niej nie mieści, i równoważy kolumny przy `column-fill: auto` bez

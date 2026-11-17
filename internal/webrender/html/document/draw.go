@@ -204,9 +204,18 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 			ctx.drawBorder(box_)
 		}
 
+		// gopdfgo: tabela, która sama tworzy kontekst nakładania (overflow, opacity, transform, z-index
+		// na pudełku tabeli), rysuje tu swoje tła: własne, kolumn, wierszy i komórek. W źródle tabela
+		// była rysowana tylko jako dziecko cudzego kontekstu, więc w tym przypadku tła komórek ginęły.
+		rootTable, rootIsTable := box_.(bo.TableBoxITF)
+		if rootIsTable {
+			ctx.setMaskBorder(box_)
+			ctx.drawTable(rootTable.Table())
+		}
+
 		ctx.dst.OnNewStack(func() {
 			// dont clip the PageBox, see #35
-			if box.Style.GetOverflow() != "visible" && !bo.PageT.IsInstance(box_) {
+			if bo.ClipsOverflow(box_) && !bo.PageT.IsInstance(box_) {
 				// Only clip the content and the children:
 				// - the background is already clipped
 				// - the border must *not* be clipped
@@ -269,6 +278,11 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				}
 			}
 			closeTables(nil)
+			if rootIsTable {
+				if table := rootTable.Table(); table.Style.GetBorderCollapse() == "collapse" && table.Style.GetVisibility() == "visible" {
+					ctx.drawCollapsedBorders(table)
+				}
+			}
 
 			// Point 5
 			for _, childContext := range stackingContext.floatContexts {

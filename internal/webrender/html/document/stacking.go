@@ -173,12 +173,12 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	absoluteAndZIndex := zIndexApplies && style.GetZIndex().String != "auto"
 	if absoluteAndZIndex || style.GetOpacity() < 1 ||
 		// "transform: none" gives a "falsy" empty list here
-		hasTransform || style.GetOverflow() != "visible" {
+		hasTransform || bo.ClipsOverflow(box) {
 
 		// Pudełka uciekające spod przycięcia rysujemy po kontekście, z którego
 		// uciekły, tak jak leżałyby w nim: nad jego treścią.
 		var escaped []StackingContext
-		if style.GetOverflow() != "visible" && !positioned && !hasTransform && innerEscape == nil {
+		if bo.ClipsOverflow(box) && !positioned && !hasTransform && innerEscape == nil {
 			innerEscape = &escaped
 		}
 		// This box defines a new stacking context, remove it

@@ -203,7 +203,8 @@ var (
 		PMarginLeft,
 		PMarginRight,
 		POpacity,
-		POverflow,
+		// gopdfgo: overflow zostaje na pudełku tabeli (CSS 2.1, errata s.11.1.1b: przycinana jest treść
+		// tabeli, podpis leży poza przycięciem); w źródle przechodziło na pudełko opakowujące
 		PPosition,
 		PRight,
 		PTop,

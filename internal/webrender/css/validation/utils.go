@@ -576,6 +576,11 @@ func checkCounterFunction(token Token) (prop pr.ContentProperty) {
 		}
 
 		if len(args) > 0 {
+			// gopdfgo: styl w counter() i counters() to nazwa stylu albo symbols(), nie łańcuch znaków
+			// (CSS Lists 3 § 4.7); łańcuch jest poprawny tylko w list-style-type. Źródło go przyjmowało.
+			if _, isString := args[0].(pa.String); isString {
+				return
+			}
 			counterStyle, ok := listStyleType_(args[0:1])
 			if !ok {
 				return

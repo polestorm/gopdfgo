@@ -686,6 +686,12 @@ func inlineBlockBaseline(box_ Box) pr.Float {
 		if pr.Is(result) {
 			return result.V()
 		}
+	} else if result := findInFlowBaseline(box_, true); pr.Is(result) && result.V() <= box.BorderBoxY()+box.BorderHeight() {
+		// gopdfgo: kontener przewijania bierze linię bazową z ostatniego wiersza, o ile ten wiersz
+		// leży w pudełku; gdy treść jest przycięta i ostatni wiersz wypada poniżej, zostaje dolna
+		// krawędź marginesu z CSS 2.1 § 10.8.1 (tak robi Chromium; testy WPT inline-block-baseline-003
+		// i vertical-align-baseline-005a). Źródło zawsze brało krawędź marginesu.
+		return result.V()
 	}
 	return box.PositionY + box.MarginHeight()
 }

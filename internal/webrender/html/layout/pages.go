@@ -837,8 +837,23 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	// Display in-flow content.
 	initialRootBox := rootBox
 	initialResumeAt := resumeAt
-	rootBox, tmp, _ := blockLevelLayout(context, rootBox, 0, resumeAt,
-		&initialContainingBlock.BoxFields, true, &positionedBoxes, &positionedBoxes, &adjoiningMargins, false, -1)
+	var tmp blockLayout
+	if position := rootBox.Box().Style.GetPosition().String; (position == "absolute" || position == "fixed") && resumeAt == nil &&
+		!rootBox.Box().IsFloated() {
+		// gopdfgo: element główny pozycjonowany bezwzględnie jest układany jak każde pudełko pozycjonowane,
+		// względem początkowego bloku zawierającego (CSS 2.1 § 10.1 pkt 4: gdy nie ma pozycjonowanego
+		// przodka, blokiem zawierającym jest blok początkowy). Źródło ignorowało position na elemencie
+		// głównym i rozciągało go na całą stronę.
+		tmp.nextPage = tree.PageBreak{Break: "any"}
+		placeholder := NewAbsolutePlaceholder(rootBox)
+		absoluteLayout(context, placeholder, page, &positionedBoxes, 0, nil)
+		if laidOut, ok := placeholder.AliasBox.(bo.BlockLevelBoxITF); ok {
+			rootBox = laidOut
+		}
+	} else {
+		rootBox, tmp, _ = blockLevelLayout(context, rootBox, 0, resumeAt,
+			&initialContainingBlock.BoxFields, true, &positionedBoxes, &positionedBoxes, &adjoiningMargins, false, -1)
+	}
 	resumeAt = tmp.resumeAt
 	if rootBox == nil {
 		// In-flow page rendering didn’t progress, only out-of-flow did. Render empty box

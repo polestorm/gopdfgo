@@ -684,6 +684,17 @@ func EstablishesFormattingContext(box_ Box) bool {
 		TableCaptionT.IsInstance(box_))
 }
 
+// ClipsOverflow (gopdfgo): czy pudełko przycina treść według overflow. Właściwość dotyczy kontenerów
+// blokowych, elementów zastępowanych i tabel, a nie wierszy, grup wierszy, kolumn i grup kolumn
+// (CSS 2.1 § 11.1.1 z erratą); źródło przycinało także na nich.
+func ClipsOverflow(box Box) bool {
+	if box.Box().Style.GetOverflow() == "visible" {
+		return false
+	}
+	return !(TableRowGroupT.IsInstance(box) || TableRowT.IsInstance(box) ||
+		TableColumnGroupT.IsInstance(box) || TableColumnT.IsInstance(box))
+}
+
 // Start and end page values for named pages
 
 // Return start and end page values.

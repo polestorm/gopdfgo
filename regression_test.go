@@ -2877,3 +2877,53 @@ func TestBorderImageSlicesDoNotBleed(t *testing.T) {
 		t.Errorf("zmniejszanie szerokości: %d pikseli różni się od wzorca", n)
 	}
 }
+
+// CSS 2.1 z erratą: element główny pozycjonowany bezwzględnie (§ 10.1), tło tabeli będącej elementem
+// głównym na płótnie (§ 14.2), overflow na tabeli i na jej wierszach (§ 11.1.1), łańcuch w counter(),
+// linia bazowa inline-block z overflow (§ 10.8.1, CSS Align 3 § 9.1).
+func TestRootPositioningTableOverflowAndInlineBlockBaseline(t *testing.T) {
+	page := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 }</style>`
+	dir := t.TempDir()
+	render := func(name, html string) []byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(html), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	same := func(name, test, reference string) {
+		t.Helper()
+		if n := differentPixels(render(name, test), render(name+"-ref", reference)); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+	// element główny pozycjonowany: stoi tam, gdzie każe left i top, a jego tło idzie na płótno
+	same("root-absolute", `<html style="position:absolute;left:50px;top:40px;width:60px;height:30px;background:yellow;border:5px solid black">`+page,
+		`<html style="background:yellow">`+page+`<div style="position:absolute;left:50px;top:40px;width:60px;height:30px;border:5px solid black"></div>`)
+	// tabela jako element główny: tło tabeli na płótnie
+	same("root-table-canvas", `<html style="display:table;background:yellow">`+page+`<p style="margin:0;height:20px">`,
+		`<html style="background:yellow">`+page+`<p style="margin:0;height:20px">`)
+	// overflow: hidden na tabeli przycina treść komórki wystającą ponad tabelę; podpis leży poza przycięciem
+	same("table-overflow", page+`<style>table { overflow: hidden; border-spacing: 0 } td { padding: 0 } caption { margin-bottom: 10px }
+		div { width: 20px; height: 25px; border-top: 10px solid red; margin-top: -15px; background: black }</style>
+		<table><caption></caption><tr><td><div></div></table>`,
+		page+`<div style="margin-top:10px;width:20px;height:20px;background:black"></div>`)
+	// tła komórek tabeli, która sama tworzy kontekst nakładania
+	same("table-overflow-cells", page+`<table style="overflow:hidden;border-spacing:0"><tr><td style="padding:0;width:20px;height:20px;background:black"></table>`,
+		page+`<div style="width:20px;height:20px;background:black"></div>`)
+	// overflow nie dotyczy grupy wierszy: treść wystająca poza tabelę zostaje widoczna
+	same("row-group-overflow", page+`<div style="display:table;width:40px;table-layout:fixed"><div style="display:table-row-group;overflow:hidden">
+		<div style="display:table-cell"><div style="width:100px;height:20px;background:green"></div></div></div></div>`,
+		page+`<div style="width:100px;height:20px;background:green"></div>`)
+	// counter(c, ".") jest nieprawidłowe: zostaje wcześniejsza deklaracja content
+	same("counter-string-style", page+`<style>p { margin: 0; counter-increment: c } p::before { content: counter(c); content: counter(c, ".") }</style><p>x`,
+		page+`<p style="margin:0">1x`)
+	// inline-block z overflow: linia bazowa z ostatniego wiersza, gdy ten leży w pudełku
+	baseline := page + `<style>p { margin: 0; font: 20px/60px sans-serif } span { display: inline-block; line-height: 20px; height: 40px; margin-bottom: 8px }</style>`
+	same("inline-block-baseline", baseline+`<p>a <span style="overflow:hidden">b</span>`, baseline+`<p>a <span>b</span>`)
+}
