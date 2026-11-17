@@ -1214,6 +1214,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		resumeAt                  tree.ResumeStack
 		children, waitingChildren []indexedBoxC
 		firstLetter, lastLetter   rune
+		lastBreakAll              bool // gopdfgo: poprzednie dziecko ma word-break: break-all
 		preservedLineBreak        = false
 		floatWidths               widths
 	)
@@ -1312,7 +1313,17 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				// dla zgodności ze stronami WWW); pozostałe znaki klas GL, WJ i ZWJ nadal sklejają.
 				canBreak = pr.True
 			} else {
-				canBreak = context.Fonts().CanBreakText([]rune{lastLetter, first})
+				// gopdfgo: przy word-break: break-all litery i cyfry liczą się jak znaki ideograficzne
+				// (CSS Text 3 § 5.2) także na granicy elementów: liczy się styl strony, z której pochodzi
+				// znak. W źródle granica elementów zawsze sprawdzała same znaki.
+				a, b := lastLetter, first
+				if lastBreakAll && (unicode.IsLetter(a) || unicode.IsDigit(a)) {
+					a = '\u4e00'
+				}
+				if child.Style.GetWordBreak() == "break-all" && (unicode.IsLetter(b) || unicode.IsDigit(b)) {
+					b = '\u4e00'
+				}
+				canBreak = context.Fonts().CanBreakText([]rune{a, b})
 			}
 		}
 
@@ -1341,6 +1352,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		} else {
 			lastLetter = last
 		}
+		lastBreakAll = child.Style.GetWordBreak() == "break-all"
 
 		if asTextBox, ok := newChild.(*bo.TextBox); newChild == nil || (ok && asTextBox == nil) {
 			// May be nil where we have an empty TextBox.
