@@ -1311,11 +1311,17 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				canBreak = pr.True
 			} else if first == letterFalse {
 				canBreak = pr.False
-			} else if (lastLetter == '\u00a0' && first == '\u2e80') || (lastLetter == '\u2e80' && first == '\u00a0') {
+			} else if (lastLetter == '\u2e80' || first == '\u2e80') && !keepsUAXBreaking(lastLetter+first-'\u2e80') {
+				// (odst\u0119py, znaki steruj\u0105ce i spacja zerowej szeroko\u015bci zostaj\u0105 przy regu\u0142ach UAX 14:
+				// nie \u0142amiemy przed wymuszonym podzia\u0142em ani przed spacj\u0105)
 				// gopdfgo: przed elementem atomowym (obraz, inline-block) i po nim wiersz wolno złamać
-				// także wtedy, gdy sąsiaduje ze spacją nierozdzielającą U+00A0 (CSS Text 3 § 5.1, wyjątek
-				// dla zgodności ze stronami WWW); pozostałe znaki klas GL, WJ i ZWJ nadal sklejają.
+				// zawsze, także obok znaku, który zwykle zabrania podziału (np. dwukropka) i obok spacji
+				// nierozdzielającej U+00A0; sklejają tylko pozostałe znaki klas GL, WJ i ZWJ (CSS Text 3
+				// § 5.1). W źródle granica była sprawdzana według UAX 14 z elementem jako znakiem ID.
 				canBreak = pr.True
+				if other := lastLetter + first - '\u2e80'; other != '\u2e80' && isGlueClass(other) {
+					canBreak = pr.False
+				}
 			} else {
 				// gopdfgo: przy word-break: break-all litery i cyfry liczą się jak znaki ideograficzne
 				// (CSS Text 3 § 5.2) także na granicy elementów: liczy się styl strony, z której pochodzi
@@ -2111,6 +2117,25 @@ func breaksAnywhere(style pr.ElementStyle, intrinsic bool) bool {
 // reguły dla znaków przestankowych (wiersz nie zaczyna się od kropki).
 func breakAllOnly(style pr.ElementStyle) bool {
 	return style.GetWordBreak() == "break-all" && style.GetOverflowWrap() == "normal" && style.GetLineBreak() != "anywhere"
+}
+
+// keepsUAXBreaking: obok tych znaków (spacja, znaki sterujące i wymuszone podziały, spacja zerowej
+// szerokości) granica elementu atomowego zostaje przy regułach UAX 14.
+func keepsUAXBreaking(r rune) bool {
+	return r == ' ' || unicode.IsControl(r) || r == '\u200b' || r == '\u2028' || r == '\u2029'
+}
+
+// isGlueClass mówi, czy znak należy do klasy GL, WJ albo ZWJ z UAX 14 (bez U+00A0): obok takiego
+// znaku nie wolno złamać wiersza także przy elemencie atomowym (CSS Text 3 § 5.1).
+func isGlueClass(r rune) bool {
+	switch {
+	case r == '\u034f', r >= '\u035c' && r <= '\u0362', r == '\u0f08', r == '\u0f0c', r == '\u0f12',
+		r == '\u0fd9', r == '\u0fda', r == '\u180e', r == '\u2007', r == '\u2011', r == '\u202f', // GL
+		r == '\u2060', r == '\ufeff', // WJ
+		r == '\u200d': // ZWJ
+		return true
+	}
+	return false
 }
 
 // hasInFlowContent mówi, czy w pudełku liniowym jest treść w przepływie (tekst albo pudełko atomowe);
