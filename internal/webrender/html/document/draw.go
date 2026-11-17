@@ -352,6 +352,15 @@ func (ctx drawContext) drawBackgroundDefaut(bg *bo.Background) {
 // If “clipBox“ is set to “false“, the background is not clipped to the
 // border box of the background, but only to the painting area
 // clipBox=true bleed=nil marks=()
+// zeroPaintingArea (gopdfgo): obszar malowania koloru tła ma zerową szerokość albo wysokość.
+func zeroPaintingArea(bg *bo.Background) bool {
+	if len(bg.Layers) == 0 {
+		return false
+	}
+	_, _, width, height := bg.Layers[len(bg.Layers)-1].PaintingArea.Unpack()
+	return width <= 0 || height <= 0
+}
+
 func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.Bleed, marks pr.Marks) {
 	if bg == nil {
 		return
@@ -369,7 +378,11 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 		}
 
 		// Background color
-		if bg.Color.A > 0 {
+		// gopdfgo: obszar malowania o zerowej wysokości albo szerokości nie ma pola, więc tło nie jest
+		// malowane (CSS Backgrounds 3 § 3.7, background-clip); w źródle trafiał do PDF prostokąt zerowej
+		// wysokości, który przeglądarki PDF rysują jako linię włosową (test WPT
+		// no-clearance-due-to-large-margin-after-left-right).
+		if bg.Color.A > 0 && !zeroPaintingArea(bg) {
 			ctx.dst.OnNewStack(func() {
 				ctx.dst.State().SetColorRgba(bg.Color, false)
 				paintingArea := bg.Layers[len(bg.Layers)-1].PaintingArea

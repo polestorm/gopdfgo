@@ -419,6 +419,12 @@ type layoutContext struct {
 	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
 	// klucz to znacznik w stanie wznowienia linii (resumeKey)
 	flexPushOffset map[uintptr]pr.Float
+	// gopdfgo: pudełka, które dostają clearance, bo bez niego pociągnęłyby za sobą przylegające elementy
+	// pływające (zob. inFlowLayout); ich obramowanie staje pod najniższym z oczyszczanych elementów
+	forcedClearance map[*bo.BoxFields]bool
+	// gopdfgo: pudełka omijające elementy pływające, których margines oddziela się od przylegających
+	// elementów pływających (zob. inFlowLayout); górna krawędź obramowania staje bez ich marginesu
+	separatedFromFloats map[*bo.BoxFields]bool
 	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
 	clipDepth int
 	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony
