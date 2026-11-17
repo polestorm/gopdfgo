@@ -583,6 +583,34 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 					} else if trimmed < len(line) {
 						lineWidth = text.SplitFirstLine(line[:trimmed], textBox.Style, context, nil, false, isLineStart).Width
 					}
+				} else if minimum && firstLine && whiteSpace == pr.Pre && newResumeIndex != 0 {
+					// gopdfgo: przy white-space: pre spacje na końcu wiersza nie liczą się do jego
+					// szerokości, gdy wiersz szuka miejsca obok elementów pływających (jak w Chromium; test
+					// WPT pre-float-001). Na końcu tekstu odejmujemy je dopiero, gdy wiersz tu się kończy.
+					end := len(textRunes)
+					if newResumeIndex > 0 {
+						end = resumeIndex + newResumeIndex
+					}
+					line := textRunes[resumeIndex:end]
+					forced := false
+					if n := len(line); n > 0 && line[n-1] == '\n' {
+						line, forced = line[:n-1], true
+					}
+					trimmed := len(line)
+					for trimmed > 0 && line[trimmed-1] == ' ' {
+						trimmed--
+					}
+					if trimmed < len(line) {
+						var contentWidth pr.Float
+						if trimmed > 0 {
+							contentWidth = text.SplitFirstLine(line[:trimmed], textBox.Style, context, nil, false, isLineStart).Width
+						}
+						if forced {
+							lineWidth = contentWidth
+						} else {
+							childHang = max(0, lineWidth-contentWidth)
+						}
+					}
 				}
 				lines = append(lines, orNil(lineWidth))
 				if firstLine {
@@ -655,6 +683,12 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 			pendingHang, pendingSpace = 0, nil
 		}
 		if firstLineEnds {
+			// gopdfgo: wiersz kończy się tu wymuszonym złamaniem, więc odstępy z jego końca wiszą
+			currentLine -= pendingHang
+			if pendingSpace != nil {
+				currentLine -= trailingWhitespaceSize(context, pendingSpace, false)
+			}
+			pendingHang, pendingSpace = 0, nil
 			lineEnded = true
 			break
 		}
