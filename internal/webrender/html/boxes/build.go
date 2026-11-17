@@ -2488,12 +2488,20 @@ func visibleControls(text string) string {
 	if strings.IndexFunc(text, isRenderedControl) < 0 {
 		return text
 	}
-	return strings.Map(func(r rune) rune {
-		if isRenderedControl(r) {
-			return '\uFFFD'
+	var out strings.Builder
+	for _, r := range text {
+		switch {
+		case r == '\v' || r == '\f' || r == '\u0085':
+			// gopdfgo: znaki klas BK i NL z UAX 14 są widoczne i wymuszają podział wiersza (CSS Text 3
+			// § 5.1); po znaku zastępczym wstawiamy separator wiersza U+2028 (klasa BK)
+			out.WriteString("\uFFFD\u2028")
+		case isRenderedControl(r):
+			out.WriteRune('\uFFFD')
+		default:
+			out.WriteRune(r)
 		}
-		return r
-	}, text)
+	}
+	return out.String()
 }
 
 func isRenderedControl(r rune) bool {
