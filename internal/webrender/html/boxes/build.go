@@ -1840,7 +1840,10 @@ func flexChildren(box Box, children []Box) []Box {
 
 			if textBox, ok := child.(*TextBox); ok {
 				// https://www.w3.org/TR/css-flexbox-1/#flex-items
-				if strings.Trim(textBox.TextS(), " ") == "" {
+				// gopdfgo: pomijamy tekst złożony wyłącznie z białych znaków dokumentu (spacja, tabulator,
+				// znak nowego wiersza), niezależnie od white-space (CSS Flexbox 1 § 4); źródło sprawdzało tylko
+				// spacje, więc przy white-space: pre powstawały anonimowe elementy z tabulatorem i wierszami
+				if strings.Trim(textBox.TextS(), " \t\n\r\f") == "" {
 					continue
 				}
 			}
@@ -1874,10 +1877,9 @@ func gridChildren(box Box, children []Box) []Box {
 			if child.Box().IsInNormalFlow() {
 				child.Box().IsGridItem = true
 			}
-			if text, ok := child.(*TextBox); ok && strings.Trim(text.TextS(), " ") == "" {
-				// TODO: ignore texts only containing "characters that can be
-				// affected by the white-space property"
-				// https://drafts.csswg.org/css-grid-2/#grid-item
+			if text, ok := child.(*TextBox); ok && strings.Trim(text.TextS(), " \t\n\r\f") == "" {
+				// gopdfgo: jak we flex: tekst z samych białych znaków dokumentu nie tworzy elementu siatki
+				// (CSS Grid 1 § 6); źródło sprawdzało tylko spacje
 				continue
 			}
 
