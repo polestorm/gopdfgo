@@ -185,6 +185,7 @@ var (
 		PFontSizeAdjust,
 		PTextJustify,
 		PHyphenateLimitLines,
+		PWordSpaceTransform,
 		PTextWrapMode,
 		PTextWrapStyle,
 	)

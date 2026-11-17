@@ -264,6 +264,7 @@ var (
 		pr.PTextJustify:             textJustify,
 		pr.PWrapInside:              wrapInside,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
+		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextWrapMode:            textWrapMode,
 		pr.PTextWrapStyle:           textWrapStyle,
 		pr.PGridAutoColumns:         gridAuto,
@@ -2754,6 +2755,38 @@ func hyphenateLimitLines(tokens []Token, _ string) pr.CssProperty {
 		return pr.TaggedInt{Tag: pr.None}
 	}
 	return nil
+}
+
+// gopdfgo: “word-space-transform“ (CSS Text 4 § 3.1): none | [ space | ideographic-space ] && auto-phrase?
+// Wartość obliczona to słowa kluczowe w kolejności z gramatyki. auto-phrase jest przyjmowane, ale
+// układ go nie używa (wymaga podziału tekstu na frazy). Źródło właściwości nie znało.
+func wordSpaceTransform(tokens []Token, _ string) pr.CssProperty {
+	var space, phrase string
+	for _, token := range tokens {
+		switch keyword := getKeyword(token); keyword {
+		case "none":
+			if len(tokens) != 1 {
+				return nil
+			}
+			return pr.String("none")
+		case "space", "ideographic-space":
+			if space != "" {
+				return nil
+			}
+			space = keyword
+		case "auto-phrase":
+			if phrase != "" {
+				return nil
+			}
+			phrase = keyword
+		default:
+			return nil
+		}
+	}
+	if space == "" {
+		return nil
+	}
+	return pr.String(strings.TrimSpace(space + " " + phrase))
 }
 
 // gopdfgo: “text-wrap-mode“ (CSS Text 4 § 5.1): nowrap wyłącza miękkie łamanie wierszy bez zmiany

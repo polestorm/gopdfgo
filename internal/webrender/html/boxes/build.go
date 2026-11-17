@@ -1923,6 +1923,16 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 			// CSS3: https://www.w3.org/TR/css3-text/#line-break-transform
 			text = strings.ReplaceAll(text, "\n", " ")
 		}
+		// gopdfgo: word-space-transform (CSS Text 4 § 3.1) zamienia spację zerowej szerokości (także
+		// z <wbr>) na spację albo spację ideograficzną między fazą 1 a 2 przetwarzania odstępów, więc
+		// wstawione spacje zwijają się z sąsiednimi jak zwykłe. Źródło właściwości nie znało.
+		if wst := string(box_.Style.GetWordSpaceTransform()); wst != "none" && strings.ContainsRune(text, '​') {
+			replacement := " "
+			if strings.HasPrefix(wst, "ideographic-space") {
+				replacement = "　"
+			}
+			text = strings.ReplaceAll(text, "​", replacement)
+		}
 		if spaceCollapse {
 			text = spaceRe.ReplaceAllString(text, " ")
 			previousText := text

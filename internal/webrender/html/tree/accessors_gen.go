@@ -1940,6 +1940,20 @@ func (s *AnonymousStyle) SetHyphenateLimitLines(v pr.TaggedInt) {
 	s.propsCache.setKnown(pr.PHyphenateLimitLines, v)
 }
 
+func (s *ComputedStyle) GetWordSpaceTransform() pr.String {
+	return s.Get(pr.PWordSpaceTransform.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetWordSpaceTransform(v pr.String) {
+	s.propsCache.setKnown(pr.PWordSpaceTransform, v)
+}
+
+func (s *AnonymousStyle) GetWordSpaceTransform() pr.String {
+	return s.Get(pr.PWordSpaceTransform.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetWordSpaceTransform(v pr.String) {
+	s.propsCache.setKnown(pr.PWordSpaceTransform, v)
+}
+
 func (s *ComputedStyle) GetFontSizeAdjust() pr.SBoolFloat {
 	return s.Get(pr.PFontSizeAdjust.Key()).(pr.SBoolFloat)
 }

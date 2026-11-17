@@ -181,6 +181,7 @@ var InitialValues = Properties{
 	PFontSizeAdjust:      SBoolFloat{},         // gopdfgo: none
 	PTextJustify:         String("auto"),       // gopdfgo
 	PHyphenateLimitLines: TaggedInt{Tag: None}, // gopdfgo: no-limit
+	PWordSpaceTransform:  String("none"),       // gopdfgo
 	PTextWrapMode:        String("wrap"),       // gopdfgo
 	PTextWrapStyle:       String("auto"),       // gopdfgo
 	PWordSpacing:         TaggedDim{},          // computed value for "normal"
