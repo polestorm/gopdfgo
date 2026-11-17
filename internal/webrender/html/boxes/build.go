@@ -1895,10 +1895,24 @@ func gridChildren(box Box, children []Box) []Box {
 // and https://drafts.csswg.org/css-text-3/#white-space-rules
 // The default value of followingCollapsibleSpace shoud be `false`.
 func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
+	state := whitespaceState{followingCollapsibleSpace: followingCollapsibleSpace}
+	processWhitespace(box, &state)
+	return state.followingCollapsibleSpace && !box.Box().IsRunning()
+}
+
+// whitespaceState (gopdfgo): stan przetwarzania białych znaków przenoszony między kolejnymi
+// pudełkami treści liniowej.
+type whitespaceState struct {
+	followingCollapsibleSpace bool
+	// afterZWSP: dotychczasowa treść kończy się spacją zerowej szerokości (U+200B)
+	afterZWSP bool
+}
+
+func processWhitespace(box Box, state *whitespaceState) {
 	if box_, isTextBox := box.(*TextBox); isTextBox {
 		text := box_.TextS()
 		if len(text) == 0 {
-			return followingCollapsibleSpace
+			return
 		}
 
 		// gopdfgo: źródło zamieniało CR i CRLF na znak nowego wiersza. Końce wierszy normalizuje już
@@ -1919,40 +1933,55 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 		}
 
 		if newLineCollapse {
+			// gopdfgo: złamanie segmentu tuż przed spacją zerowej szerokości (U+200B) albo tuż po niej
+			// znika, także gdy spacja jest w poprzednim pudełku liniowym (CSS Text 3 § 4.1.3;
+			// granice pudełek liniowych i elementy spoza przepływu się nie liczą, testy WPT
+			// seg-break-transformation-018, -019). W źródle zamieniało się w spację.
+			text = strings.ReplaceAll(text, "\u200b\n", "\u200b")
+			text = strings.ReplaceAll(text, "\n\u200b", "\u200b")
+			if state.afterZWSP && strings.HasPrefix(text, "\n") {
+				text = text[1:]
+			}
 			// Could also replace with a zero width space character (U+200B),
 			// or no character
 			// CSS3: https://www.w3.org/TR/css3-text/#line-break-transform
 			text = strings.ReplaceAll(text, "\n", " ")
 		}
+		if text != "" {
+			state.afterZWSP = strings.HasSuffix(text, "\u200b")
+		}
 		if spaceCollapse {
 			text = spaceRe.ReplaceAllString(text, " ")
 			previousText := text
-			if followingCollapsibleSpace && strings.HasPrefix(text, " ") {
+			if state.followingCollapsibleSpace && strings.HasPrefix(text, " ") {
 				text = text[1:]
 				box_.LeadingCollapsibleSpace = true
 			}
-			followingCollapsibleSpace = strings.HasSuffix(previousText, " ")
+			if previousText != "" {
+				state.followingCollapsibleSpace = strings.HasSuffix(previousText, " ")
+			}
 		} else {
-			followingCollapsibleSpace = false
+			state.followingCollapsibleSpace = false
 		}
 		box_.Text = []rune(text)
 	} else {
 		for _, child := range box.Box().Children {
 			switch child.(type) {
 			case *TextBox, *InlineBox: // leaf
-				chidlCollapsibleSpace := ProcessWhitespace(child, followingCollapsibleSpace)
+				childState := *state
+				processWhitespace(child, &childState)
 				if box.Box().IsInNormalFlow() && child.Box().IsInNormalFlow() {
-					followingCollapsibleSpace = chidlCollapsibleSpace
+					childState.followingCollapsibleSpace = childState.followingCollapsibleSpace && !child.Box().IsRunning()
+					*state = childState
 				}
 			default:
 				if child.Box().IsInNormalFlow() {
-					followingCollapsibleSpace = false
+					state.followingCollapsibleSpace = false
+					state.afterZWSP = false
 				}
 			}
 		}
 	}
-
-	return followingCollapsibleSpace && !box.Box().IsRunning()
 }
 
 // Capitalize words according to CSS’s "text-transform: capitalize".
