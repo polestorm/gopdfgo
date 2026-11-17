@@ -556,12 +556,23 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 					// gopdfgo: ostatni wiersz tekstu: odstępy wiszą tylko, gdy wiersz tu się kończy
 					lineWidth, childHang = tmp.Width, tmp.Hang
 				}
-				if minimum && whiteSpace == pr.PreWrap && newResumeIndex > 0 {
+				if minimum && whiteSpace == pr.PreWrap && newResumeIndex != 0 {
 					// gopdfgo: zachowane spacje na końcu złamanego wiersza wiszą poza nim i nie liczą się
-					// do szerokości min-content (CSS Text 3 § 4.1.3); źródło je doliczało
-					line := textRunes[resumeIndex : resumeIndex+newResumeIndex]
+					// do szerokości min-content (CSS Text 3 § 4.1.3); źródło je doliczało. Także na końcu
+					// ostatniego wiersza tekstu: przy min-content po spacji wiersz się kończy (miejsce
+					// podziału albo koniec bloku, gdzie spacje wiszą warunkowo); testy WPT
+					// white-space-intrinsic-size-003, -013.
+					end := len(textRunes)
+					if newResumeIndex > 0 {
+						end = resumeIndex + newResumeIndex
+					}
+					line := textRunes[resumeIndex:end]
+					// wiersz zakończony wymuszonym złamaniem: spacje przed nim wiszą warunkowo
+					if n := len(line); n > 0 && line[n-1] == '\n' {
+						line = line[:n-1]
+					}
 					trimmed := len(line)
-					for trimmed > 0 && line[trimmed-1] == ' ' {
+					for trimmed > 0 && (line[trimmed-1] == ' ' || line[trimmed-1] == '\t') {
 						trimmed--
 					}
 					if trimmed == 0 {
