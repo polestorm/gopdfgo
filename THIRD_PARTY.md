@@ -919,6 +919,10 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- kolumny w trybie ciągłym, 2026-11-17 (ADR 0017 pkt 5), `html/layout/column.go` (`unpaged`): kontener
+  poza innymi kolumnami tworzy nadmiarowe kolumny w osi wiersza także przy wysokości auto, zostawia
+  w kolumnie treść, która się w niej nie mieści, i równoważy kolumny przy `column-fill: auto` bez
+  ograniczonej wysokości (CSS Multicol 1 § 7.1, § 8.2);
 - `border-image`, 2026-11-17 (CSS Backgrounds 3 § 6; testy W3C `css-backgrounds`),
   `html/document/draw_border.go` (`drawBorderImage`) i nowy `images/crop.go` (`Crop`):
   - powiększany wycinek obrazu rastrowego jest rysowany jako osobny, wycięty obraz; źródło rysowało

@@ -2570,6 +2570,27 @@ func TestContinuousMode(t *testing.T) {
 		t.Errorf("tryb ciągły różni się od wzorca o %d pikseli", n)
 	}
 
+	// kolumny: trzy wymuszone kolumny w kontenerze dwukolumnowym stoją obok siebie, a column-fill: auto
+	// bez ograniczonej wysokości równoważy; strona nie rośnie do umownej wysokości układu
+	for _, body := range []string{
+		`<div style="columns:2;column-gap:0;width:100px"><div style="height:50px"></div>
+			<div style="break-before:column;height:40px"></div><div style="break-before:column;height:10px"></div></div>`,
+		`<div style="columns:2;column-fill:auto;width:100px"><div style="height:30px"></div><div style="height:30px"></div></div>`,
+		`<div style="columns:2;width:100px;height:0"><div style="height:60px"></div></div>`,
+	} {
+		columns, err := Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }</style>`+body),
+			Options{Fonts: testFonts(t), Continuous: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if columns.Pages != 1 {
+			t.Errorf("kolumny w trybie ciągłym: %d stron, oczekiwana 1", columns.Pages)
+		}
+		if pages := rasterize(t, columns.PDF, dir, "columns"); len(pages) != 1 || len(pages[0]) > 200*400*3 {
+			t.Errorf("kolumny w trybie ciągłym: strona za wysoka (%d bajtów obrazu)", len(pages[0]))
+		}
+	}
+
 	// treść krótsza niż strona z arkusza: strona nie maleje
 	short, err := Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 }</style><p>x</p>`),
 		Options{Fonts: testFonts(t), Continuous: true})

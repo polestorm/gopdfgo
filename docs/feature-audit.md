@@ -1576,3 +1576,28 @@ wtedy, gdy jego dokładna szerokość mieści się w dostępnej. Próbowane i od
 Wniosek dla sposobu pracy: po paczce zmieniającej łamanie wierszy porównywać korpus z poprzednią binarką
 (`bench/survey/tools/corpuscmp.py`), bo sondaż W3C takich regresji nie pokazuje.
 
+## `border-image` i kolumny w trybie ciągłym (2026-11-17)
+
+Pomiar: pełny sondaż dziesięciu obszarów, tryb ciągły, `bench/survey`.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7304 | 7319 (ściśle 6922, krawędziowo 397) |
+| tekst, tła, fonty (1839) | 1339 | 1351 (ściśle 1313, krawędziowo 38) |
+| `css-backgrounds` (603) | 490 | 502 |
+| `css-multicol` bez `column-height` (370) | 244 | 257 |
+
+Stracone: `border-image-image-type-001` i `border-image-space-001`, oba wcześniej zaliczane tylko
+krawędziowo (wzorce rysują to samo inną techniką; różnice to jednopikselowe szwy). Korpus bez zmian.
+
+- **`border-image`**: powiększany wycinek obrazu rastrowego jest osobnym, wyciętym obrazem (bez smugi
+  koloru z sąsiedniego obszaru), kafelki `repeat` są wyśrodkowane, zbyt szerokie obramowania są
+  zmniejszane proporcjonalnie. Test przejęty `TestBorderImageRepeat` poprawiony według normy.
+- **Kolumny w trybie ciągłym** (ADR 0017 pkt 5): nadmiarowe kolumny w osi wiersza, treść zostaje
+  w kolumnie, `column-fill: auto` bez ograniczonej wysokości równoważy. Wcześniej strona rosła do umownej
+  wysokości 2^22 px i test odpadał na rasteryzacji.
+
+Rozpoznane i pominięte: `css-fonts` `font-family-name-*` (21, wymagają fontów testowych zainstalowanych
+w systemie), `font-palette` (13, fonty kolorowe). Do rozważenia jako osobne funkcje: `font-size-adjust`
+(ok. 13 testów) i `@font-feature-values` z `font-variant-alternates` (17).
+

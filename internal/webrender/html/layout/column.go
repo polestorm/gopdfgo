@@ -39,6 +39,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	originalBottomSpace := bottomSpace
 
 	wasInColumn := context.inColumn
+	// gopdfgo: tryb ciągły bez zewnętrznego kontenera kolumn: treść nie ma dokąd przejść, więc nadmiar
+	// zostaje w tym kontenerze. Kontener zagnieżdżony w kolumnie dzieli się między kolumny zewnętrzne.
+	unpaged := context.behavior.Continuous && !wasInColumn
 	context.inColumn = true
 
 	if style.GetPosition().String == "relative" {
@@ -448,7 +451,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 					// Everything fits, start expanding columns at the average
 					// of the column heights
 					maxHeight -= lastFootnotesHeight
-					if style.GetColumnFill() == "balance" || index < columnsAndBlocks[len(columnsAndBlocks)-1].index {
+					// gopdfgo: w medium ciągłym column-fill: auto działa tylko przy ograniczonej wysokości
+					// kolumn; inaczej kolumny są równoważone (CSS Multicol 1 § 7.1)
+					unconstrained := unpaged && !hasFixedHeight && (style.GetMaxHeight().Tag == pr.Auto || style.GetMaxHeight().Value == pr.Inf)
+					if style.GetColumnFill() == "balance" || unconstrained || index < columnsAndBlocks[len(columnsAndBlocks)-1].index {
 						balancing = true
 						// gopdfgo: do wysokości wyjściowej liczy się też dolny margines ostatniego pudełka
 						// (cała wysokość treści podzielona przez liczbę kolumn, jak w przeglądarkach);
@@ -512,8 +518,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			// gopdfgo: każda kolejna kolumna jest pustym fragmentem, więc treść, która się w niej nie
 			// mieści (np. float wyższy niż kolumna), musi zostać w niej umieszczona; w źródle wszystkie
 			// kolumny dziedziczyły stan pierwszej i taka treść była przenosiła dalej bez końca.
+			// W trybie ciągłym nie ma następnej strony, więc treść zostaje także w pierwszej kolumnie.
 			newChild, tmp := blockBoxLayout(context, columnBox, bottomSpace, skipStack,
-				containingBlock, originalPageIsEmpty || i > 0, absoluteBoxes, fixedBoxes, new([]pr.Float),
+				containingBlock, originalPageIsEmpty || i > 0 || unpaged, absoluteBoxes, fixedBoxes, new([]pr.Float),
 				false, -1)
 			columnSkipStack = tmp.resumeAt
 			columnNextPage := tmp.nextPage
@@ -550,7 +557,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				break
 			}
 			i += 1
-			if i == count && !heightDefined {
+			// gopdfgo: w trybie ciągłym nie ma następnej strony, więc także przy wysokości auto nadmiarowe
+			// kolumny (po wymuszonych podziałach) powstają w osi wiersza (CSS Multicol 1 § 8.2)
+			if i == count && !heightDefined && !unpaged {
 				// [If] a declaration that constrains the column height
 				// (e.g., using height || max-height). In this case,
 				// additional column boxes are created in the inline

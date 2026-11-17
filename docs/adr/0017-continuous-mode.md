@@ -27,6 +27,11 @@ z HTML.
    `break-before: column` w kolumnach działa. `orphans`, `widows`, `break-inside` i powtarzanie
    nagłówków tabel nie mają zastosowania, bo nic się nie dzieli.
 4. Pola marginesów są układane raz, dla tej jednej strony.
+5. Kolumny (uzupełnienie z 2026-11-17, CSS Multicol 1 § 7.1 i § 8.2 dla mediów ciągłych): kontener,
+   który sam nie leży w innej kolumnie, nie przenosi treści „na następną stronę”. Nadmiarowe kolumny
+   (po wymuszonych podziałach albo przy za małej wysokości) powstają w osi wiersza, treść niemieszcząca
+   się w kolumnie zostaje w niej i wystaje, a `column-fill: auto` bez ograniczonej wysokości równoważy
+   kolumny. Bez tego strona rosła do umownej wysokości 2^22 px.
 
 Kod: `internal/webrender/html/layout/pages.go` (`makePage`), `layout.go` (`contentBottomEdge`),
 `block.go` (`forcePageBreak`); test `TestContinuousMode`.
