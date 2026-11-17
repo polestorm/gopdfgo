@@ -896,10 +896,11 @@ Wspólne dla obu katalogów:
     złamać także przed zachowaną spacją;
   - `text/engine_gotext.go` (`IsOtherSpaceSeparator`): wiszą wszystkie odstępy kategorii Zs poza spacją
     i spacją nierozdzielającą (U+1680, U+2000–U+200A, U+202F, U+205F, U+3000);
-  - `text/engine_gotext.go` (`LineWrap`): szerokość zawijania dostaje tolerancję błędu zaokrąglenia
-    (pół jednostki 1/64 px na znak, najwyżej pół piksela). Szerokości glifów są zaokrąglane do 1/64 px,
-    więc N znaków fontu o stałej szerokości bywało szersze niż pudełko `N ch` i ostatni znak spadał do
-    następnego wiersza;
+  - `text/engine_gotext.go` (`LineWrap`, `shapeWithResiduals`, `contentWidth`): szerokości znaków są
+    zaokrąglane do 1/64 px każda z osobna, więc N znaków fontu o stałej szerokości bywało szersze niż
+    pudełko `N ch` i ostatni znak spadał do następnego wiersza. Silnik pamięta reszty zaokrągleń i wiersz
+    leżący na granicy (do pół piksela ponad szerokość zaokrągloną) przyjmuje wtedy, gdy jego dokładna
+    szerokość mieści się w dostępnej;
   - łamanie w dowolnym miejscu między elementami liniowymi (§ 5.5): `html/layout/inline.go`
     (`splitInlineBox`, `breaksAnywhere`, `context.forceWordBreak`): gdy w wierszu nie ma miejsca
     podziału, a styl pozwala łamać w dowolnym miejscu, pudełko, które się nie mieści, jest łamane tak,

@@ -30,11 +30,11 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7273 z 9123 (79,7%)** | ściśle 6874, krawędziowo 399; tryb ciągły; od 17.11 zestaw większy o 13 testów |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1333 z 1839 (72,5%)** | ściśle 1293, krawędziowo 40; `css-text` 658 z 909, `css-backgrounds` 490 z 603, `css-fonts` 185 z 327; od 17.11 zestaw większy o 71 testów |
+| Sondaż ekranowy W3C | **7304 z 9123 (80,1%)** | ściśle 6907, krawędziowo 397; tryb ciągły; od 17.11 zestaw większy o 13 testów |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1339 z 1839 (72,8%)** | ściśle 1299, krawędziowo 40; `css-text` 664 z 909, `css-backgrounds` 490 z 603, `css-fonts` 185 z 327; od 17.11 zestaw większy o 71 testów |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 111 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 79 w `regression_test.go` |
+| Testy własne | 112 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 80 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |
@@ -79,6 +79,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  tryb ciągły (*)              7229  ███████████████████████████████████████▋ 79,4%
 17.11  większy zestaw (9123)        7240  ███████████████████████████████████████▋ 79,4%
 17.11  tekst, flex                  7273  ███████████████████████████████████████▊ 79,7%
+17.11  siatka, flex                 7304  ████████████████████████████████████████  80,1%
 ```
 
 (*) Skoki z 13.11 i przejście na tryb ciągły 16.11 to poprawki metody pomiaru, nie silnika; przy trybie
@@ -135,10 +136,10 @@ CSS 2 (5846)                    ████████████████
 css-backgrounds (603)           ████████████████▎    81,3%    113
 css-tables (141)                ████████████████     80,1%     28
 css-lists (151)                 ███████████████▌     77,5%     34
-css-flexbox (952)               ██████████████▊      74,4%    244
-css-grid bez lanes i subgrid    █████████████▊       68,9%    199
+css-flexbox (952)               ███████████████      75,3%    235
+css-grid bez lanes i subgrid    ██████████████▍      71,9%    180
 css-multicol (370)              █████████████▏       65,9%    126
-css-text (909)                  ██████████████▌      72,4%    251
+css-text (909)                  ██████████████▌      73,0%    245
 css-fonts (327)                 ███████████▎         56,6%    142
 css-content (40)                ██████████▌          52,5%     19
 css-grid: subgrid (88)          ████▊                23,9%     67
@@ -148,7 +149,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7150 z 8140 (87,8%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7178 z 8140 (88,2%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 

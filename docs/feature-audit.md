@@ -1544,3 +1544,35 @@ Uzupełnienie z tego samego dnia: linia bazowa kontenera flex (przesunięcie prz
 `wrap-reverse`, blokowy kontener jako element innego kontenera) dała 3 testy: siedem obszarów 7273 z 9123
 (ściśle 6874, krawędziowo 399), `css-flexbox` 708 z 952; pełny sondaż, strat brak.
 
+## Siatka i dalszy flex; dokładna szerokość wiersza na granicy (2026-11-17)
+
+Pomiar: pełny sondaż dziesięciu obszarów, tryb ciągły, `bench/survey`.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7273 | 7304 (ściśle 6907, krawędziowo 397) |
+| tekst, tła, fonty (1839) | 1333 | 1339 (ściśle 1299, krawędziowo 40) |
+| `css-grid` bez `grid-lanes` i `subgrid` (640) | 441 | 460 |
+| `css-flexbox` (952) | 708 | 717 |
+
+Strat brak. Korpus 22 dokumentów jest co do piksela taki sam jak przed paczkami z 17.11.
+
+Siatka: szerokość elementu bez rozciągania (była liczona z marginesami), `min-content`/`max-content`
+jako rozmiar elementu wyłącza rozciąganie, kontener rośnie razem z wierszem powiększonym przez linię
+bazową, `min-height` kontenera rozciąga wiersze `auto`, `repeat(auto-fill, minmax(a, b))` z `b < a`,
+niejawne nazwy linii z `grid-template-areas`.
+
+Flex i przepływ blokowy: `inline-flex` o szerokości auto dopasowuje się do treści (w źródle zajmował cały
+wiersz; błąd widoczny w zwykłych dokumentach), kontenery flex i grid o podanej szerokości omijają elementy
+pływające.
+
+Zawijanie wierszy, korekta paczki tekstu: tolerancja „pół jednostki na znak” z poprzedniej paczki dawała
+fałszywe dopasowania i psuła zwykłe dokumenty (w `19-flex-grid-pagination` wiersz łamał się po pogrubionym
+numerze punktu; wykryte porównaniem korpusu, nie sondażem). Zastąpiona dokładnym sprawdzeniem: silnik
+pamięta, ile zaokrąglenie do 1/64 px odjęło każdemu znakowi, i wiersz leżący na granicy przyjmuje tylko
+wtedy, gdy jego dokładna szerokość mieści się w dostępnej. Próbowane i odrzucone: zaokrąglanie narastające
+(ten sam tekst podzielony inaczej na fragmenty dostawał pozycje różne o 1/64 px; 10 strat w sondażu).
+
+Wniosek dla sposobu pracy: po paczce zmieniającej łamanie wierszy porównywać korpus z poprzednią binarką
+(`bench/survey/tools/corpuscmp.py`), bo sondaż W3C takich regresji nie pokazuje.
+

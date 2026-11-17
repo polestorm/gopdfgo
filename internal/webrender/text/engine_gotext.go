@@ -40,6 +40,9 @@ type FontConfigurationGotext struct {
 	inputSeg   shaping.Segmenter
 
 	lineWrapper shaping.LineWrapper
+	// residuals (gopdfgo): reszty zaokrągleń szerokości znaków tekstu zawijanego w bieżącym wywołaniu
+	// WrapWordBreak, zob. shapeWithResiduals
+	residuals []int32
 
 	fontsContent  map[string][]byte        // to be embedded in the target
 	fontsFeatures map[*font.Font][]Feature // as requested by @font-face
@@ -625,6 +628,11 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}, fc.fm)
 	inputs = fc.spacesInOwnFace(inputs)
 
+	// gopdfgo: reszty zaokrągleń szerokości znaków, potrzebne tylko przy zawijaniu (zob. LineWrap)
+	var residuals []int32
+	if style.textWrap() && maxWidth != pr.Inf {
+		residuals = make([]int32, len(text))
+	}
 	// TODO: lazy iterator
 	outputs := make(shaping.Line, len(inputs))
 	for i, input := range inputs {
@@ -635,8 +643,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		input.FontFeatures = newFeatures(defaults.list())
 
 		// shape !
-		outputs[i] = shapePrecisely(&fc.shaper, input)
+		outputs[i] = shapeWithResiduals(&fc.shaper, input, residuals)
 	}
+	fc.residuals = residuals
 
 	if style.LetterSpacing != 0 || style.WordSpacing != 0 {
 		ws, ls := floatToFixed(style.WordSpacing), floatToFixed(style.LetterSpacing)
@@ -913,13 +922,20 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 	}
 
+	// gopdfgo: wiersz przyjęty dzięki tolerancji zaokrągleń (zob. LineWrap) zgłasza szerokość nie
+	// większą niż dostępna; inaczej układ wiersza uznałby go za przepełniony i złamał wcześniej.
+	lineWidth := fixedToFloat(width)
+	if used := fixedToFloat(width - hang); textWrap && used > wrapingMaxWidth && used <= wrapingMaxWidth+0.5+1e-6 {
+		lineWidth = wrapingMaxWidth + fixedToFloat(hang)
+	}
+
 	out := FirstLine{
 		Hang:         fixedToFloat(hang),
 		Layout:       &TextLayoutGotext{text: text[:firstLineLength], Style: style, Line: outLine, MaxWidth: maxWidth},
 		Length:       firstLineLength,
 		ResumeAt:     resumeAt,
 		FirstLineRTL: style.Direction == pr.Rtl,
-		Width:        fixedToFloat(width),
+		Width:        lineWidth,
 		Height:       height,
 		Baseline:     top,
 	}
@@ -940,12 +956,8 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	mw := fixed.I(maxFixed)
 	if maxWidth <= maxFixed {
 		mw = floatToFixed(pr.Fl(maxWidth))
-		// gopdfgo: szerokości glifów są zaokrąglane do 1/64 piksela, więc N znaków fontu o stałej
-		// szerokości bywa o ułamek piksela szersze niż pudełko o szerokości N ch i ostatni znak
-		// spadał do następnego wiersza. Dopuszczamy błąd zaokrąglenia: pół jednostki na znak,
-		// najwyżej pół piksela.
-		mw += fixed.Int26_6(min(len(text)/2+1, 32))
 	}
+	exact := mw
 
 	spaceCollapse := style.spaceCollapse()
 	config := shaping.WrapConfig{
@@ -957,12 +969,65 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 		config.BreakPolicy = shaping.Always
 	}
 
-	fc.lineWrapper.Prepare(config, text, shaping.NewSliceIterator(runs))
-	line, done := fc.lineWrapper.WrapNextLineF(mw)
-	if spaceCollapse {
-		trimTrailingSpace(&line, text, dir)
+	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
+		fc.lineWrapper.Prepare(config, text, shaping.NewSliceIterator(runs))
+		line, done := fc.lineWrapper.WrapNextLineF(limit)
+		if spaceCollapse {
+			trimTrailingSpace(&line, text, dir)
+		}
+		return line, done
 	}
-	return mw, line, done
+	// gopdfgo: szerokości znaków są zaokrąglane do 1/64 piksela każda z osobna, więc suma wiersza
+	// odbiega od dokładnej: dla fontu o stałej szerokości systematycznie, do ćwierć piksela na 80
+	// znakach. N znaków w pudełku o szerokości N ch bywało przez to „za szerokie” i ostatni znak spadał
+	// do następnego wiersza. Zawijamy więc z zapasem pół piksela, a wiersz, który z zapasu skorzystał,
+	// przyjmujemy tylko wtedy, gdy jego dokładna szerokość (zaokrąglona plus reszty zaokrągleń)
+	// mieści się w dostępnej; inaczej próbujemy krótszego.
+	const slack = 32
+	if fc.residuals == nil || len(fc.residuals) != len(text) || maxWidth > maxFixed {
+		line, done := wrap(exact)
+		return exact, line, done
+	}
+	limit := exact + slack
+	for attempt := 0; attempt < 4; attempt++ {
+		line, done := wrap(limit)
+		rounded, precise := fc.contentWidth(line.Line, text)
+		if rounded <= exact {
+			return exact, line, done
+		}
+		if rounded <= exact+slack && float64(precise) <= float64(maxWidth)*64*shapingPrecision+1 {
+			return rounded, line, done
+		}
+		if rounded > exact+slack {
+			break // jedno słowo szersze niż wiersz: tolerancja nic nie zmienia
+		}
+		limit = rounded - 1
+	}
+	line, done := wrap(exact)
+	return exact, line, done
+}
+
+// contentWidth zwraca szerokość treści wiersza bez końcowych odstępów: zaokrągloną (1/64 px) oraz
+// dokładną, z resztami zaokrągleń (1/4096 px).
+func (fc *FontConfigurationGotext) contentWidth(line shaping.Line, text []rune) (rounded fixed.Int26_6, precise int64) {
+	trailing := true
+	for r := len(line) - 1; r >= 0; r-- {
+		glyphs := line[r].Glyphs
+		for g := len(glyphs) - 1; g >= 0; g-- {
+			index := glyphs[g].ClusterIndex
+			inText := index >= 0 && index < len(text)
+			if trailing && inText && unicode.IsSpace(text[index]) {
+				continue
+			}
+			trailing = false
+			rounded += glyphs[g].Advance
+			precise += int64(glyphs[g].Advance) * shapingPrecision
+			if inText && glyphs[g].Advance != 0 && text[index] != '\t' && index < len(fc.residuals) && (g == 0 || glyphs[g-1].ClusterIndex != index) {
+				precise += int64(fc.residuals[index])
+			}
+		}
+	}
+	return rounded, precise
 }
 
 // trimTrailingSpace odbiera szerokość spacji (U+0020) kończącej wiersz i zapisuje ją w
@@ -1342,6 +1407,13 @@ const shapingPrecision = 64
 // w rozmiarze 64 razy większym i dzielimy wynik; błąd zaokrąglenia spada poniżej 0,1%. W źródle ten sam
 // zabieg był stosowany tylko przy pomiarze pojedynczych znaków (shapeRune).
 func shapePrecisely(shaper *shaping.HarfbuzzShaper, input shaping.Input) shaping.Output {
+	return shapeWithResiduals(shaper, input, nil)
+}
+
+// shapeWithResiduals działa jak shapePrecisely i dodatkowo dopisuje do residuals (indeks: numer
+// znaku w tekście) to, co zaokrąglenie odjęło od szerokości znaku, w jednostkach 1/4096 piksela.
+// Suma szerokości zaokrąglonych i reszt daje dokładną szerokość wiersza (zob. LineWrap).
+func shapeWithResiduals(shaper *shaping.HarfbuzzShaper, input shaping.Input, residuals []int32) shaping.Output {
 	size := input.Size
 	input.Size = size * shapingPrecision
 	out := shaper.Shape(input)
@@ -1355,6 +1427,9 @@ func shapePrecisely(shaper *shaping.HarfbuzzShaper, input shaping.Input) shaping
 		g := &out.Glyphs[i]
 		g.Width, g.Height = scale(g.Width), scale(g.Height)
 		g.XBearing, g.YBearing = scale(g.XBearing), scale(g.YBearing)
+		if residuals != nil && g.ClusterIndex >= 0 && g.ClusterIndex < len(residuals) {
+			residuals[g.ClusterIndex] += int32(g.Advance - scale(g.Advance)*shapingPrecision)
+		}
 		g.Advance, g.XAdvance, g.YAdvance = scale(g.Advance), scale(g.XAdvance), scale(g.YAdvance)
 		g.XOffset, g.YOffset = scale(g.XOffset), scale(g.YOffset)
 	}
