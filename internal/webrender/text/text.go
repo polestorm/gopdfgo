@@ -131,7 +131,7 @@ func SplitFirstLine(text []rune, style_ pr.StyleAccessor, context TextLayoutCont
 // mierzony i rysowany; jednostka em i line-height podany liczbą liczą się dalej od rozmiaru obliczonego.
 // Źródło właściwości nie znało i wszędzie używało rozmiaru obliczonego.
 func adjustedTextStyle(style_ pr.StyleAccessor, fonts FontConfiguration) *TextStyle {
-	style := NewTextStyle(style_, false)
+	style := newTextStyle(style_, false, fonts) // gopdfgo: z fonts, zob. newTextStyle
 	if style.SizeAdjust.String != "" && style.Size != 0 {
 		style.Size *= fonts.sizeAdjustFactor(style)
 	}
@@ -278,7 +278,7 @@ func CharacterRatio(style_ pr.ElementStyle, cache pr.TextRatioCache, isCh bool, 
 		return 1
 	}
 
-	style := NewTextStyle(style_, true) // avoid recursion for letter-spacing and word-spacing properties
+	style := newTextStyle(style_, true, fonts) // avoid recursion for letter-spacing and word-spacing properties
 	key := style.cacheKey()
 	// gopdfgo: jednostki ex i ch wynikają z metryk fontu w rozmiarze używanym, więc font-size-adjust
 	// je skaluje (CSS Fonts 5 § 2.7); em zostaje przy rozmiarze obliczonym

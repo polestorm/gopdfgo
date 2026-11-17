@@ -131,6 +131,12 @@ type TextStyle struct {
 // If ignoreSpacing is true, 'word-spacing' and 'letter-spacing' are
 // not queried from [style]
 func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
+	return newTextStyle(style, ignoreSpacing, nil)
+}
+
+// newTextStyle (gopdfgo) to NewTextStyle z konfiguracją fontów, z której
+// font-variant-alternates bierze nazwy z @font-feature-values; nil, gdy jej brak.
+func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfiguration) *TextStyle {
 	var out TextStyle
 
 	out.FontDescription.Family = style.GetFontFamily()
@@ -178,7 +184,11 @@ func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
 
 	out.TabSize = newTabSize(style.GetTabSize())
 
-	out.FontFeatures = getFontFeatures(style)
+	var featureValues validation.FontFeatureValues
+	if fonts != nil {
+		featureValues = fonts.fontFeatureValues()
+	}
+	out.FontFeatures = getFontFeatures(style, featureValues)
 
 	out.Direction = style.GetDirection()
 
@@ -344,7 +354,7 @@ type tag = [4]byte
 // See https://www.w3.org/TR/css-fonts-3/#feature-precedence
 // default value is "normal"
 // pass nil for default ("normal") on fontFeatureSettings
-func getFontFeatures(style pr.StyleAccessor) []Feature {
+func getFontFeatures(style pr.StyleAccessor, featureValues validation.FontFeatureValues) []Feature {
 	fontKerning := defaultFontFeature(string(style.GetFontKerning()))
 	fontVariantPosition := defaultFontFeature(string(style.GetFontVariantPosition()))
 	fontVariantCaps := defaultFontFeature(string(style.GetFontVariantCaps()))
@@ -406,10 +416,9 @@ func getFontFeatures(style pr.StyleAccessor) []Feature {
 	}
 
 	if fontVariantAlternates != "normal" {
-		// See https://www.w3.org/TR/css-fonts-3/#font-variant-caps-prop
-		if fontVariantAlternates == "historical-forms" {
-			features[tag{'h', 'i', 's', 't'}] = 1
-		}
+		// gopdfgo: źródło znało tylko historical-forms; funkcje według
+		// CSS Fonts 4 § 6.8, nazwy z @font-feature-values (§ 6.9)
+		alternatesFeatures(features, fontVariantAlternates, style.GetFontFamily(), featureValues)
 	}
 
 	if fv := style.GetFontVariantEastAsian(); fv.String != "normal" {
@@ -452,7 +461,60 @@ func getFontFaceFeatures(ruleDescriptors validation.FontFaceDescriptors) []Featu
 		props.SetFontFeatureSettings(ruleDescriptors.FontFeatureSettings)
 	}
 
-	return getFontFeatures(props)
+	return getFontFeatures(props, nil)
+}
+
+// alternatesFeatures (gopdfgo) ustawia cechy OpenType dla font-variant-alternates
+// (CSS Fonts 4 § 6.8): historical-forms → hist 1, stylistic(n) → salt N,
+// styleset(n#) → ssNN dla każdej liczby N, character-variant(n#) → cvNN
+// (pierwsza liczba to numer cechy, druga, domyślnie 1, jej wartość),
+// swash(n) → swsh N i cswh N, ornaments(n) → ornm N, annotation(n) → nalt N.
+// Liczby N pochodzą z @font-feature-values rodzin z listy font-family;
+// nieznane nazwy są pomijane, a numery ss i cv spoza 1–99 również.
+func alternatesFeatures(features featureSet, value string, families []string, featureValues validation.FontFeatureValues) {
+	historical, functions := validation.ParseFontVariantAlternates(value)
+	if historical {
+		features[tag{'h', 'i', 's', 't'}] = 1
+	}
+	indexed := func(prefix string, index int) (tag, bool) {
+		if index < 1 || index > 99 {
+			return tag{}, false
+		}
+		return tag{prefix[0], prefix[1], byte('0' + index/10), byte('0' + index%10)}, true
+	}
+	for _, function := range functions {
+		for _, name := range function.Names {
+			values, ok := featureValues.Lookup(families, function.Function, name)
+			if !ok || len(values) == 0 {
+				continue
+			}
+			value := uint32(values[0])
+			switch function.Function {
+			case "stylistic":
+				features[tag{'s', 'a', 'l', 't'}] = value
+			case "styleset":
+				for _, index := range values {
+					if key, ok := indexed("ss", index); ok {
+						features[key] = 1
+					}
+				}
+			case "character-variant":
+				if key, ok := indexed("cv", values[0]); ok {
+					features[key] = 1
+					if len(values) > 1 {
+						features[key] = uint32(values[1])
+					}
+				}
+			case "swash":
+				features[tag{'s', 'w', 's', 'h'}] = value
+				features[tag{'c', 's', 'w', 'h'}] = value
+			case "ornaments":
+				features[tag{'o', 'r', 'n', 'm'}] = value
+			case "annotation":
+				features[tag{'n', 'a', 'l', 't'}] = value
+			}
+		}
+	}
 }
 
 type WordBreak uint8

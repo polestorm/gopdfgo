@@ -163,6 +163,9 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 
 	out.viewport.styleFor = &out
 	logger.ProgressLogger.Printf("Step 3 - Applying CSS - %d sheet(s)\n", len(sheets))
+	if textContext != nil && textContext.Fonts() != nil {
+		textContext.Fonts().SetFontFeatureValues(fontFeatureValues(sheets, out.layers))
+	}
 
 	for _, styleAttr := range findStyleAttributes(html.Root, presentationalHints, html.BaseUrl) {
 		// Element, declarations, BaseUrl = attributes
@@ -1829,6 +1832,34 @@ func parsePageSelectors(rule pa.QualifiedRule) (out []pageSelector) {
 	return out
 }
 
+// fontFeatureValues (gopdfgo) składa tablicę nazw ze wszystkich reguł
+// @font-feature-values (CSS Fonts 4 § 6.9.1). Przy powtórzonej nazwie wygrywa
+// reguła z późniejszej warstwy kaskady, a w tej samej warstwie późniejsza
+// w dokumencie; reguły poza warstwami idą po wszystkich warstwach (CSS Cascade 5 § 6.4).
+func fontFeatureValues(sheets []sheet, layers map[string]int32) validation.FontFeatureValues {
+	type ranked struct {
+		layer int32
+		rule  *validation.FontFeatureValuesRule
+	}
+	var rules []ranked
+	for _, sh := range sheets {
+		for _, m := range sh.sheet.matcher {
+			if m.featureValues != nil {
+				rules = append(rules, ranked{layers[m.layer], m.featureValues})
+			}
+		}
+	}
+	if len(rules) == 0 {
+		return nil
+	}
+	sort.SliceStable(rules, func(i, j int) bool { return rules[i].layer < rules[j].layer })
+	out := validation.FontFeatureValues{}
+	for _, r := range rules {
+		out.Add(*r.rule)
+	}
+	return out
+}
+
 func _isContentNone(rule pa.Compound) bool {
 	switch token := rule.(type) {
 	case pa.QualifiedRule:
@@ -2083,6 +2114,20 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 				if ruleDescriptors.Src != nil && ruleDescriptors.FontFamily != "" && fontConfig != nil {
 					fontConfig.AddFontFace(ruleDescriptors, urlFetcher)
 				}
+
+			case "font-feature-values":
+				// gopdfgo: CSS Fonts 4 § 6.9; źródło pomijało regułę jako nieznaną
+				ignoreImports = true
+				if rule.Content == nil {
+					continue
+				}
+				featureValues, ok := validation.ParseFontFeatureValues(rule.Prelude, rule.Content)
+				if !ok {
+					logger.WarningLogger.Printf("Invalid @font-feature-values prelude '%s' at %d:%d\n",
+						pa.Serialize(rule.Prelude), rule.Pos().Line, rule.Pos().Column)
+					continue
+				}
+				*matcher = append(*matcher, match{layer: layer, featureValues: &featureValues})
 
 			case "counter-style":
 				name := validation.ParseCounterStyleName(rule.Prelude, counterStyle)
