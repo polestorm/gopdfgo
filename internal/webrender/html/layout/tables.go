@@ -412,13 +412,21 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					row.Height = max(row.Height.V(), m)
 					rowBottomY = row.PositionY + row.Height.V()
 				}
+			} else if height, ok := row.Height.(pr.Float); ok {
+				// gopdfgo: wiersz bez komórek ma podaną wysokość (CSS 2.1 § 17.5.3: wysokość wiersza
+				// to większa z podanej i wymaganej przez komórki); w źródle miał zawsze zero (test WPT
+				// border-collapse-empty-row)
+				rowBottomY = row.PositionY + height
 			} else {
 				rowBottomY = row.PositionY
 				row.Height = pr.Float(0)
 			}
 
 			if len(baselineCells) == 0 {
-				row.Baseline = rowBottomY
+				// gopdfgo: bez komórek wyrównanych do linii bazowej linią bazową wiersza jest najniższa dolna
+				// krawędź treści komórek (CSS 2.1 § 17.5.3), ustalana niżej, po rozciągnięciu komórek;
+				// w źródle była to bezwzględna współrzędna dołu wiersza zapisana jako odległość od jego góry.
+				row.Baseline = nil
 			}
 
 			// Add extra padding to make the cells the same height as the row
@@ -572,9 +580,18 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if row.Baseline == nil {
 				if len(row.Children) != 0 {
 					// Set baseline to lowest bottom content edge.
+					// gopdfgo: komórka rozciągnięta do wysokości wiersza ma treść sięgającą jego dołu (dodatek
+					// do wysokości jest tu dopisany do odstępu dolnego, więc liczymy od krawędzi obramowania
+					// z odstępem dolnym z CSS, jak Chromium); w źródle brana była wysokość treści sprzed
+					// rozciągnięcia.
 					var max pr.Float
-					for _, cell := range row.Children {
-						if v := cell.Box().ContentBoxY() + cell.Box().Height.V(); v > max {
+					for _, cell_ := range row.Children {
+						cell := cell_.Box()
+						paddingBottom := cell.PaddingBottom.V()
+						if pb := cell.Style.GetPaddingBottom(); pb.Unit == pr.Px && pb.Tag != pr.Auto {
+							paddingBottom = min(paddingBottom, pb.Value)
+						}
+						if v := cell.BorderBoxY() + cell.BorderHeight() - cell.BorderBottomWidth.V() - paddingBottom; v > max {
 							max = v
 						}
 					}
@@ -1029,6 +1046,11 @@ func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
 				continue
 			}
 			row.Height = row.Height.V() + share
+			// gopdfgo: wiersz bez komórek wyrównanych do linii bazowej ma ją na dolnej krawędzi treści
+			// komórek, która schodzi razem z dołem wiersza (CSS 2.1 § 17.5.3)
+			if baseline, ok := row.Baseline.(pr.Float); ok && !rowHasBaselineCells(row_) {
+				row.Baseline = baseline + share
+			}
 			for _, cell_ := range row.Children {
 				cell := cell_.Box()
 				switch cell.VerticalAlign {
@@ -1365,6 +1387,16 @@ func tableWrapperWidthForced(context *layoutContext, wrapper_ Box, containingBlo
 	wrapper.Width = tableBox.BorderWidth()
 }
 
+// rowHasBaselineCells (gopdfgo) podaje, czy w wierszu jest komórka wyrównana do linii bazowej.
+func rowHasBaselineCells(row Box) bool {
+	for _, cell := range row.Box().Children {
+		if cell.Box().VerticalAlign == pr.Baseline {
+			return true
+		}
+	}
+	return false
+}
+
 // Return the y position of a cell’s baseline from the top of its border box.
 // See http://www.w3.org/TR/CSS21/tables.html#height-layout
 func cellBaseline(cell Box) pr.Float {
@@ -1424,10 +1456,23 @@ func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr
 		children = reversedBoxes(children)
 	}
 	for _, child := range children {
+		// gopdfgo: pusty wiersz (np. reszta pudełka liniowego za wydzielonym z niego blokiem) nie ma linii
+		// bazowej (CSS 2.1 § 9.4.2: taki wiersz traktuje się jak nieistniejący; tak robi Chromium); w źródle
+		// inline-block stawał na linii bazowej takiego wiersza (test WPT block-in-inline-baseline-001).
+		if line, isLine := child.(*bo.LineBox); isLine && isEmptyLinebox(line) {
+			continue
+		}
 		if child.Box().IsInNormalFlow() {
 			result := findBaseline(child, last, flexBaseline, baselinesT...)
 			if result != nil {
 				return result
+			}
+			// gopdfgo: blok z overflow innym niż visible bez wierszy w środku ma przy szukaniu ostatniej
+			// linii bazowej linię bazową na dolnej krawędzi marginesu (jak samo inline-block z overflow,
+			// CSS 2.1 § 10.8.1; tak robi Chromium, test WPT baseline-block-with-overflow-001); w źródle
+			// szukanie szło dalej, do wcześniejszych pudełek.
+			if last && bo.BlockT.IsInstance(child) && child.Box().Style.GetOverflow() != "visible" {
+				return child.Box().PositionY + child.Box().MarginHeight()
 			}
 		}
 	}

@@ -60,7 +60,10 @@ func floatLayout(context *layoutContext, box_ Box, containingBlock *bo.BoxFields
 
 	if bo.BlockReplacedT.IsInstance(box_) {
 		inlineReplacedBoxWidthHeight(box_, containingBlock)
-	} else if box.Width == pr.AutoF {
+	} else if box.Width == pr.AutoF || !box.IsTableWrapper {
+		// gopdfgo: min-width i max-width dotyczą też elementu pływającego o podanej szerokości (CSS 2.1
+		// § 10.4); w źródle dekorator ograniczający szerokość był wołany tylko dla width: auto (test WPT
+		// max-width-applies-to-018).
 		floatWidth(box_, context, block{Width: containingBlock.Width.V()})
 	}
 

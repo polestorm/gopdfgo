@@ -2787,6 +2787,16 @@ func setChildrenDefiniteHeight(children []Box, base pr.MaybeFloat) {
 		case *bo.LineBox, *bo.InlineBox:
 			setChildrenDefiniteHeight(child.Box().Children, base)
 		case *bo.TextBox:
+		case *bo.BlockBox:
+			// gopdfgo: anonimowy blok pomija się przy rozwiązywaniu wartości procentowych (CSS 2.1 § 9.2.1.1)
+			if _, anonymous := child.Box().Style.(*tree.AnonymousStyle); anonymous {
+				setChildrenDefiniteHeight(child.Box().Children, base)
+				continue
+			}
+			if base == nil && child.Box().DefiniteHeight == nil {
+				continue
+			}
+			setDefiniteHeight(child, base, false)
 		default:
 			if base == nil && child.Box().DefiniteHeight == nil {
 				continue // głębiej wartość nie mogła powstać: łańcuch wysokości jest ciągły

@@ -919,6 +919,32 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- ogon układu CSS 2, 2026-11-17 (testy W3C `css/CSS2/normal-flow`, `positioning`, `margin-padding-clear`,
+  `visudet`, `visuren`, `box-display`, `linebox`, `tables`; praca pomocnika):
+  - `html/layout/block.go`: dolny margines pustego dziecka, który dołącza do łańcucha górnego marginesu
+    rodzica, przesuwa dotychczasowe dzieci (z elementami pływającymi i pozycjonowanymi) razem z górną
+    krawędzią rodzica (CSS 2.1 § 8.3.1); blok wydzielony z pudełka liniowego z `position: relative` przesuwa
+    się razem z nim (§ 9.2.1.1, pole `BoxFields.RelativeInlineAncestors` ustawiane w `boxes/build.go`);
+    procentowe `top`/`bottom` przy wysokości bloku zawierającego zależnej od treści liczą się jak `auto`;
+  - `html/layout/preferred.go`: szerokość tabeli nie mniejsza niż szerokość minimalna treści podpisu (CAPMIN,
+    CSS Tables 3 § 3.9.1); kolumny i grupy kolumn wnoszą samą szerokość, bez marginesów i odstępów (CSS 2.1
+    § 17.3); procentowe marginesy i odstępy w udziale do rozmiaru wewnętrznego liczą się jako zero, poza
+    komórkami tabeli (CSS Sizing 3 § 5.2.1); `shrinkToFit` rozwiązuje procentowe wysokości dzieci pudełka
+    o znanej wysokości (`setChildrenDefiniteHeight` w `grid.go` pomija anonimowe bloki);
+  - `html/layout/float.go`: `min-width`/`max-width` elementu pływającego o podanej szerokości (§ 10.4);
+  - `html/layout/inline.go`: `vertical-align: bottom` wyższe niż wiersz powiększa go w górę, `top` w dół (jak
+    Chromium); zagnieżdżone poddrzewa top/bottom przesuwane raz; linia bazowa tabeli inline liczona od
+    krawędzi marginesu tabeli;
+  - `html/layout/tables.go`: pusty wiersz nie wyznacza linii bazowej; przy szukaniu ostatniej linii bazowej
+    blok z `overflow` bez wierszy daje dolną krawędź marginesu; wiersz bez komórek wyrównanych do linii
+    bazowej ma ją na najniższej dolnej krawędzi treści komórek po rozciągnięciu; wiersz bez komórek ma
+    podaną wysokość (§ 17.5.3);
+  - `html/document/stacking.go`: element pływający i blok w przepływie z `overflow` innym niż `visible`
+    (bez z-index, opacity, transform) rysowane w całości na warstwie elementów pływających zamiast jako
+    kontekst o z-index 0 (przybliżenie CSS 2.1 Dodatek E); `position: fixed`/`sticky` zawsze tworzy kontekst
+    nakładania (CSS Position 3);
+  - `html/document/draw.go`: przy równej sile zwiniętych obramowań narożnik należy do odcinków komórki
+    wyżej i na lewo (w korpusie `17-tables` zmienia 8 pikseli narożników). Test własny `css2_layout_test.go`;
 - CSS Text poza `white-space`, 2026-11-17 (testy W3C `css-text/*`, `css/CSS2/text`; praca pomocnika):
   - `text-align`: skrót ustawia `text-align-last: auto` (źródło kopiowało wartość, a `justify` zamieniało
     na `start`); `auto` po `justify` wyrównuje ostatni wiersz do początku (CSS Text 3 § 6.1, § 6.3);

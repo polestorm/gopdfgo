@@ -879,7 +879,10 @@ func inlineBlockBaseline(box_ Box) pr.Float {
 			if bo.TableT.IsInstance(child) {
 				if cc := child.Box().Children; len(cc) != 0 && len(cc[0].Box().Children) != 0 {
 					firstRow := cc[0].Box().Children[0]
-					return firstRow.Box().Baseline.V()
+					// gopdfgo: linia bazowa wiersza jest liczona od jego górnej krawędzi, a wynik ma być
+					// liczony od górnej krawędzi marginesu tabeli (pudełko leży tu w y = 0); w źródle
+					// pomijane były obramowanie tabeli, odstęp między komórkami i podpis nad tabelą.
+					return firstRow.Box().PositionY - box.PositionY + firstRow.Box().Baseline.V()
 				}
 			}
 		}
@@ -1827,17 +1830,19 @@ func lineBoxVerticality(context *layoutContext, box Box) (pr.Float, pr.Float) {
 		subtreesWithMinMax = append(subtreesWithMinMax, boxMinMax{box: subtree, max: subMaxY, min: subMinY})
 	}
 
-	if len(subtreesWithMinMax) != 0 {
-		var highestSub pr.Float
-		for _, subtree := range subtreesWithMinMax {
-			if !subtree.box.Box().IsFloated() {
-				m := subtree.max.V() - subtree.min.V()
-				if m > highestSub {
-					highestSub = m
-				}
-			}
+	// gopdfgo: pudełko z vertical-align: bottom wyższe niż wiersz powiększa go w górę, a pudełko z top
+	// w dół (CSS 2.1 § 10.8.1 tego nie rozstrzyga; tak robi Chromium, test WPT vertical-align-121).
+	// W źródle wiersz zawsze rósł w dół, więc przy bottom treść wyrównana do linii bazowej stała u góry.
+	for _, subtree := range subtreesWithMinMax {
+		if subtree.box.Box().IsFloated() {
+			continue
 		}
-		maxY = max(maxY, minY+highestSub)
+		height := subtree.max.V() - subtree.min.V()
+		if subtree.box.Box().Style.GetVerticalAlign().Tag == pr.Bottom {
+			minY = min(minY, maxY-height)
+		} else {
+			maxY = max(maxY, minY+height)
+		}
 	}
 
 	for _, v := range subtreesWithMinMax {
@@ -1862,6 +1867,11 @@ func translateSubtree(box Box, dy pr.Float) {
 		box.Box().PositionY += dy
 		if va := box.Box().Style.GetVerticalAlign().Tag; va == pr.Top || va == pr.Bottom {
 			for _, child := range box.Box().Children {
+				// gopdfgo: zagnieżdżone poddrzewo z top/bottom jest przesuwane osobno (lineBoxVerticality);
+				// w źródle przesuwało się dwa razy (test WPT vertical-align-nested-top-001)
+				if cva := child.Box().Style.GetVerticalAlign().Tag; child.Box().IsInNormalFlow() && (cva == pr.Top || cva == pr.Bottom) {
+					continue
+				}
 				translateSubtree(child, dy)
 			}
 		}

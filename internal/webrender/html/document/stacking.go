@@ -171,6 +171,12 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	// § 6.4); źródło wymagało position innego niż static
 	zIndexApplies := positioned || box.Box().IsFlexItem || box.Box().IsGridItem
 	absoluteAndZIndex := zIndexApplies && style.GetZIndex().String != "auto"
+	// gopdfgo: pudełko z position: fixed (i sticky) zawsze tworzy kontekst nakładania (CSS Positioned
+	// Layout 3 § 3.4, tak jak w przeglądarkach); w źródle tylko z z-index innym niż auto (test WPT
+	// fixed-pos-stacking-001)
+	if position == "fixed" || position == "sticky" {
+		absoluteAndZIndex = true
+	}
 	if absoluteAndZIndex || style.GetOpacity() < 1 ||
 		// "transform: none" gives a "falsy" empty list here
 		hasTransform || bo.ClipsOverflow(box) {
@@ -180,6 +186,21 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		var escaped []StackingContext
 		if bo.ClipsOverflow(box) && !positioned && !hasTransform && innerEscape == nil {
 			innerEscape = &escaped
+		}
+		// gopdfgo: element pływający, który tylko przycina treść (overflow inne niż visible), nie tworzy
+		// kontekstu nakładania (CSS 2.1 § 9.9.1, Appendix E), więc jest rysowany na warstwie elementów
+		// pływających, pod pudełkami pozycjonowanymi; w źródle trafiał do kontekstów o z-index 0 i zasłaniał
+		// wcześniejsze pudełka pozycjonowane (test WPT max-width-106). Pozycjonowanych potomków rysujemy
+		// razem z nim, żeby objęło ich przycięcie.
+		// To samo dotyczy bloku w przepływie: rysujemy go w całości (przycięcie obejmuje całą jego treść)
+		// na tej samej warstwie, czyli nad tłami bloków i pod pudełkami pozycjonowanymi (test WPT
+		// abspos-overflow-011); w CSS jego potomkowie należą do zwykłych warstw rodzica, czego tu nie
+		// odtwarzamy (test overflow-scroll-paint-order nadal nie przechodzi).
+		if (box.Box().IsFloated() || (bo.BlockLevelT.IsInstance(box) && box.Box().IsInNormalFlow())) &&
+			!absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned {
+			*floats = append(*floats, newStackingContextFromBox(box, page, nil, innerEscape))
+			*childContexts = append(*childContexts, escaped...)
+			return nil
 		}
 		// This box defines a new stacking context, remove it
 		// from the "normal" children list.
