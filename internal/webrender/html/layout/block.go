@@ -884,8 +884,11 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	// gopdfgo: margines zwinięty z marginesami pustego pudełka z clearance nie zwija się z dolnym
 	// marginesem rodzica (CSS 2 §8.3.1); w źródle wychodził poza rodzica.
+	// gopdfgo: element flex i element siatki zakładają własny kontekst formatowania (CSS Flexbox 1 § 3,
+	// CSS Grid 1 § 6.1), więc dolny margines ostatniego dziecka zostaje w środku, tak jak górny; w źródle
+	// górny był zachowany, a dolny wychodził poza element i ginął.
 	if pr.Is(box.BorderBottomWidth) || pr.Is(box.PaddingBottom) || endsWithClearedEmptyBox(newChildren) ||
-		bo.EstablishesFormattingContext(box_) || box.IsForRootElement || box.IsTableWrapper {
+		bo.EstablishesFormattingContext(box_) || box.IsForRootElement || box.IsTableWrapper || box.IsFlexItem || box.IsGridItem {
 		positionY += collapseMargin(*adjoiningMargins)
 		adjoiningMargins = new([]pr.Float)
 	}

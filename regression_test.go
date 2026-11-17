@@ -2891,6 +2891,9 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	// wysokość procentowa elementu zastępowanego w wierszu o rozmiarze z treści liczy się jak auto
 	same("percent-height-replaced-in-row", `<div style="display:grid;grid-template-rows:min-content"><canvas class=g width=100 height=40 style="block-size:100%"></canvas></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
+	// marginesy dziecka zostają w elemencie siatki, także dolny
+	same("grid-item-keeps-child-margins", `<div style="display:grid"><div class=g><p style="margin:16px 0;height:10px"></p></div></div>`,
+		`<div class=g style="height:42px"></div>`)
 	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
 	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)

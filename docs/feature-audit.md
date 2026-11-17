@@ -1707,3 +1707,16 @@ przechodził, bo bez wyrównywania wynik był równy wzorcowi. Korpus co do piks
 Narzędzie `bench/survey/tools/chk.sh` (celowana kontrola listy testów wobec stanu bazowego) nie przycina
 strony do okna, więc testy wyższe niż 600 px pokazuje jako fałszywe straty; testy samego `mismatch` pomija.
 
+Uzupełnienie: po scaleniu trzeciego pomocnika (kolumny zagnieżdżone) i poprawce dolnego marginesu w elementach
+flex i siatki pełny sondaż dał 7427 z 9123 (ściśle 7031, krawędziowo 396; `css-multicol` bez `column-height`
+268 z 370, było 257), strat brak.
+
+- **Pomocnik:** kolumny zagnieżdżone przenoszą treść do następnej kolumny zewnętrznej; dalszy ciąg kontenera
+  bez górnego, fragment przerwany bez dolnego marginesu, obramowania i dopełnienia; `min-height` liczone dla
+  sumy fragmentów; marginesy przy zwykłym podziale kolumny obcinane także na pierwszej stronie i w trybie
+  ciągłym (zmiana ogólna, nie tylko dla zagnieżdżonych); element pływający z `columns` układany w kolumnach.
+  Pominięte: rozluźnianie reguł podziału z CSS Fragmentation 3 § 4.4, dzielenie elementów pływających
+  i pozycjonowanych między kolumny, komórka tabeli z `columns`.
+- **Flex i siatka:** dolny margines ostatniego dziecka zostaje w elemencie flex i siatki (jak górny);
+  w korpusie dokument `19-flex-grid-pagination` zbliżył się do Chromium (73 → 72 słowa odsunięte o ponad 3 pt).
+
