@@ -476,6 +476,10 @@ func (fc *FontConfigurationGotext) sizeAdjustFactor(style *TextStyle) pr.Fl {
 	}
 	advance := func(r rune, vertical bool) float32 {
 		gid, ok := face.NominalGlyph(r)
+		if r == '水' && (!ok || vertical && !face.Font.HasVerticalMetrics()) {
+			// font bez znaku U+6C34 albo bez metryk pionowych: miarą ic jest 1em (CSS Values 4 § 6.1.1)
+			return float32(face.Upem())
+		}
 		if !ok {
 			return 0
 		}

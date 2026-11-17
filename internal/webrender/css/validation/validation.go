@@ -2307,6 +2307,18 @@ func fontSizeAdjust(tokens []Token, _ string) pr.CssProperty {
 		}
 		out.Float = pr.Fl(token.ValueF)
 		return out
+	case pa.FunctionBlock:
+		// calc() o wyniku liczbowym; wynik ujemny przycinany do zera (CSS Values 4 § 10.12)
+		node := parseCalcFunction(token)
+		if node == nil {
+			return nil
+		}
+		result, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v })
+		if err != nil || !result.IsNumber || math.IsNaN(float64(result.Pixels)) {
+			return nil
+		}
+		out.Float = pr.Fl(max(0, result.Pixels))
+		return out
 	default:
 		switch getKeyword(token) {
 		case "from-font":
