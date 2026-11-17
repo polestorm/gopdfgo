@@ -909,6 +909,15 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		firstLineLength = wLine.NextLine - 1
 		lastRun := &line[len(line)-1]
 		lastRun.Glyphs = lastRun.Glyphs[:len(lastRun.Glyphs)-1]
+		// gopdfgo: go-text dzieli odstęp między literami na połowy po obu stronach znaku; drugą
+		// połowę za ostatnim znakiem wiersza miał znak nowego wiersza, który tu usuwamy. Znak przed
+		// wymuszonym złamaniem dostaje pełny odstęp, jak na końcu tekstu (CSS Text 3 § 8.2; test WPT
+		// white-space-letter-spacing-001).
+		if n := len(lastRun.Glyphs); n != 0 && style.LetterSpacing != 0 {
+			lastRun.Glyphs = slices.Clone(lastRun.Glyphs)
+			lastRun.Glyphs[n-1].Advance += floatToFixed(style.LetterSpacing) / 2
+			lastRun.Glyphs[n-1].XAdvance += floatToFixed(style.LetterSpacing) / 2
+		}
 		lastRun.RecalculateAll()
 		wLine.TrimmedTrailingWhitespace = 0 // not to interfere with latter space handling
 	}
@@ -1135,13 +1144,13 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 
 // hangingExtra (gopdfgo) zwraca szerokość najdłuższego w tekście ciągu co najmniej dwóch wiszących
 // białych znaków (zob. isHangingWhiteSpace) albo ciągu zakończonego znakiem nowego wiersza, albo
-// zero. Spacje wiszą tylko przy pre-wrap; przy break-spaces nic nie wisi, a w zapisie od prawej do
-// lewej zostawiamy zachowanie biblioteki.
+// zero. Spacje wiszą tylko przy pre-wrap; przy break-spaces liczy się tylko znak nowego wiersza, a w
+// zapisie od prawej do lewej zostawiamy zachowanie biblioteki.
 func hangingExtra(runs shaping.Line, text []rune, style *TextStyle, dir di.Direction) fixed.Int26_6 {
-	if style.breakSpaces() || dir.Progression() != di.FromTopLeft {
+	if dir.Progression() != di.FromTopLeft {
 		return 0
 	}
-	preserved := !style.spaceCollapse()
+	preserved, breakSpaces := !style.spaceCollapse(), style.breakSpaces()
 	var best, current fixed.Int26_6
 	count, newline := 0, false
 	for _, run := range runs {
@@ -1153,7 +1162,8 @@ func hangingExtra(runs shaping.Line, text []rune, style *TextStyle, dir di.Direc
 			}
 			// znak nowego wiersza kończy ciąg; jego glif (często .notdef z obrysem) też nie może
 			// zmuszać do złamania przed nim
-			if r := text[index]; r == '\n' || isHangingWhiteSpace(r) && (preserved || r != ' ') {
+			// przy break-spaces odstępy nie wiszą, tylko znak nowego wiersza nie zajmuje miejsca
+			if r := text[index]; r == '\n' || !breakSpaces && isHangingWhiteSpace(r) && (preserved || r != ' ') {
 				current += glyph.Advance
 				count++
 				newline = newline || r == '\n'
