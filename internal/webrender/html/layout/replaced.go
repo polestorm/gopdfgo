@@ -347,7 +347,12 @@ func blockReplacedBoxLayout(context *layoutContext, box_ bo.ReplacedBoxITF, cont
 
 	// Don't collide with floats
 	// https://www.w3.org/TR/CSS21/visuren.html#floats
-	box.PositionX, box.PositionY, _ = avoidCollisions(context, box_, containingBlock, false)
+	// gopdfgo: element flex albo grid stoi tam, gdzie postawił go układ kontenera; omijanie elementów
+	// pływających ustawiało go z powrotem przy lewej krawędzi, więc dwa elementy zastępowane obok
+	// siebie (np. dwa canvas albo iframe) nakładały się.
+	if !box.IsFlexItem && !box.IsGridItem {
+		box.PositionX, box.PositionY, _ = avoidCollisions(context, box_, containingBlock, false)
+	}
 	nextPage := tree.PageBreak{Break: "any"}
 
 	if traceMode {

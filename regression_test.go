@@ -2777,6 +2777,9 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	// inline-flex o szerokości auto dopasowuje się do treści
 	same("inline-flex-shrink-to-fit", `<div style="font-size:0"><div class=g style="display:inline-flex"><div><div style="width:100px;height:40px"></div></div></div></div>`,
 		`<div style="font-size:0"><div class=g style="display:inline-block;width:100px;height:40px"></div></div>`)
+	// dwa elementy zastępowane obok siebie nie nakładają się
+	same("replaced-side-by-side", `<div style="display:flex;height:50px"><canvas class=b width=100 height=50></canvas><canvas class=g width=100 height=50></canvas></div>`,
+		`<div style="display:flex;height:50px"><div class=b style="width:100px"></div><div class=g style="width:100px"></div></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
@@ -2923,6 +2926,19 @@ func TestRootPositioningTableOverflowAndInlineBlockBaseline(t *testing.T) {
 	// counter(c, ".") jest nieprawidłowe: zostaje wcześniejsza deklaracja content
 	same("counter-string-style", page+`<style>p { margin: 0; counter-increment: c } p::before { content: counter(c); content: counter(c, ".") }</style><p>x`,
 		page+`<p style="margin:0">1x`)
+	// iframe to element zastępowany 300 na 150, bez proporcji własnych
+	same("iframe-default-size", page+`<iframe style="display:block;border:0;background:green"></iframe>`,
+		page+`<div style="width:300px;height:150px;background:green"></div>`)
+	same("iframe-no-ratio", page+`<iframe style="display:block;border:0;background:green;width:100px"></iframe>`,
+		page+`<div style="width:100px;height:150px;background:green"></div>`)
+	// clear: margines pierwszego dziecka zwija się przed liczeniem clearance, więc blok staje tuż pod
+	// elementem pływającym, a nie o ten margines niżej
+	same("clearance-child-margin", page+`<div style="float:left;width:50px;height:50px;background:blue"></div>
+		<div style="clear:left"><div style="margin-top:30px;width:50px;height:50px;background:green"></div></div>`,
+		page+`<div style="width:50px;height:50px;background:blue"></div><div style="width:50px;height:50px;background:green"></div>`)
+	same("no-clearance-large-child-margin", page+`<div style="float:left;width:50px;height:50px;background:blue"></div>
+		<div style="clear:left"><div style="margin-top:80px;width:50px;height:50px;background:green"></div></div>`,
+		page+`<div style="width:50px;height:50px;background:blue"></div><div style="margin-top:30px;width:50px;height:50px;background:green"></div>`)
 	// inline-block z overflow: linia bazowa z ostatniego wiersza, gdy ten leży w pudełku
 	baseline := page + `<style>p { margin: 0; font: 20px/60px sans-serif } span { display: inline-block; line-height: 20px; height: 40px; margin-bottom: 8px }</style>`
 	same("inline-block-baseline", baseline+`<p>a <span style="overflow:hidden">b</span>`, baseline+`<p>a <span>b</span>`)

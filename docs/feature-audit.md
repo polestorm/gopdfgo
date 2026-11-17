@@ -1601,3 +1601,32 @@ Rozpoznane i pominięte: `css-fonts` `font-family-name-*` (21, wymagają fontów
 w systemie), `font-palette` (13, fonty kolorowe). Do rozważenia jako osobne funkcje: `font-size-adjust`
 (ok. 13 testów) i `@font-feature-values` z `font-variant-alternates` (17).
 
+## CSS 2: ogon grup (2026-11-17)
+
+Pomiar: pełny sondaż dziesięciu obszarów w trybie ciągłym; obszary flex i siatki powtórzone po ostatniej
+poprawce (elementy zastępowane we flex).
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7319 | 7367 (ściśle 6972, krawędziowo 395) |
+| CSS 2 (5846) | 5506 | 5548 |
+| `css-flexbox` (952) | 717 | 722 |
+
+Strat brak; korpus co do piksela bez zmian.
+
+- element główny z `position: absolute` (8 testów) i tło tabeli będącej elementem głównym na płótnie;
+- `overflow` na tabeli przycina pudełko tabeli (podpis poza przycięciem), nie dotyczy wierszy i kolumn;
+  tabela tworząca własny kontekst nakładania rysuje tła komórek (10 testów);
+- `<iframe>` jako element zastępowany 300 na 150 (14 testów);
+- `clear` a zwijanie marginesów z pierwszym dzieckiem (7 testów);
+- linia bazowa `inline-block` z `overflow` z ostatniego wiersza, gdy leży w pudełku (4 testy); wyjątek
+  dla `textarea`, bo bez niego dokument `13-forms-html-elements` odsuwał się od Chromium o 3 pt
+  (wykryte porównaniem korpusu);
+- elementy zastępowane obok siebie we flex nie nakładają się (błąd niezależny od `iframe`, widoczny dla
+  dwóch `canvas`);
+- łańcuch znaków jako styl w `counter()` odrzucany.
+
+Pominięte: `content-counter-006`–`008` (zakres licznika według CSS 2.1, sprzeczny z CSS Lists 3 § 4.3,
+którą silnik stosuje), `content-counter-013`, `-014` (kerning ponad granicą elementów liniowych),
+`margin-bottom-applies-to-012`–`015` (wzorzec niezgodny z testem), testy z pismem od prawej do lewej.
+

@@ -7,7 +7,9 @@ import (
 	"image/png"
 	"io"
 
+	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
+	"github.com/polestorm/gopdfgo/internal/webrender/text"
 )
 
 // Crop (gopdfgo) zwraca wycinek obrazu rastrowego jako osobny obraz. Służy do rysowania wycinków
@@ -52,3 +54,15 @@ func Crop(img Image, x, y, width, height int) (Image, bool) {
 	out.intrinsicRatio = out.intrinsicWidth / out.intrinsicHeight
 	return out, true
 }
+
+// Blank (gopdfgo) to pusty obraz o podanym rozmiarze i bez proporcji własnych: treść elementu
+// zastępowanego, którego zawartości silnik nie rysuje (iframe).
+type Blank struct{ Width, Height pr.Float }
+
+func (Blank) isImage() {}
+
+func (b Blank) GetIntrinsicSize(_, _ pr.Float) (width, height, ratio pr.MaybeFloat) {
+	return b.Width, b.Height, nil
+}
+
+func (Blank) Draw(backend.Canvas, text.TextLayoutContext, pr.Fl, pr.Fl, string) {}

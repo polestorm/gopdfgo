@@ -935,10 +935,21 @@ Wspólne dla obu katalogów:
     rysowana tylko jako dziecko cudzego kontekstu;
   - `css/validation/utils.go`: łańcuch znaków jako styl w `counter()` i `counters()` jest odrzucany
     (CSS Lists 3 § 4.7);
+  - `html/boxes/html.go` (`handleIframe`), `images/crop.go` (`Blank`): `<iframe>` jest elementem
+    zastępowanym o rozmiarze domyślnym 300 na 150 i bez proporcji własnych (§ 10.3.2); zawartości nie
+    rysujemy. W źródle był pustym pudełkiem liniowym;
+  - `html/layout/block.go` (`blockLevelLayout`, `leadingChildMargins`): pozycja hipotetyczna przy `clear`
+    uwzględnia marginesy pierwszych dzieci zwijające się przez górną krawędź pudełka (§ 9.5.2, § 8.3.1);
+    gdy clearance powstaje, wspólna górna krawędź staje równo z dołem elementu pływającego. Tylko dla
+    marginesów dodatnich; źródło dodawało margines dziecka pod clearance;
+  - `html/layout/replaced.go` (`blockReplacedBoxLayout`): element zastępowany będący elementem flex albo
+    grid nie jest przestawiany przez omijanie elementów pływających; w źródle wracał do lewej krawędzi
+    kontenera i dwa takie elementy obok siebie nakładały się;
   - `html/layout/inline.go` (`inlineBlockBaseline`): `inline-block` z `overflow` innym niż `visible`
     bierze linię bazową z ostatniego wiersza, gdy ten leży w pudełku, inaczej z dolnej krawędzi
     marginesu (CSS 2.1 § 10.8.1 każe zawsze brać krawędź marginesu; przyjęte zachowanie Chromium,
-    zgodne z testami `inline-block-baseline-003` i `vertical-align-baseline-005a`);
+    zgodne z testami `inline-block-baseline-003` i `vertical-align-baseline-005a`); `textarea` zostaje
+    przy krawędzi marginesu, jak w Chromium;
 - kolumny w trybie ciągłym, 2026-11-17 (ADR 0017 pkt 5), `html/layout/column.go` (`unpaged`): kontener
   poza innymi kolumnami tworzy nadmiarowe kolumny w osi wiersza także przy wysokości auto, zostawia
   w kolumnie treść, która się w niej nie mieści, i równoważy kolumny przy `column-fill: auto` bez

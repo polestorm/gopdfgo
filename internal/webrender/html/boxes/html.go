@@ -26,6 +26,7 @@ var htmlHandlers = map[string]handlerFunction{
 	"col":      handleCol,
 	"svg":      handleSVG,
 	"canvas":   handleCanvas,
+	"iframe":   handleIframe,
 }
 
 // HandleElement handle HTML elements that need special care.
@@ -55,6 +56,13 @@ func handleCanvas(element *utils.HTMLNode, box Box, resolver URLResolver, _ stri
 		return []Box{box}
 	}
 	return []Box{makeReplacedBox(element, box, img)}
+}
+
+// handleIframe (gopdfgo): <iframe> to element zastępowany o rozmiarze domyślnym 300 na 150 i bez
+// proporcji własnych (CSS 2.1 § 10.3.2, HTML § 4.8.5); zagnieżdżonego dokumentu nie rysujemy, ale
+// ramka zajmuje swoje miejsce razem z tłem i obramowaniem. W źródle był pustym pudełkiem liniowym.
+func handleIframe(element *utils.HTMLNode, box Box, _ URLResolver, _ string) []Box {
+	return []Box{makeReplacedBox(element, box, images.Blank{Width: 300, Height: 150})}
 }
 
 // Wrap an image in a replaced box.

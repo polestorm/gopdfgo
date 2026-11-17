@@ -82,7 +82,21 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		collapsedMargin := collapseMargin(append(*adjoiningMargins, box_.MarginTop.V()))
 		bl := box.BlockLevel()
 		bl.Clearance = getClearance(context, box_, collapsedMargin)
-		if bl.Clearance != nil {
+		// gopdfgo: pozycję hipotetyczną liczy się po zwinięciu marginesów, także z marginesami pierwszych
+		// dzieci, które zwijają się przez górną krawędź pudełka (CSS 2.1 § 9.5.2 i § 8.3.1). Gdy już ona
+		// leży poniżej elementów pływających, clearance nie powstaje; gdy powstaje, górna krawędź
+		// obramowania (wspólna z tymi dziećmi) staje równo z dołem elementu pływającego. Źródło brało
+		// tylko margines samego pudełka, więc margines dziecka dochodził jeszcze pod clearance.
+		own := box_.MarginTop.V()
+		if inner := leadingChildMargins(box); bl.Clearance != nil && len(inner) != 0 {
+			withChildren := collapseMargin(append(append(append([]pr.Float(nil), *adjoiningMargins...), own), inner...))
+			bl.Clearance = getClearance(context, box_, withChildren)
+			if bl.Clearance != nil {
+				topBorderEdge := box_.PositionY + withChildren + bl.Clearance.V()
+				box_.PositionY = topBorderEdge - collapseMargin(append([]pr.Float{own}, inner...))
+				adjoiningMargins = new([]pr.Float)
+			}
+		} else if bl.Clearance != nil {
 			topBorderEdge := box_.PositionY + collapsedMargin + bl.Clearance.V()
 			box_.PositionY = topBorderEdge - box_.MarginTop.V()
 			adjoiningMargins = new([]pr.Float)
@@ -218,6 +232,44 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	}
 
 	return newBox, result
+}
+
+// leadingChildMargins zwraca górne marginesy pierwszych dzieci blokowych, które zwijają się z górnym
+// marginesem pudełka: pudełko nie ma górnego obramowania ani odstępu i nie zakłada kontekstu formatowania.
+func leadingChildMargins(box_ Box) (margins []pr.Float) {
+	for depth := 0; depth < 16; depth++ {
+		box := box_.Box()
+		if !bo.BlockT.IsInstance(box_) || bo.EstablishesFormattingContext(box_) || box.IsTableWrapper {
+			return margins
+		}
+		style := box.Style
+		if border := style.GetBorderTopWidth(); border.Value != 0 && style.GetBorderTopStyle() != "none" && style.GetBorderTopStyle() != "hidden" {
+			return margins
+		}
+		if padding := style.GetPaddingTop(); padding.Value != 0 {
+			return margins
+		}
+		var first Box
+		for _, child := range box.Children {
+			if child.Box().IsInNormalFlow() {
+				first = child
+				break
+			}
+		}
+		if first == nil || !bo.BlockLevelT.IsInstance(first) || first.Box().Style.GetClear() != "none" {
+			return margins
+		}
+		margin := first.Box().Style.GetMarginTop()
+		if margin.Tag == pr.Auto || margin.Unit != pr.Px || margin.Calc != nil {
+			return margins
+		}
+		if margin.Value < 0 {
+			return nil // marginesy ujemne: zostaje dotychczasowe liczenie
+		}
+		margins = append(margins, margin.Value)
+		box_ = first
+	}
+	return margins
 }
 
 // avoidFloats (gopdfgo): kontener flex albo grid w przepływie blokowym zakłada własny kontekst
