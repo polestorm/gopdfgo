@@ -401,6 +401,9 @@ type layoutContext struct {
 	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
 	flexMeasuring int
 	gridMeasure   *gridMeasure // gopdfgo: trwający pomiar szerokości wewnętrznej siatki
+	// gopdfgo: odsunięcia elementów wyrównanych do linii bazowej doliczane do wkładu w wysokość wierszy
+	// rozwiązywanej właśnie siatki (CSS Grid 1 § 11.5 krok 1), klucz to pudełko elementu
+	gridShims map[Box]pr.Float
 
 	// gopdfgo: pudełka pozycjonowane względem komórki tabeli, do ponownego ułożenia po ustaleniu
 	// wysokości wiersza; klucz to ułożona komórka

@@ -556,12 +556,13 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 					}
 				}
 			} else {
+				shim := context.gridShims[item] // gopdfgo: odsunięcie od wspólnej linii bazowej (§ 11.5 krok 1)
 				item = bo.Deepcopy(item)
 				item.Box().PositionX = 0
 				item.Box().PositionY = 0
 				item, _, _ = blockLevelLayout(context, item.(bo.BlockLevelBoxITF), -pr.Inf, nil,
 					containingBlock, true, nil, nil, nil, false, -1)
-				space = item.Box().MarginHeight()
+				space = item.Box().MarginHeight() + shim
 			}
 			for _, sizes := range tracksSizes[min(i, len(tracksSizes)):min(i+span, len(tracksSizes))] {
 				space -= sizes[affectedSizes].V()
@@ -738,6 +739,7 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				pos := childrenPositions[child]
 				x, _, width, _ := pos.unpack()
 				widthF := sum0(pySlice(orthogonalSizes, x, x+width))
+				shim := context.gridShims[child] // gopdfgo: odsunięcie od wspólnej linii bazowej (§ 11.5 krok 1)
 				child = bo.Deepcopy(child)
 				child.Box().PositionX = 0
 				child.Box().PositionY = 0
@@ -755,7 +757,7 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				bottomSpace := -pr.Inf
 				child, _, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, nil,
 					parent.Box(), true, nil, nil, nil, false, -1)
-				height = max(height, child.Box().MarginHeight())
+				height = max(height, child.Box().MarginHeight()+shim)
 			}
 			if isFr(maxFunction) {
 				frContent[i] = height
@@ -1113,31 +1115,32 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
 ) (Box, blockLayout) {
 	// gopdfgo: wyrównanie do linii bazowej powiększa wiersz, gdy elementy po przesunięciu przestają się
-	// w nim mieścić (CSS Grid 1 § 11.5 i CSS Align 3 § 9.3: do wkładu elementu w rozmiar ścieżki
-	// dolicza się odsunięcie od wspólnej linii bazowej). Linie bazowe znamy dopiero po ułożeniu
-	// elementów, więc pierwszy przebieg mierzy, o ile wiersze są za niskie, a drugi układa siatkę
-	// z powiększonymi wierszami. Pudełka pozycjonowane zebrane w pierwszym przebiegu są odrzucane.
+	// w nim mieścić (CSS Grid 1 § 11.5 krok 1, CSS Align 3 § 9.3: do wkładu elementu w rozmiar ścieżki
+	// dolicza się odsunięcie od wspólnej linii bazowej, „shim”). Linie bazowe znamy dopiero po ułożeniu
+	// elementów, więc pierwszy przebieg mierzy odsunięcia, a drugi rozwiązuje wiersze z wkładami
+	// powiększonymi o nie. Pudełka pozycjonowane zebrane w pierwszym przebiegu są odrzucane.
 	absoluteCount, fixedCount := len(*absoluteBoxes), len(*fixedBoxes)
 	// pierwszy przebieg wpisuje do pudełka wyliczoną wysokość; drugi ma znów zacząć od wysokości auto,
 	// inaczej powiększone wiersze nie powiększyłyby kontenera
 	originalHeight := box_.Box().Height
-	out, layout, rowExtra := gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
+	out, layout, shims := gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, nil)
-	if len(rowExtra) == 0 {
+	if len(shims) == 0 {
 		return out, layout
 	}
 	*absoluteBoxes, *fixedBoxes = (*absoluteBoxes)[:absoluteCount], (*fixedBoxes)[:fixedCount]
 	box_.Box().Height = originalHeight
 	out, layout, _ = gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
-		absoluteBoxes, fixedBoxes, rowExtra)
+		absoluteBoxes, fixedBoxes, shims)
 	return out, layout
 }
 
-// gridLayoutPass układa siatkę; rowExtra to dodatki do wysokości wierszy z poprzedniego przebiegu
-// (nil w pierwszym). Trzeci wynik to dodatki, których wymaga wyrównanie do linii bazowej.
+// gridLayoutPass układa siatkę; shims to odsunięcia elementów wyrównanych do linii bazowej
+// z poprzedniego przebiegu (nil w pierwszym), doliczane do ich wkładu w wysokość wierszy. Trzeci
+// wynik to odsunięcia zmierzone w tym przebiegu (tylko w pierwszym).
 func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack, containingBlock containingBlock,
-	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, rowExtra map[int]pr.Float,
-) (Box, blockLayout, map[int]pr.Float) {
+	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, shims map[Box]pr.Float,
+) (Box, blockLayout, map[Box]pr.Float) {
 	context.createBlockFormattingContext()
 	// gopdfgo: pomiar szerokości wewnętrznej siatki, zob. gridContentWidth
 	measure := context.gridMeasure
@@ -1690,6 +1693,8 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// 3.0 List min/max sizing functions.
 	rowSizingFunctions := extractDims(rows)
 	columnSizingFunctions := extractDims(columns)
+	// wysokość kontenera przed rozwiązaniem wierszy: określona tylko, gdy wynika ze stylu
+	specifiedHeight := box.Height
 
 	// gopdfgo: element w wierszach o stałym rozmiarze zna swoją wysokość już przy liczeniu kolumn, więc
 	// wysokość procentowa i proporcje wchodzą do jego szerokości z treści (CSS Grid 2 § 12.1, CSS Sizing 4
@@ -1718,6 +1723,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 
 	// 3.2 Resolve the sizes of the grid rows.
+	// gopdfgo: odsunięcia elementów wyrównanych do linii bazowej wchodzą do ich wkładu (zob. gridLayout)
+	previousShims := context.gridShims
+	context.gridShims = shims
 	rowsSizes := resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
 		'y', rowGap, box_, columnsSizes)
 
@@ -1745,7 +1753,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// gopdfgo: gdy suma współczynników fr wierszy jest mniejsza od 1, wysokość kontenera wynika
 	// z pierwszego przebiegu, a wiersze są rozwiązywane drugi raz w tej już określonej wysokości
 	// (CSS Grid 1 § 11.1 krok 2 i § 11.7.1); źródło robiło jeden przebieg.
-	if box.Height == pr.AutoF && measure == nil && skipStack == nil && rowExtra == nil {
+	if box.Height == pr.AutoF && measure == nil && skipStack == nil {
 		var factors pr.Float
 		for _, function := range rowSizingFunctions {
 			if isFr(function[1]) {
@@ -1762,12 +1770,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
 		rowGap = pr.ResolvePercentage(style.GetRowGap(), contentHeight).V()
 	}
-	for row, extra := range rowExtra {
-		if row < len(rowsSizes) {
-			rowsSizes[row][0] += extra
-			rowsSizes[row][1] = max(rowsSizes[row][1], rowsSizes[row][0])
-		}
-	}
+	context.gridShims = previousShims
 
 	// 3.3 Re-resolve the sizes of the grid columns with min-/max-content.
 	// TODO: Re-resolve.
@@ -2037,16 +2040,27 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// Lay out grid items.
 	justifyItems := box.Style.GetJustifyItems()
 	alignItems := box.Style.GetAlignItems()
+	// gopdfgo: uczestnik wyrównania do linii bazowej w wierszu (CSS Grid 1 § 10.6, CSS Align 3 § 9.2)
 	type baselineItem struct {
-		box Box
-		row int
+		box     Box
+		source  Box  // pudełko przed układem, klucz w childrenPositions
+		row     int  // wiersz grupy: pierwszy wiersz obszaru dla first baseline, ostatni dla last baseline
+		last    bool // last baseline
+		content bool // align-content: baseline; przesuwana jest treść elementu, nie pudełko
+		sized   bool // obszar obejmuje wiersz o rozmiarze z treści: odsunięcie może go powiększyć
+		areaEnd pr.Float
+	}
+	// gopdfgo: ułożony element z położeniem w siatce, do linii bazowych kontenera (CSS Grid 1 § 10.7)
+	type placedItem struct {
+		box                      Box
+		row, lastRow, column, at int
 	}
 	var (
 		newChildren   []Box
-		baseline      pr.MaybeFloat
 		baselineItems []baselineItem
+		placedItems   []placedItem
 	)
-	for _, child := range thisPageChildren {
+	for childIndex, child := range thisPageChildren {
 		x, y, width, height := childrenPositions[child].unpack()
 		index := findBoxIndex(box.Children, child)
 		var childSkipStack tree.ResumeStack
@@ -2089,6 +2103,17 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		if alignSelf.Has(pr.Auto) {
 			alignSelf = alignItems
 		}
+		// gopdfgo: element, którego wysokość zależy od rozmiaru wiersza o rozmiarze wyznaczanym z treści
+		// (wysokość procentowa), nie uczestniczy w wyrównaniu do linii bazowej i bierze wyrównanie
+		// zapasowe: start dla first baseline, end dla last baseline (CSS Grid 1 § 10.6, CSS Align 3 § 4.3).
+		if alignSelf.Has(pr.Baseline) && percentHeight(childB.Style) &&
+			fixedRowsHeight(rowSizingFunctions, yi, height, rowGap, specifiedHeight) == nil {
+			if alignSelf.Has(pr.Last) {
+				alignSelf = pr.JustifyOrAlign{pr.End}
+			} else {
+				alignSelf = pr.JustifyOrAlign{pr.Start}
+			}
+		}
 		// gopdfgo: dla elementu zastępowanego (obraz, svg) wyrównanie normal działa jak start, nie jak
 		// stretch (CSS Grid 1 § 6.2): zachowuje rozmiar wynikający z proporcji. Źródło rozciągało obraz
 		// do całego obszaru siatki.
@@ -2110,6 +2135,35 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		if !blockAuto && stretchBlock && childSkipStack == nil {
 			if heightAuto {
 				childB.Style.SetHeight(pr.FToPx(childHeight))
+			}
+		}
+		// gopdfgo: tabela jako element siatki też jest rozciągana (CSS Grid 1 § 6.2, CSS Align 3 § 6.1);
+		// o rozmiarze decyduje styl tabeli, nie pudełka opakowującego, więc rozmiar obszaru bez obramowania
+		// i odstępu tabeli trafia do jej stylu.
+		// Źródło zostawiało tabelę w rozmiarze treści.
+		if childB.IsTableWrapper && !replaced {
+			table := childB.GetWrappedTable().Box()
+			tableWidth, tableHeight := table.Style.GetWidth(), table.Style.GetHeight()
+			stretchWidth := !inlineAuto && stretchInline && tableWidth.Tag == pr.Auto && tableWidth.Intrinsic == pr.IntrinsicNone
+			stretchHeight := !blockAuto && stretchBlock && childSkipStack == nil && tableHeight.Tag == pr.Auto &&
+				tableHeight.Intrinsic == pr.IntrinsicNone
+			if stretchWidth || stretchHeight {
+				style := table.Style.Copy()
+				px := func(d pr.TaggedDim) pr.Float {
+					if d.Unit == pr.Px {
+						return d.Value
+					}
+					return 0
+				}
+				if stretchWidth {
+					style.SetWidth(pr.FToPx(max(childWidth-style.GetBorderLeftWidth().Value-style.GetBorderRightWidth().Value-
+						px(style.GetPaddingLeft())-px(style.GetPaddingRight()), 0)))
+				}
+				if stretchHeight {
+					style.SetHeight(pr.FToPx(max(childHeight-style.GetBorderTopWidth().Value-style.GetBorderBottomWidth().Value-
+						px(style.GetPaddingTop())-px(style.GetPaddingBottom()), 0)))
+				}
+				table.Style = style
 			}
 		}
 
@@ -2155,7 +2209,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			// gopdfgo: rozciągany jest tylko element o rozmiarze auto (CSS Grid 1 § 6.2, CSS Align 3 § 6.1);
 			// źródło rozciągało też element z podaną szerokością albo wysokością do rozmiaru obszaru
 			if widthAuto {
-				newChild.Box().Width = max(childWidth, newChild.Box().Width.V())
+				// gopdfgo: rozciąganie respektuje max-width i min-width (CSS Align 3 § 6.1: „subject to
+				// min/max constraints”); źródło rozciągało element do całej kolumny mimo max-width
+				newChild.Box().Width = max(clampSize(childWidth, newChild.Box().MinWidth, newChild.Box().MaxWidth), newChild.Box().Width.V())
 			}
 		} else {
 			// gopdfgo: do treści kurczy się tylko element o szerokości auto; w źródle podana szerokość
@@ -2188,7 +2244,8 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			}
 		} else if stretchBlock {
 			if heightAuto {
-				newChild.Box().Height = max(childHeight, newChild.Box().Height.V())
+				// gopdfgo: jak wyżej, z max-height i min-height
+				newChild.Box().Height = max(clampSize(childHeight, newChild.Box().MinHeight, newChild.Box().MaxHeight), newChild.Box().Height.V())
 			}
 		} else {
 			diff := childHeight - newChild.Box().Height.V()
@@ -2201,60 +2258,130 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 
 		// TODO: Take care of page fragmentation.
 		newChildren = append(newChildren, newChild)
-		if alignSelf.Has(pr.Baseline) && !alignSelf.Has(pr.Last) && height == 1 && !blockAuto && childSkipStack == nil {
-			baselineItems = append(baselineItems, baselineItem{newChild, yi})
-		}
-		if baseline == nil && y == implicitY1 {
-			baseline = findInFlowBaseline(newChild, false)
-			if baseline == nil {
-				// gopdfgo: element bez wiersza tekstu ma linię bazową syntetyzowaną z dolnej krawędzi
-				// obramowania (CSS Align 3 § 9.1); źródło przyjmowało wtedy górę kontenera, więc
-				// inline-grid z pustymi elementami wisiał pod linią bazową wiersza.
-				baseline = newChild.Box().BorderBoxY() + newChild.Box().BorderHeight()
+		lastRow := min(yi+height-1, len(rowsPositions)-1)
+		placedItems = append(placedItems, placedItem{newChild, yi, lastRow, xi, len(placedItems)})
+		// gopdfgo: uczestnicy wyrównania do linii bazowej. Element rozpięty na kilka wierszy uczestniczy
+		// w grupie swojego pierwszego wiersza (first baseline) albo ostatniego (last baseline), CSS Grid 1
+		// § 10.6. align-content: baseline na bloku rozciągniętym przesuwa jego treść (CSS Align 3 § 5.4).
+		// Źródło nie obsługiwało tu linii bazowych wcale.
+		if !blockAuto && childSkipStack == nil && itemLayout.resumeAt == nil {
+			participant := baselineItem{box: newChild, source: thisPageChildren[childIndex],
+				sized: fixedRowsHeight(rowSizingFunctions, yi, height, rowGap, specifiedHeight) == nil}
+			switch {
+			case alignSelf.Has(pr.Baseline):
+				participant.last = alignSelf.Has(pr.Last)
+			case stretchBlock && heightAuto && bo.BlockT.IsInstance(newChild) &&
+				childB.Style.GetAlignContent().Has(pr.Baseline) && !childB.Style.GetAlignContent().Has(pr.Last):
+				participant.content = true
+			default:
+				participant.box = nil
+			}
+			if participant.box != nil {
+				participant.row = yi
+				if participant.last {
+					participant.row = lastRow
+				}
+				participant.areaEnd = rowsPositions[lastRow] + rowsSizes[lastRow][0] - skipHeight
+				baselineItems = append(baselineItems, participant)
 			}
 		}
 	}
 
-	// gopdfgo: wyrównanie do linii bazowej w wierszu siatki (CSS Grid 1 § 10.6, CSS Align 3 § 9.3): elementy
-	// jednego wiersza z align-self: baseline są przesuwane tak, żeby ich pierwsze linie bazowe leżały na
-	// wspólnej linii; element bez wiersza tekstu ma linię bazową na dolnej krawędzi marginesu. Rozmiary
-	// ścieżek nie są przy tym powiększane. Źródło zgłaszało tylko ostrzeżenie o braku obsługi.
-	itemBaseline := func(item Box) pr.Float {
-		if baseline := findInFlowBaseline(item, false); baseline != nil {
-			return baseline.V() - item.Box().PositionY
+	// gopdfgo: wyrównanie do linii bazowej w wierszu siatki (CSS Grid 1 § 10.6, CSS Align 3 § 9.3). Grupę
+	// tworzą elementy jednego wiersza o tej samej preferencji: first baseline wyrównuje pierwsze linie
+	// bazowe i przylega do początku wiersza, last baseline wyrównuje ostatnie linie i przylega do końca.
+	// Element bez linii bazowej ma ją syntetyzowaną z dolnej krawędzi obramowania (CSS Align 3 § 9.1).
+	// Wiersze rosną, gdy przesunięte elementy się w nich nie mieszczą (CSS Grid 1 § 11.5 krok 1: wkład
+	// elementu obejmuje odsunięcie od wspólnej linii bazowej, zob. gridLayout). Źródło zgłaszało
+	// tylko ostrzeżenie o braku obsługi.
+	type groupKey struct {
+		row  int
+		last bool
+	}
+	above := make([]pr.Float, len(baselineItems))  // od górnej krawędzi marginesu do linii bazowej
+	extent := make([]pr.Float, len(baselineItems)) // wysokość elementu (dla align-content: jego treści)
+	groupAbove, groupBelow := map[groupKey]pr.Float{}, map[groupKey]pr.Float{}
+	for i, item := range baselineItems {
+		key := groupKey{item.row, item.last}
+		above[i] = gridItemBaseline(item.box, item.last)
+		extent[i] = item.box.Box().MarginHeight()
+		if item.content {
+			extent[i] = contentExtent(item.box)
 		}
-		return item.Box().MarginHeight()
+		groupAbove[key] = max(groupAbove[key], above[i])
+		groupBelow[key] = max(groupBelow[key], extent[i]-above[i])
 	}
-	rowBaseline := map[int]pr.Float{}
-	rowBelow := map[int]pr.Float{}
-	for _, item := range baselineItems {
-		above := itemBaseline(item.box)
-		rowBaseline[item.row] = max(rowBaseline[item.row], above)
-		rowBelow[item.row] = max(rowBelow[item.row], item.box.Box().MarginHeight()-above)
-	}
-	// o ile wiersz o rozmiarze wyznaczanym z treści jest za niski dla wyrównanych elementów
-	var neededExtra map[int]pr.Float
-	if rowExtra == nil && skipStack == nil && resumedRow == -1 {
-		for row, above := range rowBaseline {
-			if row >= len(rowsSizes) || row >= len(rowSizingFunctions) {
-				continue
+	// odsunięcia od wspólnej linii bazowej, doliczane w drugim przebiegu do wkładu elementów w wiersze
+	var newShims map[Box]pr.Float
+	if shims == nil && skipStack == nil && resumedRow == -1 {
+		for i, item := range baselineItems {
+			key := groupKey{item.row, item.last}
+			shim := groupAbove[key] - above[i]
+			if item.last {
+				shim = groupBelow[key] - (extent[i] - above[i])
 			}
-			switch rowSizingFunctions[row][1].Tag {
-			case pr.Auto, pr.MinContent, pr.MaxContent:
-			default:
-				continue
-			}
-			if extra := above + rowBelow[row] - rowsSizes[row][0]; extra > 0.01 {
-				if neededExtra == nil {
-					neededExtra = map[int]pr.Float{}
+			if shim > 0.01 && item.sized {
+				if newShims == nil {
+					newShims = map[Box]pr.Float{}
 				}
-				neededExtra[row] = extra
+				newShims[item.source] = shim
 			}
 		}
 	}
-	for _, item := range baselineItems {
-		if shift := rowBaseline[item.row] - itemBaseline(item.box); shift > 0 {
-			item.box.Translate(0, shift, false)
+	for i, item := range baselineItems {
+		key := groupKey{item.row, item.last}
+		switch {
+		case item.last:
+			// dolna krawędź marginesu tak, żeby ostatnia linia bazowa leżała na wspólnej linii grupy
+			bottom := item.areaEnd - (groupBelow[key] - (extent[i] - above[i]))
+			item.box.Translate(0, bottom-(item.box.Box().PositionY+extent[i]), false)
+		case item.content:
+			if shift := groupAbove[key] - above[i]; shift > 0 {
+				for _, child := range item.box.Box().Children {
+					child.Translate(0, shift, false)
+				}
+			}
+		default:
+			if shift := groupAbove[key] - above[i]; shift > 0 {
+				item.box.Translate(0, shift, false)
+			}
+		}
+	}
+
+	// gopdfgo: linie bazowe kontenera siatki (CSS Grid 1 § 10.7): pierwsza z grupy first baseline
+	// pierwszego niepustego wiersza, a bez niej z pierwszego elementu tego wiersza w porządku siatki;
+	// ostatnia analogicznie od ostatniego wiersza. Element bez linii bazowej ma ją syntetyzowaną
+	// z krawędzi obramowania. Źródło brało dla inline-grid pierwszy element z pierwszej ścieżki niejawnej,
+	// a dla siatki blokowej linię bazową dzieci w kolejności dokumentu.
+	var firstBaseline, lastBaseline pr.MaybeFloat
+	if len(placedItems) != 0 {
+		firstRow, lastRow := placedItems[0].row, placedItems[0].lastRow
+		for _, item := range placedItems {
+			firstRow, lastRow = min(firstRow, item.row), max(lastRow, item.lastRow)
+		}
+		for _, item := range baselineItems {
+			if !item.last && item.row == firstRow && firstBaseline == nil {
+				firstBaseline = item.box.Box().PositionY + gridItemBaseline(item.box, false)
+			}
+			if item.last && item.row == lastRow && lastBaseline == nil {
+				lastBaseline = item.box.Box().PositionY + gridItemBaseline(item.box, true)
+			}
+		}
+		var first, last *placedItem
+		for i := range placedItems {
+			item := &placedItems[i]
+			if item.row == firstRow && (first == nil || item.column < first.column) {
+				first = item
+			}
+			if item.lastRow == lastRow && (last == nil || item.column >= last.column) {
+				last = item
+			}
+		}
+		if firstBaseline == nil {
+			firstBaseline = first.box.Box().PositionY + gridItemBaseline(first.box, false)
+		}
+		if lastBaseline == nil {
+			lastBaseline = last.box.Box().PositionY + gridItemBaseline(last.box, true)
 		}
 	}
 
@@ -2393,13 +2520,20 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			absoluteLayout(context, absoluteBox, box_, fixedBoxes, bottomSpace, nil)
 		}
 	}
+	newBox := box_.Box()
+	newBox.GridFirstBaseline, newBox.GridLastBaseline = nil, nil
+	if firstBaseline != nil {
+		newBox.GridFirstBaseline = firstBaseline.V() - newBox.PositionY
+		newBox.GridLastBaseline = lastBaseline.V() - newBox.PositionY
+	}
 	if bo.InlineGridT.IsInstance(box_) {
-		// TODO: Synthetize a real baseline value.
-		logger.WarningLogger.Println("Inline grids are not supported")
-		if !pr.Is(baseline) {
-			baseline = pr.Float(0)
+		// gopdfgo: inline-grid stoi w wierszu na swojej pierwszej linii bazowej; bez elementów linia
+		// jest syntetyzowana z dolnej krawędzi marginesu (CSS Align 3 § 9.1, CSS Inline 3 § 4.2).
+		// Źródło przyjmowało wtedy górną krawędź (0).
+		newBox.Baseline = newBox.GridFirstBaseline
+		if newBox.Baseline == nil {
+			newBox.Baseline = newBox.MarginHeight()
 		}
-		box_.Box().Baseline = baseline
 	}
 
 	context.finishBlockFormattingContext(box_)
@@ -2407,7 +2541,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// gopdfgo: element siatki z position: relative jest przesuwany o swoje top, right, bottom, left
 	// (CSS 2.1 § 9.4.3); procenty liczą się od obszaru siatki elementu, tu w przybliżeniu od pudełka
 	// kontenera. W źródle przesunięcie dostawały tylko dzieci bloków.
-	if width, ok := box_.Box().Width.(pr.Float); ok && neededExtra == nil {
+	if width, ok := box_.Box().Width.(pr.Float); ok && newShims == nil {
 		height, _ := box_.Box().Height.(pr.Float)
 		for _, child := range box_.Box().Children {
 			if child.Box().IsGridItem {
@@ -2420,7 +2554,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		traceLogger.DumpTree(box_, "after gridLayout")
 	}
 
-	return box_, blockLayout{resumeAt, nil, tree.PageBreak{Break: "any"}, false}, neededExtra
+	return box_, blockLayout{resumeAt, nil, tree.PageBreak{Break: "any"}, false}, newShims
 }
 
 // pySlice zwraca s[start:end] według reguł wycinków Pythona: indeks ujemny liczy się od końca,
@@ -2500,7 +2634,7 @@ func (indefiniteBlock) ContainingBlock() (width, height pr.MaybeFloat) { return 
 // (absoluteWidth → shrinkToFit → minContentWidth → gridContentWidth → gridLayoutPass → absoluteLayout).
 var measureGridPass func(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack,
 	containingBlock containingBlock, pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
-	rowExtra map[int]pr.Float) (Box, blockLayout, map[int]pr.Float)
+	shims map[Box]pr.Float) (Box, blockLayout, map[Box]pr.Float)
 
 func init() { measureGridPass = gridLayoutPass }
 
@@ -2530,6 +2664,53 @@ func fixedRowsHeight(sizingFunctions [][2]pr.TaggedDim, first, span int, gap pr.
 		}
 	}
 	return total
+}
+
+// clampSize (gopdfgo) ogranicza rozmiar do [minimum, maximum], o ile są liczbami.
+func clampSize(size pr.Float, minimum, maximum pr.MaybeFloat) pr.Float {
+	if maximum, ok := maximum.(pr.Float); ok {
+		size = min(size, maximum)
+	}
+	if minimum, ok := minimum.(pr.Float); ok {
+		size = max(size, minimum)
+	}
+	return size
+}
+
+// percentHeight (gopdfgo) mówi, czy wysokość elementu zależy od wysokości jego obszaru siatki
+// (procent albo calc() z procentem).
+func percentHeight(style pr.ElementStyle) bool {
+	for _, height := range [...]pr.TaggedDim{style.GetHeight(), style.GetMinHeight(), style.GetMaxHeight()} {
+		if height.Tag == 0 && (height.Unit == pr.Perc || height.Calc != nil) {
+			return true
+		}
+	}
+	return false
+}
+
+// gridItemBaseline (gopdfgo) zwraca odległość pierwszej (last=false) albo ostatniej linii bazowej
+// elementu siatki od górnej krawędzi jego marginesu; element bez linii bazowej ma ją syntetyzowaną
+// z dolnej krawędzi obramowania (CSS Align 3 § 9.1, CSS Grid 1 § 10.6).
+func gridItemBaseline(item Box, last bool) pr.Float {
+	box := item.Box()
+	if baseline := findInFlowBaseline(item, last); baseline != nil {
+		return baseline.V() - box.PositionY
+	}
+	return box.MarginTop.V() + box.BorderHeight()
+}
+
+// contentExtent (gopdfgo) zwraca wysokość, jaką miałby blok bez rozciągania: od górnej krawędzi
+// marginesu do dolnej krawędzi marginesu ostatniego dziecka w przepływie, plus dolny odstęp
+// wewnętrzny, obramowanie i margines.
+func contentExtent(item Box) pr.Float {
+	box := item.Box()
+	bottom := box.ContentBoxY()
+	for _, child := range box.Children {
+		if child.Box().IsInNormalFlow() {
+			bottom = max(bottom, child.Box().PositionY+child.Box().MarginHeight())
+		}
+	}
+	return bottom - box.PositionY + box.PaddingBottom.V() + box.BorderBottomWidth.V() + box.MarginBottom.V()
 }
 
 // stretchesInBlockAxis mówi, czy element siatki o wysokości auto wypełnia swój obszar w pionie

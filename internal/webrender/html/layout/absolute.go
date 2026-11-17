@@ -218,7 +218,13 @@ func absoluteHeight(box_ Box, containingBlock block) (bool, pr.Float) {
 		} else if top == pr.AutoF {
 			translateY = cbHeight.V() + defaultTranslateY - bottom.V() - spacing - height.V()
 		} else if height == pr.AutoF {
-			box.Height = cbHeight.V() - bottom.V() - top.V() - spacing
+			// gopdfgo: przy align-self innym niż normal i stretch wysokość auto to fit-content, a pudełko
+			// jest wyrównywane w bloku zawierającym pomniejszonym o top i bottom (CSS Align 3 § 6.1,
+			// CSS Position 3 § 4.1); przesunięcie dolicza absoluteBlock po układzie. Tylko dla dzieci
+			// siatki. Źródło zawsze rozciągało pudełko między top i bottom.
+			if _, aligned := absoluteBlockAlignment(box_); !aligned {
+				box.Height = cbHeight.V() - bottom.V() - top.V() - spacing
+			}
 			translateY = top.V() + defaultTranslateY
 		} else if bottom == pr.AutoF {
 			translateY = top.V() + defaultTranslateY
@@ -317,6 +323,15 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 	}
 	if translateBoxHeight {
 		translateY -= newBox.Box().Height.V()
+	}
+	// gopdfgo: wyrównanie pudełka o wysokości fit-content między top i bottom, zob. absoluteHeight
+	if fraction, aligned := absoluteBlockAlignment(box_); aligned && len(skipStack) == 0 && box.Style.GetHeight().Tag == pr.Auto {
+		if top, ok := box.Top.(pr.Float); ok {
+			if bottom, ok := box.Bottom.(pr.Float); ok {
+				free := cbHeight.V() - top - bottom - newBox.Box().MarginHeight()
+				translateY += max(free, 0) * fraction
+			}
+		}
 	}
 
 	newBox.Translate(translateX, translateY, false)
@@ -517,4 +532,25 @@ func absoluteReplaced(box_ Box, containingBlock block) Box {
 	box.PositionX = cbX + box.Left.V()
 	box.PositionY = cbY + box.Top.V()
 	return box_
+}
+
+// absoluteBlockAlignment (gopdfgo) zwraca dla dziecka siatki pozycjonowanego bezwzględnie z podanym
+// align-self innym niż auto, normal i stretch położenie w wolnym miejscu w pionie (0 początek,
+// 0.5 środek, 1 koniec); baseline wyrównuje się jak start, last baseline jak end (CSS Align 3 § 4.3).
+func absoluteBlockAlignment(box_ Box) (pr.Float, bool) {
+	box := box_.Box()
+	if box.StaticAlign == nil {
+		return 0, false
+	}
+	alignSelf := box.Style.GetAlignSelf()
+	if alignSelf.Intersects(pr.Auto, pr.Normal, pr.Stretch) {
+		return 0, false
+	}
+	switch {
+	case alignSelf.Has(pr.Center):
+		return 0.5, true
+	case alignSelf.Intersects(pr.End, pr.FlexEnd, pr.SelfEnd, pr.Last):
+		return 1, true
+	}
+	return 0, true
 }
