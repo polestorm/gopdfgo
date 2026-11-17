@@ -1044,8 +1044,22 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 		config.BreakPolicy = shaping.Always
 	}
 
+	// gopdfgo: UAX #14 pozwala łamać między spacją a następującym po niej tabulatorem (LB18). Przy
+	// pre-wrap ciąg zachowanych spacji i tabulatorów jest jednym odstępem, który w całości wisi, a
+	// wiersz łamie się dopiero po nim (CSS Text 3 § 4.1.3, § 5.1; tak robi Chromium, testy WPT
+	// pre-wrap-tab-*). Wyznaczaniu miejsc podziału podajemy więc tekst z tabulatorami zamienionymi
+	// na spacje; kształty i szerokości zostają bez zmian.
+	breakText := text
+	if !spaceCollapse && !style.breakSpaces() && indexRune(text, '\t') != -1 {
+		breakText = slices.Clone(text)
+		for i, r := range breakText {
+			if r == '\t' {
+				breakText[i] = ' '
+			}
+		}
+	}
 	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
-		fc.lineWrapper.Prepare(config, text, shaping.NewSliceIterator(runs))
+		fc.lineWrapper.Prepare(config, breakText, shaping.NewSliceIterator(runs))
 		line, done := fc.lineWrapper.WrapNextLineF(limit)
 		if spaceCollapse {
 			trimTrailingSpace(&line, text, dir)
