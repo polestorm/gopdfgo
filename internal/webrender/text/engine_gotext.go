@@ -1407,7 +1407,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 		// miejscu, więc cofamy podział do najbliższego dozwolonego.
 		if wordBreak == WBBreakAll && firstLine.ResumeAt > 0 && firstLine.ResumeAt < len(text) {
 			at := firstLine.ResumeAt
-			for at > 0 && !fc.breakAllAllowed(text[at-1], text[at]) {
+			for at > 0 && !fc.breakAllAllowed(text[at-1], text[at], style.LooseBreak) {
 				at--
 			}
 			if at > 0 && at < firstLine.ResumeAt {
@@ -1621,12 +1621,17 @@ func (fc *FontConfigurationGotext) controlsInSpaceFace(inputs []shaping.Input) [
 
 // breakAllAllowed mówi, czy przy word-break: break-all wolno złamać wiersz między znakami a i b:
 // litery i cyfry liczą się jak znaki ideograficzne, reszta według UAX 14.
-func (fc *FontConfigurationGotext) breakAllAllowed(a, b rune) bool {
+func (fc *FontConfigurationGotext) breakAllAllowed(a, b rune, loose bool) bool {
 	ideograph := func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsNumber(r) {
 			return '\u4e00'
 		}
 		return r
+	}
+	// gopdfgo: przy line-break: loose wolno złamać przed łącznikiem U+2010 i półpauzą U+2013, gdy
+	// poprzedni znak jest ideograficzny, także przez word-break: break-all (CSS Text 3 § 5.3)
+	if loose && (b == '\u2010' || b == '\u2013') && ideograph(a) == '\u4e00' {
+		return true
 	}
 	return fc.CanBreakText([]rune{ideograph(a), ideograph(b)}) == pr.True
 }
