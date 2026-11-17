@@ -253,6 +253,7 @@ const (
 	PObjectFit
 	PObjectPosition
 
+	PWrapInside     // gopdfgo: CSS Text 4 § 5.4; niedziedziczona
 	PFontSizeAdjust // gopdfgo: CSS Fonts 5 § 2.7; dziedziczona
 	PTextJustify    // gopdfgo: CSS Text 3 § 6.4; dziedziczona
 	PTextWrapMode   // gopdfgo: CSS Text 4 § 5.1; dziedziczona

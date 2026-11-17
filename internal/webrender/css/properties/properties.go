@@ -198,6 +198,7 @@ var InitialValues = Properties{
 	PBoxShadow:     BoxShadows{},                              // gopdfgo: none
 	PTextShadow:    BoxShadows{},                              // gopdfgo: none
 	PContain:       String("none"),                            // gopdfgo
+	PWrapInside:    String("auto"),                            // gopdfgo
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

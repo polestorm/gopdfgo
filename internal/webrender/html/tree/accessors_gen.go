@@ -1920,6 +1920,12 @@ func (s *AnonymousStyle) SetObjectPosition(v pr.CenterPos) {
 	s.propsCache.setKnown(pr.PObjectPosition, v)
 }
 
+func (s *ComputedStyle) GetWrapInside() pr.String  { return s.Get(pr.PWrapInside.Key()).(pr.String) }
+func (s *ComputedStyle) SetWrapInside(v pr.String) { s.propsCache.setKnown(pr.PWrapInside, v) }
+
+func (s *AnonymousStyle) GetWrapInside() pr.String  { return s.Get(pr.PWrapInside.Key()).(pr.String) }
+func (s *AnonymousStyle) SetWrapInside(v pr.String) { s.propsCache.setKnown(pr.PWrapInside, v) }
+
 func (s *ComputedStyle) GetFontSizeAdjust() pr.SBoolFloat {
 	return s.Get(pr.PFontSizeAdjust.Key()).(pr.SBoolFloat)
 }

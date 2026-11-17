@@ -587,6 +587,9 @@ func (s Properties) SetObjectFit(v String) { s[PObjectFit] = v }
 func (s Properties) GetObjectPosition() CenterPos  { return s[PObjectPosition].(CenterPos) }
 func (s Properties) SetObjectPosition(v CenterPos) { s[PObjectPosition] = v }
 
+func (s Properties) GetWrapInside() String  { return s[PWrapInside].(String) }
+func (s Properties) SetWrapInside(v String) { s[PWrapInside] = v }
+
 func (s Properties) GetFontSizeAdjust() SBoolFloat  { return s[PFontSizeAdjust].(SBoolFloat) }
 func (s Properties) SetFontSizeAdjust(v SBoolFloat) { s[PFontSizeAdjust] = v }
 
@@ -1173,6 +1176,9 @@ type StyleAccessor interface {
 	GetObjectPosition() CenterPos
 	SetObjectPosition(v CenterPos)
 
+	GetWrapInside() String
+	SetWrapInside(v String)
+
 	GetFontSizeAdjust() SBoolFloat
 	SetFontSizeAdjust(v SBoolFloat)
 
@@ -1378,6 +1384,7 @@ var propsNames = [...]string{
 	PMaskBorderMode:          "mask-border-mode",
 	PObjectFit:               "object-fit",
 	PObjectPosition:          "object-position",
+	PWrapInside:              "wrap-inside",
 	PFontSizeAdjust:          "font-size-adjust",
 	PTextJustify:             "text-justify",
 	PTextWrapMode:            "text-wrap-mode",
@@ -1577,6 +1584,7 @@ var PropsFromNames = map[string]KnownProp{
 	"mask-border-mode":           PMaskBorderMode,
 	"object-fit":                 PObjectFit,
 	"object-position":            PObjectPosition,
+	"wrap-inside":                PWrapInside,
 	"font-size-adjust":           PFontSizeAdjust,
 	"text-justify":               PTextJustify,
 	"text-wrap-mode":             PTextWrapMode,

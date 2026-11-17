@@ -1238,6 +1238,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		var childWaitingFloats []Box
 		childSkipStack := skipStack
 		shapesBefore := len(context.excludedShapes.list)
+		absoluteBefore, fixedBefore, placeholdersBefore := len(*absoluteBoxes), len(*fixedBoxes), len(*linePlaceholders)
 		v := splitInlineLevel(context, child_, positionX, availableWidth, bottomSpace, skipStack,
 			containingBlock, absoluteBoxes, fixedBoxes, linePlaceholders, &childWaitingFloats, lineChildren)
 		resumeAt = v.resumeAt
@@ -1301,6 +1302,18 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		if canBreak == pr.True {
 			children = append(children, waitingChildren...)
 			waitingChildren = nil
+		}
+
+		// gopdfgo: pudełko z wrap-inside: avoid, które musiało się złamać w środku, przechodzi w całości
+		// do następnego wiersza, jeśli tuż przed nim wolno złamać wiersz (CSS Text 4 § 5.4: podział
+		// wewnątrz tylko w ostateczności). Pudełko zewnętrzne sprawdza to przed wewnętrznym, więc ma
+		// pierwszeństwo. Źródło właściwości nie znało.
+		if resumeAt != nil && canBreak == pr.True && !preserved && childSkipStack == nil &&
+			child.Style.GetWrapInside() == "avoid" && bo.InlineT.IsInstance(child_) && hasInFlowBox(children) {
+			*absoluteBoxes, *fixedBoxes, *linePlaceholders = (*absoluteBoxes)[:absoluteBefore], (*fixedBoxes)[:fixedBefore], (*linePlaceholders)[:placeholdersBefore]
+			context.excludedShapes.list = context.excludedShapes.list[:shapesBefore]
+			resumeAt = tree.ResumeStack{index: nil}
+			break
 		}
 
 		if firstLetter == 0 {
@@ -1988,6 +2001,16 @@ func breaksAnywhere(style pr.ElementStyle, intrinsic bool) bool {
 // reguły dla znaków przestankowych (wiersz nie zaczyna się od kropki).
 func breakAllOnly(style pr.ElementStyle) bool {
 	return style.GetWordBreak() == "break-all" && style.GetOverflowWrap() == "normal" && style.GetLineBreak() != "anywhere"
+}
+
+// hasInFlowBox mówi, czy wśród pudełek jest choć jedno w normalnym przepływie.
+func hasInFlowBox(boxes []indexedBoxC) bool {
+	for _, b := range boxes {
+		if b.box.Box().IsInNormalFlow() && !isNilTextBox(b.box) {
+			return true
+		}
+	}
+	return false
 }
 
 func isNilTextBox(box Box) bool {

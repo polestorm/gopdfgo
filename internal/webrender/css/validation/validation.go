@@ -262,6 +262,7 @@ var (
 		pr.PLineBreak:               lineBreak,
 		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PTextJustify:             textJustify,
+		pr.PWrapInside:              wrapInside,
 		pr.PTextWrapMode:            textWrapMode,
 		pr.PTextWrapStyle:           textWrapStyle,
 		pr.PGridAutoColumns:         gridAuto,
@@ -2722,6 +2723,17 @@ func textJustify(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "auto", "none", "inter-word", "inter-character":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “wrap-inside“ (CSS Text 4 § 5.4): avoid odsuwa łamanie wewnątrz pudełka liniowego na
+// ostateczność. Źródło właściwości nie znało.
+func wrapInside(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(tokens); keyword {
+	case "auto", "avoid":
 		return pr.String(keyword)
 	default:
 		return nil
