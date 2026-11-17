@@ -816,6 +816,11 @@ func splitInlineLevel(context *layoutContext, box_ Box, positionX, maxX, bottomS
 		box.PositionX = positionX
 		box.PositionY = 0
 		resolveMarginAuto(box)
+		// gopdfgo: inline-flex o szerokości auto dopasowuje się do treści jak inline-block
+		// (CSS Flexbox 1 § 3); w źródle zajmował całą szerokość wiersza
+		if box.Width == pr.AutoF && box.Style.GetWidth().Intrinsic == pr.IntrinsicNone {
+			inlineBlockWidth(box_, context, containingBlock.Box())
+		}
 		var v blockLayout
 		newBox, v = flexLayout(context, box_, -pr.Inf, skipStack,
 			containingBlock.Box(), false, absoluteBoxes, fixedBoxes, false)

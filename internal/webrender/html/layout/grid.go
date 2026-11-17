@@ -41,7 +41,7 @@ func definiteTrackSize(track pr.GridSpec, available pr.Float) (pr.Float, bool) {
 		return 0, false
 	}
 	functions := dims.SizingFunctions()
-	for _, f := range [2]pr.TaggedDim{functions[1], functions[0]} {
+	resolve := func(f pr.TaggedDim) (pr.Float, bool) {
 		switch {
 		case f.Tag != 0:
 		case f.Unit == pr.Px:
@@ -49,8 +49,18 @@ func definiteTrackSize(track pr.GridSpec, available pr.Float) (pr.Float, bool) {
 		case f.Unit == pr.Perc:
 			return available*f.Value/100 + f.Offset, true
 		}
+		return 0, false
 	}
-	return 0, false
+	minimum, hasMin := resolve(functions[0])
+	if maximum, ok := resolve(functions[1]); ok {
+		// gopdfgo: gdy obie funkcje są określone, maksimum nie schodzi poniżej minimum
+		// (CSS Grid 1 § 7.2.3.2): minmax(50px, 25px) liczy się jak 50px
+		if hasMin {
+			maximum = max(maximum, minimum)
+		}
+		return maximum, true
+	}
+	return minimum, hasMin
 }
 
 // autoRepeatCount liczy powtórzenia dla repeat(auto-fill | auto-fit, ...): największą liczbę, przy której
@@ -1229,52 +1239,42 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 
 	// Add implicit line names
+	// gopdfgo: każdy obszar nazwany daje liniom na swoich krawędziach nazwy <obszar>-start i <obszar>-end
+	// (CSS Grid 1 § 7.3.2), także wtedy, gdy taka nazwa jest już nadana jawnie innej linii. Źródło w takim
+	// razie nazwy nie dodawało, a linie końcowe liczyło od końca szablonu, więc przy szablonie dłuższym
+	// niż grid-template-areas trafiały na złe linie.
+	addName := func(tracks []pr.GridSpec, index int, name string) {
+		if index < 0 || index >= len(tracks) {
+			return
+		}
+		if names, ok := tracks[index].(pr.GridNames); ok && !utils.IsIn(names, name) {
+			tracks[index] = append(names, name)
+		}
+	}
+	type areaBounds struct{ top, left, bottom, right int }
+	bounds := map[string]*areaBounds{}
+	var areaOrder []string
 	for y, row := range gridAreas {
 		for x, areaName := range row {
 			if areaName == "" {
 				continue
 			}
-			startName := areaName + "-start"
-			var names []string
-			for _, row := range extractNames(rows) {
-				names = append(names, row...)
+			b := bounds[areaName]
+			if b == nil {
+				b = &areaBounds{y, x, y + 1, x + 1}
+				bounds[areaName] = b
+				areaOrder = append(areaOrder, areaName)
 			}
-			if !utils.IsIn(names, startName) {
-				rows[2*y] = append(rows[2*y].(pr.GridNames), startName)
-			}
-			names = names[:0]
-			for _, column := range extractNames(columns) {
-				names = append(names, column...)
-			}
-			if !utils.IsIn(names, startName) {
-				columns[2*x] = append(columns[2*x].(pr.GridNames), startName)
-			}
+			b.top, b.left = min(b.top, y), min(b.left, x)
+			b.bottom, b.right = max(b.bottom, y+1), max(b.right, x+1)
 		}
 	}
-	for y := range gridAreas {
-		row := gridAreas[len(gridAreas)-1-y] // reverse
-		for x := range row {
-			areaName := row[len(row)-1-x] // reverse
-			if areaName == "" {
-				continue
-			}
-			endName := areaName + "-end"
-
-			var names []string
-			for _, row := range extractNames(rows) {
-				names = append(names, row...)
-			}
-			if !utils.IsIn(names, endName) {
-				rows[len(rows)-2*y-1] = append(rows[len(rows)-2*y-1].(pr.GridNames), endName)
-			}
-			names = names[:0]
-			for _, column := range extractNames(columns) {
-				names = append(names, column...)
-			}
-			if !utils.IsIn(names, endName) {
-				columns[len(columns)-2*x-1] = append(columns[len(columns)-2*x-1].(pr.GridNames), endName)
-			}
-		}
+	for _, areaName := range areaOrder {
+		b := bounds[areaName]
+		addName(rows, 2*b.top, areaName+"-start")
+		addName(columns, 2*b.left, areaName+"-start")
+		addName(rows, 2*b.bottom, areaName+"-end")
+		addName(columns, 2*b.right, areaName+"-end")
 	}
 
 	explicitRowNames, explicitColumnNames := extractNames(rows), extractNames(columns) // dla elementów pozycjonowanych

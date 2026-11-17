@@ -2749,6 +2749,9 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 		<div style="width:40px">x</div><div style="width:40px">x</div></div></div>`,
 		baselineHead+`<div><span></span><div class=g style="display:inline-flex;flex-wrap:wrap;align-content:flex-start;width:40px;height:70px;padding-top:30px">
 		<div style="width:40px">x</div><div style="width:40px">x</div></div></div>`)
+	// inline-flex o szerokości auto dopasowuje się do treści
+	same("inline-flex-shrink-to-fit", `<div style="font-size:0"><div class=g style="display:inline-flex"><div><div style="width:100px;height:40px"></div></div></div></div>`,
+		`<div style="font-size:0"><div class=g style="display:inline-block;width:100px;height:40px"></div></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
@@ -2792,6 +2795,16 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	same("baseline-grows-row", `<div class=b style="display:grid;grid-auto-flow:column;justify-content:start;align-items:baseline;font:20px/20px sans-serif;color:transparent">
 		<div style="padding-bottom:60px">x</div><div style="padding-top:40px">x</div></div><div class=g style="height:20px;width:50px"></div>`,
 		`<div class=b style="height:120px"></div><div class=g style="height:20px;width:50px"></div>`)
+	// repeat(auto-fill, minmax(50px, 25px)) liczy się jak 50px: dwie kolumny w 100px
+	same("auto-fill-minmax", `<div style="display:grid;width:100px;grid-template:50px 50px / repeat(auto-fill, minmax(50px, 25px))">
+		<div class=g></div><div class=g></div><div class=g></div><div class=g></div></div>`, `<div class=g style="width:100px;height:100px"></div>`)
+	// obszar nazwany daje nazwę <obszar>-end swojej krawędzi także wtedy, gdy tę nazwę ma jawnie dalsza linia
+	same("implicit-area-names", `<div style="display:grid;width:300px;height:300px;grid-template-areas:'area';
+		grid-template-columns:repeat(auto-fill, 100px);grid-template-rows:repeat(auto-fill, 100px) [area-end] 100px">
+		<div class=g style="grid-area:area"></div></div>`, `<div class=g style="width:100px;height:100px"></div>`)
+	// kontener siatki o podanej szerokości staje obok elementu pływającego, nie pod nim
+	same("grid-avoids-float", `<div class=b style="float:left;width:50px;height:100px"></div><div class=g style="display:grid;width:50px;height:100px"></div>`,
+		`<div class=b style="float:left;width:50px;height:100px"></div><div class=g style="margin-left:50px;width:50px;height:100px"></div>`)
 	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
 	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)

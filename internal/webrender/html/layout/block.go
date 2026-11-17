@@ -130,6 +130,7 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 		if box_ == nil { // kontener w całości przechodzi na następną stronę
 			return nil, layout, -1
 		}
+		avoidFloats(context, box_, containingBlock)
 		return box_.(bo.BlockLevelBoxITF), layout, -1 // flexLayout is type stable
 	} else if bo.GridT.IsInstance(box_) {
 		box_, layout := gridLayout(context, box_, bottomSpace, skipStack, containingBlock,
@@ -137,6 +138,7 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 		if box_ == nil { // gopdfgo: siatka przeniesiona w całości na następną stronę
 			return nil, layout, -1
 		}
+		avoidFloats(context, box_, containingBlock)
 		return box_.(bo.BlockLevelBoxITF), layout, -1 // gridLayout is type stable
 	} else {
 		panic(fmt.Sprintf("Layout for %s not handled yet", box_))
@@ -216,6 +218,22 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	}
 
 	return newBox, result
+}
+
+// avoidFloats (gopdfgo): kontener flex albo grid w przepływie blokowym zakłada własny kontekst
+// formatowania, więc nie nachodzi na elementy pływające, tylko staje obok nich albo pod nimi
+// (CSS 2.1 § 9.5, CSS Flexbox 1 § 3, CSS Grid 1 § 5.1). Źródło robiło to tylko dla bloków i tabel.
+// Dotyczy kontenera o podanej szerokości; kontener o szerokości auto zostaje na swoim miejscu.
+func avoidFloats(context *layoutContext, box_ Box, containingBlock *bo.BoxFields) {
+	box := box_.Box()
+	if box.IsFlexItem || box.IsGridItem || box.IsColumn || !box.IsInNormalFlow() || len(context.excludedShapes.list) == 0 ||
+		box.Style.GetWidth().Tag == pr.Auto {
+		return
+	}
+	positionX, positionY, _ := avoidCollisions(context, box_, containingBlock, false)
+	if positionX != box.PositionX || positionY != box.PositionY {
+		box_.Translate(positionX-box.PositionX, positionY-box.PositionY, false)
+	}
 }
 
 var blockReplacedWidth = handleMinMaxWidth(blockReplacedWidth_)

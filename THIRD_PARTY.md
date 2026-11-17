@@ -929,6 +929,16 @@ Wspólne dla obu katalogów:
     z wierszem;
   - `min-height` kontenera o wysokości auto: gdy treść jest niższa i jest ścieżka `auto`, wiersze są
     rozwiązywane ponownie w tej wysokości i ścieżki `auto` się rozciągają (§ 11.1, § 11.8);
+  - `definiteTrackSize`: przy liczeniu powtórzeń `repeat(auto-fill | auto-fit, …)` maksimum ścieżki nie
+    schodzi poniżej jej minimum, gdy oba są określone (§ 7.2.3.2);
+  - niejawne nazwy linii z `grid-template-areas` (§ 7.3.2): każdy obszar daje nazwy `<obszar>-start`
+    i `<obszar>-end` liniom na swoich krawędziach, także gdy taka nazwa jest nadana jawnie innej linii;
+    źródło wtedy ich nie dodawało, a linie końcowe liczyło od końca szablonu;
+- `html/layout/block.go` (`avoidFloats`), 2026-11-17: kontener flex albo grid o podanej szerokości
+  w przepływie blokowym nie nachodzi na elementy pływające (własny kontekst formatowania, CSS 2.1 § 9.5);
+  źródło robiło to tylko dla bloków i tabel;
+- `html/layout/inline.go` (`splitInlineLevel`), 2026-11-17: `inline-flex` o szerokości auto dopasowuje
+  się do treści jak `inline-block` (CSS Flexbox 1 § 3); w źródle zajmował całą szerokość wiersza;
 - flex, 2026-11-17 (CSS Flexbox 1; testy W3C `css-flexbox`):
   - `html/layout/preferred.go` (`flexMinContentWidth`, `flexMaxContentWidth`, `flexMainGaps`,
     `inflexibleBasis`): kontener o szerokości podanej długością ma ją także jako szerokość wewnętrzną
