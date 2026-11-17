@@ -272,6 +272,13 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 		children = append(children, TextBoxAnonymousFrom(box, text))
 	}
 
+	// gopdfgo: tekst doklejamy tylko do tekstu tego samego elementu. Ostatnim dzieckiem bywa tekst
+	// elementu z display: contents (jego dzieci przechodzą do rodzica) o innym stylu, np. innym
+	// white-space; źródło doklejało do niego tekst rodzica (test WPT white-space-applies-to-text-001).
+	var lastOwnText *TextBox
+	if len(children) > 0 {
+		lastOwnText, _ = children[len(children)-1].(*TextBox)
+	}
 	for _, childElement := range element.NodeChildren(false) {
 		// utils.HTMLNode as no notion of tail. Instead, text are converted in text nodes
 		if ok, text := childElement.IsText(); ok && text != "" {
@@ -279,13 +286,15 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 			if len(children) > 0 {
 				// TextBox is a leaf in inheritance tree, so we can type assert against the concrete type
 				// instead of using interfaces.
-				if ct, ok := children[len(children)-1].(*TextBox); ok {
+				if ct, ok := children[len(children)-1].(*TextBox); ok && ct == lastOwnText {
 					ct.Text = append(ct.Text, textBox.Text...)
 				} else {
 					children = append(children, textBox)
+					lastOwnText = textBox
 				}
 			} else {
 				children = append(children, textBox)
+				lastOwnText = textBox
 			}
 		} else {
 			childBoxes := elementToBox(childElement, styleFor, resolver, baseUrl, targetCollector, cs, state, footnotes)
