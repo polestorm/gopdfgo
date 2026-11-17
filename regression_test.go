@@ -2814,6 +2814,10 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 		`<div class=g style="width:100px;height:40px"></div>`)
 	same("table-item-basis-height", `<div style="display:flex;flex-direction:column;width:100px"><div class=g style="display:table;width:100px;height:200px;flex:0 0 40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
+	// inline-flex o podanej wysokości: rozciągnięty element z aspect-ratio dostaje szerokość z proporcji,
+	// a pusty element nie podnosi kontenera nad linię bazową wiersza
+	same("inline-flex-aspect-ratio", `<div style="display:inline-flex;height:60px;background:green"><div style="aspect-ratio:1/1"></div></div>`,
+		`<div style="display:inline-block;width:60px;height:60px;background:green"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

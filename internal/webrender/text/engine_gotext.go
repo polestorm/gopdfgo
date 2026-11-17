@@ -47,6 +47,8 @@ type FontConfigurationGotext struct {
 	fontsContent  map[string][]byte        // to be embedded in the target
 	fontsFeatures map[*font.Font][]Feature // as requested by @font-face
 	loadedFaces   map[string]bool          // gopdfgo: reguły @font-face już wczytane (zob. loadOneFont)
+	// featureValues (gopdfgo): nazwy z reguł @font-feature-values, zob. SetFontFeatureValues
+	featureValues validation.FontFeatureValues
 
 	// ReuseLoadedFaces (gopdfgo): ta sama reguła @font-face przetwarzana ponownie nie wczytuje fontu
 	// drugi raz. Włącza to gopdfgo.Render, gdzie konfiguracja fontów żyje przez jedno renderowanie;
@@ -70,6 +72,15 @@ func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
 	}
 	out.shaper.SetFontCacheSize(64)
 	return &out
+}
+
+// SetFontFeatureValues (gopdfgo): zob. [FontConfiguration].
+func (f *FontConfigurationGotext) SetFontFeatureValues(values validation.FontFeatureValues) {
+	f.featureValues = values
+}
+
+func (f *FontConfigurationGotext) fontFeatureValues() validation.FontFeatureValues {
+	return f.featureValues
 }
 
 // AddFontFace load a font file from an external source, using

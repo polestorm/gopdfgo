@@ -232,6 +232,8 @@ type match struct {
 	// gopdfgo: pełna nazwa warstwy kaskady (@layer), w której stoi reguła;
 	// pusta poza warstwami. Wpis bez selektora tylko ogłasza warstwę.
 	layer string
+	// gopdfgo: reguła @font-feature-values (CSS Fonts 4 § 6.9); wpis bez selektora
+	featureValues *validation.FontFeatureValuesRule
 }
 
 type matcher []match

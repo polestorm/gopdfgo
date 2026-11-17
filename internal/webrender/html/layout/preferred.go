@@ -1104,6 +1104,9 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
+			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {
+				v = ratioWidth
+			}
 			if basis, ok := inflexibleBasis(context, box, child); ok {
 				if child.Box().Style.GetFlexGrow() != 0 && v > basis {
 					basis = v
@@ -1298,6 +1301,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
+			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {
+				v = ratioWidth
+			}
 			if basis, ok := inflexibleBasis(context, box, child); ok {
 				if child.Box().Style.GetFlexGrow() != 0 && v > basis {
 					basis = v

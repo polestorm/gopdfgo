@@ -919,6 +919,24 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- `@font-feature-values` i funkcje `font-variant-alternates`, 2026-11-17 (CSS Fonts 4 § 6.8 i § 6.9; testy
+  W3C `css-fonts/font-variant-alternates-*`):
+  - `css/validation/validation.go` (`fontVariantAlternates`) i nowy `css/validation/font_feature_values.go`
+    (`fontVariantAlternatesValue`, `ParseFontVariantAlternates`, `ParseFontFeatureValues`,
+    `FontFeatureValues.Add`, `Lookup`): źródło przyjmowało w `font-variant-alternates` tylko `normal`
+    i `historical-forms`, a regułę `@font-feature-values` pomijało jako nieznaną. Teraz właściwość
+    przyjmuje `stylistic()`, `styleset()`, `character-variant()`, `swash()`, `ornaments()` i `annotation()`
+    (postać kanoniczna jako `pr.String`), a reguła daje tablicę rodzina → blok → nazwa → liczby; błędne
+    deklaracje i nieznane bloki są pomijane;
+  - `html/tree/style.go` (`preprocessLayer`, `fontFeatureValues`, `newStyleFor`), `tree.go`
+    (`match.featureValues`): reguły zbierane z arkuszy razem z warstwą kaskady; przy powtórzonej nazwie
+    wygrywa późniejsza warstwa, w tej samej warstwie późniejsza reguła, reguły poza warstwami po wszystkich
+    warstwach (CSS Cascade 5 § 6.4);
+  - `text/fonts.go` (`SetFontFeatureValues`, `fontFeatureValues`), `engine_gotext.go` (`featureValues`),
+    `style.go` (`newTextStyle`, `alternatesFeatures`, `getFontFeatures`), `text.go`: stylistic → `salt N`,
+    styleset → `ssNN`, character-variant → `cvNN`, swash → `swsh` i `cswh`, ornaments → `ornm`, annotation →
+    `nalt`, według nazw dla rodzin z listy `font-family` (pierwsza rodzina definiująca nazwę wygrywa).
+    Ograniczenie: nazwy szukane według listy rodzin elementu, nie fontu faktycznie użytego dla fragmentu;
 - `text-justify`, `text-indent`, `word-spacing`, `text-wrap-mode`, 2026-11-17 (CSS Text 3 i 4; testy W3C
   `css-text`):
   - `text-justify` (§ 6.4): nowa dziedziczona właściwość `PTextJustify` (`css/properties`,
@@ -1087,6 +1105,11 @@ Wspólne dla obu katalogów:
     wysokość z `flex-basis` podanego długością zastępuje podaną wysokość tabeli (tabela rośnie od treści
     do tej wysokości); `html/layout/flex.go` (`tableWithAutoSize`): minimum automatyczne tabeli liczone
     z treści, bez jej `width` i `height`. W źródle podana szerokość i wysokość tabeli wygrywały z układem flex;
+  - `html/layout/flex.go` (`itemRatio`, `ratioBaseSize`, `stretchedRatioContribution`) i `preferred.go`:
+    element z `aspect-ratio` (nie tylko zastępowany) rozciągnięty w jednowierszowym kontenerze o podanej
+    wysokości ma szerokość z proporcji, także w szerokości wewnętrznej kontenera; przy `box-sizing:
+    border-box` proporcja dotyczy pudełka obramowania (CSS Sizing 4 § 5.1); element bez wiersza tekstu
+    nie daje linii bazowej, więc kontener `inline-flex` syntetyzuje ją z krawędzi (§ 8.5; źródło brało zero);
   - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
     ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
     rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne

@@ -2182,15 +2182,13 @@ func _fontFeatureSettings(tokens []Token) (pr.FontFeatures, bool) {
 // @validator()
 // @singleKeyword
 func fontVariantAlternates(tokens []Token, _ string) pr.CssProperty {
-	keyword := getSingleKeyword(tokens)
-	// TODO: support other values
-	// See https://www.w3.org/TR/css-fonts-3/#font-variant-caps-prop
-	switch keyword {
-	case "normal", "historical-forms":
-		return pr.String(keyword)
-	default:
-		return nil
+	// gopdfgo: źródło przyjmowało tylko „normal” i „historical-forms”; funkcje
+	// stylistic(), styleset(), character-variant(), swash(), ornaments()
+	// i annotation() według CSS Fonts 4 § 6.8, zob. fontVariantAlternatesValue
+	if getSingleKeyword(tokens) == "normal" {
+		return pr.String("normal")
 	}
+	return fontVariantAlternatesValue(tokens)
 }
 
 // @validator()

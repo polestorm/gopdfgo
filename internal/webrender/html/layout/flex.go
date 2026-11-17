@@ -906,6 +906,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
+	noBaseline := map[*bo.BoxFields]bool{} // gopdfgo: elementy bez linii bazowej (bez wiersza tekstu)
+
 	// 7 Determine the hypothetical cross size of each item.
 	var newFlexLines []flexLine
 	childSkipStack = skipStack
@@ -934,6 +936,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 			if bl := findBaseline(newChild_, false, !itemAlign.Has(pr.Last)); bl != nil {
 				child.Baseline = bl.V()
+			} else {
+				noBaseline[child] = true
 			}
 			if cross == pr.PHeight {
 				child.Height = newChild_.Box().Height
@@ -1312,6 +1316,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
+	firstLineWithoutBaseline := false // gopdfgo: zob. krok 13
+
 	// 13 Resolve cross-axis auto margins.
 	if cross == pr.PWidth {
 		// Make sure width/margins are no longer "auto", as we did not do it above in
@@ -1340,6 +1346,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if line.lowerBaseline == -pr.Inf {
 			if len(line.line) != 0 {
 				line.lowerBaseline = line.line[0].box.Box().Baseline.V()
+				// gopdfgo: element bez wiersza tekstu nie daje linii bazowej linii; kontener syntetyzuje
+				// ją wtedy ze swojej krawędzi (CSS Flexbox 1 § 8.5, CSS Align 3 § 9.1). Źródło brało
+				// zero, więc pusty element podnosił kontener inline-flex nad linią bazową wiersza.
+				if noBaseline[line.line[0].box.Box()] && index == 0 {
+					firstLineWithoutBaseline = true
+				}
 			} else {
 				line.lowerBaseline = 0
 			}
@@ -1791,7 +1803,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			synthesized = box.MarginHeight()
 		}
 		if main == pr.PWidth { // and main text direction is horizontal
-			if len(flexLines) != 0 {
+			if len(flexLines) != 0 && !firstLineWithoutBaseline {
 				// gopdfgo: z przesunięciem pierwszej linii przez align-content; źródło je pomijało
 				box.Baseline = flexLines[0].lowerBaseline + lineShift[0]
 			} else {
@@ -2001,19 +2013,94 @@ func forcedBreakAtEdge(context *layoutContext, box_ Box, before bool) bool {
 	return false
 }
 
+// stretchedRatioContribution (gopdfgo): wkład elementu z proporcjami do szerokości wewnętrznej
+// jednowierszowego kontenera wierszowego o podanej wysokości, gdy element jest rozciągany w osi
+// poprzecznej: szerokość wynika z tej wysokości i proporcji (CSS Flexbox 1 § 9.9.1, rozmiar poprzeczny
+// rozciągniętego elementu jest określony). Zwraca szerokość zewnętrzną elementu.
+func stretchedRatioContribution(container, item Box) (pr.Float, bool) {
+	style := container.Box().Style
+	if !strings.HasPrefix(string(style.GetFlexDirection()), "row") || style.GetFlexWrap() != "nowrap" {
+		return 0, false
+	}
+	pixels := func(d pr.TaggedDim) (pr.Float, bool) {
+		if d.Tag != 0 || d.Unit != pr.Px || d.Calc != nil {
+			return 0, false
+		}
+		return d.Value, true
+	}
+	height, ok := pixels(style.GetHeight())
+	if !ok {
+		return 0, false
+	}
+	if style.GetBoxSizing() == "border-box" {
+		for _, d := range [...]pr.TaggedDim{style.GetPaddingTop(), style.GetPaddingBottom(), style.GetBorderTopWidth(), style.GetBorderBottomWidth()} {
+			v, _ := pixels(d)
+			height -= v
+		}
+	}
+	cs := item.Box().Style
+	if cs.GetHeight().Tag != pr.Auto || cs.GetWidth().Tag != pr.Auto || cs.GetMarginTop().Tag == pr.Auto || cs.GetMarginBottom().Tag == pr.Auto {
+		return 0, false
+	}
+	alignSelf := cs.GetAlignSelf()
+	if alignSelf.Has(pr.Auto) {
+		alignSelf = style.GetAlignItems()
+	}
+	if !(alignSelf.Has(pr.Stretch) || alignSelf.Has(pr.Normal)) {
+		return 0, false
+	}
+	ratio, ok := itemRatio(item)
+	if !ok {
+		return 0, false
+	}
+	sum := func(ds ...pr.TaggedDim) (total pr.Float) {
+		for _, d := range ds {
+			v, _ := pixels(d)
+			total += v
+		}
+		return total
+	}
+	frameY := sum(cs.GetPaddingTop(), cs.GetPaddingBottom(), cs.GetBorderTopWidth(), cs.GetBorderBottomWidth())
+	frameX := sum(cs.GetPaddingLeft(), cs.GetPaddingRight(), cs.GetBorderLeftWidth(), cs.GetBorderRightWidth())
+	marginsX := sum(cs.GetMarginLeft(), cs.GetMarginRight())
+	cross := max(height-sum(cs.GetMarginTop(), cs.GetMarginBottom())-frameY, 0)
+	width := cross * ratio
+	if _, isReplaced := item.(bo.ReplacedBoxITF); !isReplaced && cs.GetBoxSizing() == "border-box" {
+		width = max((cross+frameY)*ratio-frameX, 0)
+	}
+	return width + frameX + marginsX, true
+}
+
+// itemRatio (gopdfgo): proporcje elementu flex: własne elementu zastępowanego albo z aspect-ratio
+// (CSS Sizing 4 § 5); dla elementu niezastępowanego tylko przy pustej treści, bo treść może ją zmienić.
+func itemRatio(item Box) (pr.Float, bool) {
+	child := item.Box()
+	if replaced, isReplaced := item.(bo.ReplacedBoxITF); isReplaced {
+		_, _, ratio := replaced.Replaced().Replacement.GetIntrinsicSize(
+			child.Style.GetImageResolution().Value, child.Style.GetFontSize().Value)
+		if pr.Is(ratio) && ratio.V() > 0 {
+			return ratio.V(), true
+		}
+		return 0, false
+	}
+	ratio := pr.Float(math.Abs(float64(child.Style.GetAspectRatio())))
+	if ratio <= 0 || len(child.Children) != 0 {
+		return 0, false
+	}
+	return ratio, true
+}
+
 // ratioBaseSize podaje rozmiar bazowy elementu zastępowanego z proporcjami, który zostanie rozciągnięty
 // w osi poprzecznej do określonego rozmiaru kontenera jednowierszowego (CSS Flexbox 1 § 9.2 krok 3B
 // i § 9.9.2: taki rozmiar poprzeczny jest określony).
 // basisIsContent: flex-basis: content pomija rozmiar podany w osi głównej.
 func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownProp, basisIsContent bool) (pr.Float, bool) {
-	replaced, ok := item.(bo.ReplacedBoxITF)
-	if !ok || container.Style.GetFlexWrap() != "nowrap" {
+	if container.Style.GetFlexWrap() != "nowrap" {
 		return 0, false
 	}
 	child := item.Box()
-	_, _, ratio := replaced.Replaced().Replacement.GetIntrinsicSize(
-		child.Style.GetImageResolution().Value, child.Style.GetFontSize().Value)
-	if !pr.Is(ratio) || ratio.V() <= 0 {
+	ratio, ok := itemRatio(item)
+	if !ok {
 		return 0, false
 	}
 	alignSelf := child.Style.GetAlignSelf()
@@ -2033,7 +2120,13 @@ func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownPr
 		cross := height - child.MarginTop.V() - child.MarginBottom.V() - child.PaddingTop.V() - child.PaddingBottom.V() -
 			child.BorderTopWidth.V() - child.BorderBottomWidth.V()
 		cross = max(child.MinHeight.V(), min(cross, child.MaxHeight.V()))
-		return max(cross, 0) * ratio.V(), true
+		if _, isReplaced := item.(bo.ReplacedBoxITF); !isReplaced && child.Style.GetBoxSizing() == "border-box" {
+			// aspect-ratio z box-sizing: border-box dotyczy pudełka obramowania (CSS Sizing 4 § 5.1)
+			frameY := child.PaddingTop.V() + child.PaddingBottom.V() + child.BorderTopWidth.V() + child.BorderBottomWidth.V()
+			frameX := child.PaddingLeft.V() + child.PaddingRight.V() + child.BorderLeftWidth.V() + child.BorderRightWidth.V()
+			return max((max(cross, 0)+frameY)*ratio-frameX, 0), true
+		}
+		return max(cross, 0) * ratio, true
 	}
 	width, definite := container.Width.(pr.Float)
 	if !definite || child.Style.GetWidth().Tag != pr.Auto || (child.Style.GetHeight().Tag != pr.Auto && !basisIsContent) ||
@@ -2043,7 +2136,7 @@ func ratioBaseSize(item Box, container, parentBox *bo.BoxFields, main pr.KnownPr
 	cross := width - child.MarginLeft.V() - child.MarginRight.V() - child.PaddingLeft.V() - child.PaddingRight.V() -
 		child.BorderLeftWidth.V() - child.BorderRightWidth.V()
 	cross = max(child.MinWidth.V(), min(cross, child.MaxWidth.V()))
-	return max(cross, 0) / ratio.V(), true
+	return max(cross, 0) / ratio, true
 }
 
 // Element rozciągany do wysokości linii (stretched) zostaje widoczny, bez górnego obramowania i odstępu:
