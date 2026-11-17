@@ -432,6 +432,12 @@ func leadingChildBoxes(box_ Box) (margins []pr.Float, boxes []Box) {
 			}
 		}
 		if first == nil || !bo.BlockLevelT.IsInstance(first) {
+			if first == nil && len(boxes) != 0 && style.GetHeight().Tag == pr.Auto && slices.ContainsFunc(margins, func(m pr.Float) bool { return m < 0 }) {
+				// łańcuch kończy się pustym pudełkiem, przez które marginesy przechodzą dalej: przy
+				// ujemnych marginesach zostaje dotychczasowe liczenie (test WPT
+				// adjoining-float-nested-forced-clearance-002)
+				return nil, nil
+			}
 			return margins, boxes
 		}
 		margin := first.Box().Style.GetMarginTop()

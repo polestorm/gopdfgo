@@ -294,6 +294,15 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 			// Assign locals to avoid slow attribute lookups.
 			shapePositionY := shape.PositionY
 			shapeMarginHeight := shape.MarginHeight()
+			if shapeMarginHeight <= 0 {
+				// gopdfgo: element pływający o zerowej wysokości wyklucza tylko pasy, które obejmują jego
+				// położenie w środku; pudełko zaczynające się na tej wysokości go nie widzi (testy WPT
+				// floats-zero-height-wrap-002, float-006, floats-placement-001)
+				if positionY < shapePositionY && shapePositionY < positionY+boxHeight {
+					collidingShapes = append(collidingShapes, shape)
+				}
+				continue
+			}
 			if (shapePositionY < positionY && positionY < shapePositionY+shapeMarginHeight) ||
 				(shapePositionY < positionY+boxHeight && positionY+boxHeight < shapePositionY+shapeMarginHeight) ||
 				(shapePositionY >= positionY && shapePositionY+shapeMarginHeight <= positionY+boxHeight) {
