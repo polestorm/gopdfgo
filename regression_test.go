@@ -2818,6 +2818,10 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	// a pusty element nie podnosi kontenera nad linię bazową wiersza
 	same("inline-flex-aspect-ratio", `<div style="display:inline-flex;height:60px;background:green"><div style="aspect-ratio:1/1"></div></div>`,
 		`<div style="display:inline-block;width:60px;height:60px;background:green"></div>`)
+	// max-height: min-content w kolumnie ogranicza element do wysokości treści
+	same("column-max-height-min-content", `<div style="display:flex;flex-direction:column;width:100px;height:150px">
+		<div class=g style="max-height:min-content;flex-basis:150px"><div style="height:40px"></div></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

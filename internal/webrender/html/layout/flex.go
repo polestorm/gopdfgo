@@ -508,6 +508,33 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 		}
 
+		// gopdfgo: min-height i max-height podane jako min-content, max-content albo fit-content
+		// w kontenerze kolumnowym to wysokość treści elementu (CSS Sizing 3 § 2.1; w osi blokowej wszystkie
+		// trzy dają wysokość treści). Źródło traktowało je jak auto, czyli brak ograniczenia.
+		if main == pr.PHeight && (child.Style.GetMaxHeight().Intrinsic != pr.IntrinsicNone || child.Style.GetMinHeight().Intrinsic != pr.IntrinsicNone) {
+			probe := child_.Copy()
+			probe.Box().Style = child.Style.Copy()
+			probe.Box().Style.SetHeight(pr.TagToV(pr.Auto))
+			probe.Box().Style.SetMinHeight(pr.ZeroPixels.Tagged())
+			probe.Box().Style.SetMaxHeight(pr.Dimension{Value: pr.Inf, Unit: pr.Px}.Tagged())
+			if cs := probe.Box().Style; cs.GetWidth().Tag == pr.Auto {
+				cs.SetWidth(pr.FToPx(maxContentWidth(context, probe, true)))
+			}
+			context.flexMeasuring++
+			measured, _, _ := blockLevelLayout(context, probe.(bo.BlockLevelBoxITF),
+				bottomSpace, pickSkip(index+skip, childSkipStack), parentBox, pageIsEmpty, nil, nil, nil, false, -1)
+			context.flexMeasuring--
+			if measured != nil {
+				content := measured.Box().Height.V()
+				if child.Style.GetMaxHeight().Intrinsic != pr.IntrinsicNone {
+					child.MaxHeight = content
+				}
+				if child.Style.GetMinHeight().Intrinsic != pr.IntrinsicNone {
+					child.MinHeight = content
+				}
+			}
+		}
+
 		var flexBasis pr.MaybeFloat // nil means "content"
 		basisIsContent := child.Style.GetFlexBasis().Tag == pr.Content
 		if styleFlexBasis := child.Style.GetFlexBasis(); styleFlexBasis.Tag == pr.Content {

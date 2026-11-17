@@ -1110,6 +1110,9 @@ Wspólne dla obu katalogów:
     wysokości ma szerokość z proporcji, także w szerokości wewnętrznej kontenera; przy `box-sizing:
     border-box` proporcja dotyczy pudełka obramowania (CSS Sizing 4 § 5.1); element bez wiersza tekstu
     nie daje linii bazowej, więc kontener `inline-flex` syntetyzuje ją z krawędzi (§ 8.5; źródło brało zero);
+  - `html/layout/flex.go` (krok 3): `min-height` i `max-height` jako `min-content`, `max-content`,
+    `fit-content` w kontenerze kolumnowym to wysokość treści elementu (CSS Sizing 3 § 2.1); źródło
+    traktowało je jak auto;
   - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
     ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
     rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne
