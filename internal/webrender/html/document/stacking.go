@@ -181,6 +181,16 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		if bo.ClipsOverflow(box) && !positioned && !hasTransform && innerEscape == nil {
 			innerEscape = &escaped
 		}
+		// gopdfgo: element pływający, który tylko przycina treść (overflow inne niż visible), nie tworzy
+		// kontekstu nakładania (CSS 2.1 § 9.9.1, Appendix E), więc jest rysowany na warstwie elementów
+		// pływających, pod pudełkami pozycjonowanymi; w źródle trafiał do kontekstów o z-index 0 i zasłaniał
+		// wcześniejsze pudełka pozycjonowane (test WPT max-width-106). Pozycjonowanych potomków rysujemy
+		// razem z nim, żeby objęło ich przycięcie.
+		if box.Box().IsFloated() && !absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned {
+			*floats = append(*floats, newStackingContextFromBox(box, page, nil, innerEscape))
+			*childContexts = append(*childContexts, escaped...)
+			return nil
+		}
 		// This box defines a new stacking context, remove it
 		// from the "normal" children list.
 		*childContexts = append(*childContexts, newStackingContextFromBox(box, page, nil, innerEscape))
