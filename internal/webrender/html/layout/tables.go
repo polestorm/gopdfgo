@@ -1399,6 +1399,20 @@ func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr
 	if bo.TableCaptionT.IsInstance(box) {
 		return nil
 	}
+	// gopdfgo: kontener siatki ma własne linie bazowe wyznaczane z elementów pierwszego (ostatniego)
+	// wiersza w porządku siatki (CSS Grid 1 § 10.7), zapisane przez gridLayout. Źródło schodziło do
+	// dzieci w kolejności dokumentu, więc brało linię pierwszego (ostatniego) dziecka, a nie elementu
+	// z pierwszego (ostatniego) wiersza ani wspólnej linii elementów wyrównanych do linii bazowej.
+	if bo.GridT.IsInstance(box) || bo.InlineGridT.IsInstance(box) {
+		offset := box.Box().GridFirstBaseline
+		if last {
+			offset = box.Box().GridLastBaseline
+		}
+		if offset, ok := offset.(pr.Float); ok {
+			return box.Box().PositionY + offset
+		}
+		return nil
+	}
 	// gopdfgo: blokowy kontener flex w wierszu ma własną linię bazową (zob. flexLayout)
 	if baseline, ok := box.Box().Baseline.(pr.Float); ok && !last && flexBaseline && bo.FlexT.IsInstance(box) &&
 		strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") {
@@ -1414,6 +1428,18 @@ func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr
 			result := findBaseline(child, last, flexBaseline, baselinesT...)
 			if result != nil {
 				return result
+			}
+		}
+	}
+	// gopdfgo: kontener flex w wierszu, którego elementy nie mają linii bazowej, ma ją syntetyzowaną
+	// z dolnej krawędzi obramowania pierwszego (ostatniego) elementu (CSS Flexbox 1 § 8.5); źródło
+	// zwracało wtedy brak linii bazowej, więc np. inline-block z takim kontenerem stał na dolnej
+	// krawędzi swojego marginesu.
+	if flexBaseline && (bo.FlexT.IsInstance(box) || bo.InlineFlexT.IsInstance(box)) &&
+		strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") {
+		for _, child := range children {
+			if child.Box().IsInNormalFlow() {
+				return child.Box().BorderBoxY() + child.Box().BorderHeight()
 			}
 		}
 	}

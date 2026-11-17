@@ -919,6 +919,25 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- wyrównanie do linii bazowej w siatce, 2026-11-17 (CSS Grid 1 § 10.6, § 10.7, § 11.5; CSS Align 3 § 9;
+  testy W3C `css-grid/alignment/*baseline*`, `grid-container-baseline-synthesized-*`):
+  - `html/layout/grid.go` (`gridLayout`, `gridLayoutPass`, `resolveTracksSizes`, `distributeExtraSpace`,
+    nowe `gridItemBaseline`, `contentExtent`, `percentHeight`, `clampSize`): grupy first/last baseline
+    w wierszach, także dla elementów rozpiętych na kilka wierszy; odsunięcia od wspólnej linii bazowej
+    doliczane do wkładu elementu w rozmiar wierszy w drugim przebiegu (wcześniej wiersz powiększano po
+    układzie); `align-content: baseline` na elemencie blokowym; element z wysokością procentową w wierszu
+    o rozmiarze z treści dostaje wyrównanie zapasowe (cykl z § 10.6); pierwsza i ostatnia linia bazowa
+    kontenera z pierwszego i ostatniego niepustego wiersza, syntetyzowane z krawędzi obramowania; pusty
+    inline-grid stoi na dolnej krawędzi marginesu. Rozciąganie elementu respektuje `min-`/`max-width`
+    i `-height` (CSS Align 3 § 6.1), tabela jako element siatki jest rozciągana do obszaru (§ 6.2);
+  - `html/layout/tables.go` (`findBaseline`): kontener siatki zwraca zapisane linie bazowe zamiast schodzić
+    do dzieci w kolejności dokumentu; kontener flex bez linii bazowej elementów ma ją syntetyzowaną
+    z dolnej krawędzi obramowania pierwszego elementu (CSS Flexbox 1 § 8.5);
+  - `html/layout/absolute.go` (`absoluteHeight`, `absoluteBlock`, `absoluteBlockAlignment`): dziecko siatki
+    pozycjonowane bezwzględnie z `align-self` innym niż auto/normal/stretch i z podanymi `top` i `bottom`
+    ma wysokość fit-content i jest wyrównywane między nimi (CSS Position 3 § 4.1); źródło je rozciągało;
+  - `html/boxes/boxes.go` (`GridFirstBaseline`, `GridLastBaseline`), `layout.go` (`gridShims`). Pismo
+    pionowe i `justify-self: baseline` nieobsługiwane (ADR 0010). Test własny `grid_baseline_test.go`;
 - kolumny w komórce tabeli i pudełku liniowo-blokowym, 2026-11-17 (CSS Multicol 1 § 2; testy W3C
   `css-multicol/table/*`, `intrinsic-size-001`, `-004`, `css-tables/table-cell-overflow-explicit-height-002`):
   - `html/boxes/multicol_wrap.go` (`MulticolWrappers`, wołane z `CreateAnonymousBox` w `build.go`): komórka
