@@ -939,6 +939,11 @@ Wspólne dla obu katalogów:
     blok z `overflow` bez wierszy daje dolną krawędź marginesu; wiersz bez komórek wyrównanych do linii
     bazowej ma ją na najniższej dolnej krawędzi treści komórek po rozciągnięciu; wiersz bez komórek ma
     podaną wysokość (§ 17.5.3);
+  - `html/layout/tables.go` (`cellHasInFlowContent`, `rowHasBaselineCells`): komórka bez treści w przepływie
+    nie uczestniczy w wyrównaniu do linii bazowej wiersza, jak w Chromium (ADR 0006); dosłowne brzmienie
+    CSS 2.1 § 17.5.3 ją włącza. Test przejęty `TestTableRowHeight1` (`html/layout/tables_test.go`) oczekiwał
+    brzmienia dosłownego (odstępy drugiej komórki 5 i 15); poprawiony na 0 i 20. Testy WPT
+    `*-applies-to-006`, `min-height-applies-to-014`, `table-vertical-align-baseline-008`;
   - `html/document/stacking.go`: element pływający i blok w przepływie z `overflow` innym niż `visible`
     (bez z-index, opacity, transform) rysowane w całości na warstwie elementów pływających zamiast jako
     kontekst o z-index 0 (przybliżenie CSS 2.1 Dodatek E); `position: fixed`/`sticky` zawsze tworzy kontekst

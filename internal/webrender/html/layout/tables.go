@@ -362,7 +362,14 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					// Assume "baseline" for any other value
 					cell.VerticalAlign = pr.Baseline
 					cell.Baseline = cellBaseline(cell_)
-					baselineCells = append(baselineCells, cell_)
+					// gopdfgo: komórka bez treści w przepływie nie uczestniczy w wyrównaniu do linii bazowej
+					// wiersza, jak w Chromium (ADR 0006: przy rozbieżności z przeglądarkami domyślnie Chromium).
+					// Dosłowne brzmienie CSS 2.1 § 17.5.3 włącza każdą komórkę wyrównaną do linii bazowej;
+					// w źródle pusta komórka wyznaczała linię bazową wiersza dołem swojej treści (testy WPT
+					// width-applies-to-006, min-height-applies-to-014, table-vertical-align-baseline-008).
+					if cellHasInFlowContent(cell_) {
+						baselineCells = append(baselineCells, cell_)
+					}
 				}
 			}
 			if len(baselineCells) != 0 {
@@ -1390,9 +1397,23 @@ func tableWrapperWidthForced(context *layoutContext, wrapper_ Box, containingBlo
 // rowHasBaselineCells (gopdfgo) podaje, czy w wierszu jest komórka wyrównana do linii bazowej.
 func rowHasBaselineCells(row Box) bool {
 	for _, cell := range row.Box().Children {
-		if cell.Box().VerticalAlign == pr.Baseline {
+		if cell.Box().VerticalAlign == pr.Baseline && cellHasInFlowContent(cell) {
 			return true
 		}
+	}
+	return false
+}
+
+// cellHasInFlowContent (gopdfgo) podaje, czy komórka ma treść w przepływie (inną niż pusty wiersz).
+func cellHasInFlowContent(cell Box) bool {
+	for _, child := range cell.Box().Children {
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if line, isLine := child.(*bo.LineBox); isLine && isEmptyLinebox(line) {
+			continue
+		}
+		return true
 	}
 	return false
 }
