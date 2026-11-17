@@ -919,6 +919,22 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- kolumny zagnieżdżone, 2026-11-17 (CSS Multicol 1 § 8.1, CSS Fragmentation 3 § 4.4, § 5.1, § 5.2, § 5.4;
+  testy W3C `css-multicol/multicol-nested-*`):
+  - `html/layout/column.go` (`columnsLayout`): kontener kolumn zagnieżdżony w kolumnie, który nie zaczyna
+    się u góry kolumny zewnętrznej, przenosi treść niemieszczącą się w kolejnej kolumnie wewnętrznej do
+    następnej kolumny zewnętrznej, a reszta kolumn rzędu zostaje pusta; w źródle każda kolumna po pierwszej
+    była układana jako pusta, więc np. blok z `break-inside: avoid` był dzielony. Dalszy ciąg kontenera nie
+    ma górnego, a fragment przerwany dolnego marginesu, obramowania i dopełnienia (`box-decoration-break:
+    slice`). `min-height` dotyczy sumy fragmentów (`layoutContext.minHeightRemaining`); w źródle każdy
+    fragment miał całe `min-height`;
+  - `layout.go` (`layoutContext.columnBreak`, `breakAtFragmentTop`), `block.go` (`blockLevelLayout`,
+    `inFlowLayout`), `column.go`: marginesy przylegające do zwykłego podziału kolumny są obcinane jak na
+    początku strony, także dla pierwszego pudełka kolumny i przy równoważeniu; po `break-before: column`
+    margines zostaje. W źródle obcinanie działało tylko na stronach po pierwszej, więc w trybie ciągłym
+    i na pierwszej stronie kolejne kolumny zaczynały się od marginesu. Dotyczy też kolumn niezagnieżdżonych;
+  - `float.go` (`floatLayout`): element pływający z `columns` jest układany przez `columnsLayout`
+    (CSS Multicol 1 § 2); w źródle jego treść była układana bez kolumn;
 - `text-wrap-style` i `text-wrap: balance`, 2026-11-17 (CSS Text 4 § 5.2, § 5.4; testy W3C
   `css-text/white-space/text-wrap-balance-*`):
   - `css/properties` (nowa dziedziczona `PTextWrapStyle`: `auto | balance | stable | pretty`),

@@ -413,6 +413,8 @@ type layoutContext struct {
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)
 	fixedHeightRemaining map[uintptr]pr.Float
+	// gopdfgo: reszta min-height kontenera kolumn podzielonego między fragmentatory; klucz jak wyżej
+	minHeightRemaining map[uintptr]pr.Float
 
 	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
 	// klucz to znacznik w stanie wznowienia linii (resumeKey)
@@ -434,6 +436,31 @@ type layoutContext struct {
 	marginClearance bool
 	forcedBreak     bool
 	inColumn        bool
+	// gopdfgo: rodzaj podziału przed bieżącą kolumną (columnBreakNone: obowiązuje podział strony);
+	// zob. breakAtFragmentTop
+	columnBreak columnBreakKind
+}
+
+// columnBreakKind opisuje podział, po którym zaczyna się bieżąca kolumna.
+type columnBreakKind uint8
+
+const (
+	columnBreakNone     columnBreakKind = iota // pierwsza kolumna: obowiązuje podział strony
+	columnBreakForced                          // kolumna po wymuszonym podziale (break-before: column)
+	columnBreakUnforced                        // kolumna po zwykłym podziale
+)
+
+// breakAtFragmentTop mówi, czy początek bieżącego fragmentu (strony albo kolumny) leży za podziałem
+// i czy był to podział wymuszony. Marginesy przylegające do zwykłego podziału są obcinane do zera
+// (CSS Fragmentation 3 § 5.2).
+func (l *layoutContext) breakAtFragmentTop() (atBreak, forced bool) {
+	switch l.columnBreak {
+	case columnBreakForced:
+		return true, true
+	case columnBreakUnforced:
+		return true, false
+	}
+	return l.currentPage > 1, l.forcedBreak
 }
 
 // presentationalHints=false,

@@ -65,14 +65,16 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 			box_.MarginTop = pr.Float(0)
 		}
 
-		if context.currentPage > 1 && pageIsEmpty {
+		// gopdfgo: także na początku kolejnej kolumny (CSS Fragmentation 3 § 5.2); w źródle tylko na
+		// początku strony innej niż pierwsza.
+		if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty {
 			// When an unforced break occurs before or after a block-level box,
 			// any margins adjoining the break are truncated to zero.
 			if collapseWithPage := containingBlock.IsForRootElement || len(*adjoiningMargins) != 0; collapseWithPage {
 				if box_.Style.GetMarginBreak() == "discard" {
 					box_.MarginTop = pr.Float(0)
 				} else if box_.Style.GetMarginBreak() == "auto" {
-					if !context.forcedBreak {
+					if !forcedBreak {
 						box_.MarginTop = pr.Float(0)
 					}
 				}
@@ -1398,10 +1400,14 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			childMarginTop := child.MarginTop
 			if childMarginTop == pr.AutoF {
 				childMarginTop = pr.Float(0)
-			} else if context.currentPage > 1 && pageIsEmpty {
-				if mb := box.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !context.forcedBreak) {
+			} else if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty {
+				if mb := box.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !forcedBreak) {
 					childMarginTop = pr.Float(0)
 				}
+			} else if box.MarginTopTruncated {
+				// gopdfgo: margines pierwszego dziecka zwija się z obciętym marginesem rodzica, więc też
+				// przylega do podziału kolumny (CSS Fragmentation 3 § 5.2)
+				childMarginTop = pr.Float(0)
 			}
 			newCollapsedMargin := collapseMargin(append(*adjoiningMargins, childMarginTop.V()))
 			collapsedMarginDifference := newCollapsedMargin - oldCollapsedMargin
@@ -1428,6 +1434,14 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 		}
 	}
 	child.MarginTopTruncated = false
+	// gopdfgo: pierwsze pudełko kolumny stojącej za podziałem kolumn przylega do tego podziału jak
+	// pierwsze pudełko strony, choć kolumna nie zwija marginesów z dziećmi, a przy równoważeniu kolumny
+	// nie są układane jako puste (CSS Fragmentation 3 § 5.2). W źródle margines zostawał.
+	if box.IsColumn && lastInFlowChild == nil && context.columnBreak != columnBreakNone && child.IsInNormalFlow() {
+		if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && context.columnBreak == columnBreakUnforced) {
+			child.MarginTopTruncated = true
+		}
+	}
 	if len(*adjoiningMargins) != 0 {
 		if box.IsTableWrapper { // should not be a special case
 			collapsedMargin := collapseMargin(*adjoiningMargins)
@@ -1441,8 +1455,8 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			// gopdfgo: margines przylegający do zwykłego podziału strony jest obcinany do zera także
 			// dla kontenerów flex i siatki oraz elementów zastępowanych (CSS Fragmentation 3 § 5.2).
 			// W źródle robiły to tylko bloki, bo tylko one dostają adjoiningMargins.
-			if context.currentPage > 1 && pageIsEmpty && !hasPlacedChild(newChildren) {
-				if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !context.forcedBreak) {
+			if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty && !hasPlacedChild(newChildren) {
+				if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !forcedBreak) {
 					marginTop = 0
 					child.MarginTopTruncated = true
 				}

@@ -39,6 +39,17 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	originalBottomSpace := bottomSpace
 
 	wasInColumn := context.inColumn
+	// gopdfgo: kolumna po pierwszej zaczyna się za podziałem kolumny, więc przylegające do niego marginesy
+	// są obcinane (CSS Fragmentation 3 § 5.2); w źródle tylko na stronach po pierwszej. Pierwsza kolumna
+	// dziedziczy stan fragmentu, w którym stoi kontener.
+	outerColumnBreak := context.columnBreak
+	defer func() { context.columnBreak = outerColumnBreak }()
+	columnBreakAfter := func(previous tree.PageBreak) columnBreakKind {
+		if forcePageBreak(string(previous.Break), context) {
+			return columnBreakForced
+		}
+		return columnBreakUnforced
+	}
 	// gopdfgo: tryb ciągły bez zewnętrznego kontenera kolumn: treść nie ma dokąd przejść, więc nadmiar
 	// zostaje w tym kontenerze. Kontener zagnieżdżony w kolumnie dzieli się między kolumny zewnętrzne.
 	unpaged := context.behavior.Continuous && !wasInColumn
@@ -60,6 +71,17 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 	box_ = bo.CopyWithChildren(box_, box_.Box().Children).(bo.BlockBoxITF) // CopyWithChildren preserves the concrete type of box_
 	box := box_.Box()
+	// gopdfgo: dalszy ciąg kontenera podzielonego między strony albo kolumny zewnętrzne nie ma górnego
+	// marginesu, obramowania ani dopełnienia (CSS Fragmentation 3 § 5.4, box-decoration-break: slice);
+	// w źródle każdy fragment kontenera kolumn je zachowywał.
+	if skipStack != nil {
+		box_.RemoveDecoration(box, true, false)
+		// gopdfgo: min-height dotyczy sumy fragmentów (CSS Fragmentation 3 § 5.1): dalszy ciąg dostaje
+		// to, czego nie zużyły poprzednie fragmenty. W źródle każdy fragment miał całe min-height.
+		if remaining, ok := context.minHeightRemaining[resumeKey(skipStack)]; ok {
+			box.MinHeight = remaining
+		}
+	}
 	// gopdfgo: własny górny margines kontenera kolumn zwija się z marginesami sąsiednimi (CSS 2 § 8.3.1);
 	// w źródle nie był do nich doliczany, więc kontener z marginesem większym niż margines poprzednika
 	// stał za wysoko.
@@ -212,6 +234,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	for _, pair := range columnsAndBlocks {
+		context.columnBreak = outerColumnBreak
 		index = pair.index
 		columnChildrenOrBlock := pair.bl
 		if block := columnChildrenOrBlock.box; block != nil {
@@ -281,6 +304,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			)
 			for i := 0; i < count; i += 1 {
 				// Render one column
+				context.columnBreak = outerColumnBreak
+				if i > 0 {
+					context.columnBreak = columnBreakAfter(nextPage)
+				}
 				newBox, tmp := blockBoxLayout(context, columnBox, context.pageBottom-currentPositionY-height,
 					columnSkipStack, containingBlock, pageIsEmpty || !balancing, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
 					false, -1)
@@ -340,6 +367,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 							avoidPageBreak(blockLevelPageBreak(columnChildren[top], columnChildren[top+1]), context) {
 							groupSpace = -pr.Inf
 						}
+						context.columnBreak = columnBreakAfter(nextPage)
 						nextBox, _ := blockBoxLayout(context, columnBox, groupSpace,
 							columnSkipStack, containingBlock, true, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
 							false, -1)
@@ -519,11 +547,25 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			// mieści (np. float wyższy niż kolumna), musi zostać w niej umieszczona; w źródle wszystkie
 			// kolumny dziedziczyły stan pierwszej i taka treść była przenosiła dalej bez końca.
 			// W trybie ciągłym nie ma następnej strony, więc treść zostaje także w pierwszej kolumnie.
+			// gopdfgo: kontener zagnieżdżony w kolumnie, który nie zaczyna się u góry kolumny zewnętrznej,
+			// ma dalsze miejsce w następnej kolumnie zewnętrznej: treść, która nie mieści się w kolejnej
+			// kolumnie wewnętrznej, przechodzi tam, a reszta kolumn tego rzędu zostaje pusta (CSS Multicol 1
+			// § 8.1, CSS Fragmentation 3 § 4.4). W źródle każda kolumna po pierwszej była zawsze pusta.
+			deferrable := wasInColumn && !originalPageIsEmpty && !unpaged
+			context.columnBreak = outerColumnBreak
+			if i > 0 {
+				context.columnBreak = columnBreakAfter(nextPage)
+			}
 			newChild, tmp := blockBoxLayout(context, columnBox, bottomSpace, skipStack,
-				containingBlock, originalPageIsEmpty || i > 0 || unpaged, absoluteBoxes, fixedBoxes, new([]pr.Float),
+				containingBlock, originalPageIsEmpty || (i > 0 && !deferrable) || unpaged, absoluteBoxes, fixedBoxes, new([]pr.Float),
 				false, -1)
 			columnSkipStack = tmp.resumeAt
 			columnNextPage := tmp.nextPage
+			if deferrable && i > 0 && (newChild == nil || (columnSkipStack != nil && reflect.DeepEqual(columnSkipStack, skipStack))) {
+				// żadna treść nie zmieściła się w tej kolumnie: dalszy ciąg w następnej kolumnie zewnętrznej
+				columnSkipStack = skipStack
+				break
+			}
 			// Bezpiecznik: kolumna, która nie posunęła treści naprzód, kończy tworzenie kolumn.
 			if newChild != nil && columnSkipStack != nil && reflect.DeepEqual(columnSkipStack, skipStack) {
 				columns = append(columns, newChild)
@@ -629,9 +671,22 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	// Update the latest columns’ height to respect min-height
-	if box.MinHeight != pr.AutoF && box.MinHeight.V() > box.Height.V() {
-		heightDifference += box.MinHeight.V() - box.Height.V()
-		box.Height = box.MinHeight
+	fragmented := spannerResume != nil || columnSkipStack != nil || breakPage
+	var minHeight pr.Float
+	if box.MinHeight != pr.AutoF {
+		minHeight = box.MinHeight.V()
+	}
+	usedMinHeight := minHeight
+	// gopdfgo: fragment, po którym kontener ciągnie się dalej, nie wystaje z powodu min-height poza
+	// fragmentator; reszta min-height przechodzi na dalszy ciąg (CSS Fragmentation 3 § 5.1)
+	if fragmented && originalBottomSpace > -pr.Inf {
+		if available := context.pageBottom - originalBottomSpace - box.ContentBoxY(); available < usedMinHeight {
+			usedMinHeight = max(available, box.Height.V())
+		}
+	}
+	if usedMinHeight > box.Height.V() {
+		heightDifference += usedMinHeight - box.Height.V()
+		box.Height = usedMinHeight
 	}
 	for _, child := range reversedBoxes(newChildren) {
 		if child.Box().IsColumn {
@@ -656,6 +711,17 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		skipStack = tree.ResumeStack{index + skip: columnSkipStack[skip]}
 	} else if breakPage {
 		skipStack = tree.ResumeStack{index: nil}
+	}
+	// gopdfgo: fragment, po którym kontener ciągnie się dalej, nie ma dolnego marginesu, obramowania ani
+	// dopełnienia (CSS Fragmentation 3 § 5.4); w źródle je zachowywał.
+	if skipStack != nil {
+		box_.RemoveDecoration(box, false, true)
+	}
+	if fragmented && skipStack != nil && minHeight > 0 {
+		if context.minHeightRemaining == nil {
+			context.minHeightRemaining = map[uintptr]pr.Float{}
+		}
+		context.minHeightRemaining[resumeKey(skipStack)] = max(0, minHeight-box.Height.V())
 	}
 	if fragmentedFixed && skipStack != nil {
 		if context.fixedHeightRemaining == nil {
