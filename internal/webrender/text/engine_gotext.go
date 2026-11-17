@@ -1594,8 +1594,9 @@ func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []sha
 // controlsInSpaceFace (gopdfgo) daje przebiegowi złożonemu wyłącznie ze znaków sterujących (np. sam
 // tabulator w osobnym elemencie) font spacji, czyli pierwszy font z listy rodzin. go-text wybierał dla
 // takiego przebiegu pierwszy font, który ma glif znaku sterującego, zwykle font zastępczy, i wiersz
-// dostawał jego wysokość. Znaki sterujące nie są renderowane (CSS Text 3 § 4.1.3), więc nie powinny
-// wybierać fontu; tak robi Chromium.
+// dostawał jego wysokość. Tabulator i znak nowego wiersza nie mają glifu, tylko odstęp albo podział
+// (CSS Text 3 § 4.2, § 5.1), a pozostałe znaki sterujące zamieniamy wcześniej na U+FFFD, więc znak
+// sterujący nie powinien wybierać fontu; tak robi Chromium.
 func (fc *FontConfigurationGotext) controlsInSpaceFace(inputs []shaping.Input) []shaping.Input {
 	var spaceFace *font.Face
 	for i, input := range inputs {
