@@ -201,6 +201,13 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			forced = -1
 		}
 		tableWrapperWidthForced(context, box_, bo.MaybePoint{containingBlock.Width, containingBlock.Height}, forced)
+		// gopdfgo: wysokość nadana przez układ flex zastępuje podaną wysokość tabeli (CSS Tables 3
+		// § 3.10, test WPT table-as-item-specified-height); tabela jest układana do treści i niżej
+		// rośnie do wysokości z układu flex. Treść i tak nie pozwala jej zejść poniżej sumy wierszy.
+		if _, forcedHeight := box.Height.(pr.Float); forcedHeight && box.IsFlexItem && skipStack == nil &&
+			box.Style.GetFlexBasis().Tag == 0 { // tylko przy flex-basis podanym długością
+			box.GetWrappedTable().Box().Height = pr.AutoF
+		}
 	}
 	blockLevelWidth(box_, nil, containingBlock)
 	narrowBesideFloats(context, box_, containingBlock, *adjoiningMargins)

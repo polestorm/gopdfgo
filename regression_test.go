@@ -2809,6 +2809,11 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	// safe: element szerszy niż kontener zostaje przy początku zamiast wystawać w lewo
 	same("safe-overflow", `<div style="display:flex;flex-direction:row-reverse;justify-content:safe flex-start;width:90px;margin-left:50px"><div class=g style="flex:none;width:120px;height:40px"></div></div>`,
 		`<div class=g style="margin-left:50px;width:120px;height:40px"></div>`)
+	// tabela jako element flex: flex-basis wygrywa z podaną szerokością i wysokością tabeli
+	same("table-item-basis-width", `<div style="display:flex"><div class=g style="display:table;width:300px;height:40px;flex:0 0 100px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
+	same("table-item-basis-height", `<div style="display:flex;flex-direction:column;width:100px"><div class=g style="display:table;width:100px;height:200px;flex:0 0 40px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
@@ -2875,6 +2880,9 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	// max-height ogranicza wysokość siatki wyliczoną z wierszy
 	same("grid-max-height", `<div style="display:grid;position:relative;grid-template-columns:100px;grid-template-rows:200px;max-width:100px;max-height:60px">
 		<div class=g style="position:absolute;width:100%;height:100%"></div></div>`, `<div class=g style="width:100px;height:60px"></div>`)
+	// wysokość procentowa elementu zastępowanego w wierszu o rozmiarze z treści liczy się jak auto
+	same("percent-height-replaced-in-row", `<div style="display:grid;grid-template-rows:min-content"><canvas class=g width=100 height=40 style="block-size:100%"></canvas></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
 	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
 	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)

@@ -1022,6 +1022,9 @@ Wspólne dla obu katalogów:
   - `resolveTracksSizes` (`frContent`), `gridLayoutPass`: przy nieokreślonej wysokości ułamek `fr`
     wierszy wynika także z wysokości treści elementów (§ 11.7; w źródle TODO), a gdy suma współczynników
     jest mniejsza od 1, wiersze są rozwiązywane drugi raz w wysokości z pierwszego przebiegu (§ 11.1);
+  - `resolveTracksSizes` (krok 1.2.2): przy pomiarze wkładu elementu w wiersz wysokość obszaru siatki
+    jest auto, więc wysokości procentowe liczą się jak auto (CSS Grid 1 § 6.5); źródło podstawiało
+    największą dotąd zmierzoną wysokość, na początku zero, i obraz z `height: 100%` miał wysokość zero;
   - `collapseEmptyAutoFit`, `gridLayoutPass` (`edges`): linie podane przez element pozycjonowany są
     przeliczane po zwinięciu pustych ścieżek `auto-fit` (CSS Grid 2 § 7.2.3.2); w źródle element
     wskazujący linię za zwiniętą ścieżką dostawał cały kontener jako pudełko zawierające;
@@ -1078,6 +1081,12 @@ Wspólne dla obu katalogów:
   - `html/layout/flex.go` (krok 12): `justify-content: start` i `end` nie zamieniają się przy kierunku
     odwróconym (CSS Align 3 § 4.1); słowo `safe` przy przepełnieniu daje wyrównanie do początku, także
     w `align-content` przy `wrap-reverse` (§ 4.4); źródło `safe` ignorowało;
+  - tabela jako element flex: `html/layout/tables.go` (`autoTableLayout`, pole `gridMinWidth`
+    w `tableContentWidths`): dolną granicą szerokości tabeli narzuconej przez układ flex jest szerokość
+    minimalna treści i `min-width`, a nie podana szerokość (CSS Tables 3 § 3.9.1); `html/layout/block.go`:
+    wysokość z `flex-basis` podanego długością zastępuje podaną wysokość tabeli (tabela rośnie od treści
+    do tej wysokości); `html/layout/flex.go` (`tableWithAutoSize`): minimum automatyczne tabeli liczone
+    z treści, bez jej `width` i `height`. W źródle podana szerokość i wysokość tabeli wygrywały z układem flex;
   - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
     ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
     rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne

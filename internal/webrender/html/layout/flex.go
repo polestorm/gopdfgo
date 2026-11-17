@@ -90,6 +90,28 @@ func getAttr(box *bo.BoxFields, axis pr.KnownProp, min string) pr.MaybeFloat {
 	return boxAxis
 }
 
+// tableWithAutoSize (gopdfgo): kopia pudełka opakowującego tabelę, w której tabela ma rozmiar auto
+// w podanej osi (do pomiaru minimum automatycznego elementu flex).
+func tableWithAutoSize(wrapper Box, axis pr.KnownProp) Box {
+	children := make([]Box, len(wrapper.Box().Children))
+	for i, child := range wrapper.Box().Children {
+		if bo.TableT.IsInstance(child) {
+			table := bo.CopyWithChildren(child, child.Box().Children)
+			table.Box().Style = child.Box().Style.Copy()
+			if axis == pr.PWidth {
+				table.Box().Style.SetWidth(pr.TagToV(pr.Auto))
+				table.Box().Width = pr.AutoF
+			} else {
+				table.Box().Style.SetHeight(pr.TagToV(pr.Auto))
+				table.Box().Height = pr.AutoF
+			}
+			child = table
+		}
+		children[i] = child
+	}
+	return bo.CopyWithChildren(wrapper, children)
+}
+
 // marginIsAuto (gopdfgo): czy margines elementu jest auto według stylu.
 func marginIsAuto(child *bo.BoxFields, side pr.KnownProp) bool {
 	return getDimOrS(child, side).Tag == pr.Auto
@@ -375,6 +397,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			newChild.Box().Style.SetWidth(pr.TagToV(pr.Auto))
 			newChild.Box().Style.SetMinWidth(pr.ZeroPixels.Tagged())
 			newChild.Box().Style.SetMaxWidth(pr.Dimension{Value: pr.Inf, Unit: pr.Px}.Tagged())
+			if child.IsTableWrapper {
+				// gopdfgo: podana szerokość tabeli nie jest dodatkowym minimum w algorytmie flex
+				// (CSS Tables 3 § 3.9.1, test WPT table-as-item-specified-width): minimum automatyczne
+				// liczymy z treści tabeli, a nie z jej width
+				newChild = tableWithAutoSize(newChild, pr.PWidth)
+				specifiedSize = pr.AutoF
+			}
 			contentSize := minContentWidth(context, newChild, false)
 			var transferredSize pr.MaybeFloat
 			if replaced, isReplaced := child_.(bo.ReplacedBoxITF); isReplaced {
@@ -422,6 +451,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			newChild.Box().Style.SetHeight(pr.TagToV(pr.Auto))
 			newChild.Box().Style.SetMinHeight(pr.ZeroPixels.Tagged())
 			newChild.Box().Style.SetMaxHeight(pr.Dimension{Value: pr.Inf, Unit: pr.Px}.Tagged())
+			if child.IsTableWrapper {
+				// gopdfgo: jak wyżej: podana wysokość tabeli nie jest minimum w algorytmie flex
+				newChild = tableWithAutoSize(bo.CopyWithChildren(newChild, child.Children), pr.PHeight)
+				specifiedSize = pr.AutoF
+			}
 			if cs := newChild.Box().Style; cs.GetWidth().Tag == pr.Auto {
 				newChildWidth := maxContentWidth(context, newChild, true)
 				cs.SetWidth(pr.FToPx(newChildWidth))

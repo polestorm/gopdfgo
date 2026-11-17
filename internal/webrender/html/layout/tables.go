@@ -1190,8 +1190,19 @@ func autoTableLayout(context *layoutContext, box_ Box, containingBlock bo.Point)
 			table.Width = tmp.tableMaxContentWidth
 		}
 	} else {
-		if table.Width.V() < tmp.tableMinContentWidth {
-			table.Width = tmp.tableMinContentWidth
+		// gopdfgo: dolną granicą jest szerokość minimalna treści (i min-width), a nie podana szerokość
+		// (CSS Tables 3 § 3.9.1); ma to znaczenie, gdy szerokość tabeli narzuca układ flex. Źródło
+		// porównywało z wartością zawierającą width, więc tabela z width: 500px i flex-basis: 100px
+		// miała 500 px.
+		lower := tmp.tableMinContentWidth
+		if table.IsFlexItem || box.IsFlexItem {
+			lower = tmp.gridMinWidth
+			if minWidth, ok := table.MinWidth.(pr.Float); ok {
+				lower = max(lower, minWidth)
+			}
+		}
+		if table.Width.V() < lower {
+			table.Width = lower
 		}
 	}
 

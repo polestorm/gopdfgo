@@ -747,7 +747,11 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				parent.Box().PositionX = child.Box().PositionX
 				parent.Box().PositionY = child.Box().PositionY
 				parent.Box().Width = widthF
-				parent.Box().Height = height
+				// gopdfgo: przy wyznaczaniu wkładu elementu w wiersz wysokość obszaru siatki nie jest
+				// jeszcze znana, więc wysokości procentowe liczą się jak auto (CSS Grid 1 § 6.5, CSS Sizing 3
+				// § 5.2.1); źródło podstawiało największą dotąd zmierzoną wysokość, na początku zero, więc
+				// obraz z height: 100% miał wysokość zero
+				parent.Box().Height = pr.AutoF
 				bottomSpace := -pr.Inf
 				child, _, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, nil,
 					parent.Box(), true, nil, nil, nil, false, -1)

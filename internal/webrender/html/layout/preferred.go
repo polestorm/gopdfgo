@@ -596,12 +596,15 @@ func definiteColumnWidth(style pr.ElementStyle) pr.Float {
 }
 
 type tableContentWidths struct {
-	grid                         [][]Box
-	columnMinContentWidths       []pr.Float
-	columnMaxContentWidths       []pr.Float
-	columnIntrinsicPercentages   []pr.Float
-	constrainedness              []bool
-	tableMinContentWidth         pr.Float
+	grid                       [][]Box
+	columnMinContentWidths     []pr.Float
+	columnMaxContentWidths     []pr.Float
+	columnIntrinsicPercentages []pr.Float
+	constrainedness            []bool
+	tableMinContentWidth       pr.Float
+	// gridMinWidth (gopdfgo): szerokość minimalna treści tabeli (GRIDMIN z odstępami), bez jej
+	// podanej szerokości; to dolna granica szerokości użytej (CSS Tables 3 § 3.9.1)
+	gridMinWidth                 pr.Float
 	totalHorizontalBorderSpacing pr.Float
 	tableMaxContentWidth         pr.Float
 }
@@ -940,6 +943,7 @@ outerLoop:
 		max(sumMax, largepercentageContribution),
 		pr.Maxs(smallpercentageContributions...))
 
+	gridMinWidth := tableMinContentWidth
 	tableMinWidth := tableMinContentWidth
 	tableMaxWidth := tableMaxContentWidth
 	if wid := table.Style.GetWidth(); wid.Tag != pr.Auto && wid.Unit == pr.Px {
@@ -987,6 +991,7 @@ outerLoop:
 		constrainedness:              constrainedness,
 		totalHorizontalBorderSpacing: totalHorizontalBorderSpacing,
 		grid:                         zippedGrid,
+		gridMinWidth:                 gridMinWidth,
 	}
 	resultFalse := result
 	resultFalse.tableMinContentWidth = tableMinContentWidth
