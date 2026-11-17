@@ -1920,6 +1920,40 @@ func (s *AnonymousStyle) SetObjectPosition(v pr.CenterPos) {
 	s.propsCache.setKnown(pr.PObjectPosition, v)
 }
 
+func (s *ComputedStyle) GetWrapInside() pr.String  { return s.Get(pr.PWrapInside.Key()).(pr.String) }
+func (s *ComputedStyle) SetWrapInside(v pr.String) { s.propsCache.setKnown(pr.PWrapInside, v) }
+
+func (s *AnonymousStyle) GetWrapInside() pr.String  { return s.Get(pr.PWrapInside.Key()).(pr.String) }
+func (s *AnonymousStyle) SetWrapInside(v pr.String) { s.propsCache.setKnown(pr.PWrapInside, v) }
+
+func (s *ComputedStyle) GetHyphenateLimitLines() pr.TaggedInt {
+	return s.Get(pr.PHyphenateLimitLines.Key()).(pr.TaggedInt)
+}
+func (s *ComputedStyle) SetHyphenateLimitLines(v pr.TaggedInt) {
+	s.propsCache.setKnown(pr.PHyphenateLimitLines, v)
+}
+
+func (s *AnonymousStyle) GetHyphenateLimitLines() pr.TaggedInt {
+	return s.Get(pr.PHyphenateLimitLines.Key()).(pr.TaggedInt)
+}
+func (s *AnonymousStyle) SetHyphenateLimitLines(v pr.TaggedInt) {
+	s.propsCache.setKnown(pr.PHyphenateLimitLines, v)
+}
+
+func (s *ComputedStyle) GetWordSpaceTransform() pr.String {
+	return s.Get(pr.PWordSpaceTransform.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetWordSpaceTransform(v pr.String) {
+	s.propsCache.setKnown(pr.PWordSpaceTransform, v)
+}
+
+func (s *AnonymousStyle) GetWordSpaceTransform() pr.String {
+	return s.Get(pr.PWordSpaceTransform.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetWordSpaceTransform(v pr.String) {
+	s.propsCache.setKnown(pr.PWordSpaceTransform, v)
+}
+
 func (s *ComputedStyle) GetFontSizeAdjust() pr.SBoolFloat {
 	return s.Get(pr.PFontSizeAdjust.Key()).(pr.SBoolFloat)
 }

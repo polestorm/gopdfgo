@@ -103,6 +103,7 @@ type TextStyle struct {
 	WhiteSpace   pr.Keyword
 	OverflowWrap OverflowWrap
 	WordBreak    WordBreak
+	LooseBreak   bool // gopdfgo: line-break: loose
 
 	Hyphens             Hyphens
 	HyphenateCharacter  string
@@ -156,6 +157,7 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.WhiteSpace = style.GetWhiteSpace()
 	out.OverflowWrap = newOverflowWrap(style.GetOverflowWrap())
 	out.WordBreak = newWordBreak(style.GetWordBreak())
+	out.LooseBreak = style.GetLineBreak() == "loose"
 	if style.GetWordBreak() == "break-word" {
 		out.OverflowWrap = OAnywhere // gopdfgo: dawna wartość, CSS Text 3 § 5.2
 	}
@@ -207,6 +209,7 @@ type styleKey struct {
 	WhiteSpace   pr.Keyword
 	OverflowWrap OverflowWrap
 	WordBreak    WordBreak
+	LooseBreak   bool // gopdfgo: line-break: loose
 
 	Hyphens             Hyphens
 	HyphenateCharacter  string
@@ -235,6 +238,7 @@ func (ts *TextStyle) key() styleKey {
 		ts.WhiteSpace,
 		ts.OverflowWrap,
 		ts.WordBreak,
+		ts.LooseBreak,
 		ts.Hyphens,
 		ts.HyphenateCharacter,
 		ts.HyphenateLimitChars,

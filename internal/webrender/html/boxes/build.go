@@ -1923,6 +1923,16 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 			// CSS3: https://www.w3.org/TR/css3-text/#line-break-transform
 			text = strings.ReplaceAll(text, "\n", " ")
 		}
+		// gopdfgo: word-space-transform (CSS Text 4, #word-space-transform) zamienia spację zerowej szerokości (także
+		// z <wbr>) na spację albo spację ideograficzną między fazą 1 a 2 przetwarzania odstępów, więc
+		// wstawione spacje zwijają się z sąsiednimi jak zwykłe. Źródło właściwości nie znało.
+		if wst := string(box_.Style.GetWordSpaceTransform()); wst != "none" && strings.ContainsRune(text, '​') {
+			replacement := " "
+			if strings.HasPrefix(wst, "ideographic-space") {
+				replacement = "　"
+			}
+			text = strings.ReplaceAll(text, "​", replacement)
+		}
 		if spaceCollapse {
 			text = spaceRe.ReplaceAllString(text, " ")
 			previousText := text
@@ -1957,35 +1967,92 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 // Capitalize words according to CSS’s "text-transform: capitalize".
 func capitalize(text string) string {
 	letterFound := false
+	return capitalizeLang(text, language.Und, &letterFound)
+}
+
+// capitalizeLang (gopdfgo) zamienia pierwszą literę każdego słowa na wielką literę tytułową
+// (titlecase, CSS Text 3 § 2.1.1), z odwzorowaniem pełnym (ligatura ﬁ -> Fi) i z regułami języka
+// (niderlandzkie ij -> IJ). letterFound przechodzi między pudełkami tekstu, bo słowo może być
+// podzielone na kilka elementów. W źródle: unicode.ToUpper na pojedynczym znaku, osobno w każdym
+// pudełku.
+func capitalizeLang(text string, lang language.Tag, letterFound *bool) string {
+	title := cases.Title(lang, cases.NoLower)
+	dutch := false
+	if base, _ := lang.Base(); base.String() == "nl" {
+		dutch = true
+	}
+	runes := []rune(text)
 	var out strings.Builder
-	for _, letter := range text {
+	for i := 0; i < len(runes); i++ {
+		letter := runes[i]
 		isLN := unicode.Is(unicode.L, letter) || unicode.Is(unicode.N, letter)
-		if !letterFound && isLN {
-			letterFound = true
-			letter = unicode.ToUpper(letter)
+		if !*letterFound && isLN {
+			*letterFound = true
+			if dutch && (letter == 'i' || letter == 'I') && i+1 < len(runes) && (runes[i+1] == 'j' || runes[i+1] == 'J') {
+				out.WriteString("IJ")
+				i++
+				continue
+			}
+			out.WriteString(title.String(string(letter)))
+			continue
 		} else if isZ := unicode.Is(unicode.Z, letter); isZ {
-			letterFound = false
+			*letterFound = false
 		}
 		out.WriteRune(letter)
 	}
 	return out.String()
 }
 
+// textTransformLanguage zwraca język treści dla reguł zmiany wielkości liter (CSS Text 3 § 2.1:
+// odwzorowanie zależy od języka elementu).
+func textTransformLanguage(style pr.ElementStyle) language.Tag {
+	if lang := style.GetLang().S; lang != "" {
+		if tag, err := language.Parse(lang); err == nil {
+			return tag
+		}
+	}
+	return language.Und
+}
+
 func ProcessTextTransform(box Box) {
+	// gopdfgo: capitalize zależy od tekstu przed pudełkiem, więc pudełka liniowe przetwarzamy dopiero
+	// z najbliższym przodkiem blokowym, który przechodzi cały swój tekst po kolei
+	_, inline := box.(*InlineBox)
+	letterFound := false
+	processTextTransform(box, !inline, &letterFound)
+}
+
+func processTextTransform(box Box, withCapitalize bool, letterFound *bool) {
 	if tb, ok := box.(*TextBox); ok {
 		text, style := tb.TextS(), tb.Style
 		textTransform := tb.Style.GetTextTransform()
 		if textTransform != "none" {
+			lang := textTransformLanguage(style)
 			switch textTransform {
-			// gopdfgo: pełne odwzorowanie wielkości liter z Unicode (CSS Text 3 § 2.1), np. ß -> SS;
-			// w źródle odwzorowanie proste, znak po znaku.
+			// gopdfgo: pełne odwzorowanie wielkości liter z Unicode (CSS Text 3 § 2.1), np. ß -> SS,
+			// z regułami języka elementu (np. greckie wielkie litery bez tonosu); w źródle odwzorowanie
+			// proste, znak po znaku.
 			case "uppercase":
-				text = cases.Upper(language.Und).String(text)
+				if base, _ := lang.Base(); base.String() == "el" {
+					text = greekUpper(text)
+				} else {
+					text = cases.Upper(lang).String(text)
+				}
 			case "lowercase":
-				text = cases.Lower(language.Und).String(text)
+				text = cases.Lower(lang).String(text)
 			// Python’s unicode.captitalize is not the same.
 			case "capitalize":
-				text = capitalize(text)
+				if !withCapitalize {
+					tb.Text = []rune(text)
+					return // gopdfgo: zrobi to przodek blokowy
+				}
+				text = capitalizeLang(text, lang, letterFound)
+			case "math-auto":
+				// gopdfgo: pojedynczy znak dostaje odpowiednik z kursywy matematycznej (CSS Text 4
+				// § 2.1.1, odwzorowanie z MathML Core, #italic-mappings); dłuższy tekst zostaje bez zmian
+				if runes := []rune(text); len(runes) == 1 {
+					text = string(mathItalic(runes[0]))
+				}
 			case "full-width":
 				text = strings.Map(func(u rune) rune {
 					rep, in := asciiToWide[u]
@@ -1996,6 +2063,16 @@ func ProcessTextTransform(box Box) {
 				}, text)
 			}
 		}
+		if textTransform != "capitalize" && withCapitalize {
+			// stan słowa dla następnego pudełka z capitalize
+			for _, r := range text {
+				if unicode.Is(unicode.L, r) || unicode.Is(unicode.N, r) {
+					*letterFound = true
+				} else if unicode.Is(unicode.Z, r) {
+					*letterFound = false
+				}
+			}
+		}
 		if style.GetHyphens() == "none" {
 			text = strings.ReplaceAll(text, "\u00AD", "") //  U+00AD SOFT HYPHEN (SHY)
 		}
@@ -2004,7 +2081,7 @@ func ProcessTextTransform(box Box) {
 		// recursion
 		for _, child := range box.Box().Children {
 			if TextT.IsInstance(child) || InlineT.IsInstance(child) {
-				ProcessTextTransform(child)
+				processTextTransform(child, withCapitalize, letterFound)
 			}
 		}
 	}
@@ -2411,12 +2488,20 @@ func visibleControls(text string) string {
 	if strings.IndexFunc(text, isRenderedControl) < 0 {
 		return text
 	}
-	return strings.Map(func(r rune) rune {
-		if isRenderedControl(r) {
-			return '\uFFFD'
+	var out strings.Builder
+	for _, r := range text {
+		switch {
+		case r == '\v' || r == '\f' || r == '\u0085':
+			// gopdfgo: znaki klas BK i NL z UAX 14 są widoczne i wymuszają podział wiersza (CSS Text 3
+			// § 5.1); po znaku zastępczym wstawiamy separator wiersza U+2028 (klasa BK)
+			out.WriteString("\uFFFD\u2028")
+		case isRenderedControl(r):
+			out.WriteRune('\uFFFD')
+		default:
+			out.WriteRune(r)
 		}
-		return r
-	}, text)
+	}
+	return out.String()
 }
 
 func isRenderedControl(r rune) bool {

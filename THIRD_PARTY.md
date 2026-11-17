@@ -919,6 +919,28 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- CSS Text poza `white-space`, 2026-11-17 (testy W3C `css-text/*`, `css/CSS2/text`; praca pomocnika):
+  - `text-align`: skrót ustawia `text-align-last: auto` (źródło kopiowało wartość, a `justify` zamieniało
+    na `start`); `auto` po `justify` wyrównuje ostatni wiersz do początku (CSS Text 3 § 6.1, § 6.3);
+  - justowanie: w wierszu z tabulatorem dotyczy tylko części po ostatnim tabulatorze (źródło takiego wiersza
+    nie justowało wcale); miejscami justowania są też separatory słów innych pism, jak w go-text; przebieg
+    złożony z samych znaków sterujących dostaje font spacji, nie zastępczy;
+  - `text-transform`: `capitalize` ciągnie słowo przez granice elementów i używa wielkiej litery tytułowej
+    z odwzorowaniem pełnym; reguły językowe: niderlandzkie IJ, greckie wielkie litery jak ICU „el”
+    (`text_transform.go`, `greekUpper`); nowa wartość `math-auto`;
+  - nowe właściwości `wrap-inside` (`avoid`), `hyphenate-limit-lines`, `word-space-transform` (U+200B
+    i `<wbr>` jako spacja; `auto-phrase` bez działania); znak dzielenia także po miękkim łączniku na końcu
+    pudełka tekstu;
+  - łamanie wierszy na granicy elementów: litery strony z `word-break: break-all` liczą się jak ideogramy;
+    `overflow-wrap: anywhere` pozwala awaryjnie złamać tuż za elementem; przed elementem atomowym i po nim
+    wolno łamać zawsze, poza znakami klas GL, WJ i ZWJ (CSS Text 3 § 5.1); `line-break: loose`
+    z `break-all` pozwala łamać przed U+2010 i U+2013; U+000B, U+000C, U+0085 widoczne i wymuszają podział;
+  - `text-indent`: przy ujemnym wcięciu pozycją tabulatora może być krawędź bloku; wiersz z samym
+    elementem pływającym nie zużywa wcięcia;
+  - odstępstwo od testu W3C: `word-break-break-all-inline-007.tentative` traci zaliczenie na rzecz
+    nietentatywnego `-009` (testy są sprzeczne, zachowanie na granicy CSS Text 3 § 5 nie określa);
+    `text-transform-upperlower-016` zostaje niezaliczony, bo wzorzec używa odwzorowania prostego, a norma
+    wymaga pełnego. Test własny `text_misc_test.go`;
 - parser i selektory, 2026-11-17 (testy W3C `css/CSS2/syntax`, `selectors`):
   - `css/parser/parser.go` (`parseDeclaration`, nowe `IsEOFError`), `html/tree/style.go` (`@import`): koniec
     arkusza wewnątrz łańcucha albo `url(` to tylko błąd parsowania, a token pozostaje ważny (CSS Syntax 3
@@ -928,7 +950,8 @@ Wspólne dla obu katalogów:
     liter, jak nazwy atrybutów w dokumencie HTML (CSS Values 5 § 7.7); źródło szukało jej dosłownie;
   - `css/selector/parser.go` (`htmlCaseInsensitiveAttributes`): wartości atrybutów z listy HTML § 4.16.2
     (m.in. `lang`, `type`, `dir`) porównywane bez rozróżniania wielkości liter, flaga `s` to wyłącza
-    (Selectors 4 § 6.3); źródło nie znało ani listy, ani flagi `s`;
+    (Selectors 4 § 6.3); źródło nie znało ani listy, ani flagi `s`. W `html/tree/html5_ph.css` reguły
+    `ol[type=a]`, `[type=A]`, `[type=i]`, `[type=I]` dostały flagę `s`, jak w HTML § 15.3.8;
 - elementy pływające i clearance, 2026-11-17 (CSS 2.1 § 8.3.1, § 9.5, § 9.5.1, § 9.5.2, § 17.4; testy W3C
   `css/CSS2/floats`, `floats-clear`):
   - `html/layout/block.go` (`blockLevelLayout`, `blockBoxLayout`, `blockContainerLayout`, `inFlowLayout`,

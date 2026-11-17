@@ -262,6 +262,9 @@ var (
 		pr.PLineBreak:               lineBreak,
 		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PTextJustify:             textJustify,
+		pr.PWrapInside:              wrapInside,
+		pr.PHyphenateLimitLines:     hyphenateLimitLines,
+		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextWrapMode:            textWrapMode,
 		pr.PTextWrapStyle:           textWrapStyle,
 		pr.PGridAutoColumns:         gridAuto,
@@ -2728,6 +2731,64 @@ func textJustify(tokens []Token, _ string) pr.CssProperty {
 	}
 }
 
+// gopdfgo: “wrap-inside“ (CSS Text 4, #wrap-inside): avoid odsuwa łamanie wewnątrz pudełka liniowego na
+// ostateczność. Źródło właściwości nie znało.
+func wrapInside(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(tokens); keyword {
+	case "auto", "avoid":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “hyphenate-limit-lines“ (CSS Text 4, #hyphenate-limit-lines): no-limit albo nieujemna liczba całkowita
+// kolejnych wierszy zakończonych dzieleniem wyrazu. Źródło właściwości nie znało.
+func hyphenateLimitLines(tokens []Token, _ string) pr.CssProperty {
+	if len(tokens) != 1 {
+		return nil
+	}
+	if number, ok := tokens[0].(pa.Number); ok && number.IsInt() && number.Int() >= 0 {
+		return pr.TaggedInt{I: number.Int()}
+	}
+	if getKeyword(tokens[0]) == "no-limit" {
+		return pr.TaggedInt{Tag: pr.None}
+	}
+	return nil
+}
+
+// gopdfgo: “word-space-transform“ (CSS Text 4, #word-space-transform): none | [ space | ideographic-space ] && auto-phrase?
+// Wartość obliczona to słowa kluczowe w kolejności z gramatyki. auto-phrase jest przyjmowane, ale
+// układ go nie używa (wymaga podziału tekstu na frazy). Źródło właściwości nie znało.
+func wordSpaceTransform(tokens []Token, _ string) pr.CssProperty {
+	var space, phrase string
+	for _, token := range tokens {
+		switch keyword := getKeyword(token); keyword {
+		case "none":
+			if len(tokens) != 1 {
+				return nil
+			}
+			return pr.String("none")
+		case "space", "ideographic-space":
+			if space != "" {
+				return nil
+			}
+			space = keyword
+		case "auto-phrase":
+			if phrase != "" {
+				return nil
+			}
+			phrase = keyword
+		default:
+			return nil
+		}
+	}
+	if space == "" {
+		return nil
+	}
+	return pr.String(strings.TrimSpace(space + " " + phrase))
+}
+
 // gopdfgo: “text-wrap-mode“ (CSS Text 4 § 5.1): nowrap wyłącza miękkie łamanie wierszy bez zmiany
 // sposobu zwijania spacji. Źródło właściwości nie znało.
 func textWrapMode(tokens []Token, _ string) pr.CssProperty {
@@ -3157,7 +3218,8 @@ func textIndent(tokens []Token, _ string) pr.CssProperty {
 func textTransform(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
-	case "none", "uppercase", "lowercase", "capitalize", "full-width":
+	case "none", "uppercase", "lowercase", "capitalize", "full-width",
+		"math-auto": // gopdfgo: wartość z CSS Text 4, #valdef-text-transform-math-auto, nieznana w źródle
 		return pr.String(keyword)
 	default:
 		return nil

@@ -177,12 +177,14 @@ var InitialValues = Properties{
 	PTextTransform:       String("none"),
 	PWhiteSpace:          Normal,
 	PWordBreak:           String("normal"),
-	PLineBreak:           String("auto"), // gopdfgo
-	PFontSizeAdjust:      SBoolFloat{},   // gopdfgo: none
-	PTextJustify:         String("auto"), // gopdfgo
-	PTextWrapMode:        String("wrap"), // gopdfgo
-	PTextWrapStyle:       String("auto"), // gopdfgo
-	PWordSpacing:         TaggedDim{},    // computed value for "normal"
+	PLineBreak:           String("auto"),       // gopdfgo
+	PFontSizeAdjust:      SBoolFloat{},         // gopdfgo: none
+	PTextJustify:         String("auto"),       // gopdfgo
+	PHyphenateLimitLines: TaggedInt{Tag: None}, // gopdfgo: no-limit
+	PWordSpaceTransform:  String("none"),       // gopdfgo
+	PTextWrapMode:        String("wrap"),       // gopdfgo
+	PTextWrapStyle:       String("auto"),       // gopdfgo
+	PWordSpacing:         TaggedDim{},          // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
 	PTransformOrigin: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}},
@@ -198,6 +200,7 @@ var InitialValues = Properties{
 	PBoxShadow:     BoxShadows{},                              // gopdfgo: none
 	PTextShadow:    BoxShadows{},                              // gopdfgo: none
 	PContain:       String("none"),                            // gopdfgo
+	PWrapInside:    String("auto"),                            // gopdfgo
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

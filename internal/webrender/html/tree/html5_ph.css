@@ -19,10 +19,10 @@ br[clear=right i] { clear: right }
 br[clear=all i], br[clear=both i] { clear: both }
 
 :is(ol, li)[type="1"] { list-style-type: decimal }
-:is(ol, li)[type=a] { list-style-type: lower-alpha }
-:is(ol, li)[type=A] { list-style-type: upper-alpha }
-:is(ol, li)[type=i] { list-style-type: lower-roman }
-:is(ol, li)[type=I] { list-style-type: upper-roman }
+:is(ol, li)[type=a s] { list-style-type: lower-alpha }
+:is(ol, li)[type=A s] { list-style-type: upper-alpha }
+:is(ol, li)[type=i s] { list-style-type: lower-roman }
+:is(ol, li)[type=I s] { list-style-type: upper-roman }
 :is(ul, li)[type=disc i] { list-style-type: disc }
 :is(ul, li)[type=circle i] { list-style-type: circle }
 :is(ul, li)[type=square i] { list-style-type: square }

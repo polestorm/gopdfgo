@@ -62,6 +62,8 @@ type lineBoxeIterator struct {
 	emitted  int // liczba wydanych wierszy
 	// maxLines: ile wierszy zostaje do obcięcia przez line-clamp (max-lines), -1 bez ograniczenia
 	maxLines int
+	// hyphenatedLines: liczba kolejnych wierszy zakończonych dzieleniem wyrazu (hyphenate-limit-lines)
+	hyphenatedLines int
 }
 
 func (l *lineBoxeIterator) Has() bool {
@@ -78,8 +80,20 @@ func (l *lineBoxeIterator) Has() bool {
 	} else {
 		l.box.TextIndent = pr.Float(0)
 	}
+	// gopdfgo: hyphenate-limit-lines (CSS Text 4, #hyphenate-limit-lines): po tylu kolejnych wierszach zakończonych
+	// dzieleniem wyrazu następny wiersz nie dzieli wyrazów automatycznie. Źródło właściwości nie znało.
+	savedNoAutoHyphens := l.context.noAutoHyphens
+	if limit := l.box.Style.GetHyphenateLimitLines(); limit.Tag != pr.None && l.hyphenatedLines >= limit.I {
+		l.context.noAutoHyphens = true
+	}
 	line, resumeAt, forcedBreak := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
 		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, l.shrink)
+	l.context.noAutoHyphens = savedNoAutoHyphens
+	if line != nil && resumeAt != nil && endsHyphenated(line) {
+		l.hyphenatedLines++
+	} else {
+		l.hyphenatedLines = 0
+	}
 	if line != nil {
 		l.firstLine = false
 	}
@@ -101,7 +115,11 @@ func (l *lineBoxeIterator) Has() bool {
 		l.done = true
 	}
 	l.skipStack = resumeAt
-	l.indentNext = l.eachLine && forcedBreak
+	// gopdfgo: wiersz z samym elementem pływającym nie jest wierszem sformatowanym (elementy pływające
+	// nie należą do wierszy, CSS Text 3 § 7.1), więc wcięcie przechodzi na następny wiersz
+	if forcedBreak || hasInFlowContent(line) {
+		l.indentNext = l.eachLine && forcedBreak
+	}
 	l.firstLetterStyle = nil
 	l.emitted++
 	if l.forced = forcedBreak; forcedBreak {
@@ -330,6 +348,9 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			traceLogger.DumpTree(line_, "line in getNextLinebox")
 		}
 
+		if resumeAt != nil && !preservedLineBreak {
+			addSoftHyphenAtBoxEnd(context, line_)
+		}
 		line := line_.Box()
 		linebox.Width, linebox.Height = line.Width, line.Height
 
@@ -1197,6 +1218,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		resumeAt                  tree.ResumeStack
 		children, waitingChildren []indexedBoxC
 		firstLetter, lastLetter   rune
+		lastStyle                 pr.ElementStyle // gopdfgo: styl poprzedniego dziecka w przepływie
 		preservedLineBreak        = false
 		floatWidths               widths
 	)
@@ -1238,6 +1260,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		var childWaitingFloats []Box
 		childSkipStack := skipStack
 		shapesBefore := len(context.excludedShapes.list)
+		absoluteBefore, fixedBefore, placeholdersBefore := len(*absoluteBoxes), len(*fixedBoxes), len(*linePlaceholders)
 		v := splitInlineLevel(context, child_, positionX, availableWidth, bottomSpace, skipStack,
 			containingBlock, absoluteBoxes, fixedBoxes, linePlaceholders, &childWaitingFloats, lineChildren)
 		resumeAt = v.resumeAt
@@ -1288,19 +1311,47 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				canBreak = pr.True
 			} else if first == letterFalse {
 				canBreak = pr.False
-			} else if (lastLetter == '\u00a0' && first == '\u2e80') || (lastLetter == '\u2e80' && first == '\u00a0') {
+			} else if (lastLetter == '\u2e80' || first == '\u2e80') && !keepsUAXBreaking(lastLetter+first-'\u2e80') {
+				// (odst\u0119py, znaki steruj\u0105ce i spacja zerowej szeroko\u015bci zostaj\u0105 przy regu\u0142ach UAX 14:
+				// nie \u0142amiemy przed wymuszonym podzia\u0142em ani przed spacj\u0105)
 				// gopdfgo: przed elementem atomowym (obraz, inline-block) i po nim wiersz wolno złamać
-				// także wtedy, gdy sąsiaduje ze spacją nierozdzielającą U+00A0 (CSS Text 3 § 5.1, wyjątek
-				// dla zgodności ze stronami WWW); pozostałe znaki klas GL, WJ i ZWJ nadal sklejają.
+				// zawsze, także obok znaku, który zwykle zabrania podziału (np. dwukropka) i obok spacji
+				// nierozdzielającej U+00A0; sklejają tylko pozostałe znaki klas GL, WJ i ZWJ (CSS Text 3
+				// § 5.1). W źródle granica była sprawdzana według UAX 14 z elementem jako znakiem ID.
 				canBreak = pr.True
+				if other := lastLetter + first - '\u2e80'; other != '\u2e80' && isGlueClass(other) {
+					canBreak = pr.False
+				}
 			} else {
-				canBreak = context.Fonts().CanBreakText([]rune{lastLetter, first})
+				// gopdfgo: przy word-break: break-all litery i cyfry liczą się jak znaki ideograficzne
+				// (CSS Text 3 § 5.2) także na granicy elementów: liczy się styl strony, z której pochodzi
+				// znak. W źródle granica elementów zawsze sprawdzała same znaki.
+				a, b := lastLetter, first
+				if lastStyle != nil && lastStyle.GetWordBreak() == "break-all" && (unicode.IsLetter(a) || unicode.IsDigit(a)) {
+					a = '\u4e00'
+				}
+				if child.Style.GetWordBreak() == "break-all" && (unicode.IsLetter(b) || unicode.IsDigit(b)) {
+					b = '\u4e00'
+				}
+				canBreak = context.Fonts().CanBreakText([]rune{a, b})
 			}
 		}
 
 		if canBreak == pr.True {
 			children = append(children, waitingChildren...)
 			waitingChildren = nil
+		}
+
+		// gopdfgo: pudełko z wrap-inside: avoid, które musiało się złamać w środku, przechodzi w całości
+		// do następnego wiersza, jeśli tuż przed nim wolno złamać wiersz (CSS Text 4, #wrap-inside: podział
+		// wewnątrz tylko w ostateczności). Pudełko zewnętrzne sprawdza to przed wewnętrznym, więc ma
+		// pierwszeństwo. Źródło właściwości nie znało.
+		if resumeAt != nil && canBreak == pr.True && !preserved && childSkipStack == nil &&
+			child.Style.GetWrapInside() == "avoid" && bo.InlineT.IsInstance(child_) && hasInFlowBox(children) {
+			*absoluteBoxes, *fixedBoxes, *linePlaceholders = (*absoluteBoxes)[:absoluteBefore], (*fixedBoxes)[:fixedBefore], (*linePlaceholders)[:placeholdersBefore]
+			context.excludedShapes.list = context.excludedShapes.list[:shapesBefore]
+			resumeAt = tree.ResumeStack{index: nil}
+			break
 		}
 
 		if firstLetter == 0 {
@@ -1311,6 +1362,8 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		} else {
 			lastLetter = last
 		}
+		previousStyle := lastStyle
+		lastStyle = child.Style
 
 		if asTextBox, ok := newChild.(*bo.TextBox); newChild == nil || (ok && asTextBox == nil) {
 			// May be nil where we have an empty TextBox.
@@ -1336,6 +1389,16 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				// możliwy tylko wewnątrz jednego fragmentu tekstu.
 				// Tylko na poziomie wiersza: dopiero tu wiadomo, że wcześniej w wierszu nie było
 				// miejsca podziału (słowo, które mieści się w następnym wierszu, przechodzi do niego całe).
+				// gopdfgo: granica elementów jest awaryjnym miejscem podziału także wtedy, gdy łamanie
+				// w dowolnym miejscu pozwala styl tekstu przed nią (overflow-wrap: anywhere na elemencie,
+				// który kończy się przed pudełkiem niemieszczącym się w wierszu)
+				if bo.LineT.IsInstance(box_) && !breaksAnywhere(child.Style, false) && previousStyle != nil &&
+					breaksAnywhere(previousStyle, false) && !breakAllOnly(previousStyle) && len(waitingChildren) != 0 {
+					children = append(children, waitingChildren...)
+					waitingChildren = nil
+					resumeAt = tree.ResumeStack{index: nil}
+					break
+				}
 				if bo.LineT.IsInstance(box_) && breaksAnywhere(child.Style, false) {
 					// najpierw próba złamania samego pudełka tak, żeby jego początek dopełnił wiersz
 					savedForce := context.forceWordBreak
@@ -1614,7 +1677,11 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 	if fontSize == pr.FToV(0) || len(text_) == 0 {
 		return nil, -1, false
 	}
-	v := text.SplitFirstLineAt(text_, box.Style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
+	var style pr.StyleAccessor = box.Style
+	if context.noAutoHyphens && box.Style.GetHyphens() == "auto" {
+		style = manualHyphensStyle{box.Style}
+	}
+	v := text.SplitFirstLineAt(text_, style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
 	layout, length, resumeIndex, width, height := v.Layout, v.Length, v.ResumeAt, v.Width, v.Height
 	if resumeIndex == 0 {
 		panic("resumeAt should not be 0 here")
@@ -1626,6 +1693,9 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 
 	if newText := layout.Text(); length > 0 {
 		box = box.CopyWithText(newText)
+		// gopdfgo: układ wiersza dzielonego zawiera znak dzielenia, którego nie ma w tekście
+		box.Hyphenated = resumeIndex != -1 && len(newText) > length
+		box.SplitInside = resumeIndex != -1
 		box.Width = width
 		box.TextLayout = layout
 		box.FirstLineIsRTL = v.FirstLineRTL
@@ -1672,6 +1742,65 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 	}
 
 	return box, resumeIndex, preservedLineBreak
+}
+
+// addSoftHyphenAtBoxEnd (gopdfgo) pokazuje znak dzielenia, gdy wiersz złamał się na granicy
+// elementów tuż po miękkim łączniku (U+00AD) kończącym pudełko tekstu: miękki łącznik jest miejscem
+// podziału, a przy podziale w nim widać znak z hyphenate-character (CSS Text 3 § 5.4). Źródło
+// dodawało znak tylko przy podziale wewnątrz jednego pudełka tekstu.
+func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
+	var chain []Box
+	box := line
+	for IsLine(box) {
+		chain = append(chain, box)
+		children := box.Box().Children
+		box = nil
+		for i := len(children) - 1; i >= 0; i-- {
+			if children[i].Box().IsInNormalFlow() && !isNilTextBox(children[i]) {
+				box = children[i]
+				break
+			}
+		}
+	}
+	textBox, ok := box.(*bo.TextBox)
+	if !ok || textBox.Hyphenated || textBox.SplitInside || len(textBox.Text) == 0 || textBox.Text[len(textBox.Text)-1] != '\u00ad' ||
+		textBox.Style.GetHyphens() == "none" || textBox.TextLayout == nil {
+		return
+	}
+	hyphenated := append(slices.Clone(textBox.Text), []rune(string(textBox.Style.GetHyphenateCharacter()))...)
+	v := text.SplitFirstLine(hyphenated, textBox.Style, context, pr.Inf, false, false)
+	if v.Layout == nil {
+		return
+	}
+	delta := v.Width - textBox.Width.V()
+	textBox.Text, textBox.TextLayout, textBox.Hyphenated = v.Layout.Text(), v.Layout, true
+	textBox.Width = v.Width
+	for _, parent := range chain {
+		parent.Box().Width = parent.Box().Width.V() + delta
+	}
+}
+
+// manualHyphensStyle (gopdfgo) wyłącza automatyczne dzielenie wyrazów (hyphens: auto działa jak
+// manual) po wyczerpaniu limitu hyphenate-limit-lines (CSS Text 4, #hyphenate-limit-lines).
+type manualHyphensStyle struct{ pr.StyleAccessor }
+
+func (manualHyphensStyle) GetHyphens() pr.String { return "manual" }
+
+// endsHyphenated mówi, czy wiersz kończy się dzieleniem wyrazu.
+func endsHyphenated(box Box) bool {
+	if textBox, ok := box.(*bo.TextBox); ok {
+		return textBox.Hyphenated
+	}
+	if !IsLine(box) {
+		return false
+	}
+	children := box.Box().Children
+	for i := len(children) - 1; i >= 0; i-- {
+		if children[i].Box().IsInNormalFlow() && !isNilTextBox(children[i]) {
+			return endsHyphenated(children[i])
+		}
+	}
+	return false
 }
 
 type boxMinMax struct {
@@ -1857,6 +1986,10 @@ func textAlign(context *layoutContext, line *bo.LineBox, availableWidth pr.Float
 		alignLast := line.Style.GetTextAlignLast()
 		if alignLast != "auto" {
 			align = alignLast
+		} else if align == "justify" {
+			// gopdfgo: text-align-last: auto przy text-align-all: justify wyrównuje ostatni wiersz do
+			// początku (CSS Text 3 § 6.3); w źródle robił to skrót text-align, który ustawiał start
+			align = "start"
 		}
 	}
 	ws := line.Style.GetWhiteSpace()
@@ -1896,9 +2029,12 @@ func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float, 
 	// TODO: We should use a better alorithm here, see
 	// https://www.w3.org/TR/css-text-3/#justify-algos
 	// gopdfgo: spacje wiszące na końcu wiersza (pre-wrap) nie są miejscami justowania
-	// gopdfgo: wiersza z tabulatorem nie justujemy: tekst przed tabulatorem ma zostać na pozycjach
-	// tabulacji (CSS Text 3 § 6.4 pozwala justować najwyżej część po ostatnim tabulatorze)
-	if lineHasTab(line) {
+	// gopdfgo: w wierszu z tabulatorem justujemy tylko część po ostatnim tabulatorze, a tekst przed nim
+	// zostaje na pozycjach tabulacji (CSS Text 3 § 6.4: tabulator zachowany wyznacza granicę, za którą
+	// justowanie nie sięga; tak robi Chromium). Źródło justowało cały wiersz.
+	if line.Style.GetDirection() != pr.Rtl {
+		limitJustificationToLastTab(line)
+	} else if lineHasTab(line) {
 		return
 	}
 	nbSpaces := countExpandableSpaces(line)
@@ -1983,9 +2119,97 @@ func breakAllOnly(style pr.ElementStyle) bool {
 	return style.GetWordBreak() == "break-all" && style.GetOverflowWrap() == "normal" && style.GetLineBreak() != "anywhere"
 }
 
+// keepsUAXBreaking: obok tych znaków (spacja, znaki sterujące i wymuszone podziały, spacja zerowej
+// szerokości) granica elementu atomowego zostaje przy regułach UAX 14.
+func keepsUAXBreaking(r rune) bool {
+	return r == ' ' || unicode.IsControl(r) || r == '\u200b' || r == '\u2028' || r == '\u2029'
+}
+
+// isGlueClass mówi, czy znak należy do klasy GL, WJ albo ZWJ z UAX 14 (bez U+00A0): obok takiego
+// znaku nie wolno złamać wiersza także przy elemencie atomowym (CSS Text 3 § 5.1).
+func isGlueClass(r rune) bool {
+	switch {
+	case r == '\u034f', r >= '\u035c' && r <= '\u0362', r == '\u0f08', r == '\u0f0c', r == '\u0f12',
+		r == '\u0fd9', r == '\u0fda', r == '\u180e', r == '\u2007', r == '\u2011', r == '\u202f', // GL
+		r == '\u2060', r == '\ufeff', // WJ
+		r == '\u200d': // ZWJ
+		return true
+	}
+	return false
+}
+
+// hasInFlowContent mówi, czy w pudełku liniowym jest treść w przepływie (tekst albo pudełko atomowe);
+// puste pudełka liniowe się nie liczą.
+func hasInFlowContent(box Box) bool {
+	for _, child := range box.Box().Children {
+		if !child.Box().IsInNormalFlow() || isNilTextBox(child) {
+			continue
+		}
+		if textBox, ok := child.(*bo.TextBox); ok && len(textBox.Text) == 0 {
+			continue
+		}
+		if !IsLine(child) || hasInFlowContent(child) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasInFlowBox mówi, czy wśród pudełek jest choć jedno w normalnym przepływie.
+func hasInFlowBox(boxes []indexedBoxC) bool {
+	for _, b := range boxes {
+		if b.box.Box().IsInNormalFlow() && !isNilTextBox(b.box) {
+			return true
+		}
+	}
+	return false
+}
+
 func isNilTextBox(box Box) bool {
 	textBox, ok := box.(*bo.TextBox)
 	return ok && textBox == nil
+}
+
+// limitJustificationToLastTab wyłącza z justowania spacje przed ostatnim tabulatorem wiersza
+// (wiersz od lewej do prawej).
+func limitJustificationToLastTab(line Box) {
+	var texts []*bo.TextBox
+	var collect func(box Box)
+	collect = func(box Box) {
+		if textBox, ok := box.(*bo.TextBox); ok {
+			texts = append(texts, textBox)
+		} else if IsLine(box) {
+			for _, child := range box.Box().Children {
+				if child.Box().IsInNormalFlow() {
+					collect(child)
+				}
+			}
+		}
+	}
+	collect(line)
+	last := -1
+	for i := len(texts) - 1; i >= 0 && last < 0; i-- {
+		if tab := lastIndexRune(texts[i].Text, '\t'); tab >= 0 {
+			last = i
+			if texts[i].TextLayout != nil {
+				texts[i].TextLayout.SetJustificationStart(tab + 1)
+			}
+		}
+	}
+	for _, textBox := range texts[:max(last, 0)] {
+		if textBox.TextLayout != nil {
+			textBox.TextLayout.SetJustificationStart(len(textBox.Text))
+		}
+	}
+}
+
+func lastIndexRune(text []rune, r rune) int {
+	for i := len(text) - 1; i >= 0; i-- {
+		if text[i] == r {
+			return i
+		}
+	}
+	return -1
 }
 
 func lineHasTab(box Box) bool {
@@ -2011,7 +2235,17 @@ func countExpandableSpaces(box Box) int {
 			return 0
 		}
 		// TODO: remove trailing spaces correctly
-		return strings.Count(textBox.TextS(), " ") + strings.Count(textBox.TextS(), "\u00a0")
+		text := textBox.Text
+		if textBox.TextLayout != nil { // gopdfgo: bez spacji przed ostatnim tabulatorem
+			text = text[min(textBox.TextLayout.JustificationStart(), len(text)):]
+		}
+		var count int
+		for _, r := range text {
+			if isWordSeparator(r) {
+				count++
+			}
+		}
+		return count
 	} else if IsLine(box) {
 		var sum int
 		for _, child := range box.Box().Children {
@@ -2021,6 +2255,18 @@ func countExpandableSpaces(box Box) int {
 	} else {
 		return 0
 	}
+}
+
+// isWordSeparator (gopdfgo) mówi, czy znak jest separatorem słów, czyli miejscem justowania
+// (CSS Text 3 § 6.4 i 4.3: spacja, spacja nierozdzielająca i separatory słów innych pism). Lista
+// zgadza się z tą, którą go-text poszerza przy justowaniu (shaping.AddWordSpacing); w źródle liczyły
+// się tylko spacja i spacja nierozdzielająca, więc odstęp wychodził za szeroki.
+func isWordSeparator(r rune) bool {
+	switch r {
+	case ' ', '\u00a0', '\u1361', '\U00010100', '\U00010101', '\U0001039F', '\U0001091F':
+		return true
+	}
+	return false
 }
 
 func addWordSpacing(context *layoutContext, box_ Box, justificationSpacing, xAdvance pr.Float) pr.Float {

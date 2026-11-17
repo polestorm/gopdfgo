@@ -43,6 +43,10 @@ type EngineLayout interface {
 	// SetHangingSpaces (gopdfgo) wyłącza z justowania podaną liczbę spacji na końcu wiersza.
 	SetHangingSpaces(count int)
 	HangingSpaces() int
+	// SetJustificationStart (gopdfgo) wyłącza z justowania spacje przed podaną pozycją (indeks znaku):
+	// w wierszu z tabulatorem justowana jest tylko część po ostatnim tabulatorze.
+	SetJustificationStart(index int)
+	JustificationStart() int
 }
 
 // FirstLine exposes the result of laying out
