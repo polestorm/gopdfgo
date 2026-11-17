@@ -1651,3 +1651,33 @@ Praca równoległa: dwaj pomocnicy w osobnych kopiach roboczych (`font-size-adju
 i `hanging`, `text-justify: none`, `word-spacing` w procentach, `text-wrap: nowrap`) zostali przerwani przed
 pierwszym commitem; zadania pozostają do zrobienia.
 
+## Praca równoległa w pięciu obszarach (2026-11-17)
+
+Pierwsza paczka robiona równolegle: dwa zadania u pomocników w osobnych kopiach roboczych (fonty, tekst),
+flex, siatka i tła u mnie; jeden pełny sondaż na koniec po scaleniu wszystkiego.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7370 | 7389 (ściśle 6994, krawędziowo 395) |
+| tekst, tła, fonty (1839) | 1351 | 1372 (ściśle 1331, krawędziowo 41) |
+| zyski według obszaru | | flex 12, fonty 11, tekst 8, siatka 5, CSS 2: 2, tła 2 |
+
+Strat brak; korpus co do piksela bez zmian.
+
+- **Fonty (pomocnik):** `font-size-adjust` dla liczby, `ex-height`, `cap-height`, `ch-width`, `ic-*`
+  i zera; 11 z 15 testów. Nie działa przeliczanie dla fontów zastępczych (`from-font`), bo rysowanie ma
+  jeden rozmiar na fragment tekstu.
+- **Tekst (pomocnik):** `text-justify: none`, `text-indent` z `hanging` i `each-line`, `word-spacing`
+  w procentach, `text-wrap-mode` i `text-wrap: nowrap`; 8 z 10 testów docelowych. `text-justify-001`
+  ma układ zgodny ze wzorcem, różnią się szwy między wierszami Ahem.
+- **Flex:** `flex-basis` w szerokości wewnętrznej (także elementów, które mogą rosnąć), `box-sizing:
+  border-box` dla `flex-basis` i `max-width`, `justify-content: start`/`end` przy kierunku odwróconym,
+  `safe` przy przepełnieniu, rozmiar bazowy z treści niezależny od `max-width`. Przejęty test
+  `TestFlexImageMinWidth` poprawiony według normy.
+- **Siatka:** wiersze `fr` przy wysokości auto (wkład treści i drugi przebieg), `max-height`
+  kontenera, linie zwiniętych ścieżek `auto-fit` dla elementów pozycjonowanych.
+- **Tła:** środek `border-image` z `fill` bez skalowania, gdy krawędzie mają zerową szerokość.
+
+Czas: pomocnicy pracowali 10 i 21 minut; scalenie gałęzi tekstu wymagało ręcznego rozwiązania konfliktów
+w tablicach właściwości (obie gałęzie dopisywały na końcu listy) i odtworzenia plików generowanych.
+
