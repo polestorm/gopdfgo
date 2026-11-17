@@ -669,6 +669,20 @@ func definiteColumnWidth(style pr.ElementStyle) pr.Float {
 	return width
 }
 
+// captionsMinContentWidth (gopdfgo) podaje największą zewnętrzną szerokość minimalną treści podpisów
+// tabeli w pudełku opakowującym.
+func captionsMinContentWidth(context *layoutContext, wrapper Box) (pr.Float, bool) {
+	var width pr.Float
+	found := false
+	for _, child := range wrapper.Box().Children {
+		if bo.TableCaptionT.IsInstance(child) {
+			width = max(width, minContentWidth(context, child, true))
+			found = true
+		}
+	}
+	return width, found
+}
+
 type tableContentWidths struct {
 	grid                       [][]Box
 	columnMinContentWidths     []pr.Float
@@ -761,12 +775,24 @@ func tableAndColumnsPreferredWidths(context *layoutContext, box_ Box, outer bool
 		totalHorizontalBorderSpacing = table.Style.GetBorderSpacing()[0].Value * tot
 	}
 
+	// gopdfgo: szerokość minimalna treści podpisów (pudełko obramowania tabeli nie jest węższe niż
+	// podpis: CSS Tables 3 § 3.9.1, „captions' min-content”, tak jak w Chromium). CSS 2.1 § 17.4 tego
+	// nie określa; w źródle podpis nie wpływał na szerokość tabeli i jego treść wystawała poza niego
+	// (testy WPT margin-right-applies-to-015, padding-right-applies-to-015).
+	captionMinWidth, hasCaption := captionsMinContentWidth(context, box_)
+	captionContentWidth := captionMinWidth - marginWidth(&table.BoxFields, 0, true, true)
+
 	if gridWidth == 0 || gridHeight == 0 {
 		table.Children = nil
 		minWidth := blockMinContentWidth(context, table_, false)
 		maxWidth := blockMaxContentWidth(context, table_, false)
 		outerMinWidth := adjust(box_, true, blockMinContentWidth(context, table_, true), true, true)
 		outerMaxWidth := adjust(box_, true, blockMaxContentWidth(context, table_, true), true, true)
+		if hasCaption {
+			minWidth, maxWidth = max(minWidth, captionContentWidth), max(maxWidth, captionContentWidth)
+			outerMinWidth = max(outerMinWidth, adjust(box_, true, captionMinWidth, true, true))
+			outerMaxWidth = max(outerMaxWidth, adjust(box_, true, captionMinWidth, true, true))
+		}
 		context.tables[table] = map[bool]tableContentWidths{
 			false: {
 				tableMinContentWidth:         minWidth,
@@ -810,8 +836,11 @@ outerLoop:
 	for i := range minContentWidths {
 		for _, groups := range groupss {
 			if b := (*groups)[i]; b != nil {
-				minContentWidths[i] = max(minContentWidths[i], minContentWidth(context, b, true))
-				maxContentWidths[i] = max(maxContentWidths[i], maxContentWidth(context, b, true))
+				// gopdfgo: marginesy i odstępy wewnętrzne nie dotyczą kolumn ani grup kolumn (CSS 2.1 § 17.3),
+				// więc ich wkładem jest sama szerokość; w źródle liczona była szerokość zewnętrzna, a padding
+				// kolumny poszerzał tabelę (test WPT padding-right-applies-to-006).
+				minContentWidths[i] = max(minContentWidths[i], minContentWidth(context, b, false))
+				maxContentWidths[i] = max(maxContentWidths[i], maxContentWidth(context, b, false))
 				intrinsicPercentages[i] = max(intrinsicPercentages[i], percentageContribution(*b.Box()))
 			}
 		}
@@ -1049,6 +1078,10 @@ outerLoop:
 
 	tableMinContentWidth = max(tableMinContentWidth, adjust(table, false, tableMinWidth, true, true))
 	tableMaxContentWidth = max(tableMaxContentWidth, adjust(table, false, tableMaxWidth, true, true))
+	if hasCaption {
+		tableMinContentWidth = max(tableMinContentWidth, captionContentWidth)
+		tableMaxContentWidth = max(tableMaxContentWidth, captionContentWidth)
+	}
 	// gopdfgo: max-width tabeli ogranicza także jej szerokość preferowaną (nie
 	// poniżej szerokości minimalnej treści), żeby kontener kurczący się do
 	// treści miał tę samą szerokość co ułożona tabela

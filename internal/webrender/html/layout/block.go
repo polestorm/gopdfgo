@@ -840,6 +840,18 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				// nową i pudełko ustawiało się bez marginesów dzieci stojących za pustym.
 				*thisBoxAdjoiningMargins = adjoiningMarginsV
 				adjoiningMargins = thisBoxAdjoiningMargins
+				// gopdfgo: dolny margines pustego dziecka też należy do górnego marginesu tego pudełka, więc
+				// dotychczasowe dzieci (i elementy pływające w nich) przesuwają się razem z górną krawędzią
+				// pudełka (CSS 2.1 § 8.3.1). W źródle przesunięcie uwzględniało tylko górne marginesy dzieci,
+				// a gdy łańcuch kończył się na pudełku z min-height, element pływający z pustego dziecka
+				// zostawał nad pudełkiem (test WPT margin-collapse-min-height-001).
+				if n := len(adjoiningMarginsV); n > 0 {
+					if delta := collapseMargin(adjoiningMarginsV) - collapseMargin(adjoiningMarginsV[:n-1]); delta != 0 {
+						for _, previousNewChild := range newChildren {
+							previousNewChild.Translate(0, delta, false)
+						}
+					}
+				}
 			}
 
 			if newMaxLines != -1 && maxLines != -1 {
