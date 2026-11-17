@@ -533,19 +533,22 @@ func TestBorderImageNotPercent(t *testing.T) {
 
 func TestBorderImageRepeat(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
+	// gopdfgo: kafelki przy repeat są wyśrodkowane w swoim obszarze (CSS Backgrounds 3 § 6.4); test
+	// źródłowy oczekiwał kafelków od lewej i górnej krawędzi. Szerokość zmieniona z 7 na 6 px, żeby
+	// środkowanie wypadało na całych pikselach.
 	assertPixelsEqual(t, `
-        ___________
-        _RYMYMYMYG_
-        _M_______C_
-        _Y_______Y_
-        _M_______C_
-        _Y_______Y_
-        _BYCYCYCYK_
-        ___________
+        __________
+        _RYMYMYMG_
+        _Y______Y_
+        _M______C_
+        _Y______Y_
+        _M______C_
+        _BYCYCYCK_
+        __________
     `, `
       <style>
         @page {
-          size: 11px 8px;
+          size: 10px 8px;
         }
         div {
           border: 1px solid black;
@@ -554,7 +557,7 @@ func TestBorderImageRepeat(t *testing.T) {
           border-image-repeat: repeat;
           height: 4px;
           margin: 1px;
-          width: 7px;
+          width: 6px;
         }
       </style>
       <div></div>

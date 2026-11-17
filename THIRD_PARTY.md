@@ -926,6 +926,9 @@ Wspólne dla obu katalogów:
     z sąsiedniego obszaru obrazu (wycinki są skalowane niezależnie, § 6.2);
   - przy `repeat` kafelki są wyśrodkowane w swoim obszarze (§ 6.4); źródło zaczynało od lewej i górnej
     krawędzi. Odstęp przy `space` jest liczony w tej samej skali co kafelki;
+    test źródłowy `TestBorderImageRepeat` (`goweasyprint/pdf/draw_box_test.go`) oczekiwał kafelków od
+    krawędzi i został poprawiony według normy (szerokość 6 px zamiast 7, żeby środek wypadał na całych
+    pikselach);
   - szerokości obrazu obramowania, które po przeciwnych stronach przekraczają obszar, są zmniejszane
     proporcjonalnie (§ 6.3);
   - środek z `fill`: skala pionowa brana z dolnej krawędzi, gdy górna ma zerową (w źródle pomyłka nazw
