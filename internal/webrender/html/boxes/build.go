@@ -87,8 +87,8 @@ func (r rootStyleFor) Get(element tree.Element, pseudoType string) pr.ElementSty
 }
 
 var (
-	tabRe      = regexp.MustCompile(`[\t ]*\n[\t ]*`)
-	spaceRe    = regexp.MustCompile(`[\t ]+`)
+	tabRe   = regexp.MustCompile(`[\t ]*\n[\t ]*`)
+	spaceRe = regexp.MustCompile(`[\t ]+`)
 )
 
 // CreateAnonymousBox create anonymous boxes in box descendants according to layout rules.

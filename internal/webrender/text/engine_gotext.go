@@ -1133,28 +1133,36 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	return exact, line, done
 }
 
-// hangingExtra (gopdfgo) zwraca szerokość najdłuższego ciągu co najmniej dwóch wiszących białych
-// znaków (zob. isHangingWhiteSpace) w tekście albo zero. Spacje wiszą tylko przy pre-wrap; przy
-// break-spaces nic nie wisi, a w zapisie od prawej do lewej zostawiamy zachowanie biblioteki.
+// hangingExtra (gopdfgo) zwraca szerokość najdłuższego w tekście ciągu co najmniej dwóch wiszących
+// białych znaków (zob. isHangingWhiteSpace) albo ciągu zakończonego znakiem nowego wiersza, albo
+// zero. Spacje wiszą tylko przy pre-wrap; przy break-spaces nic nie wisi, a w zapisie od prawej do
+// lewej zostawiamy zachowanie biblioteki.
 func hangingExtra(runs shaping.Line, text []rune, style *TextStyle, dir di.Direction) fixed.Int26_6 {
 	if style.breakSpaces() || dir.Progression() != di.FromTopLeft {
 		return 0
 	}
 	preserved := !style.spaceCollapse()
 	var best, current fixed.Int26_6
-	count := 0
+	count, newline := 0, false
 	for _, run := range runs {
 		for _, glyph := range run.Glyphs {
 			index := glyph.ClusterIndex
-			if index >= 0 && index < len(text) && isHangingWhiteSpace(text[index]) && (preserved || text[index] != ' ') {
+			if index < 0 || index >= len(text) {
+				current, count, newline = 0, 0, false
+				continue
+			}
+			// znak nowego wiersza kończy ciąg; jego glif (często .notdef z obrysem) też nie może
+			// zmuszać do złamania przed nim
+			if r := text[index]; r == '\n' || isHangingWhiteSpace(r) && (preserved || r != ' ') {
 				current += glyph.Advance
 				count++
-				if count >= 2 && current > best {
+				newline = newline || r == '\n'
+				if (count >= 2 || newline) && current > best {
 					best = current
 				}
 				continue
 			}
-			current, count = 0, 0
+			current, count, newline = 0, 0, false
 		}
 	}
 	return best
