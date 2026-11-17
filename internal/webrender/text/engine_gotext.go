@@ -229,6 +229,7 @@ type TextLayoutGotext struct {
 
 	justification pr.Float
 	justified     bool // gopdfgo: odstęp justowania został już dodany do glifów
+	justifyStart  int  // gopdfgo: spacje przed tym znakiem nie dostają odstępu justowania
 }
 
 // privateLayout (gopdfgo) zwraca wynik z własnym obiektem układu. Wyniki z pamięci podręcznej były
@@ -238,7 +239,7 @@ type TextLayoutGotext struct {
 func privateLayout(line FirstLine) FirstLine {
 	if shared, ok := line.Layout.(*TextLayoutGotext); ok && shared != nil {
 		own := *shared
-		own.justification, own.justified = 0, false
+		own.justification, own.justified, own.justifyStart = 0, false, 0
 		line.Layout = &own
 	}
 	return line
@@ -276,8 +277,10 @@ func (l *TextLayoutGotext) SetJustification(spacing pr.Float) {
 	l.justification = spacing
 }
 
-func (l *TextLayoutGotext) SetHangingSpaces(count int) { l.hangingSpaces = count }
-func (l *TextLayoutGotext) HangingSpaces() int         { return l.hangingSpaces }
+func (l *TextLayoutGotext) SetHangingSpaces(count int)      { l.hangingSpaces = count }
+func (l *TextLayoutGotext) SetJustificationStart(index int) { l.justifyStart = index }
+func (l *TextLayoutGotext) JustificationStart() int         { return l.justifyStart }
+func (l *TextLayoutGotext) HangingSpaces() int              { return l.hangingSpaces }
 
 func (l *TextLayoutGotext) TrailingSpacesWidth() pr.Float {
 	if len(l.Line) == 0 || l.Style == nil || l.Style.Direction == pr.Rtl {
@@ -314,6 +317,16 @@ func (l *TextLayoutGotext) ApplyJustification() {
 		for _, glyph := range run.Glyphs {
 			if glyph.ClusterIndex >= len(text) {
 				text = append(append([]rune(nil), text...), make([]rune, glyph.ClusterIndex+1-len(text))...)
+			}
+		}
+	}
+	// gopdfgo: spacje przed początkiem justowania (część wiersza przed ostatnim tabulatorem) zasłaniamy
+	// znakiem, który nie jest odstępem, żeby AddSpacing ich nie poszerzał
+	if l.justifyStart > 0 {
+		text = append([]rune(nil), text...)
+		for i := 0; i < l.justifyStart && i < len(text); i++ {
+			if text[i] == ' ' || text[i] == '\u00a0' {
+				text[i] = 'x'
 			}
 		}
 	}
@@ -700,6 +713,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		Direction: dir, // default, will be overriden
 	}, fc.fm)
 	inputs = fc.spacesInOwnFace(inputs)
+	inputs = fc.controlsInSpaceFace(inputs)
 
 	// gopdfgo: reszty zaokrągleń szerokości znaków, potrzebne tylko przy zawijaniu (zob. LineWrap)
 	var residuals []int32
@@ -1571,6 +1585,34 @@ func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []sha
 		}
 	}
 	return out
+}
+
+// controlsInSpaceFace (gopdfgo) daje przebiegowi złożonemu wyłącznie ze znaków sterujących (np. sam
+// tabulator w osobnym elemencie) font spacji, czyli pierwszy font z listy rodzin. go-text wybierał dla
+// takiego przebiegu pierwszy font, który ma glif znaku sterującego, zwykle font zastępczy, i wiersz
+// dostawał jego wysokość. Znaki sterujące nie są renderowane (CSS Text 3 § 4.1.3), więc nie powinny
+// wybierać fontu; tak robi Chromium.
+func (fc *FontConfigurationGotext) controlsInSpaceFace(inputs []shaping.Input) []shaping.Input {
+	var spaceFace *font.Face
+	for i, input := range inputs {
+		controls := input.RunEnd > input.RunStart
+		for _, r := range input.Text[input.RunStart:input.RunEnd] {
+			if !unicode.IsControl(r) {
+				controls = false
+				break
+			}
+		}
+		if !controls {
+			continue
+		}
+		if spaceFace == nil {
+			if spaceFace = fc.fm.ResolveFace(' '); spaceFace == nil {
+				return inputs
+			}
+		}
+		inputs[i].Face = spaceFace
+	}
+	return inputs
 }
 
 // breakAllAllowed mówi, czy przy word-break: break-all wolno złamać wiersz między znakami a i b:

@@ -1857,6 +1857,10 @@ func textAlign(context *layoutContext, line *bo.LineBox, availableWidth pr.Float
 		alignLast := line.Style.GetTextAlignLast()
 		if alignLast != "auto" {
 			align = alignLast
+		} else if align == "justify" {
+			// gopdfgo: text-align-last: auto przy text-align-all: justify wyrównuje ostatni wiersz do
+			// początku (CSS Text 3 § 6.3); w źródle robił to skrót text-align, który ustawiał start
+			align = "start"
 		}
 	}
 	ws := line.Style.GetWhiteSpace()
@@ -1896,9 +1900,12 @@ func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float, 
 	// TODO: We should use a better alorithm here, see
 	// https://www.w3.org/TR/css-text-3/#justify-algos
 	// gopdfgo: spacje wiszące na końcu wiersza (pre-wrap) nie są miejscami justowania
-	// gopdfgo: wiersza z tabulatorem nie justujemy: tekst przed tabulatorem ma zostać na pozycjach
-	// tabulacji (CSS Text 3 § 6.4 pozwala justować najwyżej część po ostatnim tabulatorze)
-	if lineHasTab(line) {
+	// gopdfgo: w wierszu z tabulatorem justujemy tylko część po ostatnim tabulatorze, a tekst przed nim
+	// zostaje na pozycjach tabulacji (CSS Text 3 § 6.4: tabulator zachowany wyznacza granicę, za którą
+	// justowanie nie sięga; tak robi Chromium). Źródło justowało cały wiersz.
+	if line.Style.GetDirection() != pr.Rtl {
+		limitJustificationToLastTab(line)
+	} else if lineHasTab(line) {
 		return
 	}
 	nbSpaces := countExpandableSpaces(line)
@@ -1988,6 +1995,48 @@ func isNilTextBox(box Box) bool {
 	return ok && textBox == nil
 }
 
+// limitJustificationToLastTab wyłącza z justowania spacje przed ostatnim tabulatorem wiersza
+// (wiersz od lewej do prawej).
+func limitJustificationToLastTab(line Box) {
+	var texts []*bo.TextBox
+	var collect func(box Box)
+	collect = func(box Box) {
+		if textBox, ok := box.(*bo.TextBox); ok {
+			texts = append(texts, textBox)
+		} else if IsLine(box) {
+			for _, child := range box.Box().Children {
+				if child.Box().IsInNormalFlow() {
+					collect(child)
+				}
+			}
+		}
+	}
+	collect(line)
+	last := -1
+	for i := len(texts) - 1; i >= 0 && last < 0; i-- {
+		if tab := lastIndexRune(texts[i].Text, '\t'); tab >= 0 {
+			last = i
+			if texts[i].TextLayout != nil {
+				texts[i].TextLayout.SetJustificationStart(tab + 1)
+			}
+		}
+	}
+	for _, textBox := range texts[:max(last, 0)] {
+		if textBox.TextLayout != nil {
+			textBox.TextLayout.SetJustificationStart(len(textBox.Text))
+		}
+	}
+}
+
+func lastIndexRune(text []rune, r rune) int {
+	for i := len(text) - 1; i >= 0; i-- {
+		if text[i] == r {
+			return i
+		}
+	}
+	return -1
+}
+
 func lineHasTab(box Box) bool {
 	if textBox, isTextBox := box.(*bo.TextBox); isTextBox {
 		return slices.Contains(textBox.Text, '\t')
@@ -2011,7 +2060,17 @@ func countExpandableSpaces(box Box) int {
 			return 0
 		}
 		// TODO: remove trailing spaces correctly
-		return strings.Count(textBox.TextS(), " ") + strings.Count(textBox.TextS(), "\u00a0")
+		text := textBox.Text
+		if textBox.TextLayout != nil { // gopdfgo: bez spacji przed ostatnim tabulatorem
+			text = text[min(textBox.TextLayout.JustificationStart(), len(text)):]
+		}
+		var count int
+		for _, r := range text {
+			if r == ' ' || r == '\u00a0' {
+				count++
+			}
+		}
+		return count
 	} else if IsLine(box) {
 		var sum int
 		for _, child := range box.Box().Children {

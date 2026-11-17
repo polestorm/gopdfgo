@@ -793,15 +793,15 @@ func TestTextAlign(t *testing.T) {
 
 	assertValidDict(t, "text-align: start", toValidated(pr.Properties{
 		pr.PTextAlignAll:  pr.String("start"),
-		pr.PTextAlignLast: pr.String("start"),
+		pr.PTextAlignLast: pr.String("auto"), // gopdfgo: CSS Text 3 § 6.1
 	}))
 	assertValidDict(t, "text-align: right", toValidated(pr.Properties{
 		pr.PTextAlignAll:  pr.String("right"),
-		pr.PTextAlignLast: pr.String("right"),
+		pr.PTextAlignLast: pr.String("auto"),
 	}))
 	assertValidDict(t, "text-align: justify", toValidated(pr.Properties{
 		pr.PTextAlignAll:  pr.String("justify"),
-		pr.PTextAlignLast: pr.String("start"),
+		pr.PTextAlignLast: pr.String("auto"),
 	}))
 	assertValidDict(t, "text-align: justify-all", toValidated(pr.Properties{
 		pr.PTextAlignAll:  pr.String("justify"),

@@ -1539,9 +1539,12 @@ func _expandTextAlign(_ string, _ pr.Shortand, tokens []Token) (out []namedToken
 	if keyword == "justify-all" {
 		alignAll = pa.NewIdent("justify", pos)
 	}
-	alignLast := alignAll
-	if keyword == "justify" {
-		alignLast = pa.NewIdent("start", pos)
+	// gopdfgo: skrót ustawia text-align-last na auto, a na justify tylko przy justify-all (CSS Text 3
+	// § 6.1). Źródło kopiowało wartość do text-align-last (justify zamieniało na start), więc późniejsze
+	// text-align-last: auto nie przywracało wyrównania ostatniego wiersza do początku.
+	var alignLast Token = pa.NewIdent("auto", pos)
+	if keyword == "justify-all" {
+		alignLast = alignAll
 	}
 
 	return []namedTokens{
