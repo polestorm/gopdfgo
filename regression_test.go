@@ -2756,3 +2756,43 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	same("negative-shrink", `<div style="display:flex;width:100px"><div class=g style="flex-shrink:-2;width:200px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)
 }
+
+// Siatka (CSS Grid 1 § 6.2, § 11.1, § 11.5; CSS Align 3 § 6.1): element bez rozciągania ma szerokość
+// treści, element z wysokością max-content nie jest rozciągany, wyrównanie do linii bazowej powiększa
+// wiersz i kontener, min-height kontenera rozciąga wiersze auto.
+func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
+	head := `<style>@page { size: 400px 300px; margin: 0 } body { margin: 0 } .g { background: green } .b { background: blue }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(head+body), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	same := func(name, test, reference string) {
+		t.Helper()
+		if n := differentPixels(page(name, test), page(name+"-ref", reference)); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+	// justify-items: start: szerokość treści bez doliczania marginesu, obramowania i odstępów
+	same("start-item-width", `<div style="display:grid;width:300px;justify-items:start">
+		<div class=g style="margin:0 10px;padding:0 20px;border:solid blue;border-width:0 5px"><div style="width:40px;height:30px"></div></div></div>`,
+		`<div class=g style="margin:0 10px;padding:0 20px;border:solid blue;border-width:0 5px;width:40px;height:30px"></div>`)
+	// wysokość max-content to nie auto: element nie rozciąga się na cały wiersz
+	same("max-content-height", `<div style="display:grid;width:100px;height:100px;grid-template:100% / 100%">
+		<div class=g style="height:max-content"><div style="height:40px"></div></div></div>`, `<div class=g style="width:100px;height:40px"></div>`)
+	// wyrównanie do linii bazowej: wiersz i kontener rosną, gdy przesunięty element by wystawał
+	same("baseline-grows-row", `<div class=b style="display:grid;grid-auto-flow:column;justify-content:start;align-items:baseline;font:20px/20px sans-serif;color:transparent">
+		<div style="padding-bottom:60px">x</div><div style="padding-top:40px">x</div></div><div class=g style="height:20px;width:50px"></div>`,
+		`<div class=b style="height:120px"></div><div class=g style="height:20px;width:50px"></div>`)
+	// min-height kontenera o wysokości auto rozciąga wiersz auto, a z nim element
+	same("min-height-stretches", `<div style="display:grid;width:100px;min-height:100px"><div class=g></div></div>`,
+		`<div class=g style="width:100px;height:100px"></div>`)
+}

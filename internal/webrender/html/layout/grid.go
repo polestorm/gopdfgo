@@ -1089,12 +1089,16 @@ func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	// elementów, więc pierwszy przebieg mierzy, o ile wiersze są za niskie, a drugi układa siatkę
 	// z powiększonymi wierszami. Pudełka pozycjonowane zebrane w pierwszym przebiegu są odrzucane.
 	absoluteCount, fixedCount := len(*absoluteBoxes), len(*fixedBoxes)
+	// pierwszy przebieg wpisuje do pudełka wyliczoną wysokość; drugi ma znów zacząć od wysokości auto,
+	// inaczej powiększone wiersze nie powiększyłyby kontenera
+	originalHeight := box_.Box().Height
 	out, layout, rowExtra := gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, nil)
 	if len(rowExtra) == 0 {
 		return out, layout
 	}
 	*absoluteBoxes, *fixedBoxes = (*absoluteBoxes)[:absoluteCount], (*fixedBoxes)[:fixedCount]
+	box_.Box().Height = originalHeight
 	out, layout, _ = gridLayoutPass(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, rowExtra)
 	return out, layout
@@ -1698,6 +1702,26 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	rowsSizes := resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
 		'y', rowGap, box_, columnsSizes)
 
+	// gopdfgo: min-height kontenera o wysokości auto działa jak określona wysokość, gdy treść jest
+	// niższa: wiersze są rozwiązywane ponownie w tej wysokości, więc ścieżki auto się rozciągają
+	// (CSS Grid 1 § 11.1 i § 11.8). Źródło stosowało min-height dopiero po układzie elementów.
+	if minHeight, ok := box.MinHeight.(pr.Float); ok && box.Height == pr.AutoF && minHeight > 0 && measure == nil && skipStack == nil {
+		// tylko gdy jest ścieżka auto, która może się rozciągnąć; procenty w fit-content() zostają nieokreślone
+		hasAuto := false
+		for i, row := range rows {
+			if dims, ok := row.(pr.GridDims); ok && i%2 == 1 {
+				if _, fit := dims.IsFitcontent(); !fit && dims.SizingFunctions()[1].Tag == pr.Auto {
+					hasAuto = true
+				}
+			}
+		}
+		if hasAuto && sum0(rowsSizes)+pr.Float(max(len(rowsSizes)-1, 0))*rowGap < minHeight {
+			box.Height = minHeight
+			rowsSizes = resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
+				'y', rowGap, box_, columnsSizes)
+		}
+	}
+
 	contentHeight := pr.Float(-1)
 	if percentRowGap && skipStack == nil {
 		contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
@@ -2006,7 +2030,11 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			childB.MarginBottom.V() + childB.BorderBottomWidth + childB.PaddingBottom.V())
 
 		// rozmiar auto zapamiętany przed rozciąganiem, które niżej wpisuje do stylu rozmiar obszaru
-		widthAuto, heightAuto := childB.Style.GetWidth().Tag == pr.Auto, childB.Style.GetHeight().Tag == pr.Auto
+		// gopdfgo: min-content, max-content i fit-content to nie auto: taki element nie jest rozciągany
+		// (CSS Align 3 § 6.1); źródło rozróżniało tylko długość i resztę
+		itemWidth, itemHeight := childB.Style.GetWidth(), childB.Style.GetHeight()
+		widthAuto := itemWidth.Tag == pr.Auto && itemWidth.Intrinsic == pr.IntrinsicNone
+		heightAuto := itemHeight.Tag == pr.Auto && itemHeight.Intrinsic == pr.IntrinsicNone
 		justifySelf := childB.Style.GetJustifySelf()
 		if justifySelf.Has(pr.Auto) {
 			justifySelf = justifyItems
@@ -2067,7 +2095,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			// Przy podanej szerokości marginesy auto w poziomie rozkłada już układ blokowy;
 			// tutaj zostaje tylko element o szerokości auto, który kurczy się do treści.
 			if widthAuto {
-				newChild.Box().Width = maxContentWidth(context, newChild, true)
+				newChild.Box().Width = fitContentItemWidth(context, newChild, childWidth)
 				// marginesy auto pochłaniają tylko dodatnie wolne miejsce
 				diff := max(childWidth-newChild.Box().Width.V(), 0)
 				switch {
@@ -2087,7 +2115,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			// gopdfgo: do treści kurczy się tylko element o szerokości auto; w źródle podana szerokość
 			// była nadpisywana szerokością treści.
 			if widthAuto && !replaced {
-				newChild.Box().Width = maxContentWidth(context, newChild, true)
+				newChild.Box().Width = fitContentItemWidth(context, newChild, childWidth)
 			}
 			diff := childWidth - newChild.Box().Width.V()
 			if justifySelf.Has(pr.Center) {
@@ -2382,6 +2410,18 @@ func gridContentWidth(context *layoutContext, box Box, outer, minimum bool) pr.F
 		return blockMaxContentWidth(context, box, outer)
 	}
 	return adjust(box, outer, request.result, true, true)
+}
+
+// fitContentItemWidth (gopdfgo): szerokość treści elementu siatki, który nie jest rozciągany: szerokość
+// max-content, ale nie więcej niż obszar siatki (o ile treść da się w nim zmieścić). Źródło wpisywało
+// tu szerokość zewnętrzną, razem z marginesami, obramowaniem i odstępami, więc element z justify-self
+// innym niż stretch był szerszy o ich sumę.
+func fitContentItemWidth(context *layoutContext, item Box, available pr.Float) pr.Float {
+	width := maxContentWidth(context, item, false)
+	if width > available {
+		width = max(available, minContentWidth(context, item, false))
+	}
+	return width
 }
 
 // indefiniteBlock to pudełko zawierające o nieokreślonych rozmiarach, używane przy pomiarze siatki.

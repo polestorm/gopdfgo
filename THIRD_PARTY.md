@@ -918,6 +918,17 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- siatka, 2026-11-17 (CSS Grid 1; testy W3C `css-grid`), `html/layout/grid.go`:
+  - `fitContentItemWidth`: element, który nie jest rozciągany (`justify-self` inne niż `stretch`,
+    marginesy `auto`), dostaje szerokość treści; źródło wpisywało szerokość zewnętrzną, więc był szerszy
+    o sumę marginesów, obramowań i odstępów;
+  - szerokość i wysokość `min-content`, `max-content`, `fit-content` nie są traktowane jak `auto`: taki
+    element nie jest rozciągany (CSS Align 3 § 6.1);
+  - `gridLayout`: drugi przebieg układu (powiększone wiersze po wyrównaniu do linii bazowej) zaczyna od
+    pierwotnej wysokości kontenera; pierwszy wpisywał wysokość do pudełka i kontener nie rósł razem
+    z wierszem;
+  - `min-height` kontenera o wysokości auto: gdy treść jest niższa i jest ścieżka `auto`, wiersze są
+    rozwiązywane ponownie w tej wysokości i ścieżki `auto` się rozciągają (§ 11.1, § 11.8);
 - flex, 2026-11-17 (CSS Flexbox 1; testy W3C `css-flexbox`):
   - `html/layout/preferred.go` (`flexMinContentWidth`, `flexMaxContentWidth`, `flexMainGaps`,
     `inflexibleBasis`): kontener o szerokości podanej długością ma ją także jako szerokość wewnętrzną
