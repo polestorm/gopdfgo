@@ -460,6 +460,52 @@ func (fc *FontConfigurationGotext) lineGap(style *TextStyle) pr.Float {
 	return max(0, roundMetric(pr.Float(extents.LineGap)*pr.Float(style.FontDescription.Size)/pr.Float(face.Upem())))
 }
 
+// sizeAdjustFactor (gopdfgo) zwraca mnożnik, przez który font-size-adjust przelicza obliczony rozmiar
+// fontu na rozmiar używany (CSS Fonts 5 § 2.7): podana liczba podzielona przez stosunek wybranej
+// metryki pierwszego dostępnego fontu do jego firetu. Zwraca 1 dla none, dla from-font (liczba jest
+// wtedy z definicji równa stosunkowi fontu podstawowego) i wtedy, gdy font metryki nie podaje.
+// Fonty zastępcze dostają ten sam mnożnik co podstawowy; norma każe liczyć go osobno dla każdego fontu.
+func (fc *FontConfigurationGotext) sizeAdjustFactor(style *TextStyle) pr.Fl {
+	adjust := style.SizeAdjust
+	if adjust.String == "" || adjust.Bool {
+		return 1
+	}
+	face := fc.resolveFace(' ', style.FontDescription)
+	if face == nil || face.Upem() == 0 {
+		return 1
+	}
+	advance := func(r rune, vertical bool) float32 {
+		gid, ok := face.NominalGlyph(r)
+		if !ok {
+			return 0
+		}
+		if vertical {
+			return face.VerticalAdvance(gid)
+		}
+		return face.HorizontalAdvance(gid)
+	}
+	var metric float32
+	switch adjust.String {
+	case "ex-height":
+		metric = face.LineMetric(font.XHeight)
+	case "cap-height":
+		metric = face.LineMetric(font.CapHeight)
+	case "ch-width":
+		metric = advance('0', false)
+	case "ic-width":
+		metric = advance('水', false)
+	case "ic-height":
+		metric = advance('水', true)
+	}
+	if metric < 0 {
+		metric = -metric
+	}
+	if metric == 0 {
+		return 1
+	}
+	return adjust.Float * pr.Fl(face.Upem()) / pr.Fl(metric)
+}
+
 // tabUnit: szerokość spacji powiększona o letter-spacing i word-spacing; tab-size podany liczbą jest
 // jej wielokrotnością (CSS Text 3 § 4.2).
 func (fc *FontConfigurationGotext) tabUnit(style *TextStyle) pr.Fl {

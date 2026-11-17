@@ -1,6 +1,7 @@
 package text
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"unicode"
@@ -125,11 +126,23 @@ func SplitFirstLine(text []rune, style_ pr.StyleAccessor, context TextLayoutCont
 	return SplitFirstLineAt(text, style_, context, maxWidth, minimum, isLineStart, 0, -1)
 }
 
+// adjustedTextStyle (gopdfgo) zwraca styl tekstu, w którym Size jest rozmiarem używanym: obliczony
+// font-size przeliczony przez font-size-adjust (CSS Fonts 5 § 2.7). Tym rozmiarem tekst jest składany,
+// mierzony i rysowany; jednostka em i line-height podany liczbą liczą się dalej od rozmiaru obliczonego.
+// Źródło właściwości nie znało i wszędzie używało rozmiaru obliczonego.
+func adjustedTextStyle(style_ pr.StyleAccessor, fonts FontConfiguration) *TextStyle {
+	style := NewTextStyle(style_, false)
+	if style.SizeAdjust.String != "" && style.Size != 0 {
+		style.Size *= fonts.sizeAdjustFactor(style)
+	}
+	return style
+}
+
 // TabUnit (gopdfgo) zwraca jednostkę tabulacji bloku o podanym stylu: szerokość spacji powiększoną o
 // letter-spacing i word-spacing. tab-size podany liczbą jest jej wielokrotnością, także w elemencie
 // liniowym o innym foncie (CSS Text 3 § 4.2).
 func TabUnit(style_ pr.StyleAccessor, context TextLayoutContext) pr.Float {
-	return pr.Float(context.Fonts().tabUnit(NewTextStyle(style_, false)))
+	return pr.Float(context.Fonts().tabUnit(adjustedTextStyle(style_, context.Fonts())))
 }
 
 // SplitFirstLineAt (gopdfgo) działa jak [SplitFirstLine] dla tekstu, który zaczyna się [tabOffset]
@@ -138,7 +151,7 @@ func TabUnit(style_ pr.StyleAccessor, context TextLayoutContext) pr.Float {
 func SplitFirstLineAt(text []rune, style_ pr.StyleAccessor, context TextLayoutContext,
 	maxWidth pr.MaybeFloat, minimum, isLineStart bool, tabOffset, tabUnit pr.Float,
 ) FirstLine {
-	style := NewTextStyle(style_, false)
+	style := adjustedTextStyle(style_, context.Fonts())
 	style.TabOffset = pr.Fl(tabOffset)
 	if tabUnit >= 0 {
 		style.TabUnit, style.HasTabUnit = pr.Fl(tabUnit), true
@@ -159,7 +172,8 @@ type StrutLayoutKey struct {
 	fontLanguageOverride fontLanguageOverride
 	fontStretch          FontStretch
 	fontStyle            FontStyle
-	contentArea          bool // gopdfgo: wysokość obszaru treści, bez odstępu międzywierszowego
+	contentArea          bool          // gopdfgo: wysokość obszaru treści, bez odstępu międzywierszowego
+	sizeAdjust           pr.SBoolFloat // gopdfgo: font-size-adjust
 }
 
 // StrutLayout returns a tuple of the used value of `line-height` and the baseline.
@@ -204,6 +218,11 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 	if fontSize == 0 {
 		return 0, 0
 	}
+	// gopdfgo: metryki rozpórki liczone z rozmiaru używanego (font-size-adjust, CSS Fonts 5 § 2.7);
+	// line-height podany liczbą mnoży dalej rozmiar obliczony (fontSize)
+	if style.SizeAdjust.String != "" {
+		style.Size *= context.Fonts().sizeAdjustFactor(style)
+	}
 
 	key := StrutLayoutKey{
 		lang:                 style.Lang,
@@ -215,6 +234,7 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 		fontStretch:          style.Stretch,
 		fontStyle:            style.Style,
 		contentArea:          contentArea,
+		sizeAdjust:           style.SizeAdjust,
 	}
 
 	cache := context.StrutLayoutsCache()
@@ -260,6 +280,13 @@ func CharacterRatio(style_ pr.ElementStyle, cache pr.TextRatioCache, isCh bool, 
 
 	style := NewTextStyle(style_, true) // avoid recursion for letter-spacing and word-spacing properties
 	key := style.cacheKey()
+	// gopdfgo: jednostki ex i ch wynikają z metryk fontu w rozmiarze używanym, więc font-size-adjust
+	// je skaluje (CSS Fonts 5 § 2.7); em zostaje przy rozmiarze obliczonym
+	adjustFactor := pr.Fl(1)
+	if adjust := style.SizeAdjust; adjust.String != "" {
+		adjustFactor = fonts.sizeAdjustFactor(style)
+		key += fmt.Sprintf("\x00%s %v %g", adjust.String, adjust.Bool, adjust.Float)
+	}
 	if f, ok := cache.Get(key, isCh); ok {
 		return f
 	}
@@ -281,6 +308,7 @@ func CharacterRatio(style_ pr.ElementStyle, cache pr.TextRatioCache, isCh bool, 
 	if v == 0 {
 		v = 0.5
 	}
+	v *= pr.Float(adjustFactor)
 	cache.Set(key, isCh, v)
 	return v
 }

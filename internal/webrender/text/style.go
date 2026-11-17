@@ -78,6 +78,11 @@ func (ts *TextStyle) spaceCollapse() bool {
 type TextStyle struct {
 	FontDescription
 
+	// SizeAdjust (gopdfgo) to wartość font-size-adjust (CSS Fonts 5 § 2.7): String = metryka (pusty dla
+	// none), Bool = from-font, Float = podana liczba. Po adjustedTextStyle pole Size jest już rozmiarem
+	// używanym, więc SizeAdjust nie wchodzi do klucza key().
+	SizeAdjust pr.SBoolFloat
+
 	TextDecorationLine pr.Decorations
 
 	// FontFeatures stores the resolved value
@@ -129,6 +134,7 @@ func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
 	out.FontDescription.Weight = newFontWeight(style.GetFontWeight())
 	out.FontDescription.Stretch = newFontStretch(style.GetFontStretch())
 	out.FontDescription.Size = pr.Fl(style.GetFontSize().Value)
+	out.SizeAdjust = style.GetFontSizeAdjust() // gopdfgo: zob. adjustedTextStyle
 	out.FontDescription.VariationSettings = newFontVariationSettings(style.GetFontVariationSettings())
 	out.FontDescription.VariantCaps = newFontVariantCaps(style.GetFontVariantCaps())
 

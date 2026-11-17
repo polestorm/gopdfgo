@@ -42,6 +42,9 @@ type FontConfiguration interface {
 	// gopdfgo: zalecany przez font odstęp między wierszami (lineGap), w pikselach
 	lineGap(style *TextStyle) pr.Float
 
+	// gopdfgo: mnożnik rozmiaru fontu wynikający z font-size-adjust (1, gdy właściwość nie działa)
+	sizeAdjustFactor(style *TextStyle) pr.Fl
+
 	splitFirstLine(hyphenCache map[HyphenDictKey]hyphen.Hyphener, text []rune, style *TextStyle,
 		maxWidth pr.MaybeFloat, minimum, isLineStart bool) FirstLine
 
