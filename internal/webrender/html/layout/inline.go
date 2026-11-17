@@ -152,9 +152,15 @@ func (l *lineBoxeIterator) balance() {
 func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
 	saved := *l
 	context := l.context
+	// listy wykluczeń zapamiętujemy jako nagłówki: próbne floaty dopisują się za ich długością, a układ
+	// floata przełącza context.excludedShapes na listę kontekstu formatowania, nie na kopię
 	savedShapes := context.excludedShapes
-	shapes := shapeList{list: append([]*bo.BoxFields(nil), savedShapes.list...), isFrozen: savedShapes.isFrozen}
-	context.excludedShapes = &shapes
+	var savedShapesValue shapeList
+	if savedShapes != nil {
+		savedShapesValue = *savedShapes
+	}
+	savedLists := context.excludedShapesLists
+	savedListsValues := slices.Clone(savedLists)
 	savedBroken, savedSequence := maps.Clone(context.brokenOutOfFlow), context.brokenSequence
 	savedRunning := make(map[string]map[int][]Box, len(context.runningElements))
 	for name, pages := range context.runningElements {
@@ -170,7 +176,12 @@ func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
 	}
 
 	*l = saved
+	context.excludedShapesLists = savedLists
+	copy(savedLists, savedListsValues)
 	context.excludedShapes = savedShapes
+	if savedShapes != nil {
+		*savedShapes = savedShapesValue
+	}
 	context.brokenOutOfFlow, context.brokenSequence = savedBroken, savedSequence
 	context.runningElements = savedRunning
 	return count
