@@ -1634,6 +1634,15 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 ) (_ *bo.TextBox, _ int, _ bool) {
 	fontSize := box.Style.GetFontSize()
 	text_ := box.Text[skip:]
+	if fontSize == pr.FToV(0) && len(text_) != 0 {
+		// gopdfgo: tekst o zerowym rozmiarze fontu nie zajmuje miejsca, ale zachowany znak nowego
+		// wiersza nadal łamie wiersz (CSS Text 3 § 4.1.1; test WPT white-space-zero-fontsize-001).
+		// Źródło pomijało cały tekst. Po zwinięciu białych znaków znak nowego wiersza zostaje tylko
+		// tam, gdzie white-space go zachowuje.
+		if i := slices.Index(text_, '\n'); i >= 0 {
+			return nil, skip + i + 1, true
+		}
+	}
 	if fontSize == pr.FToV(0) || len(text_) == 0 {
 		return nil, -1, false
 	}
