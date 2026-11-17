@@ -104,6 +104,6 @@ func TestTextWrapMode(t *testing.T) {
 	same("child-white-space", `<div style="width:60px;text-wrap-mode:nowrap"><span style="white-space:normal">XX XX</span></div>`, wrapped)
 	// późniejsza deklaracja white-space znosi wcześniejsze text-wrap-mode
 	same("cascade", `<div style="width:60px;text-wrap-mode:nowrap;white-space:normal">XX XX</div>`, wrapped)
-	// wartości text-wrap spoza wrap i nowrap nie zmieniają zawijania
+	// text-wrap: balance i pozostałe wartości stylu nie zmieniają zawijania tego jednowierszowego tekstu
 	same("balance", `<div style="width:60px;text-wrap:balance">XX XX</div>`, wrapped)
 }

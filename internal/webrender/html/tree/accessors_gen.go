@@ -1947,3 +1947,13 @@ func (s *AnonymousStyle) GetTextWrapMode() pr.String {
 	return s.Get(pr.PTextWrapMode.Key()).(pr.String)
 }
 func (s *AnonymousStyle) SetTextWrapMode(v pr.String) { s.propsCache.setKnown(pr.PTextWrapMode, v) }
+
+func (s *ComputedStyle) GetTextWrapStyle() pr.String {
+	return s.Get(pr.PTextWrapStyle.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetTextWrapStyle(v pr.String) { s.propsCache.setKnown(pr.PTextWrapStyle, v) }
+
+func (s *AnonymousStyle) GetTextWrapStyle() pr.String {
+	return s.Get(pr.PTextWrapStyle.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetTextWrapStyle(v pr.String) { s.propsCache.setKnown(pr.PTextWrapStyle, v) }

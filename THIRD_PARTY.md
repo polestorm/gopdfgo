@@ -919,6 +919,20 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- `text-wrap-style` i `text-wrap: balance`, 2026-11-17 (CSS Text 4 § 5.2, § 5.4; testy W3C
+  `css-text/white-space/text-wrap-balance-*`):
+  - `css/properties` (nowa dziedziczona `PTextWrapStyle`: `auto | balance | stable | pretty`),
+    `css/validation` (`textWrapStyle`, `_expandTextWrap`): skrót `text-wrap` przyjmuje
+    `<'text-wrap-mode'> || <'text-wrap-style'>` w dowolnej kolejności; źródło nie znało żadnej z nich;
+  - `html/layout/inline.go` (`lineBoxeIterator.balance`, `trialLines`, `getNextLinebox` z parametrem
+    `shrink`), `block.go` (`lineBoxLayout` przekazuje `maxLines`): na początku każdego odcinka między
+    wymuszonymi złamaniami treść jest układana próbnie; gdy daje 2–6 wierszy (granica Chromium), połowieniem
+    wybieramy największe jednakowe zwężenie dostępnej szerokości, przy którym liczba wierszy się nie
+    zmienia; `text-align` liczy się od pełnej szerokości; przy `overflow-wrap` innym niż `normal`
+    zwężenie nie schodzi poniżej szerokości min-content; skutki uboczne układu próbnego (listy wykluczeń
+    elementów pływających, `brokenOutOfFlow`, elementy biegnące, pudełka pozycjonowane) są przywracane.
+    Bloku obcinanego przez `line-clamp` nie wyrównujemy (wielokropek bloku powstaje dopiero przy
+    rysowaniu). `stable` i `pretty` łamią jak `auto`. W źródle wiersze łamano zawsze zachłannie;
 - `@font-feature-values` i funkcje `font-variant-alternates`, 2026-11-17 (CSS Fonts 4 § 6.8 i § 6.9; testy
   W3C `css-fonts/font-variant-alternates-*`):
   - `css/validation/validation.go` (`fontVariantAlternates`) i nowy `css/validation/font_feature_values.go`

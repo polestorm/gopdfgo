@@ -1197,6 +1197,7 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 
 	linesIterator := iterLineBoxes(context, child_, positionY, bottomSpace, skipStack,
 		box_, absoluteBoxes, fixedBoxes, firstLetterStyle)
+	linesIterator.maxLines = maxLines // gopdfgo: text-wrap-style: balance nie wyrównuje bloku obcinanego przez line-clamp
 	for i := 0; linesIterator.Has(); i++ {
 		tmp := linesIterator.Next()
 		resumeAt = tmp.resumeAt

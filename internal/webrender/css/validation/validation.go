@@ -263,6 +263,7 @@ var (
 		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PTextJustify:             textJustify,
 		pr.PTextWrapMode:            textWrapMode,
+		pr.PTextWrapStyle:           textWrapStyle,
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2724,6 +2725,18 @@ func textWrapMode(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "wrap", "nowrap":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “text-wrap-style“ (CSS Text 4 § 5.2). Działa balance; stable i pretty zostawiają
+// wybór miejsc łamania jak przy auto, na co norma pozwala. Źródło właściwości nie znało.
+func textWrapStyle(tokens []Token, _ string) pr.CssProperty {
+	keyword := getSingleKeyword(tokens)
+	switch keyword {
+	case "auto", "balance", "stable", "pretty":
 		return pr.String(keyword)
 	default:
 		return nil
