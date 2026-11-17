@@ -35,6 +35,13 @@ type EngineLayout interface {
 	SetJustification(spacing pr.Float)
 
 	ApplyJustification()
+
+	// TrailingSpacesWidth (gopdfgo) zwraca łączną szerokość spacji i tabulatorów na końcu wiersza:
+	// przy white-space: pre-wrap takie znaki wiszą, czyli nie liczą się do wyrównania wiersza.
+	TrailingSpacesWidth() pr.Float
+	// SetHangingSpaces (gopdfgo) wyłącza z justowania podaną liczbę spacji na końcu wiersza.
+	SetHangingSpaces(count int)
+	HangingSpaces() int
 }
 
 // FirstLine exposes the result of laying out
@@ -54,6 +61,10 @@ type FirstLine struct {
 
 	// Width is the width in pixels of the first line
 	Width pr.Float
+
+	// Hang (gopdfgo) to część Width zajęta przez wiszące spacje ideograficzne na końcu wiersza:
+	// są rysowane, ale nie liczą się do szerokości wewnętrznych ani do przepełnienia.
+	Hang pr.Float
 
 	// Height is the height in pixels of the first line,
 	// computed by merging the font extents (y position and height)
@@ -111,7 +122,27 @@ func shortTextHint(text []rune, maxWidth, fontSize pr.Float) []rune {
 func SplitFirstLine(text []rune, style_ pr.StyleAccessor, context TextLayoutContext,
 	maxWidth pr.MaybeFloat, minimum, isLineStart bool,
 ) FirstLine {
+	return SplitFirstLineAt(text, style_, context, maxWidth, minimum, isLineStart, 0, -1)
+}
+
+// TabUnit (gopdfgo) zwraca jednostkę tabulacji bloku o podanym stylu: szerokość spacji powiększoną o
+// letter-spacing i word-spacing. tab-size podany liczbą jest jej wielokrotnością, także w elemencie
+// liniowym o innym foncie (CSS Text 3 § 4.2).
+func TabUnit(style_ pr.StyleAccessor, context TextLayoutContext) pr.Float {
+	return pr.Float(context.Fonts().tabUnit(NewTextStyle(style_, false)))
+}
+
+// SplitFirstLineAt (gopdfgo) działa jak [SplitFirstLine] dla tekstu, który zaczyna się [tabOffset]
+// pikseli za początkiem wiersza; od tej odległości zależą szerokości tabulatorów. [tabWidth] to
+// odstęp tabulacji bloku ([TabUnit]) albo liczba ujemna, gdy ma wynikać ze stylu samego tekstu.
+func SplitFirstLineAt(text []rune, style_ pr.StyleAccessor, context TextLayoutContext,
+	maxWidth pr.MaybeFloat, minimum, isLineStart bool, tabOffset, tabUnit pr.Float,
+) FirstLine {
 	style := NewTextStyle(style_, false)
+	style.TabOffset = pr.Fl(tabOffset)
+	if tabUnit >= 0 {
+		style.TabUnit, style.HasTabUnit = pr.Fl(tabUnit), true
+	}
 	// fmt.Printf("SplitFirstLine in: %q %v %v %v %v\n", string(text), text, maxWidth, style_.GetDirection(), style.Family)
 	out := context.Fonts().splitFirstLine(context.HyphenCache(), text, style, maxWidth, minimum, isLineStart)
 	// fmt.Println("SplitFirstLine out:", out.Length, out.ResumeAt, out.Width, out.Height, out.FirstLineRTL)

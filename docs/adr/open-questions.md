@@ -143,3 +143,14 @@ wewnętrzna pamięć podręczna według skrótu treści (stan wspólny między w
 
 Do sprawdzenia przed wdrożeniem: czy go-text pozwala dzielić sparsowany `font.Font` między równoległymi
 renderowaniami bez blokady; wynik z zestawem ma być bajt w bajt taki sam jak bez niego (test).
+
+## 24. Pismo od prawej do lewej: algorytm dwukierunkowy (odłożone)
+
+Odłożone 2026-11-17 (decyzja użytkownika: nie potrzebujemy). Silnik obsługuje `direction: rtl`
+w uproszczeniu: odwraca kolejność pudełek w wierszu, bez algorytmu dwukierunkowego Unicode (UAX 9)
+działającego w poprzek elementów. Tekst łaciński w akapicie `rtl` oraz mieszany tekst arabski lub
+hebrajski z liczbami i nawiasami bywa przez to w złej kolejności.
+
+Koszt: szacunek 2–3 paczki. Zysk w sondażu W3C: ok. 55 testów w CSS 2 (`bidi-*`, `unicode-bidi-*`)
+i kilkadziesiąt w innych obszarach (flex, siatka, tekst: `pre-wrap-align-*`, `letter-spacing-bidi-*`).
+Do czasu decyzji testy wymagające pisma od prawej do lewej pomijamy przy wyborze poprawek.

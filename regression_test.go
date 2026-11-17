@@ -2619,3 +2619,77 @@ func TestLineBreakingRules(t *testing.T) {
 	marker := `<div style="width:20px;height:20px;background:blue"></div>`
 	same("fallback-line-height", `<div style="color:transparent">X&#x2011;X</div>`+marker, `<div style="color:transparent">XXX</div>`+marker)
 }
+
+// Wiszące odstępy i tabulatory (CSS Text 3 § 4.1.3 i § 4.2): spacja ideograficzna i spacje pre-wrap na
+// końcu wiersza zachowują szerokość, ale nie liczą się do wyrównania; spacja nierozdzielająca nie
+// wisi; pozycje tabulacji liczą się od początku wiersza, z progiem pół znaku i ułamkowym tab-size.
+func TestHangingSpacesAndTabStops(t *testing.T) {
+	ahem, err := os.ReadFile("testdata/wpt/fonts/Ahem.ttf")
+	if err != nil {
+		t.Skip("brak fontu Ahem")
+	}
+	fonts := append([]Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } div { font: 20px/20px Ahem; color: green }
+		.pre { white-space: pre } .blue { background: blue }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(head+body), Options{Fonts: fonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	same := func(name, test, reference string) {
+		t.Helper()
+		if n := differentPixels(page(name, test), page(name+"-ref", reference)); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+	// spacja ideograficzna na końcu wiersza wisi: zostaje w wierszu razem z tłem
+	same("ideographic-hang", `<div style="width:60px">X&#x3000;<span class=blue>X&#x3000;</span></div>`,
+		`<div class=pre>X&nbsp;<span class=blue>X&nbsp;</span></div>`)
+	// ...i nie liczy się do szerokości wewnętrznej
+	same("ideographic-min-content", `<div style="width:min-content;background:blue">&#x3000;</div><div>X</div>`, `<div><br>X</div>`)
+	// spacja nierozdzielająca na końcu wiersza zachowuje szerokość i tło
+	same("nbsp-keeps-width", `<div style="width:100px"><span class=blue>X&nbsp;</span><br>X</div>`,
+		`<div><span class=blue>X<span style="color:blue">X</span></span><br>X</div>`)
+	// spacja nierozdzielająca nie wisi: wiersz łamie się przed słowem, które z nią się nie mieści
+	same("nbsp-does-not-hang", `<div style="width:100px">XX XX&nbsp;<span>X</span></div>`, `<div>XX<br>XX&nbsp;X</div>`)
+	// pre-wrap: spacja, po której wiersz zawinięto na granicy elementów, nie przesuwa wyrównania
+	same("pre-wrap-right", `<div style="width:140px;white-space:pre-wrap;text-align:right"><span>XX XX </span><span>XXX</span></div>`,
+		`<div class=pre>  XX XX<br>    XXX</div>`)
+	// pre-wrap jest justowany, bez wiszącej spacji
+	same("pre-wrap-justify", `<div style="width:140px;white-space:pre-wrap;text-align:justify">XX XX XXX</div>`,
+		`<div class=pre>XX   XX<br>XXX</div>`)
+	// break-spaces z line-break: anywhere łamie także przed spacją
+	same("break-spaces-anywhere", `<div style="width:80px;white-space:break-spaces;line-break:anywhere">X XX X</div>`,
+		`<div class=pre>X XX<br> X</div>`)
+	// odstępy inne niż spacja (tu U+2003) wiszą tak jak ideograficzny
+	same("em-space-min-content", `<div style="width:min-content;background:blue">&#x2003;</div><div>X</div>`, `<div><br>X</div>`)
+	// N znaków w pudełku o szerokości N ch mieści się mimo zaokrągleń szerokości glifów
+	same("exact-fit", `<div style="font:16px/20px monospace;width:31ch;color:black">0123456789012345678901234567 89</div>`,
+		`<div class=pre style="font:16px/20px monospace;color:black">0123456789012345678901234567 89</div>`)
+	// overflow-wrap: anywhere: wiersz bez miejsca podziału łamie się na granicy elementów...
+	same("anywhere-between-inlines", `<div style="width:20px;overflow-wrap:anywhere"><span>X</span><span>X</span><span>X</span></div>`,
+		`<div>X<br>X<br>X</div>`)
+	// ...a słowo zaczęte w elemencie liniowym dopełnia wiersz
+	same("anywhere-fills-line", `<div style="width:80px;overflow-wrap:anywhere">XX<span>XXXX</span>XX</div>`, `<div>XXXX<br>XXXX</div>`)
+	// słowo, które mieści się w następnym wierszu, przechodzi do niego całe
+	same("anywhere-keeps-word", `<div style="width:80px;overflow-wrap:anywhere"><span>XX </span><span>XXX</span></div>`, `<div>XX<br>XXX</div>`)
+	// word-break: break-word działa jak overflow-wrap: anywhere, także dla szerokości min-content
+	same("break-word-min-content", `<div style="width:min-content;word-break:break-word">XXX</div>`, `<div>X<br>X<br>X</div>`)
+	// tabulator po elemencie liniowym: pozycja liczona od początku wiersza
+	same("tab-after-inline", `<div class=pre style="tab-size:4"><span>X</span>&#9;X</div>`, `<div class=pre>X   X</div>`)
+	// mniej niż pół znaku do pozycji tabulacji: obowiązuje następna
+	same("tab-threshold", `<div class=pre style="tab-size:4"><span style="display:inline-block;width:72px"></span>&#9;X</div>`,
+		`<div class=pre>        X</div>`)
+	// tab-size ułamkowy
+	same("tab-size-fraction", `<div class=pre style="tab-size:2.5">&#9;&#9;X</div>`, `<div class=pre>     X</div>`)
+	// odstęp tabulacji wynika z fontu bloku, nie elementu liniowego
+	same("tab-unit-from-block", `<div class=pre style="tab-size:4"><span style="font-size:10px">&#9;</span>X</div>`, `<div class=pre>    X</div>`)
+}

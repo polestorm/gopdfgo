@@ -206,9 +206,10 @@ func (f *FontConfigurationGotext) FontContent(font FontOrigin) []byte {
 }
 
 type TextLayoutGotext struct {
-	text  []rune
-	Style *TextStyle
-	Line  shaping.Line
+	hangingSpaces int // gopdfgo: spacje na końcu wiersza wyłączone z justowania
+	text          []rune
+	Style         *TextStyle
+	Line          shaping.Line
 
 	MaxWidth pr.Float // input constraint, not always respected. Inf for no constraint
 
@@ -261,6 +262,25 @@ func (l *TextLayoutGotext) SetJustification(spacing pr.Float) {
 	l.justification = spacing
 }
 
+func (l *TextLayoutGotext) SetHangingSpaces(count int) { l.hangingSpaces = count }
+func (l *TextLayoutGotext) HangingSpaces() int         { return l.hangingSpaces }
+
+func (l *TextLayoutGotext) TrailingSpacesWidth() pr.Float {
+	if len(l.Line) == 0 || l.Style == nil || l.Style.Direction == pr.Rtl {
+		return 0
+	}
+	glyphs := l.Line[len(l.Line)-1].Glyphs
+	var width fixed.Int26_6
+	for i := len(glyphs) - 1; i >= 0; i-- {
+		index := glyphs[i].ClusterIndex
+		if index < 0 || index >= len(l.text) || (!isPreservedSpace(l.text[index]) && l.text[index] != '\t') {
+			break
+		}
+		width += glyphs[i].Advance
+	}
+	return fixedToFloat(width)
+}
+
 func (l *TextLayoutGotext) ApplyJustification() {
 	if l.justified || l.justification == 0 {
 		return // gopdfgo: pudełko rysowane ponownie nie dostaje odstępu drugi raz
@@ -283,7 +303,23 @@ func (l *TextLayoutGotext) ApplyJustification() {
 			}
 		}
 	}
+	// wiszące spacje na końcu wiersza zachowują swoją szerokość
+	var kept []fixed.Int26_6
+	if n := l.hangingSpaces; n > 0 && len(l.Line) != 0 {
+		if glyphs := l.Line[len(l.Line)-1].Glyphs; len(glyphs) >= n {
+			for _, glyph := range glyphs[len(glyphs)-n:] {
+				kept = append(kept, glyph.Advance)
+			}
+		}
+	}
 	shaping.AddSpacing(l.Line, text, floatToFixed(pr.Fl(l.justification)), 0)
+	if len(kept) != 0 {
+		last := &l.Line[len(l.Line)-1]
+		for i, advance := range kept {
+			last.Glyphs[len(last.Glyphs)-len(kept)+i].Advance = advance
+		}
+		last.RecomputeAdvance()
+	}
 	l.justified = true
 }
 
@@ -419,6 +455,12 @@ func (fc *FontConfigurationGotext) lineGap(style *TextStyle) pr.Float {
 	}
 	extents, _ := face.FontHExtents()
 	return max(0, roundMetric(pr.Float(extents.LineGap)*pr.Float(style.FontDescription.Size)/pr.Float(face.Upem())))
+}
+
+// tabUnit: szerokość spacji powiększona o letter-spacing i word-spacing; tab-size podany liczbą jest
+// jej wielokrotnością (CSS Text 3 § 4.2).
+func (fc *FontConfigurationGotext) tabUnit(style *TextStyle) pr.Fl {
+	return fc.widthSpace(style) + style.LetterSpacing + style.WordSpacing
 }
 
 func (fc *FontConfigurationGotext) widthSpace(style *TextStyle) pr.Fl {
@@ -596,16 +638,6 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		outputs[i] = shapePrecisely(&fc.shaper, input)
 	}
 
-	// do we have some tabs ?
-	if indexRune(text, '\t') != -1 {
-		tabWidth := fixed.I(style.TabSize.Width)
-		if style.TabSize.IsMultiple {
-			spaceW := fc.widthSpace(style)
-			tabWidth = floatToFixed(spaceW * pr.Fl(style.TabSize.Width))
-		}
-		AlignTabs(outputs, text, tabWidth, 0)
-	}
-
 	if style.LetterSpacing != 0 || style.WordSpacing != 0 {
 		ws, ls := floatToFixed(style.WordSpacing), floatToFixed(style.LetterSpacing)
 		shaping.AddSpacing(outputs, text, ws, ls)
@@ -613,6 +645,21 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		lastRun := &outputs[len(outputs)-1]
 		lastRun.Glyphs[len(lastRun.Glyphs)-1].Advance += ls
 		lastRun.RecomputeAdvance()
+	}
+
+	// do we have some tabs ?
+	// gopdfgo: po odstępach między literami, bo tabulator ich nie dostaje: kończy się na pozycji tabulacji
+	if indexRune(text, '\t') != -1 {
+		tabWidth := floatToFixed(style.TabSize.Width)
+		if style.TabSize.IsMultiple {
+			unit := fc.tabUnit(style)
+			if style.HasTabUnit {
+				unit = style.TabUnit
+			}
+			// jednostka zaokrąglona tak jak szerokości glifów, żeby tabulator równał się z rzędem spacji
+			tabWidth = fixed.Int26_6(math.Round(math.Round(float64(unit)*64) * float64(style.TabSize.Width)))
+		}
+		AlignTabs(outputs, text, tabWidth, floatToFixed(style.TabOffset), floatToFixed(fc.width0(style)/2))
 	}
 
 	// now we can wrap the runs
@@ -624,6 +671,49 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}
 	mw, wLine, fitsOnFirstLine := fc.LineWrap(text, style, outputs, wrapingMaxWidth, allowWordBreak)
 	line := wLine.Line
+	// gopdfgo: biblioteka pozwala wystawać poza wiersz każdemu końcowemu odstępowi, także spacji
+	// nierozdzielającej. Ta nie jest zwijalna i nie wisi, więc wiersz, który przez nią się nie mieści,
+	// łamiemy wcześniej (o ile jest gdzie).
+	if textWrap && len(line) != 0 && dir.Progression() == di.FromTopLeft {
+		var total fixed.Int26_6
+		for _, run := range line {
+			total += run.Advance
+		}
+		if total > mw {
+			glyphs := line[len(line)-1].Glyphs
+			var trailing fixed.Int26_6
+			count := 0
+			for i := len(glyphs) - 1; i >= 0; i-- {
+				index := glyphs[i].ClusterIndex
+				if index < 0 || index >= len(text) || glyphs[i].Width != 0 || text[index] == ' ' || IsOtherSpaceSeparator(text[index]) || !unicode.IsSpace(text[index]) {
+					break
+				}
+				trailing += glyphs[i].Advance
+				count++
+			}
+			if lastRun := &line[len(line)-1]; trailing != 0 && total-trailing <= mw && (allowWordBreak || style.WordBreak == WBAnywhere) &&
+				(len(line) > 1 || len(glyphs) > count) && lastRun.Runes.Count >= count {
+				// łamanie w dowolnym miejscu: odstęp przechodzi na początek następnego wiersza
+				lastRun.Glyphs = slices.Clone(glyphs[:len(glyphs)-count])
+				lastRun.Runes.Count -= count
+				lastRun.RecalculateAll()
+				wLine.NextLine -= count
+				fitsOnFirstLine = false
+			} else if narrower := wrapingMaxWidth - pr.Float(trailing)/64; trailing != 0 && total-trailing <= mw && narrower > 0 {
+				end := wLine.NextLine
+				if _, shorter, _ := fc.LineWrap(text, style, outputs, narrower, allowWordBreak); len(shorter.Line) != 0 && shorter.NextLine < end {
+					wLine, line, fitsOnFirstLine = shorter, shorter.Line, false
+				} else {
+					mw, wLine, fitsOnFirstLine = fc.LineWrap(text, style, outputs, wrapingMaxWidth, allowWordBreak)
+					line = wLine.Line
+				}
+			}
+		}
+	}
+
+	// gopdfgo: Hang liczymy tylko dla wierszy z odstępem innym niż spacja (np. ideograficznym U+3000),
+	// który na końcu wiersza wisi, zachowując szerokość (CSS Text 3 § 4.1.3)
+	hasIdeographic := spaceCollapse && slices.ContainsFunc(text, IsOtherSpaceSeparator)
 
 	if len(line) == 0 {
 		return FirstLine{
@@ -675,8 +765,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 			// Przy overflow-wrap: anywhere albo break-word wolno złamać także przed pierwszą spacją,
 			// i to jest lepsze niż podział w środku słowa. word-break: break-all tego nie daje: tam
 			// łamie się słowo (testy WPT break-spaces-before-first-char-004, overflow-wrap-break-word-006).
+			// line-break: anywhere pozwala łamać przy każdym znaku, także przed zachowaną spacją.
 			minKeep := 1
-			if allowWordBreak && content > 0 && style.OverflowWrap != ONormal && style.WordBreak == WBNormal {
+			if allowWordBreak && content > 0 && (style.WordBreak == WBAnywhere || style.OverflowWrap != ONormal && style.WordBreak == WBNormal) {
 				minKeep = 0
 			}
 			if content > 0 && content+spaceAdvance > mw && attempt == 0 && minKeep == 1 {
@@ -746,37 +837,12 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		lastRun.Runes.Count -= trimmed // we assume all spaces are on the same run
 		i := len(lastRun.Glyphs) - 1
 		for ; i >= 0; i-- {
-			if lastRun.Glyphs[i].Width != 0 {
+			if lastRun.Glyphs[i].Width != 0 || lastRun.Glyphs[i].ClusterIndex < len(text) {
 				break
 			}
 		}
 		lastRun.Glyphs = lastRun.Glyphs[:i+1]
 		lastRun.RecalculateAll()
-	}
-
-	// gopdfgo: przy white-space: pre-wrap spacje i tabulatory, po których wiersz został zawinięty,
-	// wiszą: zostają w tekście, ale nie zajmują miejsca, więc nie wpływają na wyrównanie ani na
-	// szerokość wiersza (CSS Text 3 § 4.1.3). W źródle liczyły się do szerokości i wiersz wyrównany
-	// do prawej albo do środka był przesunięty o ich szerokość. Tylko dla pisma od lewej do prawej.
-	if !fitsOnFirstLine && !mandatoryBreak && !spaceCollapse && textWrap && !style.breakSpaces() && dir.Progression() == di.FromTopLeft {
-		lastRun := &line[len(line)-1]
-		glyphs := lastRun.Glyphs
-		hung := false
-		for i := len(glyphs) - 1; i >= 0; i-- {
-			index := glyphs[i].ClusterIndex
-			if index < 0 || index >= len(text) || (!isPreservedSpace(text[index]) && text[index] != '\t') {
-				break
-			}
-			if !hung {
-				glyphs = slices.Clone(glyphs)
-				hung = true
-			}
-			glyphs[i].Advance, glyphs[i].Width = 0, 0
-		}
-		if hung {
-			lastRun.Glyphs = glyphs
-			lastRun.RecalculateAll()
-		}
 	}
 
 	// copy the line, owned by lineWrapper
@@ -820,7 +886,33 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 	}
 
+	var hang fixed.Int26_6
+	if !fitsOnFirstLine && !mandatoryBreak && !spaceCollapse && textWrap && !style.breakSpaces() && dir.Progression() == di.FromTopLeft {
+		// gopdfgo: przy white-space: pre-wrap spacje i tabulatory, po których wiersz został zawinięty,
+		// wiszą: zachowują szerokość, ale nie liczą się do przepełnienia ani wyrównania wiersza
+		// (CSS Text 3 § 4.1.3).
+		glyphs := outLine[len(outLine)-1].Glyphs
+		for i := len(glyphs) - 1; i >= 0; i-- {
+			index := glyphs[i].ClusterIndex
+			if index < 0 || index >= len(text) || (!isPreservedSpace(text[index]) && text[index] != '\t') {
+				break
+			}
+			hang += glyphs[i].Advance
+		}
+	} else if hasIdeographic && dir.Progression() == di.FromTopLeft {
+		glyphs := outLine[len(outLine)-1].Glyphs
+		if n := len(glyphs); n != 0 && glyphs[n-1].ClusterIndex < len(text) && IsOtherSpaceSeparator(text[glyphs[n-1].ClusterIndex]) {
+			for i := n - 1; i >= 0; i-- {
+				if index := glyphs[i].ClusterIndex; index < 0 || index >= len(text) || (text[index] != ' ' && !IsOtherSpaceSeparator(text[index])) {
+					break
+				}
+				hang += glyphs[i].Advance
+			}
+		}
+	}
+
 	out := FirstLine{
+		Hang:         fixedToFloat(hang),
 		Layout:       &TextLayoutGotext{text: text[:firstLineLength], Style: style, Line: outLine, MaxWidth: maxWidth},
 		Length:       firstLineLength,
 		ResumeAt:     resumeAt,
@@ -846,13 +938,18 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	mw := fixed.I(maxFixed)
 	if maxWidth <= maxFixed {
 		mw = floatToFixed(pr.Fl(maxWidth))
+		// gopdfgo: szerokości glifów są zaokrąglane do 1/64 piksela, więc N znaków fontu o stałej
+		// szerokości bywa o ułamek piksela szersze niż pudełko o szerokości N ch i ostatni znak
+		// spadał do następnego wiersza. Dopuszczamy błąd zaokrąglenia: pół jednostki na znak,
+		// najwyżej pół piksela.
+		mw += fixed.Int26_6(min(len(text)/2+1, 32))
 	}
 
 	spaceCollapse := style.spaceCollapse()
 	config := shaping.WrapConfig{
 		Direction:                     dir,           // overall direction of the text
 		BreakPolicy:                   shaping.Never, // mimic the default pango behavior
-		DisableTrailingWhitespaceTrim: !spaceCollapse,
+		DisableTrailingWhitespaceTrim: true,          // gopdfgo: przycinamy sami, niżej
 	}
 	if allowWordBreak {
 		config.BreakPolicy = shaping.Always
@@ -860,7 +957,51 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 
 	fc.lineWrapper.Prepare(config, text, shaping.NewSliceIterator(runs))
 	line, done := fc.lineWrapper.WrapNextLineF(mw)
+	if spaceCollapse {
+		trimTrailingSpace(&line, text, dir)
+	}
 	return mw, line, done
+}
+
+// trimTrailingSpace odbiera szerokość spacji (U+0020) kończącej wiersz i zapisuje ją w
+// TrimmedTrailingWhitespace.
+//
+// gopdfgo: biblioteka go-text robi to samo dla każdego ostatniego glifu bez obrysu, czyli także dla
+// spacji nierozdzielającej, ideograficznej i innych odstępów, które nie są zwijalnymi białymi znakami
+// i na końcu wiersza zachowują szerokość (CSS Text 3 § 4.1.3). Dlatego jej przycinanie jest wyłączone.
+func trimTrailingSpace(wrapped *shaping.WrappedLine, text []rune, dir di.Direction) {
+	line := wrapped.Line
+	if len(line) == 0 {
+		return
+	}
+	rtl := dir.Progression() == di.TowardTopLeft
+	goal := int32(len(line) - 1)
+	if rtl {
+		goal = 0
+	}
+	for i := range line {
+		run := &line[i]
+		if run.VisualIndex != goal || len(run.Glyphs) == 0 || run.Direction.IsVertical() {
+			continue
+		}
+		glyph := &run.Glyphs[len(run.Glyphs)-1]
+		if rtl {
+			glyph = &run.Glyphs[0]
+		}
+		if index := glyph.ClusterIndex; glyph.Width == 0 && index >= 0 && index < len(text) && text[index] == ' ' {
+			// kopia: glify są wspólne z wejściem zawijania, które bywa używane ponownie
+			run.Glyphs = slices.Clone(run.Glyphs)
+			glyph = &run.Glyphs[len(run.Glyphs)-1]
+			if rtl {
+				glyph = &run.Glyphs[0]
+			}
+			before := run.Advance
+			glyph.XAdvance, glyph.Advance = 0, 0
+			run.RecomputeAdvance()
+			wrapped.TrimmedTrailingWhitespace = before - run.Advance
+		}
+		return
+	}
 }
 
 // splitFirstLineGotext fit as much text from [text_] as possible in the available width given by [maxWidth].
@@ -913,7 +1054,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 	}
 	maxWidthV := maxWidth.V()
 
-	if firstLine.ResumeAt == -1 && firstLine.Width <= maxWidthV {
+	if firstLine.ResumeAt == -1 && firstLine.Width-firstLine.Hang <= maxWidthV {
 		// The first line really fits in the available width
 		return firstLine
 	}
@@ -922,7 +1063,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 	// https://mail.gnome.org/archives/gtk-i18n-list/2013-September/msg00006
 	// is a good thread related to this problem.
 	var firstLineText, secondLineText []rune
-	if firstLine.Width <= maxWidthV {
+	if firstLine.Width-firstLine.Hang <= maxWidthV {
 		// the first line fits, but,
 		//	since we wrap without using work breaks, the first word of the second line
 		// 	could, after hyphenation, fit (partially) on the first line
@@ -1003,7 +1144,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 				nextWord = nextText[startWord:stopWord]
 				if stopWord-startWord >= hyphenLimit.Total {
 					// This word is long enough
-					space := pr.Fl(maxWidthV - firstLine.Width)
+					space := pr.Fl(maxWidthV - firstLine.Width + firstLine.Hang)
 					zone := style.HyphenateLimitZone
 					limitZone := zone.Limit
 					if zone.IsPercentage {
@@ -1064,7 +1205,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 			newFirstLineText = slices.Concat(firstLineText, []rune(firstWordPart))
 			hyphenatedFirstLineText = append(newFirstLineText, hyphenateCharacter...)
 			newFirstLine := fc.wrap(hyphenatedFirstLineText, style, maxWidthV)
-			newSpace := maxWidthV - newFirstLine.Width
+			newSpace := maxWidthV - newFirstLine.Width + newFirstLine.Hang
 			hyphenated = newFirstLine.ResumeAt == -1 && (newSpace >= 0 || firstWordPart == dictionaryIterations[len(dictionaryIterations)-1])
 			if hyphenated {
 				firstLine = newFirstLine
@@ -1096,7 +1237,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 
 	// Step #5: Try to break word if it's too long for the line
 	overflowWrap, wordBreak := style.OverflowWrap, style.WordBreak
-	space := maxWidthV - firstLine.Width
+	space := maxWidthV - firstLine.Width + firstLine.Hang
 	// If we can break words and the first line is too long
 	canBreak := wordBreak != WBNormal ||
 		(isLineStart && (overflowWrap == OAnywhere || (overflowWrap == OBreakWord && !minimum)))
@@ -1133,7 +1274,7 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 
 // tabs support
 
-func applyTabs(out *shaping.Output, text []rune, columnWidth, runStart fixed.Int26_6) {
+func applyTabs(out *shaping.Output, text []rune, columnWidth, runStart, threshold fixed.Int26_6) {
 	columnWidthF := float64(columnWidth) / 64
 	var advance fixed.Int26_6
 	for i, g := range out.Glyphs {
@@ -1157,8 +1298,9 @@ func applyTabs(out *shaping.Output, text []rune, columnWidth, runStart fixed.Int
 			// gopdfgo: gdy do pozycji tabulatora brakuje mniej niż pół znaku, obowiązuje następna
 			// (CSS Text 3 § 4.2). W źródle tekst kończący się dokładnie na pozycji tabulatora, z błędem
 			// zaokrąglenia tuż przed nią, dostawał tabulator o szerokości bliskiej zera i kolumny się zlewały.
-			// Pół znaku przybliżamy jako 1/16 odstępu tabulacji (dokładnie dla tab-size: 8).
-			if toNextStop < columnWidthF/16 {
+			// Pół znaku to połowa szerokości cyfry zero (jednostka ch); odejmujemy 1/64 piksela na
+			// błąd zaokrąglenia szerokości.
+			if toNextStop < float64(threshold-1)/64 {
 				toNextStop += columnWidthF
 			}
 			updatedTabAdvance = fixed.Int26_6(toNextStop * 64)
@@ -1180,10 +1322,10 @@ func applyTabs(out *shaping.Output, text []rune, columnWidth, runStart fixed.Int
 //
 // As a special case, if [columnWidth] is zero,
 // tabs are trimmed (their advance is set to 0).
-func AlignTabs(l shaping.Line, text []rune, columnWidth, lineOffset fixed.Int26_6) {
+func AlignTabs(l shaping.Line, text []rune, columnWidth, lineOffset, threshold fixed.Int26_6) {
 	runsAdvance := lineOffset // the position of the start of the current run
 	for i := range l {
-		applyTabs(&l[i], text, columnWidth, runsAdvance)
+		applyTabs(&l[i], text, columnWidth, runsAdvance, threshold)
 		runsAdvance += l[i].Advance
 	}
 }
@@ -1291,6 +1433,13 @@ func (fc *FontConfigurationGotext) breakAllAllowed(a, b rune) bool {
 		return r
 	}
 	return fc.CanBreakText([]rune{ideograph(a), ideograph(b)}) == pr.True
+}
+
+// IsOtherSpaceSeparator (gopdfgo): odstępy kategorii Zs inne niż spacja i spacja nierozdzielająca
+// (U+1680, U+2000–U+200A, U+202F, U+205F, U+3000). Nie są zwijalne, ale na końcu wiersza wiszą
+// (CSS Text 3 § 4.1.3).
+func IsOtherSpaceSeparator(r rune) bool {
+	return r != ' ' && r != '\u00a0' && unicode.Is(unicode.Zs, r)
 }
 
 // isPreservedSpace: spacja zwykła i ideograficzna (U+3000), które na końcu wiersza wiszą albo, przy

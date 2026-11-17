@@ -876,6 +876,46 @@ Wspólne dla obu katalogów:
     pochodził glif, więc znak z fontu zastępczego powiększał wiersz;
   - `text/engine_gotext.go` (`isPreservedSpace`): spacja ideograficzna U+3000 wisi na końcu wiersza
     i przechodzi do następnego przy `break-spaces` jak zwykła spacja;
+- wiszące odstępy i tabulatory, 2026-11-17 (CSS Text 3 § 4.1.3, § 4.2, § 6.4; testy W3C `css-text`):
+  - `text/engine_gotext.go` (`LineWrap`, `trimTrailingSpace`): przycinanie końcowych odstępów w bibliotece
+    go-text jest wyłączone, bo odbierało szerokość każdemu ostatniemu glifowi bez obrysu, także spacji
+    nierozdzielającej (U+00A0) i ideograficznej (U+3000). Szerokość traci tylko zwykła spacja. Wiersz,
+    który nie mieści się przez końcową spację nierozdzielającą, jest łamany wcześniej (`WrapWordBreak`);
+  - `text/text.go` (`FirstLine.Hang`), `html/layout/preferred.go` (`trailingWhitespaceSize` z parametrem
+    `ideographic`, `inlineLineWidths`): spacja ideograficzna na końcu wiersza wisi: zostaje w wierszu
+    z szerokością i tłem, ale nie liczy się do przepełnienia ani do szerokości wewnętrznych;
+  - `html/layout/inline.go` (`trailingPreservedWidth`, `textAlign` z parametrem `hang`),
+    `text/engine_gotext.go` (`TrailingSpacesWidth`, `SetHangingSpaces`): przy `pre-wrap` spacje
+    i tabulatory na końcu wiersza zachowują szerokość i tło, a nie liczą się do wyrównania ani justowania,
+    także gdy podział wypada na granicy elementów. W wierszu ostatnim albo zakończonym wymuszonym
+    podziałem wisi tylko część, która się nie mieści. Zastępuje to zerowanie szerokości z 2026-11-16;
+  - `html/layout/inline.go` (`textAlign`, `justifyLine`, `lineHasTab`): tekst `pre-wrap` i `break-spaces`
+    jest justowany (norma zostawia wybór, tak robi Chromium; źródło justowało tylko tekst ze zwijanymi
+    spacjami); wiersz z tabulatorem nie jest justowany;
+  - `text/engine_gotext.go` (`WrapWordBreak`): przy `break-spaces` z `line-break: anywhere` wiersz wolno
+    złamać także przed zachowaną spacją;
+  - `text/engine_gotext.go` (`IsOtherSpaceSeparator`): wiszą wszystkie odstępy kategorii Zs poza spacją
+    i spacją nierozdzielającą (U+1680, U+2000–U+200A, U+202F, U+205F, U+3000);
+  - `text/engine_gotext.go` (`LineWrap`): szerokość zawijania dostaje tolerancję błędu zaokrąglenia
+    (pół jednostki 1/64 px na znak, najwyżej pół piksela). Szerokości glifów są zaokrąglane do 1/64 px,
+    więc N znaków fontu o stałej szerokości bywało szersze niż pudełko `N ch` i ostatni znak spadał do
+    następnego wiersza;
+  - łamanie w dowolnym miejscu między elementami liniowymi (§ 5.5): `html/layout/inline.go`
+    (`splitInlineBox`, `breaksAnywhere`, `context.forceWordBreak`): gdy w wierszu nie ma miejsca
+    podziału, a styl pozwala łamać w dowolnym miejscu, pudełko, które się nie mieści, jest łamane tak,
+    żeby dopełnić wiersz, a jeśli się nie da, wiersz łamie się przed nim. `html/layout/preferred.go`
+    (`inlineLineWidths`): granica fragmentów tekstu jest wtedy miejscem podziału dla min-content.
+    W źródle podział był możliwy tylko wewnątrz jednego fragmentu tekstu na początku wiersza;
+  - `css/validation` (`wordBreak`), `text/style.go`: `word-break: break-word` działa jak
+    `overflow-wrap: anywhere` (§ 5.2, dawna wartość); źródło ją odrzucało;
+  - tabulatory: `html/layout/inline.go` i `layout.go` (`lineStartX`, `lineTabUnit`, `splitTextBoxAt`),
+    `text/text.go` (`SplitFirstLineAt`, `TabUnit`), `text/style.go` (`TabOffset`, `TabUnit`): pozycje
+    tabulacji liczą się od początku wiersza, a nie od początku fragmentu tekstu, więc tabulator po
+    elemencie liniowym trafia na właściwą pozycję; odstęp tabulacji to wielokrotność szerokości spacji
+    bloku powiększonej o `letter-spacing` i `word-spacing`; tabulator nie dostaje odstępu między literami;
+    próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
+    `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
+    przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
 - tryb ciągły, 2026-11-16 (ADR 0017): `html/tree/tree.go` (`Behavior.Continuous`),
   `html/layout/pages.go` (`makePage`: dół strony odsunięty na czas układu, potem strona rośnie do dołu
   treści), `html/layout/layout.go` (`contentBottomEdge`, `continuousPageHeight`),

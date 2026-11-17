@@ -107,6 +107,13 @@ type TextStyle struct {
 	WordSpacing   pr.Fl
 	LetterSpacing pr.Fl // 0 for 'normal'
 	TabSize       TabSize
+	// TabOffset (gopdfgo) to odległość początku tekstu od początku wiersza: pozycje tabulacji liczą
+	// się od krawędzi bloku, nie od początku fragmentu tekstu (CSS Text 3 § 4.2).
+	TabOffset pr.Fl
+	// TabUnit (gopdfgo) to jednostka tabulacji bloku zawierającego wiersz (szerokość spacji z
+	// odstępami), gdy HasTabUnit; inaczej jednostka wynika z fontu samego tekstu.
+	TabUnit    pr.Fl
+	HasTabUnit bool
 
 	// overall direction, as defined by the 'direction' CSS prop: either [pr.Ltr] or [pr.Rtl]
 	Direction pr.Keyword
@@ -133,6 +140,9 @@ func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
 	out.WhiteSpace = style.GetWhiteSpace()
 	out.OverflowWrap = newOverflowWrap(style.GetOverflowWrap())
 	out.WordBreak = newWordBreak(style.GetWordBreak())
+	if style.GetWordBreak() == "break-word" {
+		out.OverflowWrap = OAnywhere // gopdfgo: dawna wartość, CSS Text 3 § 5.2
+	}
 	if style.GetLineBreak() == "anywhere" {
 		// gopdfgo: line-break: anywhere łamie między dowolnymi znakami, jak word-break: break-all,
 		// i dodatkowo tam, gdzie UAX 14 łamania zabrania (znaki przestankowe, U+2060)
@@ -181,6 +191,9 @@ type styleKey struct {
 	WordSpacing   pr.Fl
 	LetterSpacing pr.Fl // 0 for 'normal'
 	TabSize       TabSize
+	TabOffset     pr.Fl
+	TabUnit       pr.Fl
+	HasTabUnit    bool
 
 	Direction pr.Keyword
 }
@@ -202,18 +215,21 @@ func (ts *TextStyle) key() styleKey {
 		ts.WordSpacing,
 		ts.LetterSpacing,
 		ts.TabSize,
+		ts.TabOffset,
+		ts.TabUnit,
+		ts.HasTabUnit,
 		ts.Direction,
 	}
 }
 
 type TabSize struct {
-	Width      int
-	IsMultiple bool // true to use Width * <space character width>
+	Width      pr.Fl // gopdfgo: ułamkowa; w źródle liczba całkowita obcinała tab-size: 2.5 i 0.4ch
+	IsMultiple bool  // true to use Width * <space character width>
 }
 
 func newTabSize(ts pr.TaggedDim) TabSize {
 	return TabSize{
-		Width:      int(ts.Value),
+		Width:      pr.Fl(ts.Value),
 		IsMultiple: ts.Unit == 0 && ts.Value != 0,
 	}
 }

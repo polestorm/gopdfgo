@@ -34,6 +34,7 @@ type FontConfiguration interface {
 
 	// returns the advance of the '0' char, using the font described by the given [style]
 	width0(style *TextStyle) pr.Fl
+	tabUnit(style *TextStyle) pr.Fl
 	// returns the height of the 'x' char, using the font described by the given [style]
 	heightx(style *TextStyle) pr.Fl
 	// returns the height and baseline of a line containing a single space (" ")

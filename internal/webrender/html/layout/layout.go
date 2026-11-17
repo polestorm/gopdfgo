@@ -372,6 +372,13 @@ func (sl *shapeList) append(box *bo.BoxFields) {
 // layoutContext stores the global context needed during layout,
 // such as various caches.
 type layoutContext struct {
+	// gopdfgo: początek układanego właśnie wiersza (krawędź bloku), od którego liczą się pozycje
+	// tabulacji; inLine mówi, czy wartość jest ustawiona
+	forceWordBreak bool // gopdfgo: zob. splitInlineLevel
+	lineStartX     pr.Float
+	lineTabUnit    pr.Float
+	inLine         bool
+
 	// caches
 	stringSet       map[string]map[int][]string
 	runningElements map[string]map[int][]Box

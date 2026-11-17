@@ -178,8 +178,11 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			floatWidths        widths
 		)
 
+		savedStart, savedTabUnit, savedInLine := context.lineStartX, context.lineTabUnit, context.inLine
+		context.lineStartX, context.lineTabUnit, context.inLine = linebox.PositionX, -1, true
 		spi := splitInlineBox(context, linebox, positionX, maxX, bottomSpace, skipStack, containingBlock_,
 			&lineAbsolutes, &lineFixed, &linePlaceholders, &waitingFloats, nil)
+		context.lineStartX, context.lineTabUnit, context.inLine = savedStart, savedTabUnit, savedInLine
 		resumeAt, preservedLineBreak, floatWidths = spi.resumeAt, spi.preservedLineBreak, spi.floatWidths
 		line_ = spi.newBox.(*bo.LineBox) // splitInlineBox preserve the concrete type
 
@@ -200,7 +203,15 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		newPositionX, _, newAvailableWidth := avoidCollisions(context, linebox, containingBlock, false)
 		newAvailableWidth -= floatWidths.right
 		alignmentAvailableWidth := newAvailableWidth + newPositionX - linebox.PositionX
-		offsetX := textAlign(context, line_, alignmentAvailableWidth, resumeAt == nil || preservedLineBreak)
+		// gopdfgo: przy white-space: pre-wrap spacje i tabulatory na końcu wiersza wiszą (CSS Text 3
+		// § 4.1.3): zachowują szerokość i tło, ale nie liczą się do wyrównania ani justowania. W wierszu
+		// zawiniętym wiszą wszystkie, w wierszu zakończonym wymuszonym podziałem albo ostatnim tylko
+		// ta część, która nie mieści się w wierszu.
+		hang := trailingPreservedWidth(line_)
+		if resumeAt == nil || preservedLineBreak {
+			hang = max(0, min(hang, line.Width.V()-alignmentAvailableWidth))
+		}
+		offsetX := textAlign(context, line_, alignmentAvailableWidth, resumeAt == nil || preservedLineBreak, hang)
 
 		if traceMode {
 			traceLogger.DumpTree(line_, "line in getNextLinebox after textAlign")
@@ -756,8 +767,18 @@ func splitInlineLevel(context *layoutContext, box_ Box, positionX, maxX, bottomS
 			}
 		}
 		var newTextBox *bo.TextBox
-		isLineStart := len(lineChildren) == 0
-		newTextBox, skip, preservedLineBreak = splitTextBox(context, textBox, maxX-positionX, skip, isLineStart)
+		// gopdfgo: forceWordBreak: w wierszu nie ma miejsca podziału, więc słowo wolno złamać tak,
+		// jakby zaczynało wiersz (overflow-wrap)
+		isLineStart := len(lineChildren) == 0 || context.forceWordBreak
+		tabOffset, tabUnit := pr.Float(0), pr.Float(-1)
+		if context.inLine && slices.Contains(textBox.Text[skip:], '\t') {
+			// odstęp tabulacji wynika ze stylu bloku zawierającego wiersz, nie z elementu liniowego
+			if context.lineTabUnit < 0 {
+				context.lineTabUnit = text.TabUnit(containingBlock.Box().Style, context)
+			}
+			tabOffset, tabUnit = positionX-context.lineStartX, context.lineTabUnit
+		}
+		newTextBox, skip, preservedLineBreak = splitTextBoxAt(context, textBox, maxX-positionX, skip, isLineStart, tabOffset, tabUnit)
 		if skip != -1 {
 			resumeAt = tree.ResumeStack{skip: nil}
 		}
@@ -1008,6 +1029,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		lastChild := index == len(box.Children)-1
 		availableWidth := maxX
 		var childWaitingFloats []Box
+		childSkipStack := skipStack
 		v := splitInlineLevel(context, child_, positionX, availableWidth, bottomSpace, skipStack,
 			containingBlock, absoluteBoxes, fixedBoxes, linePlaceholders, &childWaitingFloats, lineChildren)
 		resumeAt = v.resumeAt
@@ -1084,13 +1106,42 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			}
 			// Check that text doesn’t overflow.
 			newPositionX := newChild.Box().PositionX + newChild.Box().MarginWidth()
-			if newPositionX-trailingWhitespaceSize(context, newChild) > maxX {
+			if newPositionX-trailingWhitespaceSize(context, newChild, true)-trailingPreservedWidth(newChild) > maxX {
 				// Text overflows, find previous break point.
 				previousResumeAt := breakWaitingChildren(context, containingBlock, bottomSpace, initialSkipStack, absoluteBoxes, fixedBoxes,
 					linePlaceholders, waitingFloats, lineChildren, &children, waitingChildren)
 				if previousResumeAt != nil {
 					resumeAt = previousResumeAt
 					break
+				}
+				// gopdfgo: gdy w wierszu nie ma żadnego miejsca podziału, a styl pozwala łamać
+				// w dowolnym miejscu (overflow-wrap: anywhere lub break-word, word-break: break-all,
+				// line-break: anywhere), wiersz łamie się na granicy elementów liniowych, przed
+				// pudełkiem, które się nie mieści (CSS Text 3 § 5.5). W źródle taki podział był
+				// możliwy tylko wewnątrz jednego fragmentu tekstu.
+				// Tylko na poziomie wiersza: dopiero tu wiadomo, że wcześniej w wierszu nie było
+				// miejsca podziału (słowo, które mieści się w następnym wierszu, przechodzi do niego całe).
+				if bo.LineT.IsInstance(box_) && breaksAnywhere(child.Style, false) {
+					// najpierw próba złamania samego pudełka tak, żeby jego początek dopełnił wiersz
+					savedForce := context.forceWordBreak
+					context.forceWordBreak = true
+					retry := splitInlineLevel(context, child_, positionX, availableWidth, bottomSpace, childSkipStack,
+						containingBlock, absoluteBoxes, fixedBoxes, linePlaceholders, &childWaitingFloats, lineChildren)
+					context.forceWordBreak = savedForce
+					if part := retry.newBox; part != nil && retry.resumeAt != nil && !isNilTextBox(part) &&
+						part.Box().PositionX+part.Box().MarginWidth()-trailingWhitespaceSize(context, part, true)-trailingPreservedWidth(part) <= maxX {
+						children = append(children, waitingChildren...)
+						children = append(children, indexedBoxC{index: index, box: part, child: child_})
+						waitingChildren = nil
+						resumeAt = tree.ResumeStack{index: retry.resumeAt}
+						break
+					}
+					if len(waitingChildren) != 0 {
+						children = append(children, waitingChildren...)
+						waitingChildren = nil
+						resumeAt = tree.ResumeStack{index: nil}
+						break
+					}
 				}
 			}
 
@@ -1262,7 +1313,7 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 			}
 		}
 		if Lf := len(nonFloatingChildren); Lf != 0 {
-			floatWidth -= trailingWhitespaceSize(context, nonFloatingChildren[Lf-1])
+			floatWidth -= trailingWhitespaceSize(context, nonFloatingChildren[Lf-1], true)
 		}
 
 		if floatWidth > maxX-positionX || len(*waitingFloats) != 0 {
@@ -1328,12 +1379,19 @@ var lineBreaks = utils.NewSet("\n", "\t", "\f", "\u0085", "\u2028", "\u2029")
 func splitTextBox(context *layoutContext, box *bo.TextBox, availableWidth pr.MaybeFloat,
 	skip int, isLineStart bool,
 ) (_ *bo.TextBox, _ int, _ bool) {
+	return splitTextBoxAt(context, box, availableWidth, skip, isLineStart, 0, -1)
+}
+
+// splitTextBoxAt (gopdfgo): jak splitTextBox, dla tekstu zaczynającego się tabOffset za początkiem wiersza.
+func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.MaybeFloat,
+	skip int, isLineStart bool, tabOffset, tabUnit pr.Float,
+) (_ *bo.TextBox, _ int, _ bool) {
 	fontSize := box.Style.GetFontSize()
 	text_ := box.Text[skip:]
 	if fontSize == pr.FToV(0) || len(text_) == 0 {
 		return nil, -1, false
 	}
-	v := text.SplitFirstLine(text_, box.Style, context, availableWidth, false, isLineStart)
+	v := text.SplitFirstLineAt(text_, box.Style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
 	layout, length, resumeIndex, width, height := v.Layout, v.Length, v.ResumeAt, v.Width, v.Height
 	if resumeIndex == 0 {
 		panic("resumeAt should not be 0 here")
@@ -1564,11 +1622,11 @@ func inlineBoxVerticality(context *layoutContext, box_ Box, topBottomSubtrees *[
 
 // Return how much the line should be moved horizontally according to
 // the `text-align` property.
-func textAlign(context *layoutContext, line *bo.LineBox, availableWidth pr.Float, last bool) pr.Float {
+func textAlign(context *layoutContext, line *bo.LineBox, availableWidth pr.Float, last bool, hang pr.Float) pr.Float {
 	// "When the total width of the inline-level boxes on a line is less than
 	// the width of the line box containing them, their horizontal distribution
 	// within the line box is determined by the "text-align" property."
-	if line.Width.V() >= availableWidth {
+	if line.Width.V()-hang >= availableWidth {
 		return 0
 	}
 	align := line.Style.GetTextAlignAll()
@@ -1593,14 +1651,14 @@ func textAlign(context *layoutContext, line *bo.LineBox, availableWidth pr.Float
 		return 0
 	}
 
-	offset := availableWidth - line.Width.V()
+	offset := availableWidth - (line.Width.V() - hang)
 	switch align {
 	case "justify":
-		if spaceCollapse {
-			// Justification of texts where white space is not collapsing is
-			// - forbidden by CSS 2, and
-			// - not required by CSS 3 Text.
-			justifyLine(context, line, offset)
+		// gopdfgo: tekst z zachowanymi spacjami, który się zawija (pre-wrap, break-spaces), też jest
+		// justowany. CSS Text 3 § 6.4 zostawia to do wyboru; tak robi Chromium. W źródle justowany
+		// był tylko tekst ze zwijanymi spacjami.
+		if spaceCollapse || ws == pr.PreWrap || ws == pr.BreakSpaces {
+			justifyLine(context, line, offset, hang != 0)
 		}
 		return 0
 	case "center":
@@ -1611,12 +1669,104 @@ func textAlign(context *layoutContext, line *bo.LineBox, availableWidth pr.Float
 	panic(fmt.Sprintf("align should be 'justify', 'center' or 'end', got %s", align))
 }
 
-func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float) {
+func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float, hanging bool) {
 	// TODO: We should use a better alorithm here, see
 	// https://www.w3.org/TR/css-text-3/#justify-algos
-	if nbSpaces := countExpandableSpaces(line); nbSpaces != 0 {
+	// gopdfgo: spacje wiszące na końcu wiersza (pre-wrap) nie są miejscami justowania
+	// gopdfgo: wiersza z tabulatorem nie justujemy: tekst przed tabulatorem ma zostać na pozycjach
+	// tabulacji (CSS Text 3 § 6.4 pozwala justować najwyżej część po ostatnim tabulatorze)
+	if lineHasTab(line) {
+		return
+	}
+	nbSpaces := countExpandableSpaces(line)
+	if hanging {
+		if count, _, last := trailingPreservedSpaces(line); last != nil && last.TextLayout != nil {
+			last.TextLayout.SetHangingSpaces(count)
+			nbSpaces -= count
+		}
+	}
+	if nbSpaces > 0 {
 		addWordSpacing(context, line, extraWidth/pr.Float(nbSpaces), 0)
 	}
+}
+
+// trailingPreservedWidth zwraca szerokość zachowanych spacji i tabulatorów na samym końcu wiersza
+// (white-space: pre-wrap), czyli tę część wiersza, która może wisieć.
+func trailingPreservedWidth(box Box) pr.Float {
+	_, _, last := trailingPreservedSpaces(box)
+	if last == nil || last.TextLayout == nil || last.FirstLineIsRTL {
+		return 0
+	}
+	return last.TextLayout.TrailingSpacesWidth()
+}
+
+// trailingPreservedSpaces szuka ostatniego tekstu w wierszu i liczy jego końcowe zachowane spacje
+// (white-space: pre-wrap). Puste pudełka liniowe na końcu wiersza są pomijane.
+func trailingPreservedSpaces(box Box) (count int, found bool, last *bo.TextBox) {
+	if textBox, ok := box.(*bo.TextBox); ok {
+		if len(textBox.Text) == 0 {
+			return 0, false, nil
+		}
+		if textBox.Style.GetWhiteSpace() != pr.PreWrap {
+			return 0, true, nil
+		}
+		for i := len(textBox.Text) - 1; i >= 0 && textBox.Text[i] == ' '; i-- {
+			count++
+		}
+		return count, true, textBox
+	}
+	if !IsLine(box) {
+		return 0, true, nil
+	}
+	children := box.Box().Children
+	for i := len(children) - 1; i >= 0; i-- {
+		if !children[i].Box().IsInNormalFlow() {
+			continue
+		}
+		if count, found, last = trailingPreservedSpaces(children[i]); found {
+			return count, true, last
+		}
+	}
+	return 0, false, nil
+}
+
+// breaksAnywhere mówi, czy styl pozwala złamać wiersz między dowolnymi znakami. Z intrinsic liczą
+// się tylko wartości, które zmniejszają też szerokość min-content (overflow-wrap: break-word nie).
+func breaksAnywhere(style pr.ElementStyle, intrinsic bool) bool {
+	if ws := style.GetWhiteSpace(); ws == pr.Nowrap || ws == pr.Pre {
+		return false
+	}
+	switch style.GetOverflowWrap() {
+	case "anywhere":
+		return true
+	case "break-word":
+		if !intrinsic {
+			return true
+		}
+	}
+	if wb := style.GetWordBreak(); wb == "break-all" || wb == "break-word" {
+		return true
+	}
+	return style.GetLineBreak() == "anywhere"
+}
+
+func isNilTextBox(box Box) bool {
+	textBox, ok := box.(*bo.TextBox)
+	return ok && textBox == nil
+}
+
+func lineHasTab(box Box) bool {
+	if textBox, isTextBox := box.(*bo.TextBox); isTextBox {
+		return slices.Contains(textBox.Text, '\t')
+	}
+	if IsLine(box) {
+		for _, child := range box.Box().Children {
+			if lineHasTab(child) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Count expandable spaces (space and nbsp) for justification.
@@ -1639,7 +1789,7 @@ func addWordSpacing(context *layoutContext, box_ Box, justificationSpacing, xAdv
 	if textBox, isTextBox := box_.(*bo.TextBox); isTextBox {
 		// textBox.JustificationSpacing = justificationSpacing
 		textBox.PositionX += xAdvance
-		nbSpaces := pr.Float(countExpandableSpaces(box_))
+		nbSpaces := pr.Float(countExpandableSpaces(box_) - textBox.TextLayout.HangingSpaces())
 		if nbSpaces > 0 {
 			textBox.TextLayout.SetJustification(justificationSpacing)
 			extraSpace := justificationSpacing * nbSpaces

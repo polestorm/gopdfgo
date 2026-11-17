@@ -327,7 +327,7 @@ func inlineMaxContentWidth(context *layoutContext, box_ Box, outer, isLineStart 
 	widths := inlineLineWidths(context, box_, outer, isLineStart, false, nil, false)
 	// Remove trailing space, as split_first_line keeps trailing spaces when
 	// max_width is not set.
-	widths[len(widths)-1] -= trailingWhitespaceSize(context, box_)
+	widths[len(widths)-1] -= trailingWhitespaceSize(context, box_, false)
 	return adjust(box_, outer, pr.Maxs(widths...), true, true)
 }
 
@@ -459,7 +459,7 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 				tmp := text.SplitFirstLine(textRunes[resumeIndex:], textBox.Style,
 					context, maxWidth, true, isLineStart)
 				newResumeIndex = tmp.ResumeAt
-				lineWidth := tmp.Width
+				lineWidth := tmp.Width - tmp.Hang
 				if minimum && whiteSpace == pr.PreWrap && newResumeIndex > 0 {
 					// gopdfgo: zachowane spacje na końcu złamanego wiersza wiszą poza nim i nie liczą się
 					// do szerokości min-content (CSS Text 3 § 4.1.3); źródło je doliczało
@@ -490,6 +490,11 @@ func inlineLineWidths(context *layoutContext, box_ Box, outer, isLineStart,
 				sample = []rune{childText[len(childText)-1], 'a'}
 			}
 			canBreak := context.Fonts().CanBreakText(sample)
+			if minimum && textWrap && len(childText) != 0 && breaksAnywhere(textBox.Style, true) {
+				// gopdfgo: przy łamaniu w dowolnym miejscu granica fragmentu tekstu też jest miejscem
+				// podziału dla szerokości min-content (CSS Text 3 § 5.5)
+				canBreak = pr.True
+			}
 			if minimum && textWrap && canBreak == pr.True {
 				// Add all possible line breaks for minimal width.
 				lines = append(lines, nil)
@@ -1214,7 +1219,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 }
 
 // Return the size of the trailing whitespace of “box“.
-func trailingWhitespaceSize(context *layoutContext, box Box) pr.Float {
+// gopdfgo: z ideographic liczą się też wiszące odstępy inne niż spacja (np. ideograficzny U+3000); szerokości wewnętrzne
+// odejmują ją osobno (text.FirstLine.Hang), więc tam parametr jest wyłączony.
+func trailingWhitespaceSize(context *layoutContext, box Box, ideographic bool) pr.Float {
 	// Find last box child, keep last parent to remove nested trailing spaces.
 	var lastParent Box
 	for IsLine(box) {
@@ -1235,13 +1242,19 @@ func trailingWhitespaceSize(context *layoutContext, box Box) pr.Float {
 	} else if box.Box().Style.GetFontSize() == pr.FToV(0) {
 		// Trailing spaces take no space.
 		return 0
-	} else if !text.HasSuffix(textBox.Text, ' ') {
+	}
+	// gopdfgo: odstępy inne niż spacja (np. ideograficzny) na końcu wiersza wiszą (CSS Text 3 § 4.1.3)
+	strippedText := textBox.Text
+	for n := len(strippedText); n > 0 && (strippedText[n-1] == ' ' || ideographic && text.IsOtherSpaceSeparator(strippedText[n-1])); n = len(strippedText) {
+		strippedText = strippedText[:n-1]
+	}
+	if len(strippedText) == len(textBox.Text) {
 		// No trailing space.
 		return 0
 	}
 
 	// Strip text.
-	if strippedText := text.TrimSuffix(textBox.Text, ' '); len(strippedText) != 0 {
+	if len(strippedText) != 0 {
 		// Stripped text is not empty, calculate width difference.
 		resume, oldResume := 0, -1
 		var oldBox *bo.TextBox
@@ -1270,7 +1283,7 @@ func trailingWhitespaceSize(context *layoutContext, box Box) pr.Float {
 		// Remove possible trailing spaces from previous child.
 		if lastParent != nil && len(lastParent.Box().Children) >= 2 {
 			children := lastParent.Box().Children
-			width += trailingWhitespaceSize(context, children[len(children)-2])
+			width += trailingWhitespaceSize(context, children[len(children)-2], ideographic)
 		}
 		return width
 	}

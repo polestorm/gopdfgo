@@ -2647,7 +2647,9 @@ func lineBreak(tokens []Token, _ string) pr.CssProperty {
 func wordBreak(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
-	case "normal", "break-all":
+	case "normal", "break-all", "break-word":
+		// gopdfgo: break-word to dawna wartość, równoważna word-break: normal z overflow-wrap: anywhere
+		// (CSS Text 3 § 5.2); źródło ją odrzucało
 		return pr.String(keyword)
 	case "keep-all":
 		// gopdfgo: keep-all różni się od normal tylko dla pism CJK, których ta wersja nie łamie osobno
@@ -4023,7 +4025,8 @@ func tabSize(tokens []Token, _ string) pr.CssProperty {
 	}
 	token := tokens[0]
 	if number, ok := token.(pa.Number); ok {
-		if number.IsInt() && number.ValueF >= 0 { // no unit means multiple of space width
+		// gopdfgo: dowolna liczba nieujemna, nie tylko całkowita (CSS Text 3 § 4.2)
+		if number.ValueF >= 0 { // no unit means multiple of space width
 			return pr.NewDim(pr.Float(number.ValueF), 0).Tagged()
 		}
 	}
