@@ -25,6 +25,13 @@ import (
 // for width of the *content area*, not margin area.
 // https://www.w3.org/TR/CSS21/visudet.html#float-width
 func shrinkToFit(context *layoutContext, box Box, availableContentWidth pr.Float) pr.Float {
+	// gopdfgo: pudełko o znanej wysokości jest blokiem zawierającym o określonej wysokości, więc
+	// procentowe wysokości jego dzieci (np. obrazu z proporcją) są znane już przy liczeniu szerokości
+	// dopasowanej do treści (CSS 2.1 § 10.5, CSS Sizing 3 § 5.2.1); w źródle liczyły się jak auto
+	// (test WPT intrinsic-size-with-anonymous-block).
+	if height, ok := box.Box().Height.(pr.Float); ok && bo.BlockContainerT.IsInstance(box) && !box.Box().IsTableWrapper {
+		setChildrenDefiniteHeight(box.Box().Children, height)
+	}
 	out := min(
 		max(minContentWidth(context, box, false), availableContentWidth),
 		maxContentWidth(context, box, false),
@@ -259,9 +266,19 @@ func minMax(box Box, width pr.Float) pr.Float {
 	return max(resMin, min(width, resMax))
 }
 
+// marginWidthWithoutPercentages (gopdfgo): jak marginWidth, ale procentowe marginesy i odstępy
+// wewnętrzne liczą się jako zero.
+func marginWidthWithoutPercentages(box *bo.BoxFields, width pr.Float, left, right bool) pr.Float {
+	return marginWidthPercentages(box, width, left, right, false)
+}
+
 // Add box paddings, borders and margins to “width“.
 // left=true, right=true
 func marginWidth(box *bo.BoxFields, width pr.Float, left, right bool) pr.Float {
+	return marginWidthPercentages(box, width, left, right, true)
+}
+
+func marginWidthPercentages(box *bo.BoxFields, width pr.Float, left, right, usePercentages bool) pr.Float {
 	// See https://drafts.csswg.org/css-tables-3/#cell-intrinsic-offsets
 	// It is a set of computed values for border-left-width, padding-left,
 	// padding-right, and border-right-width (along with zero values for
@@ -312,6 +329,9 @@ func marginWidth(box *bo.BoxFields, width pr.Float, left, right bool) pr.Float {
 		}
 	}
 
+	if !usePercentages {
+		return width
+	}
 	if percentages < 100 {
 		return width / (1 - percentages/100.)
 	} else {
@@ -327,6 +347,13 @@ func marginWidth(box *bo.BoxFields, width pr.Float, left, right bool) pr.Float {
 func adjust(box Box, outer bool, width pr.Float, left, right bool) pr.Float {
 	fixed := minMax(box, width)
 	if outer {
+		if !bo.TableCellT.IsInstance(box) && !box.Box().IsTableWrapper {
+			// gopdfgo: procentowe marginesy i odstępy wewnętrzne liczą się w udziale do rozmiaru wewnętrznego
+			// jako zero (CSS Sizing 3 § 5.2.1, tak jak w Chromium). Źródło dzieliło szerokość przez
+			// (1 - procent), jak dla komórek tabeli (CSS Tables 3), więc margines -100% zmniejszał udział
+			// o połowę (test WPT intrinsic-size-with-negative-margins).
+			return marginWidthWithoutPercentages(box.Box(), fixed, left, right)
+		}
 		return marginWidth(box.Box(), fixed, left, right)
 	} else {
 		return fixed
