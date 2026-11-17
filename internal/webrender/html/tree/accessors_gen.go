@@ -1919,3 +1919,9 @@ func (s *AnonymousStyle) GetObjectPosition() pr.CenterPos {
 func (s *AnonymousStyle) SetObjectPosition(v pr.CenterPos) {
 	s.propsCache.setKnown(pr.PObjectPosition, v)
 }
+
+func (s *ComputedStyle) GetTextJustify() pr.String  { return s.Get(pr.PTextJustify.Key()).(pr.String) }
+func (s *ComputedStyle) SetTextJustify(v pr.String) { s.propsCache.setKnown(pr.PTextJustify, v) }
+
+func (s *AnonymousStyle) GetTextJustify() pr.String  { return s.Get(pr.PTextJustify.Key()).(pr.String) }
+func (s *AnonymousStyle) SetTextJustify(v pr.String) { s.propsCache.setKnown(pr.PTextJustify, v) }

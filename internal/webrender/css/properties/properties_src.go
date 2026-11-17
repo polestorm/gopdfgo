@@ -253,5 +253,7 @@ const (
 	PObjectFit
 	PObjectPosition
 
+	PTextJustify // gopdfgo: CSS Text 3 § 6.4; dziedziczona
+
 	nbProperties
 )

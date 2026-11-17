@@ -1696,7 +1696,9 @@ func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float, 
 	if hanging {
 		if count, _, last := trailingPreservedSpaces(line); last != nil && last.TextLayout != nil {
 			last.TextLayout.SetHangingSpaces(count)
-			nbSpaces -= count
+			if last.Style.GetTextJustify() != "none" { // gopdfgo: te spacje nie były policzone
+				nbSpaces -= count
+			}
 		}
 	}
 	if nbSpaces > 0 {
@@ -1794,6 +1796,11 @@ func lineHasTab(box Box) bool {
 // Count expandable spaces (space and nbsp) for justification.
 func countExpandableSpaces(box Box) int {
 	if textBox, isTextBox := box.(*bo.TextBox); isTextBox {
+		// gopdfgo: tekst z text-justify: none nie ma miejsc justowania (CSS Text 3 § 6.4); właściwość
+		// działa na pudełkach liniowych, więc liczy się styl tekstu, a nie wiersza. Źródło jej nie znało.
+		if textBox.Style.GetTextJustify() == "none" {
+			return 0
+		}
 		// TODO: remove trailing spaces correctly
 		return strings.Count(textBox.TextS(), " ") + strings.Count(textBox.TextS(), "\u00a0")
 	} else if IsLine(box) {
