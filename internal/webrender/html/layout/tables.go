@@ -1451,6 +1451,12 @@ func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr
 		children = reversedBoxes(children)
 	}
 	for _, child := range children {
+		// gopdfgo: pusty wiersz (np. reszta pudełka liniowego za wydzielonym z niego blokiem) nie ma linii
+		// bazowej (CSS 2.1 § 9.4.2: taki wiersz traktuje się jak nieistniejący; tak robi Chromium); w źródle
+		// inline-block stawał na linii bazowej takiego wiersza (test WPT block-in-inline-baseline-001).
+		if line, isLine := child.(*bo.LineBox); isLine && isEmptyLinebox(line) {
+			continue
+		}
 		if child.Box().IsInNormalFlow() {
 			result := findBaseline(child, last, flexBaseline, baselinesT...)
 			if result != nil {
