@@ -648,7 +648,9 @@ func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
 	// § 4.1.2, granice pudełek liniowych się nie liczą; test WPT line-edge-white-space-collapse-001).
 	// Źródło sprawdzało tylko ostatni liść. Pudełka za spacją przesuwamy o jej szerokość.
 	var following []Box
-	if textBox, ok := box.(*bo.TextBox); line.Style.GetDirection() == pr.Ltr && (!ok || len(textBox.Text) == 0) {
+	// Tylko gdy wiersz kończy się pustym pudełkiem liniowym albo pustym tekstem; element pływający
+	// albo atomowy na końcu wiersza zostawia spację jak w źródle (test TestFloatTableAbortedRow).
+	if textBox, ok := box.(*bo.TextBox); line.Style.GetDirection() == pr.Ltr && (ok && len(textBox.Text) == 0 || !ok && IsLine(box)) {
 		path, after, found := lastTextBefore(line, nil)
 		if !found || len(path) < 2 {
 			return
