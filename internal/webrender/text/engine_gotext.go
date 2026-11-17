@@ -463,7 +463,19 @@ func (fc *FontConfigurationGotext) lineGap(style *TextStyle) pr.Float {
 // tabUnit: szerokość spacji powiększona o letter-spacing i word-spacing; tab-size podany liczbą jest
 // jej wielokrotnością (CSS Text 3 § 4.2).
 func (fc *FontConfigurationGotext) tabUnit(style *TextStyle) pr.Fl {
-	return fc.widthSpace(style) + style.LetterSpacing + style.WordSpacing
+	return fc.widthSpace(style) + style.LetterSpacing + fc.wordSpacing(style)
+}
+
+// wordSpacing (gopdfgo) zwraca word-spacing w pikselach; procent liczy się od szerokości znaku
+// U+0020 w foncie elementu (CSS Text 4 § 10.1).
+func (fc *FontConfigurationGotext) wordSpacing(style *TextStyle) pr.Fl {
+	if style.WordSpacingCalc != nil {
+		return pr.Fl(style.WordSpacingCalc.Evaluate(pr.Float(fc.widthSpace(style))))
+	}
+	if style.WordSpacingPercent == 0 {
+		return style.WordSpacing
+	}
+	return style.WordSpacing + style.WordSpacingPercent/100*fc.widthSpace(style)
 }
 
 func (fc *FontConfigurationGotext) widthSpace(style *TextStyle) pr.Fl {
@@ -647,8 +659,8 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}
 	fc.residuals = residuals
 
-	if style.LetterSpacing != 0 || style.WordSpacing != 0 {
-		ws, ls := floatToFixed(style.WordSpacing), floatToFixed(style.LetterSpacing)
+	if wordSpacing := fc.wordSpacing(style); style.LetterSpacing != 0 || wordSpacing != 0 {
+		ws, ls := floatToFixed(wordSpacing), floatToFixed(style.LetterSpacing)
 		shaping.AddSpacing(outputs, text, ws, ls)
 		// add letter spacing at the end, like other browers do
 		lastRun := &outputs[len(outputs)-1]

@@ -77,3 +77,15 @@ func TestTextIndentHangingEachLine(t *testing.T) {
 	same("hanging-max-content", `<div style="float:left;background:blue;text-indent:40px hanging">XX<br>XX</div>`,
 		`<div style="float:left;background:blue">XX<br>`+indented+`</div>`)
 }
+
+func TestWordSpacingPercentage(t *testing.T) {
+	same := ahemComparer(t)
+	// procent liczy się od szerokości spacji w foncie elementu (w Ahem 1em, tu 20px)
+	same("percent", `<div style="word-spacing:100%">X X X</div>`, `<div style="white-space:pre">X  X  X</div>`)
+	same("negative", `<div style="word-spacing:-100%">X X X</div>`, `<div>XXX</div>`)
+	// procent z długością w calc()
+	same("calc", `<div style="word-spacing:calc(100% + 1em)">X X X</div>`, `<div style="white-space:pre">X   X   X</div>`)
+	// wartość dziedziczy się jako procent i liczy od fontu potomka
+	same("inherited", `<div style="word-spacing:200%"><span style="font-size:10px">X X</span></div>`,
+		`<div><span style="font-size:10px;white-space:pre">X   X</span></div>`)
+}

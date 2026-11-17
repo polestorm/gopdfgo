@@ -195,7 +195,7 @@ var (
 		pr.PFootnotePolicy:          footnotePolicy,
 		pr.PImageResolution:         imageResolution,
 		pr.PLetterSpacing:           spacing,
-		pr.PWordSpacing:             spacing,
+		pr.PWordSpacing:             wordSpacing,
 		pr.PLineHeight:              lineHeight,
 		pr.PListStylePosition:       listStylePosition,
 		pr.PListStyleType:           listStyleType,
@@ -2337,6 +2337,16 @@ func imageResolution(tokens []Token, _ string) pr.CssProperty {
 // @singleToken
 // Validation for “letter-spacing“ && “word-spacing“.
 func spacing(tokens []Token, _ string) pr.CssProperty {
+	return spacingValue(tokens, false)
+}
+
+// gopdfgo: word-spacing przyjmuje też procent, liczony od szerokości znaku U+0020 w foncie elementu
+// (CSS Text 4 § 10.1). Źródło przyjmowało samą długość.
+func wordSpacing(tokens []Token, _ string) pr.CssProperty {
+	return spacingValue(tokens, true)
+}
+
+func spacingValue(tokens []Token, percentage bool) pr.CssProperty {
 	if len(tokens) != 1 {
 		return nil
 	}
@@ -2344,7 +2354,7 @@ func spacing(tokens []Token, _ string) pr.CssProperty {
 	if getKeyword(token) == "normal" {
 		return pr.TaggedDim{Tag: pr.Normal}
 	}
-	length := getLength(token, true, false)
+	length := getLength(token, true, percentage)
 	if !length.IsNone() {
 		return length.Tagged()
 	}
