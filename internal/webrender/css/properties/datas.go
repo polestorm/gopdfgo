@@ -185,6 +185,7 @@ var (
 		PFontSizeAdjust,
 		PTextJustify,
 		PTextWrapMode,
+		PTextWrapStyle,
 	)
 
 	// http://www.w3.org/TR/CSS21/tables.html#model

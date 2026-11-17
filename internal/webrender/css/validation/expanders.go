@@ -54,7 +54,7 @@ var expanders = [...]expander{
 	pr.SGrid:           genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas, pr.PGridAutoColumns, pr.PGridAutoRows, pr.PGridAutoFlow)(_expandGrid),
 	pr.SGap:            genericExpander(pr.PColumnGap, pr.PRowGap)(_expandGap),
 	pr.SWhiteSpace:     genericExpander(pr.PWhiteSpace, pr.PTextWrapMode)(_expandWhiteSpace),
-	pr.STextWrap:       genericExpander(pr.PTextWrapMode)(_expandTextWrap),
+	pr.STextWrap:       genericExpander(pr.PTextWrapMode, pr.PTextWrapStyle)(_expandTextWrap),
 }
 
 var borderExpanders = [...]expander{
@@ -1071,14 +1071,28 @@ func _expandWhiteSpace(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, 
 	}, nil
 }
 
-// gopdfgo: ze skrótu text-wrap (CSS Text 4 § 5.4) działają wartości wrap i nowrap, czyli część
-// text-wrap-mode. Pozostałe (balance, pretty, stable) są odrzucane jak dotąd, gdy właściwości nie
-// było wcale.
+// gopdfgo: skrót text-wrap (CSS Text 4 § 5.4): <'text-wrap-mode'> || <'text-wrap-style'>, w
+// dowolnej kolejności; pominięta część dostaje wartość początkową. W źródle skrótu nie było.
 func _expandTextWrap(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, error) {
-	if textWrapMode(tokens, "") == nil {
+	var out []namedTokens
+	var mode, style bool
+	for _, token := range tokens {
+		single := []Token{token}
+		switch {
+		case !mode && textWrapMode(single, "") != nil:
+			mode = true
+			out = append(out, namedTokens{name: pr.PTextWrapMode, tokens: single})
+		case !style && textWrapStyle(single, "") != nil:
+			style = true
+			out = append(out, namedTokens{name: pr.PTextWrapStyle, tokens: single})
+		default:
+			return nil, ErrInvalidValue
+		}
+	}
+	if len(out) == 0 {
 		return nil, ErrInvalidValue
 	}
-	return []namedTokens{{name: pr.PTextWrapMode, tokens: tokens}}, nil
+	return out, nil
 }
 
 // Expand the “word-wrap“ legacy property.

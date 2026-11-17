@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"unicode"
@@ -51,9 +52,18 @@ type lineBoxeIterator struct {
 	hanging, eachLine bool
 	done              bool
 	firstLine         bool // gopdfgo: następny wiersz jest pierwszym wierszem pudełka (`::first-line`)
+
+	// gopdfgo: text-wrap-style: balance (CSS Text 4 § 5.2): o tyle zwęża się dostępną szerokość
+	// każdego wiersza; balanced mówi, że szerokość już wybrano
+	shrink   pr.Float
+	balanced bool
 }
 
 func (l *lineBoxeIterator) Has() bool {
+	if !l.balanced {
+		l.balanced = true
+		l.balance()
+	}
 	if l.done {
 		l.box.TextIndent = pr.Float(0)
 		return false
@@ -64,7 +74,7 @@ func (l *lineBoxeIterator) Has() bool {
 		l.box.TextIndent = pr.Float(0)
 	}
 	line, resumeAt, forcedBreak := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
-		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine)
+		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, l.shrink)
 	if line != nil {
 		l.firstLine = false
 	}
@@ -92,6 +102,79 @@ func (l *lineBoxeIterator) Has() bool {
 }
 
 func (l *lineBoxeIterator) Next() lineBoxe { return l.currentBox }
+
+// maxBalancedLines: tyle wierszy najwyżej wyrównuje text-wrap-style: balance. Norma pozwala
+// ograniczyć liczbę wierszy (CSS Text 4 § 5.2); przyjmujemy granicę Chromium (ADR 0006).
+const maxBalancedLines = 6
+
+// balance (gopdfgo) wybiera miejsca łamania dla text-wrap-style: balance (CSS Text 4 § 5.2):
+// wiersze mają mieć możliwie równą szerokość przy tej samej liczbie wierszy. Szukamy połowieniem
+// największego zwężenia dostępnej szerokości, które nie zwiększa liczby wierszy (jak Chromium);
+// wyrównanie wierszy (text-align) liczy się dalej od pełnej szerokości. Źródło nie znało
+// text-wrap-style.
+func (l *lineBoxeIterator) balance() {
+	if l.box.Style.GetTextWrapStyle() != "balance" {
+		return
+	}
+	if ws := l.box.Style.GetWhiteSpace(); ws == pr.Nowrap || ws == pr.Pre {
+		return
+	}
+	if l.firstLetterStyle != nil && l.skipStack != nil {
+		// litera ozdobna przebudowuje drzewo i stos wznowienia; próbny układ by to powtórzył
+		return
+	}
+	width := l.containingBlock.Box().Width
+	if width == nil || width.V() <= 0 || width.V() == pr.Inf {
+		return
+	}
+	lines := l.trialLines(0)
+	if lines < 2 || lines > maxBalancedLines {
+		return
+	}
+	low, high := pr.Float(0), width.V()
+	if l.trialLines(high) <= lines {
+		return
+	}
+	for i := 0; i < 20 && high-low > 1.0/64; i++ {
+		middle := (low + high) / 2
+		if l.trialLines(middle) <= lines {
+			low = middle
+		} else {
+			high = middle
+		}
+	}
+	l.shrink = low
+}
+
+// trialLines (gopdfgo) układa próbnie wiersze iteratora przy zwężeniu shrink i zwraca ich liczbę,
+// najwyżej maxBalancedLines+1; stan iteratora i skutki uboczne układu (floaty, pudełka
+// pozycjonowane, elementy biegnące) są potem przywracane.
+func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
+	saved := *l
+	context := l.context
+	savedShapes := context.excludedShapes
+	shapes := shapeList{list: append([]*bo.BoxFields(nil), savedShapes.list...), isFrozen: savedShapes.isFrozen}
+	context.excludedShapes = &shapes
+	savedBroken, savedSequence := maps.Clone(context.brokenOutOfFlow), context.brokenSequence
+	savedRunning := make(map[string]map[int][]Box, len(context.runningElements))
+	for name, pages := range context.runningElements {
+		savedRunning[name] = maps.Clone(pages)
+	}
+	var absolutes, fixed []*AbsolutePlaceholder
+	l.absoluteBoxes, l.fixedBoxes = &absolutes, &fixed
+	l.shrink = shrink
+
+	count := 0
+	for count <= maxBalancedLines && l.Has() {
+		count++
+	}
+
+	*l = saved
+	context.excludedShapes = savedShapes
+	context.brokenOutOfFlow, context.brokenSequence = savedBroken, savedSequence
+	context.runningElements = savedRunning
+	return count
+}
 
 func (l *lineBoxeIterator) consume() int {
 	count := 0
@@ -129,7 +212,7 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 
 func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bottomSpace pr.Float, skipStack tree.ResumeStack,
 	containingBlock_ Box, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
-	firstLetterStyle pr.ElementStyle, firstLine bool,
+	firstLetterStyle pr.ElementStyle, firstLine bool, shrink pr.Float,
 ) (line_ *bo.LineBox, resumeAt tree.ResumeStack, forcedBreak bool) {
 	if traceMode {
 		traceLogger.DumpTree(linebox, "getNextLinebox")
@@ -181,7 +264,8 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		originalWidth := linebox.Width.V()
 		waitingFloats = waitingFloats[:0] // reset
 
-		maxX := positionX + availableWidth
+		// gopdfgo: shrink zwęża wiersz przy text-wrap-style: balance (lineBoxeIterator.balance)
+		maxX := positionX + availableWidth - shrink
 		positionX += linebox.TextIndent.V()
 
 		var (

@@ -181,6 +181,7 @@ var InitialValues = Properties{
 	PFontSizeAdjust:      SBoolFloat{},   // gopdfgo: none
 	PTextJustify:         String("auto"), // gopdfgo
 	PTextWrapMode:        String("wrap"), // gopdfgo
+	PTextWrapStyle:       String("auto"), // gopdfgo
 	PWordSpacing:         TaggedDim{},    // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
@@ -315,7 +316,7 @@ const (
 	SGrid
 	SGap
 	SWhiteSpace // gopdfgo: white-space ustawia też text-wrap-mode (CSS Text 4 § 3)
-	STextWrap   // gopdfgo: z text-wrap działają wartości wrap i nowrap (CSS Text 4 § 5.4)
+	STextWrap   // gopdfgo: text-wrap ustawia text-wrap-mode i text-wrap-style (CSS Text 4 § 5.4)
 )
 
 // NewShortand return the tag for 's' or 0 if not supported
