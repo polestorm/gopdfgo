@@ -2743,6 +2743,12 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	square := `src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='green'/%3E%3C/svg%3E"`
 	same("image-auto-minimum", `<div style="display:flex;width:0"><img style="height:60px;flex-basis:10px" `+square+`></div>`,
 		`<img style="height:60px;width:60px;display:block" `+square+`>`)
+	// linia bazowa kontenera inline-flex uwzględnia przesunięcie pierwszej linii przez align-content
+	baselineHead := `<style>div { font: 20px/20px sans-serif } span { display: inline-block; width: 20px; height: 20px; background: blue }</style>`
+	same("baseline-align-content", baselineHead+`<div><span></span><div class=g style="display:inline-flex;flex-wrap:wrap;align-content:center;width:40px;height:100px">
+		<div style="width:40px">x</div><div style="width:40px">x</div></div></div>`,
+		baselineHead+`<div><span></span><div class=g style="display:inline-flex;flex-wrap:wrap;align-content:flex-start;width:40px;height:70px;padding-top:30px">
+		<div style="width:40px">x</div><div style="width:40px">x</div></div></div>`)
 	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
 	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
 		`<div class=g style="width:100px;height:40px"></div>`)

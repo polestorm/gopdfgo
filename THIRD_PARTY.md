@@ -934,6 +934,13 @@ Wspólne dla obu katalogów:
     rozmiar przeniesiony liczy się z podanego rozmiaru poprzecznego (np. `height: 30px`), a bez niego
     rozmiar treści ograniczają `min-height`/`max-height` (w kolumnie `min-width`/`max-width`)
     przeliczone proporcją; źródło brało zawsze rozmiar własny obrazu;
+  - linia bazowa kontenera (§ 8.5, CSS Align 3 § 9.1), `html/layout/flex.go`, `html/layout/tables.go`
+    (`findBaseline`): linia bazowa kontenera wierszowego uwzględnia przesunięcie pierwszej linii przez
+    `align-content`; przy `wrap-reverse` kontener `inline-flex` bierze ją z linii leżącej najwyżej
+    (źródło: z pierwszej linii flex, która po odwróceniu jest na dole); blokowy kontener flex w wierszu
+    ma własną linię bazową, z której korzysta kontener nadrzędny, komórka albo `inline-block` (źródło
+    szukało pierwszego wiersza tekstu w głębi); w kolumnie z `wrap-reverse` elementy wyrównane do linii
+    bazowej są odbijane jako grupa i zachowują wspólną krawędź;
   - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
     ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
     rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne

@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
@@ -1346,6 +1347,11 @@ func cellBaseline(cell Box) pr.Float {
 // if any or nil. Can't return "auto".
 // [last] defaults to false, baselinesT to nothing
 func findInFlowBaseline(box Box, last bool, baselinesT ...bo.BoxType) pr.MaybeFloat {
+	return findBaseline(box, last, true, baselinesT...)
+}
+
+// findBaseline: z flexBaseline blokowy kontener flex w wierszu zwraca własną linię bazową.
+func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr.MaybeFloat {
 	if len(baselinesT) == 0 {
 		baselinesT = []bo.BoxType{bo.LineT}
 	}
@@ -1359,6 +1365,11 @@ func findInFlowBaseline(box Box, last bool, baselinesT ...bo.BoxType) pr.MaybeFl
 	if bo.TableCaptionT.IsInstance(box) {
 		return nil
 	}
+	// gopdfgo: blokowy kontener flex w wierszu ma własną linię bazową (zob. flexLayout)
+	if baseline, ok := box.Box().Baseline.(pr.Float); ok && !last && flexBaseline && bo.FlexT.IsInstance(box) &&
+		strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") {
+		return box.Box().ContentBoxY() + baseline
+	}
 
 	children := box.Box().Children
 	if last {
@@ -1366,7 +1377,7 @@ func findInFlowBaseline(box Box, last bool, baselinesT ...bo.BoxType) pr.MaybeFl
 	}
 	for _, child := range children {
 		if child.Box().IsInNormalFlow() {
-			result := findInFlowBaseline(child, last, baselinesT...)
+			result := findBaseline(child, last, flexBaseline, baselinesT...)
 			if result != nil {
 				return result
 			}

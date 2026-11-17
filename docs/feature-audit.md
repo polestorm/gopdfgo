@@ -1540,3 +1540,7 @@ Co zostało: `css-text` 251 (z tego ok. 60 pismo od prawej do lewej i `letter-sp
 15 `white-space-trim`, 10 `text-fit`, 10 `hanging-punctuation`), `css-flexbox` 247 (ok. 40 pismo pionowe
 i od prawej do lewej, ok. 20 linia bazowa, 8 tabela jako element, reszta pojedyncze przypadki).
 
+Uzupełnienie z tego samego dnia: linia bazowa kontenera flex (przesunięcie przez `align-content`,
+`wrap-reverse`, blokowy kontener jako element innego kontenera) dała 3 testy: siedem obszarów 7273 z 9123
+(ściśle 6874, krawędziowo 399), `css-flexbox` 708 z 952; pełny sondaż, strat brak.
+

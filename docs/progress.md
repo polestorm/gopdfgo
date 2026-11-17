@@ -21,11 +21,16 @@ Od 2026-11-17 test z kilkoma odnośnikami `rel="match"` jest zaliczony, gdy zgad
 Dotyczy 61 testów (47 w `css-text`, 12 w CSS 2, 2 w `css-fonts`); sama zmiana miary dała 13 zaliczeń
 (9 w tekście, 4 w CSS 2).
 
+Od 2026-11-17 skrypt sondażu porównuje obrazy w ośmiu procesach zamiast wątków (porównanie pikseli to czysty
+Python, wątki wykonywały je po kolei) i pamięta ostatnio renderowane wzorce (11 061 użyć przy 5066 różnych).
+Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik jest identyczny co do testu
+(sprawdzone na 2837 testach czterech obszarów).
+
 ## Stan w liczbach
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7270 z 9123 (79,7%)** | ściśle 6871, krawędziowo 399; tryb ciągły; od 17.11 zestaw większy o 13 testów |
+| Sondaż ekranowy W3C | **7273 z 9123 (79,7%)** | ściśle 6874, krawędziowo 399; tryb ciągły; od 17.11 zestaw większy o 13 testów |
 | Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1333 z 1839 (72,5%)** | ściśle 1293, krawędziowo 40; `css-text` 658 z 909, `css-backgrounds` 490 z 603, `css-fonts` 185 z 327; od 17.11 zestaw większy o 71 testów |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
@@ -73,7 +78,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 16.11  kolumny: strony, wysokości   7209  ███████████████████████████████████████▌ 79,1%
 16.11  tryb ciągły (*)              7229  ███████████████████████████████████████▋ 79,4%
 17.11  większy zestaw (9123)        7240  ███████████████████████████████████████▋ 79,4%
-17.11  tekst, flex                  7270  ███████████████████████████████████████▊ 79,7%
+17.11  tekst, flex                  7273  ███████████████████████████████████████▊ 79,7%
 ```
 
 (*) Skoki z 13.11 i przejście na tryb ciągły 16.11 to poprawki metody pomiaru, nie silnika; przy trybie
@@ -130,7 +135,7 @@ CSS 2 (5846)                    ████████████████
 css-backgrounds (603)           ████████████████▎    81,3%    113
 css-tables (141)                ████████████████     80,1%     28
 css-lists (151)                 ███████████████▌     77,5%     34
-css-flexbox (952)               ██████████████▊      74,1%    247
+css-flexbox (952)               ██████████████▊      74,4%    244
 css-grid bez lanes i subgrid    █████████████▊       68,9%    199
 css-multicol (370)              █████████████▏       65,9%    126
 css-text (909)                  ██████████████▌      72,4%    251
@@ -143,7 +148,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7147 z 8140 (87,8%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7150 z 8140 (87,8%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 

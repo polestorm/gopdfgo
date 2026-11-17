@@ -890,7 +890,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				parentBox, pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
 			adjoiningMargins := tmp.adjoiningMargins
 			child.Baseline = pr.Float(0)
-			if bl := findInFlowBaseline(newChild_, false); bl != nil {
+			// przy „last baseline” zostaje dotychczasowe szukanie w głębi (bez linii bazowej zagnieżdżonego kontenera flex)
+			itemAlign := child.Style.GetAlignSelf()
+			if itemAlign.Has(pr.Auto) {
+				itemAlign = box.Style.GetAlignItems()
+			}
+			if bl := findBaseline(newChild_, false, !itemAlign.Has(pr.Last)); bl != nil {
 				child.Baseline = bl.V()
 			}
 			if cross == pr.PHeight {
@@ -1434,6 +1439,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			box.Width = crossSize
 		}
 	}
+	// gopdfgo: przesunięcie każdej linii przez align-content, potrzebne do linii bazowej kontenera
+	lineShift := make([]pr.Float, len(flexLines))
 	if len(flexLines) > 1 {
 		// 15 If the cross size property is a definite size, use that…
 		extraCrossSize := getAttr(box, cross, "").V()
@@ -1457,8 +1464,19 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 				setPos(child, direction, currentValue+crossTranslate)
 			}
+			lineShift[i] = crossTranslate
 			if extraCrossSize == 0 {
 				continue
+			}
+			switch {
+			case alignContent.Intersects(pr.End, pr.FlexEnd):
+				lineShift[i] += extraCrossSize
+			case alignContent.Has(pr.Center):
+				lineShift[i] += extraCrossSize / 2
+			case alignContent.Has(pr.SpaceAround):
+				lineShift[i] += extraCrossSize / pr.Float(len(flexLines)) / 2
+			case alignContent.Has(pr.SpaceEvenly):
+				lineShift[i] += extraCrossSize / (pr.Float(len(flexLines)) + 1)
 			}
 			for _, child := range flexItems {
 				// gopdfgo: każdy element przesuwamy od jego własnej pozycji; źródło brało pozycję
@@ -1703,6 +1721,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 
 	// TODO: Use real algorithm, see https://www.w3.org/TR/css-flexbox-1/#flex-baselines.
+	if !bo.InlineFlexT.IsInstance(box_) && main == pr.PWidth && len(flexLines) != 0 && flexLines[0].lowerBaseline > -pr.Inf &&
+		box.Style.GetFlexWrap() != "wrap-reverse" {
+		// gopdfgo: także kontener blokowy ma linię bazową z pierwszej linii elementów (CSS Flexbox 1
+		// § 8.5); korzysta z niej findInFlowBaseline, gdy kontener leży w inline-block, komórce albo
+		// innym kontenerze flex. Źródło szukało wtedy pierwszego wiersza tekstu w głębi.
+		box.Baseline = flexLines[0].lowerBaseline + lineShift[0]
+	}
 	if bo.InlineFlexT.IsInstance(box_) {
 		// gopdfgo: kontener bez elementu wyznaczającego linię bazową ma ją syntetyzowaną z dolnej krawędzi
 		// marginesu (CSS Align 3 § 9.1, kontekst liniowy); źródło przyjmowało górę pudełka, więc pusty
@@ -1713,7 +1738,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 		if main == pr.PWidth { // and main text direction is horizontal
 			if len(flexLines) != 0 {
-				box.Baseline = flexLines[0].lowerBaseline
+				// gopdfgo: z przesunięciem pierwszej linii przez align-content; źródło je pomijało
+				box.Baseline = flexLines[0].lowerBaseline + lineShift[0]
 			} else {
 				box.Baseline = synthesized
 			}
@@ -1742,17 +1768,21 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// linię bazową; pozostałe każdy z osobna.
 			groupTop, groupBottom := pr.Inf, -pr.Inf
 			isBaseline := make([]bool, len(line))
-			if cross == pr.PHeight {
-				for i, v := range line {
-					child := v.Box()
-					alignSelf := child.Style.GetAlignSelf()
-					if alignSelf.Has(pr.Auto) {
-						alignSelf = box.Style.GetAlignItems()
-					}
-					if alignSelf.Has(pr.Baseline) {
-						isBaseline[i] = true
+			for i, v := range line {
+				child := v.Box()
+				alignSelf := child.Style.GetAlignSelf()
+				if alignSelf.Has(pr.Auto) {
+					alignSelf = box.Style.GetAlignItems()
+				}
+				if alignSelf.Has(pr.Baseline) {
+					isBaseline[i] = true
+					if cross == pr.PHeight {
 						groupTop = min(groupTop, child.PositionY)
 						groupBottom = max(groupBottom, child.PositionY+child.MarginHeight())
+					} else {
+						// gopdfgo: w kolumnie grupa to zakres w osi poziomej (elementy zachowują wspólną krawędź)
+						groupTop = min(groupTop, child.PositionX)
+						groupBottom = max(groupBottom, child.PositionX+child.MarginWidth())
 					}
 				}
 			}
@@ -1767,12 +1797,22 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 						delta = top + box.Height.V() - (child.PositionY - top) - child.MarginHeight() - child.PositionY
 					}
 					v.Translate(0, delta, false)
-					if lineIndex == 0 && i == 0 && bo.InlineFlexT.IsInstance(box_) {
-						box.Baseline = box.Baseline.V() + delta
+					// gopdfgo: linię bazową kontenera wyznacza linia leżąca najwyżej, czyli po odwróceniu
+					// ostatnia (CSS Align 3 § 9.1: pierwsza linia bazowa pochodzi z linii najbliższej
+					// początkowi bloku). Źródło brało pierwszą linię flex, która po odwróceniu jest na dole.
+					if last := len(finalLines) - 1; lineIndex == last && i == 0 && bo.InlineFlexT.IsInstance(box_) && last < len(flexLines) {
+						lineStart := lineShift[last]
+						for _, previous := range flexLines[:last] {
+							lineStart += previous.crossSize
+						}
+						box.Baseline = lineStart + flexLines[last].lowerBaseline + delta
 					}
 				} else if cross == pr.PWidth && box.Width != pr.AutoF {
 					left := box.ContentBoxX()
 					mirrored := left + box.Width.V() - (child.PositionX - left) - child.MarginWidth()
+					if isBaseline[i] {
+						mirrored = child.PositionX + (left + box.Width.V() - (groupTop - left) - (groupBottom - groupTop) - groupTop)
+					}
 					v.Translate(mirrored-child.PositionX, 0, false)
 				}
 			}
