@@ -908,6 +908,8 @@ Wspólne dla obu katalogów:
     W źródle podział był możliwy tylko wewnątrz jednego fragmentu tekstu na początku wiersza;
   - `css/validation` (`wordBreak`), `text/style.go`: `word-break: break-word` działa jak
     `overflow-wrap: anywhere` (§ 5.2, dawna wartość); źródło ją odrzucało;
+  - `word-break: break-all` na granicy elementów zachowuje regułę dla znaków przestankowych: wiersz
+    nie łamie się przed kropką (`breakAllOnly`);
   - tabulatory: `html/layout/inline.go` i `layout.go` (`lineStartX`, `lineTabUnit`, `splitTextBoxAt`),
     `text/text.go` (`SplitFirstLineAt`, `TabUnit`), `text/style.go` (`TabOffset`, `TabUnit`): pozycje
     tabulacji liczą się od początku wiersza, a nie od początku fragmentu tekstu, więc tabulator po
@@ -916,6 +918,22 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- flex, 2026-11-17 (CSS Flexbox 1; testy W3C `css-flexbox`):
+  - `html/layout/preferred.go` (`flexMinContentWidth`, `flexMaxContentWidth`, `flexMainGaps`,
+    `inflexibleBasis`): kontener o szerokości podanej długością ma ją także jako szerokość wewnętrzną
+    (źródło liczyło ją zawsze z elementów, więc element pływający albo `inline-block` z takim kontenerem
+    rozciągał się na całą szerokość); do szerokości wewnętrznej kontenera wierszowego liczą się odstępy
+    `column-gap`; element z `flex: 0 0 <długość>` wnosi swoje `flex-basis` (§ 9.9.1);
+  - `html/layout/flex.go` (krok 12 i 13, `marginIsAuto`): o tym, czy margines jest `auto`, rozstrzyga
+    styl; w kierunku kolumny wcześniejszy układ elementu zerował marginesy i wolne miejsce szło do
+    `justify-content` (§ 8.1). Marginesy `auto` dostają tylko dodatnie wolne miejsce (§ 9.5 krok 12.1;
+    źródło dawało im wartość ujemną i elementy nachodziły na siebie). Element z marginesem `auto` w osi
+    poprzecznej zaczyna się na początku swojej linii, a `align-content` przesuwa każdy element od jego
+    własnej pozycji (źródło brało pozycję ostatniego elementu linii dla wszystkich);
+  - `html/layout/flex.go` (§ 9.7 krok 4b): przy sumie współczynników mniejszej od 1 rozdzielany jest
+    ten ułamek początkowego wolnego miejsca (źródło mnożyło je w każdym obrocie pętli i porównywało
+    rzędy wielkości, tylko dla wartości dodatnich); `css/validation` (`_flexGrowShrink`): ujemne
+    `flex-grow` i `flex-shrink` są odrzucane (§ 7.2);
 - tryb ciągły, 2026-11-16 (ADR 0017): `html/tree/tree.go` (`Behavior.Continuous`),
   `html/layout/pages.go` (`makePage`: dół strony odsunięty na czas układu, potem strona rośnie do dołu
   treści), `html/layout/layout.go` (`contentBottomEdge`, `continuousPageHeight`),

@@ -873,7 +873,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	if fitsOnFirstLine && spaceCollapse {
 		// weasyprint puts the collapsed space on the line...
-		if (width + wLine.TrimmedTrailingWhitespace) <= mw {
+		// gopdfgo: porównanie z szerokością bez tolerancji zaokrągleń, żeby zwrócona szerokość wiersza
+		// nie przekraczała dostępnej
+		if fixedToFloat(width+wLine.TrimmedTrailingWhitespace) <= wrapingMaxWidth {
 			width += wLine.TrimmedTrailingWhitespace
 			// in RTL direction, the collapsed char must be expanded again
 			// Note that the line is already sorted in visual order

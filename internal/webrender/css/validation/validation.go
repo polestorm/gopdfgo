@@ -3161,6 +3161,10 @@ func _flexGrowShrink(tokens []Token) (pr.Fl, bool) {
 	}
 	token := tokens[0]
 	if number, ok := token.(pa.Number); ok {
+		// gopdfgo: wartości ujemne są nieprawidłowe (CSS Flexbox 1 § 7.2); źródło je przyjmowało
+		if number.ValueF < 0 {
+			return 0, false
+		}
 		return number.ValueF, true
 	}
 	return 0, false

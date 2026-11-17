@@ -90,6 +90,11 @@ func getAttr(box *bo.BoxFields, axis pr.KnownProp, min string) pr.MaybeFloat {
 	return boxAxis
 }
 
+// marginIsAuto (gopdfgo): czy margines elementu jest auto według stylu.
+func marginIsAuto(child *bo.BoxFields, side pr.KnownProp) bool {
+	return getDimOrS(child, side).Tag == pr.Auto
+}
+
 // use child.Style
 func getCrossMargins(child *bo.BoxFields, cross pr.KnownProp) (out bo.MaybePoint) {
 	if cross == pr.PWidth {
@@ -724,27 +729,21 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 			}
 
-			if unfrozenFactorSum < 1 {
-				initialFreeSpace *= unfrozenFactorSum
-			}
-
 			if initialFreeSpace == pr.Inf {
 				initialFreeSpace = math.MaxInt32
 			}
 			if remainingFreeSpace == pr.Inf {
 				remainingFreeSpace = math.MaxInt32
 			}
-
-			initialMagnitude := -pr.Inf
-			if initialFreeSpace > 0 {
-				initialMagnitude = pr.Float(math.Round(math.Log10(float64(initialFreeSpace))))
-			}
-			remainingMagnitude := -pr.Inf
-			if remainingFreeSpace > 0 {
-				remainingMagnitude = pr.Float(math.Round(math.Log10(float64(remainingFreeSpace))))
-			}
-			if initialMagnitude < remainingMagnitude {
-				remainingFreeSpace = initialFreeSpace
+			// gopdfgo: gdy suma współczynników jest mniejsza od 1, rozdzielany jest tylko ten ułamek
+			// początkowego wolnego miejsca, o ile jest co do wartości bezwzględnej mniejszy od pozostałego
+			// (CSS Flexbox 1 § 9.7 krok 4b). Źródło mnożyło początkowe wolne miejsce w każdym obrocie pętli
+			// i porównywało rzędy wielkości zamiast wartości, tylko dla dodatnich; flex-shrink poniżej 1
+			// kurczył więc element jak przy 1.
+			if unfrozenFactorSum < 1 {
+				if scaled := initialFreeSpace * unfrozenFactorSum; pr.Abs(scaled) < pr.Abs(remainingFreeSpace) {
+					remainingFreeSpace = scaled
+				}
 			}
 
 			// 9.7.5.c Distribute free space proportional to the flex factors.
@@ -1059,6 +1058,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 
 	// 12 Distribute any remaining free space.
+	// gopdfgo: o tym, czy margines jest auto, rozstrzyga styl, a nie pole pudełka: w kierunku kolumny
+	// wcześniejszy układ elementu zdążył już zamienić marginesy auto na zero i wolne miejsce szło do
+	// justify-content zamiast do marginesu (CSS Flexbox 1 § 8.1).
 	originalPositionMain := box.ContentBoxY()
 	if main == pr.PWidth {
 		originalPositionMain = box.ContentBoxX()
@@ -1087,10 +1089,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			for _, v := range line.line {
 				child := v.box.Box()
 				freeSpace -= child.BorderWidth()
-				if child.MarginLeft != pr.AutoF {
+				if !marginIsAuto(child, pr.PMarginLeft) {
 					freeSpace -= child.MarginLeft.V()
 				}
-				if child.MarginRight != pr.AutoF {
+				if !marginIsAuto(child, pr.PMarginRight) {
 					freeSpace -= child.MarginRight.V()
 				}
 			}
@@ -1099,10 +1101,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			for _, v := range line.line {
 				child := v.box.Box()
 				freeSpace -= child.BorderHeight()
-				if child.MarginTop != pr.AutoF {
+				if !marginIsAuto(child, pr.PMarginTop) {
 					freeSpace -= child.MarginTop.V()
 				}
-				if child.MarginBottom != pr.AutoF {
+				if !marginIsAuto(child, pr.PMarginBottom) {
 					freeSpace -= child.MarginBottom.V()
 				}
 			}
@@ -1114,42 +1116,46 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		for _, v := range line.line {
 			child := v.box.Box()
 			if main == pr.PWidth {
-				if child.MarginLeft == pr.AutoF {
+				if marginIsAuto(child, pr.PMarginLeft) {
 					margins += 1
 				}
-				if child.MarginRight == pr.AutoF {
+				if marginIsAuto(child, pr.PMarginRight) {
 					margins += 1
 				}
 			} else {
-				if child.MarginTop == pr.AutoF {
+				if marginIsAuto(child, pr.PMarginTop) {
 					margins += 1
 				}
-				if child.MarginBottom == pr.AutoF {
+				if marginIsAuto(child, pr.PMarginBottom) {
 					margins += 1
 				}
 			}
 		}
 		if margins != 0 {
+			// gopdfgo: marginesy auto dostają tylko dodatnie wolne miejsce; przy przepełnieniu są zerem
+			// (CSS Flexbox 1 § 9.5 krok 12.1). W źródle dostawały wartość ujemną i elementy nachodziły na siebie.
+			remaining := freeSpace
+			freeSpace = max(freeSpace, 0)
 			freeSpace /= margins
 			for _, v := range line.line {
 				child := v.box.Box()
 				if main == pr.PWidth {
-					if child.MarginLeft == pr.AutoF {
+					if marginIsAuto(child, pr.PMarginLeft) {
 						child.MarginLeft = freeSpace
 					}
-					if child.MarginRight == pr.AutoF {
+					if marginIsAuto(child, pr.PMarginRight) {
 						child.MarginRight = freeSpace
 					}
 				} else {
-					if child.MarginTop == pr.AutoF {
+					if marginIsAuto(child, pr.PMarginTop) {
 						child.MarginTop = freeSpace
 					}
-					if child.MarginBottom == pr.AutoF {
+					if marginIsAuto(child, pr.PMarginBottom) {
 						child.MarginBottom = freeSpace
 					}
 				}
 			}
-			freeSpace = 0
+			freeSpace = min(remaining, 0)
 		}
 
 		// gopdfgo: gdy wolnego miejsca brakuje albo w linii jest jeden element,
@@ -1279,21 +1285,28 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 			// If a flex item has auto cross-axis margins…
 			if autoMargins != 0 {
+				// gopdfgo: element z marginesem auto też zaczyna się na początku swojej linii; w źródle
+				// zostawał na pozycji sprzed układu linii i przesuwał całą linię przy align-content.
+				if cross == pr.PHeight {
+					child.PositionY = positionCross
+				} else {
+					child.PositionX = positionCross
+				}
 				extraCross := line.crossSize
 				if cross == pr.PHeight {
 					extraCross -= child.BorderHeight()
-					if child.MarginTop != pr.AutoF {
+					if !marginIsAuto(child, pr.PMarginTop) {
 						extraCross -= child.MarginTop.V()
 					}
-					if child.MarginBottom != pr.AutoF {
+					if !marginIsAuto(child, pr.PMarginBottom) {
 						extraCross -= child.MarginBottom.V()
 					}
 				} else {
 					extraCross -= child.BorderWidth()
-					if child.MarginLeft != pr.AutoF {
+					if !marginIsAuto(child, pr.PMarginLeft) {
 						extraCross -= child.MarginLeft.V()
 					}
-					if child.MarginRight != pr.AutoF {
+					if !marginIsAuto(child, pr.PMarginRight) {
 						extraCross -= child.MarginRight.V()
 					}
 				}
@@ -1301,29 +1314,29 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					// If its outer cross size is less than the cross size…
 					extraCross /= autoMargins
 					if cross == pr.PHeight {
-						if child.Style.GetMarginTop().Tag == pr.Auto {
+						if marginIsAuto(child, pr.PMarginTop) {
 							child.MarginTop = extraCross
 						}
-						if child.Style.GetMarginBottom().Tag == pr.Auto {
+						if marginIsAuto(child, pr.PMarginBottom) {
 							child.MarginBottom = extraCross
 						}
 					} else {
-						if child.Style.GetMarginLeft().Tag == pr.Auto {
+						if marginIsAuto(child, pr.PMarginLeft) {
 							child.MarginLeft = extraCross
 						}
-						if child.Style.GetMarginRight().Tag == pr.Auto {
+						if marginIsAuto(child, pr.PMarginRight) {
 							child.MarginRight = extraCross
 						}
 					}
 				} else {
 					// Otherwise…
 					if cross == pr.PHeight {
-						if child.MarginTop == pr.AutoF {
+						if marginIsAuto(child, pr.PMarginTop) {
 							child.MarginTop = pr.Float(0)
 						}
 						child.MarginBottom = extraCross
 					} else {
-						if child.MarginLeft == pr.AutoF {
+						if marginIsAuto(child, pr.PMarginLeft) {
 							child.MarginLeft = pr.Float(0)
 						}
 						child.MarginRight = extraCross
@@ -1414,19 +1427,23 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			if i != 0 {
 				crossTranslate += crossGap
 			}
-			var currentValue pr.Float
 			for _, child := range flexItems {
-				currentValue = child.PositionX
+				currentValue := child.PositionX
 				if direction == directionY {
 					currentValue = child.PositionY
 				}
-				currentValue += crossTranslate
-				setPos(child, direction, currentValue)
+				setPos(child, direction, currentValue+crossTranslate)
 			}
 			if extraCrossSize == 0 {
 				continue
 			}
 			for _, child := range flexItems {
+				// gopdfgo: każdy element przesuwamy od jego własnej pozycji; źródło brało pozycję
+				// ostatniego elementu linii dla wszystkich, gubiąc wyrównanie w osi poprzecznej
+				currentValue := child.PositionX
+				if direction == directionY {
+					currentValue = child.PositionY
+				}
 				switch {
 				case alignContent.Intersects(pr.End, pr.FlexEnd):
 					setPos(child, direction, currentValue+extraCrossSize)

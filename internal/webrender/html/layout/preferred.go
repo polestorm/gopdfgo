@@ -1076,10 +1076,18 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	// TODO: use real values, see
 	// https://www.w3.org/TR/css-flexbox-1/#intrinsic-sizes
+	// gopdfgo: kontener o szerokości podanej długością ma tę szerokość także jako wewnętrzną
+	// (CSS Sizing 3 § 5.1), tak jak blok i siatka; źródło liczyło ją zawsze z elementów.
+	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
+		return adjust(box, outer, width.Value, true, true)
+	}
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
+			if basis, ok := inflexibleBasis(child); ok {
+				v = basis
+			}
 			sum += v
 			if v > max {
 				max = v
@@ -1087,13 +1095,44 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		}
 	}
 	if strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") && box.Box().Style.GetFlexWrap() == "nowrap" {
-		return adjust(box, outer, sum, true, true)
+		return adjust(box, outer, sum+flexMainGaps(box), true, true)
 	} else {
 		if wrapped, ok := columnWrapContentWidth(context, box, minContentWidth); ok {
 			return adjust(box, outer, wrapped, true, true)
 		}
 		return adjust(box, outer, max, true, true)
 	}
+}
+
+// inflexibleBasis (gopdfgo): element flex, który ani nie rośnie, ani się nie kurczy, i ma flex-basis
+// podane długością, wnosi do szerokości wewnętrznej kontenera wierszowego właśnie tę długość
+// (CSS Flexbox 1 § 9.9.1), a nie szerokość swojej treści.
+func inflexibleBasis(child Box) (pr.Float, bool) {
+	style := child.Box().Style
+	basis := style.GetFlexBasis()
+	if style.GetFlexGrow() != 0 || style.GetFlexShrink() != 0 || basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
+		return 0, false
+	}
+	return adjust(child, true, basis.Value, true, true), true
+}
+
+// flexMainGaps (gopdfgo): suma odstępów column-gap między elementami kontenera flex w wierszu; liczy
+// się do jego szerokości wewnętrznej (CSS Align 3 § 8). Odstęp w procentach daje tu zero.
+func flexMainGaps(box Box) pr.Float {
+	gap := box.Box().Style.GetColumnGap()
+	if gap.Tag == pr.Normal || gap.Unit != pr.Px || gap.Calc != nil {
+		return 0
+	}
+	items := 0
+	for _, child := range box.Box().Children {
+		if child.Box().IsFlexItem {
+			items++
+		}
+	}
+	if items < 2 {
+		return 0
+	}
+	return gap.Value * pr.Float(items-1)
 }
 
 // columnWrapContentWidth (gopdfgo): szerokość wewnętrzna kontenera flex w kolumnie z zawijaniem
@@ -1198,10 +1237,18 @@ func columnWrapContentWidth(context *layoutContext, box Box, itemWidth func(*lay
 func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	// TODO: use real values, see
 	// https://www.w3.org/TR/css-flexbox-1/#intrinsic-sizes
+	// gopdfgo: kontener o szerokości podanej długością ma tę szerokość także jako wewnętrzną
+	// (CSS Sizing 3 § 5.1), tak jak blok i siatka; źródło liczyło ją zawsze z elementów.
+	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
+		return adjust(box, outer, width.Value, true, true)
+	}
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
+			if basis, ok := inflexibleBasis(child); ok {
+				v = basis
+			}
 			sum += v
 			if v > max {
 				max = v
@@ -1209,7 +1256,7 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		}
 	}
 	if strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") {
-		return adjust(box, outer, sum, true, true)
+		return adjust(box, outer, sum+flexMainGaps(box), true, true)
 	} else {
 		if wrapped, ok := columnWrapContentWidth(context, box, maxContentWidth); ok {
 			return adjust(box, outer, wrapped, true, true)

@@ -154,3 +154,17 @@ hebrajski z liczbami i nawiasami bywa przez to w złej kolejności.
 Koszt: szacunek 2–3 paczki. Zysk w sondażu W3C: ok. 55 testów w CSS 2 (`bidi-*`, `unicode-bidi-*`)
 i kilkadziesiąt w innych obszarach (flex, siatka, tekst: `pre-wrap-align-*`, `letter-spacing-bidi-*`).
 Do czasu decyzji testy wymagające pisma od prawej do lewej pomijamy przy wyborze poprawek.
+
+## 25. Czy dokumenty XHTML parsować parserem XML?
+
+Otwarte od 2026-11-17. Dokument z przestrzenią nazw XHTML jest dziś poprawiany tekstowo (`xhtml.go`:
+rozwijanie `<div/>`, prefiksy przestrzeni nazw) i czytany parserem HTML5. Parser HTML5 stosuje własne
+naprawy drzewa, których XML nie zna: tekst bezpośrednio w `<table>` wynosi przed tabelę, `<p>` zamyka
+się przed elementem blokowym, zagnieżdżone `<a>` są rozdzielane. Dokument XHTML, który z tego korzysta
+(np. wynik XSLT z blokiem w akapicie), dostaje inne drzewo niż w przeglądarce.
+
+W sondażu W3C widać to we wzorcach kilku testów flex (`flexbox-align-self-baseline-horiz-*`: tekst
+w `<table>`); szacunek zysku to kilka do kilkunastu testów. Koszt: zbudowanie drzewa węzłów z
+`encoding/xml` (encje XHTML, CDATA, przestrzenie nazw SVG i MathML) i ryzyko dla ok. 5800 testów CSS 2
+w `.xht`, które dziś przechodzą ścieżką HTML5. Możliwy wariant ostrożny: parser XML, a przy błędzie
+składni powrót do obecnej ścieżki.

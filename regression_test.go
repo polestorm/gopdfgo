@@ -2693,3 +2693,56 @@ func TestHangingSpacesAndTabStops(t *testing.T) {
 	// odstęp tabulacji wynika z fontu bloku, nie elementu liniowego
 	same("tab-unit-from-block", `<div class=pre style="tab-size:4"><span style="font-size:10px">&#9;</span>X</div>`, `<div class=pre>    X</div>`)
 }
+
+// Flex (CSS Flexbox 1 § 8.1, § 9.5, § 9.7, § 9.9.1): szerokość wewnętrzna kontenera o podanej
+// szerokości i z odstępami, marginesy auto w kolumnie i przy przepełnieniu, ułamkowy i ujemny flex-shrink.
+func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
+	head := `<style>@page { size: 400px 300px; margin: 0 } body { margin: 0 } .g { background: green } .b { background: blue }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(head+body), Options{Fonts: testFonts(t)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	same := func(name, test, reference string) {
+		t.Helper()
+		if n := differentPixels(page(name, test), page(name+"-ref", reference)); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+	// element pływający dopasowuje się do kontenera flex o podanej szerokości, nie do sumy jego elementów
+	same("definite-width", `<div class=g style="float:left"><div style="display:flex;flex-wrap:wrap;width:100px;height:40px">
+		<div style="width:80px"></div><div style="width:80px"></div></div></div>`, `<div class=g style="width:100px;height:40px"></div>`)
+	// column-gap liczy się do szerokości max-content
+	same("gap-in-max-content", `<div class=g style="display:flex;column-gap:60px;width:max-content;height:40px">
+		<div style="width:20px"></div><div style="width:20px"></div></div>`, `<div class=g style="width:100px;height:40px"></div>`)
+	// element nieelastyczny wnosi swoje flex-basis
+	same("inflexible-basis", `<div class=g style="display:flex;width:max-content;height:40px">
+		<div style="flex:0 0 30px"></div><div style="flex:0 0 70px"></div></div>`, `<div class=g style="width:100px;height:40px"></div>`)
+	// margines auto w kierunku kolumny zabiera wolne miejsce (justify-content nie działa)
+	same("auto-margin-column", `<div style="display:flex;flex-direction:column;justify-content:space-around;height:200px;width:50px">
+		<div class=g style="height:40px"></div><div class=b style="height:40px;margin-top:auto"></div></div>`,
+		`<div class=g style="height:40px;width:50px"></div><div class=b style="height:40px;width:50px;margin-top:120px"></div>`)
+	// element z marginesem auto w osi poprzecznej nie przesuwa swojej linii przy align-content
+	same("auto-cross-margin-wrap", `<div style="display:flex;flex-flow:column wrap;align-content:space-around;height:100px;width:200px">
+		<div class=g style="width:40px;height:60px"></div><div class=b style="width:40px;height:60px;margin-left:auto"></div></div>`,
+		`<div style="position:relative;height:100px"><div class=g style="position:absolute;left:30px;width:40px;height:60px"></div>
+		<div class=b style="position:absolute;left:130px;width:40px;height:60px"></div></div>`)
+	// przy przepełnieniu marginesy auto są zerem, elementy nie nachodzą na siebie
+	same("auto-margin-overflow", `<div style="display:flex;width:100px;height:40px"><div class=g style="flex:none;width:80px;margin:0 auto"></div>
+		<div class=b style="flex:none;width:80px;margin:0 auto"></div></div>`,
+		`<div style="display:flex;width:160px;height:40px"><div class=g style="flex:none;width:80px"></div><div class=b style="flex:none;width:80px"></div></div>`)
+	// suma flex-shrink poniżej 1: kurczy się tylko o ułamek brakującego miejsca
+	same("fractional-shrink", `<div style="display:flex;width:50px"><div class=g style="flex-shrink:0.5;width:150px;height:40px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
+	// ujemny flex-shrink jest nieprawidłowy i nie zmienia wartości początkowej
+	same("negative-shrink", `<div style="display:flex;width:100px"><div class=g style="flex-shrink:-2;width:200px;height:40px"></div></div>`,
+		`<div class=g style="width:100px;height:40px"></div>`)
+}

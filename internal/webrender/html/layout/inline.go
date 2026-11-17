@@ -1136,7 +1136,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 						resumeAt = tree.ResumeStack{index: retry.resumeAt}
 						break
 					}
-					if len(waitingChildren) != 0 {
+					if len(waitingChildren) != 0 && (!breakAllOnly(child.Style) || unicode.IsLetter(first) || unicode.IsDigit(first)) {
 						children = append(children, waitingChildren...)
 						waitingChildren = nil
 						resumeAt = tree.ResumeStack{index: nil}
@@ -1744,10 +1744,18 @@ func breaksAnywhere(style pr.ElementStyle, intrinsic bool) bool {
 			return true
 		}
 	}
-	if wb := style.GetWordBreak(); wb == "break-all" || wb == "break-word" {
+	if style.GetWordBreak() == "break-word" || style.GetLineBreak() == "anywhere" {
 		return true
 	}
-	return style.GetLineBreak() == "anywhere"
+	// word-break: break-all łamie tylko między literami i cyframi; na granicy elementów sprawdza to
+	// wołający (breakAllOnly), a przy szerokości min-content granicy nie liczymy
+	return !intrinsic && style.GetWordBreak() == "break-all"
+}
+
+// breakAllOnly: łamanie w dowolnym miejscu wynika wyłącznie z word-break: break-all, które zachowuje
+// reguły dla znaków przestankowych (wiersz nie zaczyna się od kropki).
+func breakAllOnly(style pr.ElementStyle) bool {
+	return style.GetWordBreak() == "break-all" && style.GetOverflowWrap() == "normal" && style.GetLineBreak() != "anywhere"
 }
 
 func isNilTextBox(box Box) bool {
