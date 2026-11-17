@@ -919,6 +919,31 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- `text-justify`, `text-indent`, `word-spacing`, `text-wrap-mode`, 2026-11-17 (CSS Text 3 i 4; testy W3C
+  `css-text`):
+  - `text-justify` (§ 6.4): nowa dziedziczona właściwość `PTextJustify` (`css/properties`,
+    `css/validation` `textJustify`); `html/layout/inline.go` (`countExpandableSpaces`): tekst
+    z `text-justify: none` nie ma miejsc justowania, liczy się styl pudełka tekstu; `inter-word`
+    i `inter-character` justują jak `auto`. Źródło właściwości nie znało;
+  - `text-indent: <length-percentage> && hanging? && each-line?` (§ 7.1): nowy typ `pr.TextIndent`
+    (`css/properties/types.go`), `css/validation` (`textIndent`), `html/tree/computed_values.go`
+    (`textIndent`), `html/boxes` (`LineBox.AfterBlock`, `markAfterBlock` w `InlineInBlock`
+    i `BlockInInline`), `html/layout/inline.go` (`lineBoxeIterator`, `iterLineBoxes`, `getNextLinebox`
+    zwraca `forcedBreak`), `html/layout/preferred.go` (`inlineLineWidths`): wcięcie dostaje pierwszy
+    sformatowany wiersz kontenera blokowego, z `each-line` także każdy wiersz po wymuszonym złamaniu,
+    `hanging` odwraca wybór. Źródło przyjmowało samą długość (deklaracja ze słowem przepadała) i wcinało
+    pierwszy wiersz każdego pudełka wiersza, także tekstu po pudełku blokowym. Ograniczenia: wiersz
+    wznowiony po podziale strony liczy się jak zwykły; szerokości wewnętrzne nie odróżniają złamań
+    wymuszonych od miękkich;
+  - `word-spacing: <percentage>` (CSS Text 4 § 10.1): `css/validation` (`wordSpacing`, `spacingValue`),
+    `text/style.go` (`WordSpacingPercent`, `WordSpacingCalc`), `text/engine_gotext.go` (`wordSpacing`):
+    procent liczy się od szerokości znaku U+0020 w foncie elementu, także w `calc()`;
+  - `text-wrap-mode` i `text-wrap: wrap | nowrap` (CSS Text 4 § 3, § 5): nowa dziedziczona właściwość
+    `PTextWrapMode`; `white-space` stał się skrótem ustawiającym `white-space` i `text-wrap-mode`
+    (`css/validation/expanders.go` `_expandWhiteSpace`, `_expandTextWrap`); `html/tree/style.go`
+    (`effectiveWhiteSpace`) składa obie w jedno słowo przy obliczaniu stylu, więc układ czyta jedną
+    wartość. Pozostałe wartości `text-wrap` (`balance`, `pretty`, `stable`) są odrzucane jak dotąd.
+    Ograniczenie: `pre-line` z `nowrap` nadal się zawija;
 - `font-size-adjust`, 2026-11-17 (CSS Fonts 5 § 2.7; testy W3C `css-fonts/font-size-adjust-*`). Źródło
   właściwości nie znało: deklaracja była odrzucana, a tekst składany zawsze w obliczonym rozmiarze fontu.
   - `css/properties` (`PFontSizeAdjust`, dziedziczona, wartość `pr.SBoolFloat`: String = metryka,
