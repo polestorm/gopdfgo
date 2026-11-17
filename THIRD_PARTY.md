@@ -930,6 +930,8 @@ Wspólne dla obu katalogów:
     kontenera z pierwszego i ostatniego niepustego wiersza, syntetyzowane z krawędzi obramowania; pusty
     inline-grid stoi na dolnej krawędzi marginesu. Rozciąganie elementu respektuje `min-`/`max-width`
     i `-height` (CSS Align 3 § 6.1), tabela jako element siatki jest rozciągana do obszaru (§ 6.2);
+    wysokość dostaje dopiero wtedy, gdy ułożona do treści jest niższa niż obszar, bo określona wysokość
+    tabeli zmienia rozwiązywanie procentowych wysokości komórek;
   - `html/layout/tables.go` (`findBaseline`): kontener siatki zwraca zapisane linie bazowe zamiast schodzić
     do dzieci w kolejności dokumentu; kontener flex bez linii bazowej elementów ma ją syntetyzowaną
     z dolnej krawędzi obramowania pierwszego elementu (CSS Flexbox 1 § 8.5);

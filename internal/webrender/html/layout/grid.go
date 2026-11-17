@@ -2141,6 +2141,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		// o rozmiarze decyduje styl tabeli, nie pudełka opakowującego, więc rozmiar obszaru bez obramowania
 		// i odstępu tabeli trafia do jej stylu.
 		// Źródło zostawiało tabelę w rozmiarze treści.
+		stretchedTableHeight := pr.Float(-1)
 		if childB.IsTableWrapper && !replaced {
 			table := childB.GetWrappedTable().Box()
 			tableWidth, tableHeight := table.Style.GetWidth(), table.Style.GetHeight()
@@ -2160,8 +2161,10 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 						px(style.GetPaddingLeft())-px(style.GetPaddingRight()), 0)))
 				}
 				if stretchHeight {
-					style.SetHeight(pr.FToPx(max(childHeight-style.GetBorderTopWidth().Value-style.GetBorderBottomWidth().Value-
-						px(style.GetPaddingTop())-px(style.GetPaddingBottom()), 0)))
+					// wysokość nadajemy dopiero, gdy tabela ułożona do treści jest niższa niż obszar (niżej):
+					// określona wysokość tabeli zmienia rozwiązywanie procentowych wysokości komórek
+					stretchedTableHeight = max(childHeight-style.GetBorderTopWidth().Value-style.GetBorderBottomWidth().Value-
+						px(style.GetPaddingTop())-px(style.GetPaddingBottom()), 0)
 				}
 				table.Style = style
 			}
@@ -2177,6 +2180,15 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		parent.Box().Height = heightF
 		newChild, itemLayout, _ := blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
 			pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
+		if stretchedTableHeight >= 0 && newChild != nil && itemLayout.resumeAt == nil && newChild.Box().MarginHeight() < childHeight-0.5 {
+			removePlaceholders(context, []Box{newChild}, absoluteBoxes, fixedBoxes)
+			table := childB.GetWrappedTable().Box()
+			style := table.Style.Copy()
+			style.SetHeight(pr.FToPx(stretchedTableHeight))
+			table.Style = style
+			newChild, itemLayout, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, childSkipStack, parent.Box(),
+				pageIsEmpty, absoluteBoxes, fixedBoxes, nil, false, -1)
+		}
 		if newChild != nil {
 			if itemLayout.resumeAt != nil && bottomSpace > -pr.Inf && !clipsBlockOverflow(box) {
 				if resumedRow == -1 || yi < resumedRow {
