@@ -186,7 +186,12 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		// pływających, pod pudełkami pozycjonowanymi; w źródle trafiał do kontekstów o z-index 0 i zasłaniał
 		// wcześniejsze pudełka pozycjonowane (test WPT max-width-106). Pozycjonowanych potomków rysujemy
 		// razem z nim, żeby objęło ich przycięcie.
-		if box.Box().IsFloated() && !absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned {
+		// To samo dotyczy bloku w przepływie: rysujemy go w całości (przycięcie obejmuje całą jego treść)
+		// na tej samej warstwie, czyli nad tłami bloków i pod pudełkami pozycjonowanymi (test WPT
+		// abspos-overflow-011); w CSS jego potomkowie należą do zwykłych warstw rodzica, czego tu nie
+		// odtwarzamy (test overflow-scroll-paint-order nadal nie przechodzi).
+		if (box.Box().IsFloated() || (bo.BlockLevelT.IsInstance(box) && box.Box().IsInNormalFlow())) &&
+			!absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned {
 			*floats = append(*floats, newStackingContextFromBox(box, page, nil, innerEscape))
 			*childContexts = append(*childContexts, escaped...)
 			return nil
