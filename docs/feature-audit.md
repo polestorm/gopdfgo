@@ -1720,3 +1720,34 @@ flex i siatki pełny sondaż dał 7427 z 9123 (ściśle 7031, krawędziowo 396; 
 - **Flex i siatka:** dolny margines ostatniego dziecka zostaje w elemencie flex i siatki (jak górny);
   w korpusie dokument `19-flex-grid-pagination` zbliżył się do Chromium (73 → 72 słowa odsunięte o ponad 3 pt).
 
+## Trzecia paczka równoległa: elementy pływające, kolumny w tabelach, linia bazowa siatki, ogon flex (2026-11-17)
+
+Czterech pomocników w osobnych kopiach roboczych (elementy pływające i clearance w CSS 2, kolumny w komórkach
+tabel, linia bazowa siatki) i ogon flex u mnie; jeden pełny sondaż po scaleniu wszystkiego.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7427 | 7517 (ściśle 7121, krawędziowo 396) |
+| bez funkcji eksperymentalnych (8140) | 7294 | 7384 (90,7%) |
+| tekst, tła, fonty (1839) | 1401 | 1403 |
+| zyski według obszaru | | CSS 2: 42, flex 20, siatka 16, kolumny 12, tabele 2, tekst 2 |
+
+Stracone 2: `flex-container-min-content-001` i `-max-content-001`. Przechodziły przypadkiem: elementy pływające
+w elementach flex znikały, więc test i wzorzec były puste. Po poprawce kontekstu formatowania elementu flex
+widać faktyczne braki w części przypadków. Korpus bez zmian (dokument 19 bliżej Chromium jak w poprzedniej paczce).
+
+- **Pomocnik, elementy pływające i clearance (CSS 2.1 § 8.3.1, § 9.5):** 33 z 53 testów plus 4 dodatkowe;
+  wymuszone clearance przy przylegającym elemencie pływającym, ponowny układ pudełek z własnym kontekstem
+  obok elementów pływających, elementy pływające w treści liniowej, reguła 3, elementy o zerowym rozmiarze.
+  Mój wcześniejszy przypadek `no-clearance-large-child-margin` miał błędne oczekiwanie (wzorowany na teście
+  z obramowaniem u rodzica); poprawiony, z dopisanym wariantem z obramowaniem.
+- **Pomocnik, kolumny w komórce tabeli i `inline-block`:** wszystkie 8 testów `css-multicol/table/*` i 3
+  dodatkowe; szerokość wewnętrzna kontenera kolumn; `max-height` nie ogranicza komórki.
+- **Pomocnik, linia bazowa siatki:** 16 testów; grupy first/last baseline w wierszach, odsunięcia doliczane
+  do rozmiaru wierszy, linie bazowe kontenera; pismo pionowe pominięte (ADR 0010).
+- **Flex (ja):** pozycja statyczna dzieci absolutnych według `justify-content` i `align-self` (z `safe`
+  sprawdzanym wobec pudełka zawierającego, jak Chromium); element flex i siatki jako własny kontekst
+  formatowania; procentowy `gap` i marginesy procentowe; `calc()` w `flex-grow` i stałe `calc()`; tekst
+  z samych białych znaków; `order` a dzieci pozycjonowane; `flow-start`/`flow-end`; wkład min-content
+  elementu elastycznego. Siatka: tabela rozciągana dostaje wysokość tylko wtedy, gdy jest niższa niż obszar.
+
