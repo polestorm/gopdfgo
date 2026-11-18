@@ -4306,10 +4306,12 @@ func size(tokens []Token, _ string) pr.CssProperty {
 		keyword := keywords[0]
 		if psize, in := pr.PageSizes[keyword]; in {
 			return psize
-		} else if keyword == "auto" || keyword == "portrait" {
-			return pr.A4
+		} else if keyword == "auto" {
+			return pr.PageOrientationAuto
+		} else if keyword == "portrait" {
+			return pr.PageOrientationPortrait
 		} else if keyword == "landscape" {
-			return pr.Point{pr.A4[1], pr.A4[0]}
+			return pr.PageOrientationLandscape
 		}
 	}
 

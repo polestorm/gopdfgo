@@ -247,6 +247,10 @@ func lengths_(computer *ComputedStyle, value pr.Values) pr.Values {
 
 // Compute the lists of lengths that can be percentages.
 func size(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	if orientation, ok := _value.(pr.PageOrientation); ok {
+		// gopdfgo: słowo, którego kaskada stron nie zamieniła na rozmiar (poza @page): arkusz A4
+		_value = orientation.Orient(pr.A4)
+	}
 	value := _value.(pr.Point)
 	for index, v := range value {
 		value[index] = length_(computer, v.Tagged(), -1, true).Dimension

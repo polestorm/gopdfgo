@@ -248,14 +248,15 @@ func TestSize(t *testing.T) {
 	assertValidDict(t, "size: 200px 300pt", toValidated(pr.Properties{
 		pr.PSize: pr.Point{{Value: 200, Unit: pr.Px}, {Value: 300, Unit: pr.Pt}},
 	}))
+	// gopdfgo: same słowa orientacji zostają słowem; rozmiar arkusza ustala kaskada stron
 	assertValidDict(t, "size: auto", toValidated(pr.Properties{
-		pr.PSize: pr.Point{{Value: 210, Unit: pr.Mm}, {Value: 297, Unit: pr.Mm}},
+		pr.PSize: pr.PageOrientationAuto,
 	}))
 	assertValidDict(t, "size: portrait", toValidated(pr.Properties{
-		pr.PSize: pr.Point{{Value: 210, Unit: pr.Mm}, {Value: 297, Unit: pr.Mm}},
+		pr.PSize: pr.PageOrientationPortrait,
 	}))
 	assertValidDict(t, "size: landscape", toValidated(pr.Properties{
-		pr.PSize: pr.Point{{Value: 297, Unit: pr.Mm}, {Value: 210, Unit: pr.Mm}},
+		pr.PSize: pr.PageOrientationLandscape,
 	}))
 	assertValidDict(t, "size: A3 portrait", toValidated(pr.Properties{
 		pr.PSize: pr.Point{{Value: 297, Unit: pr.Mm}, {Value: 420, Unit: pr.Mm}},

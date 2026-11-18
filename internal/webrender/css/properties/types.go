@@ -224,6 +224,33 @@ func (ts TaggedString) IsNone() bool { return ts.S == "" && ts.Tag == 0 }
 
 type Point [2]Dimension
 
+// PageOrientation (gopdfgo) to wartość size podana samym słowem auto, portrait albo landscape. Odnosi się
+// do rozmiaru arkusza wybranego poza arkuszami autora (arkusz użytkownika, a bez niego A4), więc zostaje
+// słowem do kaskady stron, która zamienia ją na Point (CSS Page 3 § 7.1: „the size of the page sheet
+// is chosen by the UA”). Źródło zamieniało te słowa od razu na A4.
+type PageOrientation uint8
+
+const (
+	PageOrientationAuto PageOrientation = iota + 1
+	PageOrientationPortrait
+	PageOrientationLandscape
+)
+
+// Orient zwraca rozmiar arkusza ustawiony zgodnie z orientacją.
+func (o PageOrientation) Orient(size Point) Point {
+	px := func(d Dimension) Float {
+		if f, ok := LengthsToPixels[d.Unit]; ok {
+			return d.Value * f
+		}
+		return d.Value
+	}
+	wide := px(size[0]) > px(size[1])
+	if (o == PageOrientationLandscape && !wide && px(size[0]) != px(size[1])) || (o == PageOrientationPortrait && wide) {
+		return Point{size[1], size[0]}
+	}
+	return size
+}
+
 type Marks struct {
 	Crop  bool
 	Cross bool
@@ -745,6 +772,7 @@ func (Decorations) isCssProperty()       {}
 func (CounterStyleID) isCssProperty()    {}
 func (Page) isCssProperty()              {}
 func (Point) isCssProperty()             {}
+func (PageOrientation) isCssProperty()   {}
 func (Quotes) isCssProperty()            {}
 func (Repeats) isCssProperty()           {}
 func (SContent) isCssProperty()          {}
@@ -793,6 +821,7 @@ func (Decorations) isDeclaredValue()       {}
 func (CounterStyleID) isDeclaredValue()    {}
 func (Page) isDeclaredValue()              {}
 func (Point) isDeclaredValue()             {}
+func (PageOrientation) isDeclaredValue()   {}
 func (Quotes) isDeclaredValue()            {}
 func (Repeats) isDeclaredValue()           {}
 func (SContent) isDeclaredValue()          {}

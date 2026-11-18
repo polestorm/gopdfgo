@@ -490,6 +490,29 @@ func (s StyleFor) Get(element Element, pseudoType string) pr.ElementStyle {
 }
 
 func (s StyleFor) addPageDeclarations(page_T utils.PageElement) {
+	// gopdfgo: najlepszy rozmiar arkusza spoza arkuszy autora, do którego odnoszą się size: auto,
+	// portrait i landscape (pr.PageOrientation)
+	sizeKey := pr.PSize.Key()
+	var defaultSize weigthedValue
+	defer func() {
+		style, in := s.cascadedStyles[page_T.ToKey("")]
+		if !in {
+			return
+		}
+		orientation, ok := style[sizeKey].value.(pr.PageOrientation)
+		if !ok {
+			return
+		}
+		base := pr.A4
+		if point, ok := defaultSize.value.(pr.Point); ok {
+			base = point
+		} else if other, ok := defaultSize.value.(pr.PageOrientation); ok {
+			base = other.Orient(pr.A4)
+		}
+		resolved := style[sizeKey]
+		resolved.value = orientation.Orient(base)
+		style[sizeKey] = resolved
+	}()
 	for _, sh := range s.sheets {
 		// Add declarations for page elements
 		for _, pageR := range sh.sheet.pageRules {
@@ -511,6 +534,10 @@ func (s StyleFor) addPageDeclarations(page_T utils.PageElement) {
 						// name, values, importance
 						precedence := declarationPrecedence(sh.origin, decl.Important)
 						we := weight{precedence: precedence, specificity: specificity, layer: s.layers[pageR.layer]}
+						if decl.Name == sizeKey && sh.origin != "author" && sel.pseudoType == "" &&
+							(defaultSize.weight.isNone() || defaultSize.weight.Less(we)) {
+							defaultSize = weigthedValue{weight: we, value: decl.Value}
+						}
 						oldWeight := style[decl.Name].weight
 						if oldWeight.isNone() || oldWeight.Less(we) {
 							style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}
