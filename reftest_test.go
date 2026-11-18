@@ -166,6 +166,10 @@ func TestWPTReftests(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var filter *regexp.Regexp
+	if f := os.Getenv("GOPDFGO_REFTEST"); f != "" {
+		filter = regexp.MustCompile(f)
+	}
 	dir := t.TempDir()
 	cache := map[string]rendered{}
 	render := func(name string) rendered {
@@ -187,6 +191,11 @@ func TestWPTReftests(t *testing.T) {
 	for _, row := range rows[1:] {
 		tier, topic, name, kind, references := row[0], row[1], row[2], row[3], row[4]
 		if tier != "paged" {
+			continue
+		}
+		// GOPDFGO_REFTEST=<wyrażenie regularne>: tylko testy o pasującej ścieżce (szybkie sprawdzenie
+		// jednej grupy); wypisuje wtedy też wynik każdego z nich
+		if filter != nil && !filter.MatchString(name) {
 			continue
 		}
 		names = append(names, name)
@@ -232,6 +241,9 @@ func TestWPTReftests(t *testing.T) {
 			detail = ""
 		}
 		results[name] = outcome{result, topic, detail}
+		if filter != nil {
+			t.Logf("%s\t%s\t%s", result, name, detail)
+		}
 	}
 
 	baseline := map[string]string{}
@@ -262,6 +274,9 @@ func TestWPTReftests(t *testing.T) {
 		totals["fail"], totals["error"], totals["ref-error"], len(names))
 
 	if os.Getenv("GOPDFGO_UPDATE_BASELINE") != "" {
+		if filter != nil {
+			t.Fatal("GOPDFGO_UPDATE_BASELINE razem z GOPDFGO_REFTEST zapisałoby niepełny stan bazowy")
+		}
 		var out bytes.Buffer
 		out.WriteString("result\ttopic\ttest\tdetail\n")
 		for _, name := range names {
