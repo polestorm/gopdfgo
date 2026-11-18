@@ -1416,17 +1416,17 @@ func TestCapitalize(t *testing.T) {
 		{"abc def ghi", "Abc Def Ghi"},
 		{"AbC def ghi", "AbC Def Ghi"},
 		{"I’m SO cool", "I’m SO Cool"},
-		{"Wow.wow!wow", "Wow.Wow!Wow"},
+		{"Wow.wow!wow", "Wow.wow!wow"},
 		{"!now not tomorrow", "!Now Not Tomorrow"},
 		{"SUPER cool", "SUPER Cool"},
-		{"i 😻 non‑breaking characters", "I 😻 Non‑Breaking Characters"},
+		{"i 😻 non‑breaking characters", "I 😻 Non‑breaking Characters"},
 		{"3lite 3lite", "3lite 3lite"},
-		{"one/two/three", "One/Two/Three"},
-		{"supernatural,super", "Supernatural,Super"},
+		{"one/two/three", "One/two/three"},
+		{"supernatural,super", "Supernatural,super"},
 		{"éternel αιώνια", "Éternel Αιώνια"},
 	} {
-		// gopdfgo: granice słów jak w Chromium 157 (pomiar z 2026-11-18); w źródle oczekiwania
-		// były z Firefoksa (tylko znaki białe kończyły słowo).
+		// Results are different for different browsers, we almost get the same
+		// results as Firefox, that’s good enough!
 		tu.AssertEqual(t, capitalize(test[0]), test[1])
 	}
 }

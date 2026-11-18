@@ -2245,15 +2245,6 @@ func capitalizeLang(text string, lang language.Tag, letterFound *bool) string {
 			continue
 		} else if isWordSeparator(letter) {
 			*letterFound = false
-		} else if *letterFound && !isLN && !unicode.Is(unicode.M, letter) && !unicode.Is(unicode.Pc, letter) &&
-			letter != '\'' && letter != '\u2019' && letter != '\u00B7' {
-			// gopdfgo: słowo kończy też interpunkcja i symbol wewnątrz ciągu liter, np. „text-transform”
-			// -> „Text-Transform”, „one/two” -> „One/Two”. Granice słów zostawia UA (CSS Text 3 § 2.1.1);
-			// przyjmujemy pomiar z Chromium 157 z 2026-11-18: słowa nie dzielą tylko cyfry, znaki łączące,
-			// podkreślenie, apostrof („Don’t”, „A1b”, „A_b”) i kropka środkowa (katalońskie „l·l”, test WPT
-			// text-transform-capitalize-035), a dzielą kropka, dwukropek i łącznik
-			// („E.G.”, „A:B”, „X‑Y”). Wcześniej słowo kończył tylko znak biały.
-			*letterFound = false
 		}
 		out.WriteRune(letter)
 	}
