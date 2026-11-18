@@ -42,19 +42,20 @@ var expanders = [...]expander{
 		pr.PFontVariantNumeric, pr.PFontVariantPosition)(_fontVariant),
 	pr.SFont: genericExpander(pr.PFontStyle, pr.PFontVariantCaps, pr.PFontWeight, pr.PFontStretch, pr.PFontSize,
 		pr.PLineHeight, pr.PFontFamily)(_expandFont),
-	pr.STextDecoration: genericExpander(pr.PTextDecorationLine, pr.PTextDecorationColor, pr.PTextDecorationStyle, pr.PTextDecorationThickness)(_expandTextDecoration),
-	pr.SFlex:           genericExpander(pr.PFlexGrow, pr.PFlexShrink, pr.PFlexBasis)(_expandFlex),
-	pr.SFlexFlow:       genericExpander(pr.PFlexDirection, pr.PFlexWrap)(_expandFlexFlow),
-	pr.SLineClamp:      genericExpander(pr.PMaxLines, pr.PContinue, pr.PBlockEllipsis)(_expandLineClamp),
-	pr.STextAlign:      genericExpander(pr.PTextAlignAll, pr.PTextAlignLast)(_expandTextAlign),
-	pr.SGridColumn:     genericExpander(pr.PGridColumnStart, pr.PGridColumnEnd)(_expandGridColumnRow),
-	pr.SGridRow:        genericExpander(pr.PGridRowStart, pr.PGridRowEnd)(_expandGridColumnRow),
-	pr.SGridArea:       genericExpander(pr.PGridRowStart, pr.PGridRowEnd, pr.PGridColumnStart, pr.PGridColumnEnd)(_expandGridArea),
-	pr.SGridTemplate:   genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas)(_expandGridTemplate),
-	pr.SGrid:           genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas, pr.PGridAutoColumns, pr.PGridAutoRows, pr.PGridAutoFlow)(_expandGrid),
-	pr.SGap:            genericExpander(pr.PColumnGap, pr.PRowGap)(_expandGap),
-	pr.SWhiteSpace:     genericExpander(pr.PWhiteSpace, pr.PTextWrapMode)(_expandWhiteSpace),
-	pr.STextWrap:       genericExpander(pr.PTextWrapMode, pr.PTextWrapStyle)(_expandTextWrap),
+	pr.STextDecoration:     genericExpander(pr.PTextDecorationLine, pr.PTextDecorationColor, pr.PTextDecorationStyle, pr.PTextDecorationThickness)(_expandTextDecoration),
+	pr.SFlex:               genericExpander(pr.PFlexGrow, pr.PFlexShrink, pr.PFlexBasis)(_expandFlex),
+	pr.SFlexFlow:           genericExpander(pr.PFlexDirection, pr.PFlexWrap)(_expandFlexFlow),
+	pr.SLineClamp:          genericExpander(pr.PMaxLines, pr.PContinue, pr.PBlockEllipsis)(_expandLineClamp),
+	pr.STextAlign:          genericExpander(pr.PTextAlignAll, pr.PTextAlignLast)(_expandTextAlign),
+	pr.SGridColumn:         genericExpander(pr.PGridColumnStart, pr.PGridColumnEnd)(_expandGridColumnRow),
+	pr.SGridRow:            genericExpander(pr.PGridRowStart, pr.PGridRowEnd)(_expandGridColumnRow),
+	pr.SGridArea:           genericExpander(pr.PGridRowStart, pr.PGridRowEnd, pr.PGridColumnStart, pr.PGridColumnEnd)(_expandGridArea),
+	pr.SGridTemplate:       genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas)(_expandGridTemplate),
+	pr.SGrid:               genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas, pr.PGridAutoColumns, pr.PGridAutoRows, pr.PGridAutoFlow)(_expandGrid),
+	pr.SGap:                genericExpander(pr.PColumnGap, pr.PRowGap)(_expandGap),
+	pr.SWhiteSpace:         genericExpander(pr.PWhiteSpace, pr.PTextWrapMode, pr.PWhiteSpaceTrim)(_expandWhiteSpace),
+	pr.STextWrap:           genericExpander(pr.PTextWrapMode, pr.PTextWrapStyle)(_expandTextWrap),
+	pr.SWhiteSpaceCollapse: genericExpander(pr.PWhiteSpace)(_expandWhiteSpaceCollapse),
 	pr.SFontSynthesis: genericExpander(pr.PFontSynthesisWeight, pr.PFontSynthesisStyle,
 		pr.PFontSynthesisSmallCaps, pr.PFontSynthesisPosition)(_expandFontSynthesis),
 }
@@ -1081,7 +1082,28 @@ func _expandWhiteSpace(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, 
 	return []namedTokens{
 		{name: pr.PWhiteSpace, tokens: tokens},
 		{name: pr.PTextWrapMode, tokens: []Token{pa.NewIdent(mode, tokens[0].Pos())}},
+		// gopdfgo: white-space ustawia też white-space-trim (CSS Text 4 § 3); słowa kluczowe skrótu
+		// dają jej wartość początkową
+		{name: pr.PWhiteSpaceTrim, tokens: []Token{pa.NewIdent("none", tokens[0].Pos())}},
 	}, nil
+}
+
+// gopdfgo: white-space-collapse (CSS Text 4 § 4.1) jest długą formą części white-space, więc
+// zapisujemy ją jako słowo white-space o tym samym sposobie zwijania; zawijanie ustala osobno
+// text-wrap-mode (tree.effectiveWhiteSpace), więc zawijające słowo niczego tu nie przesądza.
+// Wartości discard i preserve-spaces nie mają odpowiednika w white-space i nie są obsługiwane.
+// W źródle właściwości nie było.
+func _expandWhiteSpaceCollapse(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, error) {
+	keyword := map[string]string{
+		"collapse":        "normal",
+		"preserve":        "pre-wrap",
+		"preserve-breaks": "pre-line",
+		"break-spaces":    "break-spaces",
+	}[getSingleKeyword(tokens)]
+	if keyword == "" {
+		return nil, ErrInvalidValue
+	}
+	return []namedTokens{{name: pr.PWhiteSpace, tokens: []Token{pa.NewIdent(keyword, tokens[0].Pos())}}}, nil
 }
 
 // gopdfgo: skrót text-wrap (CSS Text 4 § 5.4): <'text-wrap-mode'> || <'text-wrap-style'>, w

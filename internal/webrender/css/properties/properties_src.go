@@ -264,6 +264,7 @@ const (
 	PFontSynthesisStyle     // gopdfgo: CSS Fonts 4 § 7.3; dziedziczona
 	PFontSynthesisSmallCaps // gopdfgo: CSS Fonts 4 § 7.4; dziedziczona
 	PFontSynthesisPosition  // gopdfgo: CSS Fonts 4 § 7.5; dziedziczona
+	PWhiteSpaceTrim         // gopdfgo: CSS Text 4 § 4.2; niedziedziczona
 
 	nbProperties
 )

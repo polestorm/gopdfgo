@@ -47,6 +47,11 @@ type EngineLayout interface {
 	// w wierszu z tabulatorem justowana jest tylko część po ostatnim tabulatorze.
 	SetJustificationStart(index int)
 	JustificationStart() int
+	// TrailingLetterSpacing (gopdfgo) zwraca odstęp między literami za ostatnim znakiem tekstu, który
+	// znika, gdy wiersz kończy się na tym pudełku (CSS Text 3 § 7.2); TrimTrailingLetterSpacing go
+	// zdejmuje i zwraca zdjętą szerokość.
+	TrailingLetterSpacing() pr.Float
+	TrimTrailingLetterSpacing() pr.Float
 }
 
 // FirstLine exposes the result of laying out

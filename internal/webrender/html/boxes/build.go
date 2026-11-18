@@ -352,9 +352,17 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 		box.Box().Children = nil
 	}
 
+	// gopdfgo: white-space-trim przed fazą I przetwarzania białych znaków (CSS Text 4 § 4.2)
+	if BlockContainerT.IsInstance(box) {
+		ApplyWhiteSpaceTrim(box)
+	}
 	ProcessWhitespace(box, false)
 	setContentLists(element, box, style, counterValues, targetCollector, cs)
 	ProcessTextTransform(box)
+	// gopdfgo: dzielenie wyrazów rozciętych granicami elementów, zob. HyphenateAcrossBoxes
+	if BlockContainerT.IsInstance(box) {
+		HyphenateAcrossBoxes(box)
+	}
 
 	if len(markerBoxes) > 0 && len(box.Box().Children) == 1 {
 		// See https://www.w3.org/TR/css-lists-3/#list-style-position-outside

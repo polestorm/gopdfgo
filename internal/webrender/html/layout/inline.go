@@ -360,6 +360,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		}
 
 		removeLastWhitespace(context, line_)
+		removeLastLetterSpacing(line_)
 
 		// gopdfgo: miejsce do wyrównania liczy się na całej wysokości wiersza znanej z poprzedniego
 		// przebiegu (candidateHeight); wysokość z splitInlineBox bywa jeszcze wysokością rozpórki, więc
@@ -377,9 +378,17 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		// § 4.1.3): zachowują szerokość i tło, ale nie liczą się do wyrównania ani justowania. W wierszu
 		// zawiniętym wiszą wszystkie, w wierszu zakończonym wymuszonym podziałem albo ostatnim tylko
 		// ta część, która nie mieści się w wierszu.
-		hang := trailingPreservedWidth(line_)
-		if resumeAt == nil || preservedLineBreak {
-			hang = max(0, min(hang, line.Width.V()-alignmentAvailableWidth))
+		// gopdfgo: odstępy inne niż spacja (np. U+3000) przy zwijanych białych znakach wiszą bezwarunkowo,
+		// także przez kilka pudełek tekstu (CSS Text 3 § 4.1.3; testy WPT text-transform-fullwidth-008,
+		// hanging-whitespace-002, -003); ciąg kończący się zachowanymi spacjami przed wymuszonym
+		// złamaniem wisi warunkowo w całości
+		hang, conditional := trailingHangingWidth(line_)
+		if conditional > 0 && (resumeAt == nil || preservedLineBreak) {
+			// odstępy bezwarunkowe przed warunkowymi wiszą tylko wtedy, gdy cały ciąg warunkowy jest
+			// poza wierszem; inaczej wisi tylko część, która się nie mieści
+			if overflow := line.Width.V() - alignmentAvailableWidth; overflow < conditional {
+				hang = max(0, overflow)
+			}
 		}
 		offsetX := textAlign(context, line_, alignmentAvailableWidth, resumeAt == nil || preservedLineBreak, hang)
 
@@ -724,6 +733,59 @@ func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
 
 	// TODO: If spaces (U+0020) or tabs (U+0009) at the end of a line have
 	// "white-space" set to "pre-wrap", UAs may visually collapse them.
+}
+
+// removeLastLetterSpacing (gopdfgo) zdejmuje odstęp między literami za ostatnim znakiem wiersza:
+// na końcu wiersza odstępu nie ma (CSS Text 3 § 7.2; testy WPT letter-spacing-200, -201). Źródło
+// zostawiało go, więc wiersz był szerszy o odstęp, co psuło wyrównanie i łamanie. Zmniejsza też
+// szerokość przodków tekstu i przesuwa puste pudełka liniowe za nim.
+func removeLastLetterSpacing(line *bo.LineBox) {
+	if line.Style.GetDirection() != pr.Ltr {
+		return
+	}
+	path, following, found := lastTextBefore(line, nil)
+	if !found || len(path) < 2 {
+		return
+	}
+	textBox := path[len(path)-1].(*bo.TextBox)
+	if textBox.TextLayout == nil || len(textBox.Text) == 0 {
+		return
+	}
+	width := textBox.TextLayout.TrimTrailingLetterSpacing()
+	if width == 0 {
+		return
+	}
+	textBox.Width = textBox.Width.V() - width
+	for _, ancestor := range path[:len(path)-1] {
+		ancestor.Box().Width = ancestor.Box().Width.V() - width
+	}
+	for _, box := range following {
+		box.Translate(-width, 0, true)
+	}
+}
+
+// atomicRunSpacing (gopdfgo) zwraca odstęp między literami pudełka liniowego, który przysługuje ciągowi
+// elementów atomowych przed następującą treścią (CSS Text 3 § 7.2)
+func atomicRunSpacing(style pr.ElementStyle) pr.Float {
+	if ls := style.GetLetterSpacing(); ls.Tag != pr.Normal {
+		return pr.Float(ls.Value)
+	}
+	return 0
+}
+
+// trailingLetterSpacing (gopdfgo) zwraca odstęp między literami za ostatnim znakiem treści box, który
+// zniknie, jeśli wiersz skończy się na box (zob. removeLastLetterSpacing); przy sprawdzaniu, czy treść
+// mieści się w wierszu, nie liczy się, jak wiszące odstępy.
+func trailingLetterSpacing(box Box) pr.Float {
+	path, _, found := lastTextBefore(box, nil)
+	if !found {
+		return 0
+	}
+	textBox := path[len(path)-1].(*bo.TextBox)
+	if textBox.TextLayout == nil || len(textBox.Text) == 0 {
+		return 0
+	}
+	return textBox.TextLayout.TrailingLetterSpacing()
 }
 
 // lastTextBefore (gopdfgo) szuka w box ostatniego niepustego pudełka tekstowego, pomijając puste
@@ -1335,6 +1397,15 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			continue
 		}
 
+		// gopdfgo: ciąg elementów atomowych liczy się do odstępu między literami jak jeden znak, więc
+		// po nim, przed następującą treścią, jest odstęp między literami rodzica (CSS Text 3 § 7.2; test
+		// WPT letter-spacing-204). Źródło nie dawało go wcale.
+		var atomicSpacing pr.Float
+		if lastLetter == '\u2e80' && !isNilTextBox(child_) && (bo.TextT.IsInstance(child_) || bo.InlineT.IsInstance(child_)) {
+			atomicSpacing = atomicRunSpacing(box.Style)
+			positionX += atomicSpacing
+		}
+
 		lastChild := index == len(box.Children)-1
 		availableWidth := maxX
 		var childWaitingFloats []Box
@@ -1374,6 +1445,14 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		skipStack = nil
 		if preserved {
 			preservedLineBreak = true
+		}
+		if atomicSpacing != 0 && (first == '\u2e80' || first == 0 || first == ' ' || first == letterTrue) {
+			// dziecko zaczyna się elementem atomowym albo jest puste: ciąg trwa, odstępu nie ma; przed
+			// spacją też nie (spacja ma własny odstęp, a zwinięta na końcu wiersza znika razem z nim)
+			positionX -= atomicSpacing
+			if newChild != nil && !isNilTextBox(newChild) {
+				newChild.Translate(-atomicSpacing, 0, true)
+			}
 		}
 
 		var canBreak pr.MaybeBool
@@ -1439,9 +1518,10 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 		if child.TrailingCollapsibleSpace {
 			lastLetter = letterTrue
-		} else {
+		} else if last != 0 || first != 0 || !bo.InlineT.IsInstance(child_) {
 			lastLetter = last
-		}
+		} // gopdfgo: puste pudełko liniowe nie przerywa ciągu znaków: o podziale za nim decyduje znak
+		// przed nim (UAX 14 nie zna granic elementów; test WPT hyphens-span-002, „high<span></span>way”)
 		previousStyle := lastStyle
 		lastStyle = child.Style
 
@@ -1460,7 +1540,9 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			// sprawdzało je jak każde inne i łamało wiersz przed tym tekstem.
 			// gopdfgo: pudełko złożone z samych wiszących odstępów przedłuża ciąg odstępów poprzedniego
 			// pudełka, więc treść wiersza kończy się tam, gdzie ten ciąg się zaczyna (CSS Text 3 § 4.1.3)
-			width, trailing := newChild.Box().MarginWidth(), trailingWhitespaceSize(context, newChild, true)+trailingPreservedWidth(newChild)
+			// gopdfgo: także odstęp między literami za ostatnim znakiem, którego na końcu wiersza nie ma
+			// (CSS Text 3 § 7.2), zob. removeLastLetterSpacing
+			width, trailing := newChild.Box().MarginWidth(), trailingWhitespaceSize(context, newChild, true)+trailingPreservedWidth(newChild)+trailingLetterSpacing(newChild)
 			contentEnd := newPositionX - trailing
 			if width != 0 && trailing >= width {
 				contentEnd = newChild.Box().PositionX
@@ -1791,7 +1873,7 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 		return nil, -1, false
 	}
 	var style pr.StyleAccessor = box.Style
-	if context.noAutoHyphens && box.Style.GetHyphens() == "auto" {
+	if (context.noAutoHyphens || box.ManualHyphens) && box.Style.GetHyphens() == "auto" {
 		style = manualHyphensStyle{box.Style}
 	}
 	v := text.SplitFirstLineAt(text_, style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
@@ -1862,19 +1944,13 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 // podziału, a przy podziale w nim widać znak z hyphenate-character (CSS Text 3 § 5.4). Źródło
 // dodawało znak tylko przy podziale wewnątrz jednego pudełka tekstu.
 func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
-	var chain []Box
-	box := line
-	for IsLine(box) {
-		chain = append(chain, box)
-		children := box.Box().Children
-		box = nil
-		for i := len(children) - 1; i >= 0; i-- {
-			if children[i].Box().IsInNormalFlow() && !isNilTextBox(children[i]) {
-				box = children[i]
-				break
-			}
-		}
+	// gopdfgo: puste pudełka liniowe za miękkim łącznikiem nie zmieniają tego, że wiersz złamał się
+	// w nim (test WPT hyphens-span-002, „high&shy;<span></span>way”); przesuwamy je o znak dzielenia
+	path, following, found := lastTextBefore(line, nil)
+	if !found || len(path) < 2 {
+		return
 	}
+	chain, box := path[:len(path)-1], path[len(path)-1]
 	textBox, ok := box.(*bo.TextBox)
 	if !ok || textBox.Hyphenated || textBox.SplitInside || len(textBox.Text) == 0 || textBox.Text[len(textBox.Text)-1] != '\u00ad' ||
 		textBox.Style.GetHyphens() == "none" || textBox.TextLayout == nil {
@@ -1890,6 +1966,9 @@ func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
 	textBox.Width = v.Width
 	for _, parent := range chain {
 		parent.Box().Width = parent.Box().Width.V() + delta
+	}
+	for _, box := range following {
+		box.Translate(delta, 0, true)
 	}
 }
 
@@ -2179,6 +2258,66 @@ func trailingPreservedWidth(box Box) pr.Float {
 		return 0
 	}
 	return last.TextLayout.TrailingSpacesWidth()
+}
+
+// trailingHangingWidth (gopdfgo) zwraca szerokość ciągu wiszących białych znaków na końcu wiersza,
+// także rozłożonego na kilka pudełek tekstu: przy pre-wrap spacje, tabulatory i odstępy kategorii Zs,
+// przy zwijanych białych znakach odstępy Zs (spacje znikają wcześniej, removeLastWhitespace).
+// conditional to szerokość końcowej części ciągu złożonej z zachowanych znaków pre-wrap: przed
+// wymuszonym złamaniem wisi ona tylko w tej części, która się nie mieści (CSS Text 3 § 4.1.3).
+func trailingHangingWidth(box Box) (width, conditional pr.Float) {
+	texts := lineTexts(box, nil)
+	first := true // jeszcze w końcowej części pre-wrap
+	for i := len(texts) - 1; i >= 0; i-- {
+		textBox := texts[i]
+		n := len(textBox.Text)
+		if n == 0 {
+			continue
+		}
+		if textBox.TextLayout == nil || textBox.FirstLineIsRTL {
+			break
+		}
+		ws := textBox.Style.GetWhiteSpace()
+		collapsing := ws == pr.Normal || ws == pr.Nowrap || ws == pr.PreLine
+		hangs := func(r rune) bool {
+			return (collapsing || ws == pr.PreWrap) && text.IsOtherSpaceSeparator(r) ||
+				ws == pr.PreWrap && (r == ' ' || r == '\t') || collapsing && r == ' '
+		}
+		if !hangs(textBox.Text[n-1]) {
+			break
+		}
+		w := textBox.TextLayout.TrailingSpacesWidth()
+		if first && ws == pr.PreWrap {
+			conditional += w
+		} else {
+			first = false
+		}
+		width += w
+		for _, r := range textBox.Text {
+			if !hangs(r) {
+				return width, conditional
+			}
+		}
+	}
+	return width, conditional
+}
+
+// lineTexts (gopdfgo) zbiera teksty wiersza w kolejności; element atomowy zaczyna listę od nowa, a
+// elementy spoza przepływu są pomijane
+func lineTexts(box Box, out []*bo.TextBox) []*bo.TextBox {
+	for _, child := range box.Box().Children {
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if textBox, ok := child.(*bo.TextBox); ok {
+			out = append(out, textBox)
+		} else if IsLine(child) {
+			out = lineTexts(child, out)
+		} else {
+			out = out[:0]
+		}
+	}
+	return out
 }
 
 // trailingPreservedSpaces szuka ostatniego tekstu w wierszu i liczy jego końcowe zachowane spacje

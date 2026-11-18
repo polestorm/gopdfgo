@@ -249,7 +249,53 @@ type TextLayoutGotext struct {
 	justification pr.Float
 	justified     bool // gopdfgo: odstęp justowania został już dodany do glifów
 	justifyStart  int  // gopdfgo: spacje przed tym znakiem nie dostają odstępu justowania
+
+	// gopdfgo: odstęp między literami za ostatnim znakiem tekstu, który znika, gdy wiersz kończy się
+	// na tym pudełku (CSS Text 3 § 7.2), zob. TrimTrailingLetterSpacing
+	trailingSpacing fixed.Int26_6
 }
+
+// TrimTrailingLetterSpacing (gopdfgo) zdejmuje odstęp między literami za ostatnim znakiem tekstu,
+// gdy wiersz kończy się na tym pudełku: na końcu wiersza odstępu nie ma (CSS Text 3 § 7.2). Zwraca
+// zdjętą szerokość.
+func (l *TextLayoutGotext) TrimTrailingLetterSpacing() pr.Float {
+	ls := l.trailingSpacing
+	if ls == 0 || len(l.Line) == 0 {
+		return 0
+	}
+	l.Line = slices.Clone(l.Line)
+	addToLastGlyph(l.Line, l.text, -ls, false)
+	l.trailingSpacing = 0
+	return fixedToFloat(ls)
+}
+
+// TrailingLetterSpacing (gopdfgo) zwraca odstęp między literami za ostatnim znakiem tekstu (zob.
+// TrimTrailingLetterSpacing).
+func (l *TextLayoutGotext) TrailingLetterSpacing() pr.Float { return fixedToFloat(l.trailingSpacing) }
+
+// addToLastGlyph (gopdfgo) dodaje delta do szerokości ostatniego glifu wiersza, na kopii glifów
+// (są wspólne z pamięcią podręczną układów). Z skipIgnorable pomija końcowe znaki kategorii Cf,
+// którym odstęp zdjął joinersWithoutSpacing. Zwraca delta, albo zero, gdy glifu nie ma.
+func addToLastGlyph(line shaping.Line, text []rune, delta fixed.Int26_6, skipIgnorable bool) fixed.Int26_6 {
+	for r := len(line) - 1; r >= 0; r-- {
+		run := &line[r]
+		for i := len(run.Glyphs) - 1; i >= 0; i-- {
+			if index := run.Glyphs[i].ClusterIndex; skipIgnorable && index >= 0 && index < len(text) && run.Glyphs[i].GlyphCount == 1 && isIgnorableForSpacing(text[index]) {
+				continue
+			}
+			run.Glyphs = slices.Clone(run.Glyphs)
+			run.Glyphs[i].Advance += delta
+			run.Glyphs[i].XAdvance += delta
+			run.RecomputeAdvance()
+			return delta
+		}
+	}
+	return 0
+}
+
+// isIgnorableForSpacing (gopdfgo): niewidoczne znaki formatujące o zerowej szerokości (kategoria Cf),
+// które odstęp między literami pomija (CSS Text 3 § 7.2)
+func isIgnorableForSpacing(r rune) bool { return unicode.Is(unicode.Cf, r) }
 
 // privateLayout (gopdfgo) zwraca wynik z własnym obiektem układu. Wyniki z pamięci podręcznej były
 // współdzielone: SetJustification i ApplyJustification zmieniały wspólny obiekt, więc wiersze o tym
@@ -884,11 +930,21 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		shaping.AddSpacing(outputs, text, ws, ls)
 		if ls != 0 {
 			joinersWithoutSpacing(outputs, text, ls)
+			if dir.Progression() == di.FromTopLeft {
+				forcedBreaksWithoutSpacing(outputs, text, ls)
+				afterTabsWithoutSpacing(outputs, text, ls)
+			}
 		}
-		// add letter spacing at the end, like other browers do
-		lastRun := &outputs[len(outputs)-1]
-		lastRun.Glyphs[len(lastRun.Glyphs)-1].Advance += ls
-		lastRun.RecomputeAdvance()
+		// gopdfgo: odstęp za ostatnim znakiem tekstu (jak w przeglądarkach: odstęp należy do znaku
+		// przed nim) dodajemy dopiero po zawinięciu, i tylko gdy wiersz sięga końca tekstu, zob.
+		// trailingLetterSpacing niżej. Źródło dodawało go tutaj, więc liczył się przy sprawdzaniu, czy
+		// wiersz się mieści, choć na końcu wiersza odstępu nie ma (CSS Text 3 § 7.2; test WPT
+		// letter-spacing-200). Dla pisma od prawej do lewej bez zmian.
+		if dir.Progression() != di.FromTopLeft {
+			lastRun := &outputs[len(outputs)-1]
+			lastRun.Glyphs[len(lastRun.Glyphs)-1].Advance += ls
+			lastRun.RecomputeAdvance()
+		}
 	}
 
 	// do we have some tabs ?
@@ -1079,15 +1135,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		firstLineLength = wLine.NextLine - 1
 		lastRun := &line[len(line)-1]
 		lastRun.Glyphs = lastRun.Glyphs[:len(lastRun.Glyphs)-1]
-		// gopdfgo: go-text dzieli odstęp między literami na połowy po obu stronach znaku; drugą
-		// połowę za ostatnim znakiem wiersza miał znak nowego wiersza, który tu usuwamy. Znak przed
-		// wymuszonym złamaniem dostaje pełny odstęp, jak na końcu tekstu (CSS Text 3 § 8.2; test WPT
-		// white-space-letter-spacing-001).
-		if n := len(lastRun.Glyphs); n != 0 && style.LetterSpacing != 0 {
-			lastRun.Glyphs = slices.Clone(lastRun.Glyphs)
-			lastRun.Glyphs[n-1].Advance += floatToFixed(style.LetterSpacing) / 2
-			lastRun.Glyphs[n-1].XAdvance += floatToFixed(style.LetterSpacing) / 2
-		}
+		// gopdfgo: znak przed wymuszonym złamaniem kończy wiersz, więc odstępu między literami za nim
+		// nie ma (CSS Text 3 § 7.2); połowę odstępu za nim zdejmuje trailingLetterSpacing niżej.
+		// Źródło (i wcześniejsza wersja gopdfgo) dawało mu pełny odstęp.
 		lastRun.RecalculateAll()
 		wLine.TrimmedTrailingWhitespace = 0 // not to interfere with latter space handling
 	}
@@ -1111,6 +1161,22 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 		lastRun.Glyphs = lastRun.Glyphs[:i+1]
 		lastRun.RecalculateAll()
+	}
+
+	// gopdfgo: odstęp między literami na końcu wiersza (CSS Text 3 § 7.2), zob. trailingLetterSpacing
+	var trailingSpacing fixed.Int26_6
+	if ls := floatToFixed(style.LetterSpacing); ls != 0 && len(line) != 0 {
+		if dir.Progression() != di.FromTopLeft {
+			// pismo od prawej do lewej: bez zmian względem źródła, zob. wyżej
+		} else if wLine.NextLine >= len(text) && !mandatoryBreak {
+			// tabulator kończy się na pozycji tabulacji, odstęp za nim nie przysługuje (zob.
+			// afterTabsWithoutSpacing; test WPT tab-size-spacing-001)
+			if text[len(text)-1] != '\t' {
+				trailingSpacing = addToLastGlyph(line, text, ls, false)
+			}
+		} else if !mandatoryBreak { // przy wymuszonym złamaniu zob. forcedBreaksWithoutSpacing
+			addToLastGlyph(line, text, -ls/2, true)
+		}
 	}
 
 	// copy the line, owned by lineWrapper
@@ -1189,6 +1255,10 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 	}
 
+	// gopdfgo: odstęp za ostatnim znakiem tekstu wisi jak końcowe odstępy: zostaje, gdy w tym samym
+	// wierszu jest dalsza treść, znika, gdy wiersz tu się kończy (CSS Text 3 § 7.2)
+	hang += trailingSpacing
+
 	// gopdfgo: wiersz przyjęty dzięki tolerancji zaokrągleń (zob. LineWrap) zgłasza szerokość nie
 	// większą niż dostępna; inaczej układ wiersza uznałby go za przepełniony i złamał wcześniej.
 	lineWidth := fixedToFloat(width)
@@ -1198,7 +1268,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	out := FirstLine{
 		Hang:         fixedToFloat(hang),
-		Layout:       &TextLayoutGotext{text: text[:firstLineLength], Style: style, Line: outLine, MaxWidth: maxWidth},
+		Layout:       &TextLayoutGotext{text: text[:firstLineLength], Style: style, Line: outLine, MaxWidth: maxWidth, trailingSpacing: trailingSpacing},
 		Length:       firstLineLength,
 		ResumeAt:     resumeAt,
 		FirstLineRTL: style.Direction == pr.Rtl,
@@ -1428,6 +1498,21 @@ func trimTrailingSpace(wrapped *shaping.WrappedLine, text []rune, dir di.Directi
 // splitFirstLineGotext fit as much text from [text_] as possible in the available width given by [maxWidth].
 // minimum should defaults to false
 func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]hyphen.Hyphener, text []rune, style *TextStyle,
+	maxWidth pr.MaybeFloat, minimum, isLineStart bool,
+) FirstLine {
+	firstLine := fc.splitFirstLineRaw(hyphenCache, text, style, maxWidth, minimum, isLineStart)
+	// gopdfgo: wiersz złamany wewnątrz tekstu kończy się tutaj, więc odstęp między literami za jego
+	// ostatnim znakiem znika (CSS Text 3 § 7.2). Tu trafiają wiersze ułożone z części tekstu (np. przy
+	// dzieleniu wyrazów), które silnik zakończył jak koniec tekstu.
+	if layout, ok := firstLine.Layout.(*TextLayoutGotext); ok && firstLine.ResumeAt != -1 && layout.trailingSpacing != 0 {
+		trimmed := layout.TrimTrailingLetterSpacing()
+		firstLine.Width -= trimmed
+		firstLine.Hang -= trimmed
+	}
+	return firstLine
+}
+
+func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictKey]hyphen.Hyphener, text []rune, style *TextStyle,
 	maxWidth pr.MaybeFloat, minimum, isLineStart bool,
 ) FirstLine {
 	// See https://www.w3.org/TR/css-text-3/#white-space-property
@@ -1807,6 +1892,9 @@ func (fc *FontConfigurationGotext) synthesizePosition(input shaping.Input, posit
 // stojących we własnym klastrze. Należą one do klastra grafemów poprzedniego znaku (Grapheme_Extend,
 // UAX 29), a odstęp między literami dodaje się między klastrami grafemów (CSS Text 3 § 8.2), więc
 // „f‌i” ma jeden odstęp, jak „fi” (test WPT font-feature-resolution-001). Źródło dodawało dwa.
+// gopdfgo: tak samo każdy inny znak kategorii Cf (U+200B, U+2060, U+FEFF, znaki sterujące
+// kierunkiem): odstęp dodaje się tak, jakby ich nie było (CSS Text 3 § 7.2; testy WPT
+// letter-spacing-202, letter-spacing-control-chars-001).
 func joinersWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
 	half := ls / 2
 	for r := range runs {
@@ -1815,7 +1903,7 @@ func joinersWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
 		for i := range run.Glyphs {
 			g := &run.Glyphs[i]
 			if g.GlyphCount != 1 || g.ClusterIndex < 0 || g.ClusterIndex >= len(text) ||
-				(text[g.ClusterIndex] != 0x200C && text[g.ClusterIndex] != 0x200D) {
+				!isIgnorableForSpacing(text[g.ClusterIndex]) && !isMandatoryBreak(text[g.ClusterIndex]) {
 				continue
 			}
 			if i > 0 || r > 0 { // połowa przed klastrem (zob. shaping.Output.AddLetterSpacing)
@@ -1833,6 +1921,108 @@ func joinersWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
 			run.RecomputeAdvance()
 		}
 	}
+	// gopdfgo: znaki Cf na początku albo na końcu tekstu: pierwszy (ostatni) widoczny znak nie ma
+	// sąsiada po tej stronie, więc nie dostaje połowy odstępu przed sobą (za sobą), jak gdyby
+	// znaków Cf nie było (test WPT letter-spacing-control-chars-001)
+	ignorable := func(g shaping.Glyph) bool {
+		return g.GlyphCount == 1 && g.ClusterIndex >= 0 && g.ClusterIndex < len(text) && isIgnorableForSpacing(text[g.ClusterIndex])
+	}
+	type glyphRef struct{ r, i int }
+	var first, last *glyphRef
+	leading, trailing := false, false
+	for r := range runs {
+		for i, g := range runs[r].Glyphs {
+			if ignorable(g) {
+				if first == nil {
+					leading = true
+				}
+				trailing = last != nil
+				continue
+			}
+			if first == nil {
+				first = &glyphRef{r, i}
+			}
+			last, trailing = &glyphRef{r, i}, false
+		}
+	}
+	if first != nil && leading {
+		addToGlyph(runs, first.r, first.i, -half, true)
+	}
+	if last != nil && trailing {
+		addToGlyph(runs, last.r, last.i, -half, false)
+	}
+}
+
+// forcedBreaksWithoutSpacing (gopdfgo) zdejmuje odstęp między literami przy zachowanym znaku nowego
+// wiersza (i innych znakach klasy BK z UAX 14): znak ten kończy wiersz, a na końcu wiersza odstępu nie
+// ma (CSS Text 3 § 7.2). Sam znak nie dostaje odstępu (zob. joinersWithoutSpacing), a znak przed nim
+// traci połowę odstępu za sobą.
+// Robimy to przed zawijaniem, żeby odstęp nie liczył się do szerokości wiersza (test WPT
+// letter-spacing-200: „4 5” w pudełku o szerokości 5em). Tylko pismo od lewej do prawej.
+func forcedBreaksWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
+	half := ls / 2
+	for r := range runs {
+		for i, g := range runs[r].Glyphs {
+			if g.GlyphCount != 1 || g.ClusterIndex < 0 || g.ClusterIndex >= len(text) || !isMandatoryBreak(text[g.ClusterIndex]) {
+				continue
+			}
+			// poprzedni glif (pomijając znaki Cf bez odstępu) traci połowę odstępu za sobą
+			pr_, pi := r, i
+			for {
+				if pi--; pi < 0 {
+					if pr_--; pr_ < 0 {
+						break
+					}
+					pi = len(runs[pr_].Glyphs) - 1
+					if pi < 0 {
+						continue
+					}
+				}
+				pg := runs[pr_].Glyphs[pi]
+				if pg.GlyphCount == 1 && pg.ClusterIndex >= 0 && pg.ClusterIndex < len(text) &&
+					(isIgnorableForSpacing(text[pg.ClusterIndex]) || isMandatoryBreak(text[pg.ClusterIndex])) {
+					if isMandatoryBreak(text[pg.ClusterIndex]) {
+						break // przed nim był już początek wiersza
+					}
+					continue
+				}
+				addToGlyph(runs, pr_, pi, -half, false)
+				break
+			}
+		}
+	}
+}
+
+// afterTabsWithoutSpacing (gopdfgo): znak za tabulatorem zaczyna się dokładnie na pozycji tabulacji
+// (CSS Text 3 § 4.2), więc nie dostaje połowy odstępu między literami przed sobą; tabulator kończy się
+// na tej pozycji (zob. AlignTabs). Źródło przesuwało go o pół odstępu (test WPT tab-size-spacing-002).
+func afterTabsWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
+	afterTab := false
+	for r := range runs {
+		for i, g := range runs[r].Glyphs {
+			isTab := g.GlyphCount == 1 && g.ClusterIndex >= 0 && g.ClusterIndex < len(text) && text[g.ClusterIndex] == '\t'
+			if afterTab && !isTab {
+				addToGlyph(runs, r, i, -ls/2, true)
+			}
+			afterTab = isTab
+		}
+	}
+}
+
+// addToGlyph (gopdfgo) dodaje delta do szerokości glifu i przelicza szerokość przebiegu; z offset
+// przesuwa też sam glif (połowa odstępu przed nim)
+func addToGlyph(runs shaping.Line, r, i int, delta fixed.Int26_6, offset bool) {
+	g := &runs[r].Glyphs[i]
+	g.Advance += delta
+	g.XAdvance += delta
+	if offset {
+		g.XOffset += delta
+	}
+	runs[r].RecomputeAdvance()
+}
+
+func isMandatoryBreak(r rune) bool {
+	return r == '\n' || r == '\u000B' || r == '\u000C' || r == '\u2028' || r == '\u2029'
 }
 
 const shapingPrecision = 64

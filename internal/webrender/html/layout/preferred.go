@@ -551,12 +551,24 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 	if skipStack != nil {
 		skip, skipStack = skipStack.Unpack()
 	}
+	afterAtomic := false // gopdfgo: poprzednie dziecko w przepływie było elementem atomowym
 	for _, child := range box.Children[skip:] {
 		// Skip absolutely positioned elements.
 		if child.Box().IsAbsolutelyPositioned() {
 			continue
 		}
 		textBox, isTextBox := child.(*bo.TextBox)
+		// gopdfgo: ciąg elementów atomowych liczy się do odstępu między literami jak jeden znak, więc
+		// między nim a następującym tekstem jest odstęp (CSS Text 3 § 7.2; test WPT letter-spacing-204)
+		if child.Box().IsInNormalFlow() {
+			atomic := !isTextBox && !bo.InlineT.IsInstance(child)
+			if afterAtomic && !atomic && !minimum && (!isTextBox || len(textBox.Text) != 0 && textBox.Text[0] != ' ') {
+				currentLine += atomicRunSpacing(box.Style)
+			}
+			if atomic || !isTextBox || len(textBox.Text) != 0 {
+				afterAtomic = atomic
+			}
+		}
 		firstLineEnds := false
 		// nil is used in "lines" to track line breaks, transformed to 0 when yielded.
 		var lines []pr.MaybeFloat
@@ -635,7 +647,9 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 						line = line[:n-1]
 					}
 					trimmed := len(line)
-					for trimmed > 0 && (line[trimmed-1] == ' ' || line[trimmed-1] == '\t') {
+					// gopdfgo: także odstępy inne niż spacja (np. U+3000), które przy pre-wrap wiszą
+					// tak samo (CSS Text 3 § 4.1.3; test WPT text-transform-fullwidth-009)
+					for trimmed > 0 && (line[trimmed-1] == ' ' || line[trimmed-1] == '\t' || text.IsOtherSpaceSeparator(line[trimmed-1])) {
 						trimmed--
 					}
 					if trimmed == 0 {

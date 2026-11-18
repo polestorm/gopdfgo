@@ -861,6 +861,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				outOfFlowResumeAt tree.ResumeStack
 				newChild          Box
 			)
+			// gopdfgo: element pozycjonowany absolutnie, który przed przekształceniem w blok był liniowy,
+			// stoi przed pierwszym wierszem bloku, więc jego pozycja statyczna jest za wcięciem
+			// text-indent, jak w wierszu (CSS 2 § 10.3.7; test WPT text-indent-with-absolute-pos-child).
+			// Źródło stawiało go na początku bloku.
+			if child.IsAbsolutelyPositioned() && skip == 0 && child.Style.Specified().Display.Has(pr.Inline) &&
+				box.Style.GetDirection() == pr.Ltr && !slices.ContainsFunc(newChildren, func(b Box) bool { return b.Box().IsInNormalFlow() }) {
+				if indent := box.Style.GetTextIndent(); !indent.Hanging {
+					child.PositionX += resolveOnePercentage(indent.TaggedDim, pr.PTextIndent, box.Width.V()).V()
+				}
+			}
 			stop, resumeAt, newChild, outOfFlowResumeAt = outOfFlowLayout(context, box_, index, child_,
 				&newChildren, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins, bottomSpace)
 			if outOfFlowResumeAt != nil {

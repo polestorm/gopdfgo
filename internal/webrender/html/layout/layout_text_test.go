@@ -489,7 +489,8 @@ func TestLetterSpacing1(t *testing.T) {
 	body = unpack1(html)
 	line = unpack1(body)
 	strong2 := unpack1(line)
-	tu.AssertEqual(t, strong2.Box().Width.V()-strong1.Box().Width.V(), Fl(34*11))
+	// gopdfgo: 33 odstępy, nie 34: za ostatnią literą wiersza odstępu nie ma (CSS Text 3 § 7.2)
+	tu.AssertEqual(t, strong2.Box().Width.V()-strong1.Box().Width.V(), Fl(33*11))
 
 	// an embedded tag should not affect the single-line letter spacing
 	page = renderOnePage(t,

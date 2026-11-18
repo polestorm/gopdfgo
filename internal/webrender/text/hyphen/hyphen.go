@@ -55,6 +55,18 @@ func (h Hyphener) positions(word []rune) []dataOrInt {
 	return out
 }
 
+// Points (gopdfgo) zwraca miejsca podziału wyrazu (indeksy znaków, rosnąco) z pominięciem podziałów
+// niestandardowych, które zmieniają pisownię.
+func (h Hyphener) Points(word []rune) []int {
+	var out []int
+	for _, index := range h.positions(word) {
+		if index.Data == nil {
+			out = append(out, index.V)
+		}
+	}
+	return out
+}
+
 // Iterates over all hyphenation possibilities, the longest first,
 // for `word`.
 // The returned slice contains the starts of each possibility, with [prefix] added.

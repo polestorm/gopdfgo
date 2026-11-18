@@ -49,6 +49,9 @@ type TextBox struct {
 	FirstLineIsRTL bool              // setup during layout
 	Hyphenated     bool              // gopdfgo: wiersz kończy się w tym pudełku dzieleniem wyrazu
 	SplitInside    bool              // gopdfgo: wiersz złamał się wewnątrz tekstu tego pudełka
+	// gopdfgo: miejsca podziału wyrazów są już wstawione jako miękkie łączniki (HyphenateAcrossBoxes),
+	// więc hyphens: auto działa tu jak manual
+	ManualHyphens bool
 
 	Text []rune
 }
