@@ -869,6 +869,12 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 
 		// shape !
+		if style.SynthesizedPosition != "" {
+			if out, ok := fc.synthesizePosition(input, style.SynthesizedPosition, residuals); ok {
+				outputs[i] = out
+				continue
+			}
+		}
 		outputs[i] = shapeWithResiduals(&fc.shaper, input, residuals)
 	}
 	fc.residuals = residuals
@@ -1749,6 +1755,51 @@ func AlignTabs(l shaping.Line, text []rune, columnWidth, lineOffset, threshold f
 }
 
 // shapingPrecision to mnożnik rozmiaru fontu na czas kształtowania tekstu.
+// synthesizePosition (gopdfgo) syntetyzuje indeks dolny albo górny (CSS Fonts 4 § 6.5): gdy font nie ma
+// wariantu 'subs' lub 'sups' dla każdego znaku przebiegu, cały przebieg jest składany bez tej cechy,
+// mniejszym pismem i przesunięty w pionie. Współczynniki są jak w Firefoksie (Chromium syntezy nie
+// ma): rozmiar 0,82 dla pisma do 20 px, 0,667 od 45 px, liniowo pomiędzy; podniesienie 0,34 em,
+// obniżenie 0,2 em. Źródło syntezy nie znało.
+func (fc *FontConfigurationGotext) synthesizePosition(input shaping.Input, position string, residuals []int32) (shaping.Output, bool) {
+	tag := opentype.MustNewTag("sups")
+	if position == "sub" {
+		tag = opentype.MustNewTag("subs")
+	}
+	plain := input
+	plain.FontFeatures = nil
+	for _, feature := range input.FontFeatures {
+		if feature.Tag != tag {
+			plain.FontFeatures = append(plain.FontFeatures, feature)
+		}
+	}
+	with, without := shapePrecisely(&fc.shaper, input), shapePrecisely(&fc.shaper, plain)
+	if len(with.Glyphs) != len(without.Glyphs) {
+		return shaping.Output{}, false // cecha zmieniła liczbę glifów, więc font ją ma
+	}
+	covered := true
+	for i := range with.Glyphs {
+		if with.Glyphs[i].GlyphID == without.Glyphs[i].GlyphID {
+			covered = false
+			break
+		}
+	}
+	if covered {
+		return shaping.Output{}, false
+	}
+	size := float64(fixedToFloat(input.Size))
+	ratio := 0.82 + (0.667-0.82)*min(1, max(0, (size-20)/(45-20)))
+	plain.Size = fixed.Int26_6(math.Round(size * ratio * 64))
+	out := shapeWithResiduals(&fc.shaper, plain, residuals)
+	shift := fixed.Int26_6(math.Round(size * 0.34 * 64))
+	if position == "sub" {
+		shift = -fixed.Int26_6(math.Round(size * 0.2 * 64))
+	}
+	for i := range out.Glyphs {
+		out.Glyphs[i].YOffset += shift
+	}
+	return out, true
+}
+
 const shapingPrecision = 64
 
 // shapePrecisely kształtuje tekst w rozmiarze podanym z dokładnością do 1/64 piksela.

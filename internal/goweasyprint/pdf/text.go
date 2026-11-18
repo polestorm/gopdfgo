@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strings"
 
@@ -50,22 +51,37 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 	for _, text := range texts {
 		mat := text.Matrix()
 		g.stream.SetTextMatrix(mat.A, mat.B, mat.C, mat.D, mat.E, mat.F)
+		var rise fl // gopdfgo: bieżące wzniesienie tekstu, w tysięcznych firetu
 
 		for _, run := range text.Runs {
 			pf := g.fonts[run.Font]
 			// do not use bitmap fonts
 			useFont := g.cache.fontFiles[run.Font.Origin()].isSupported
 
+			size := text.FontSize
+			if run.SizeScale != 0 { // gopdfgo: zob. backend.TextRun.SizeScale
+				size *= run.SizeScale
+			}
 			if useFont {
-				size := text.FontSize
-				if run.SizeScale != 0 { // gopdfgo: zob. backend.TextRun.SizeScale
-					size *= run.SizeScale
-				}
 				g.stream.SetFontAndSize(pdfFonts.BuiltFont{Meta: pf.FontDict}, size)
+			}
+			if rise != 0 { // wzniesienie jest w jednostkach rozmiaru przebiegu: ustawiane od nowa
+				rise = fl(math.NaN())
 			}
 
 			var out []contentstream.SpacedGlyph
 			for _, posGlyph := range run.Glyphs {
+				// gopdfgo: przesunięcie pionowe glifu (YOffset z kształtowania: znaki diakrytyczne
+				// pozycjonowane przez GPOS, syntetyczny indeks górny i dolny) jako wzniesienie tekstu
+				// (ISO 32000-1 § 9.3.7). Źródło je pomijało i wszystkie glify stały na linii bazowej.
+				if posGlyph.Rise != rise && useFont {
+					if len(out) != 0 {
+						g.stream.Ops(contentstream.OpShowSpaceGlyph{Glyphs: out})
+						out = out[:0:0]
+					}
+					rise = posGlyph.Rise
+					g.stream.Ops(contentstream.OpSetTextRise{Rise: rise * size / 1000})
+				}
 				out = append(out, contentstream.SpacedGlyph{
 					SpaceSubtractedBefore: -int(posGlyph.Offset),
 					GID:                   posGlyph.Glyph,
@@ -81,6 +97,9 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 			if useFont {
 				g.stream.Ops(contentstream.OpShowSpaceGlyph{Glyphs: out})
 			}
+		}
+		if rise != 0 {
+			g.stream.Ops(contentstream.OpSetTextRise{Rise: 0})
 		}
 	}
 }

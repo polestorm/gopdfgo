@@ -68,8 +68,10 @@ func TestTextFontSizeZero(t *testing.T) {
 	body := unpack1(html)
 	paragraph := unpack1(body)
 	line := unpack1(paragraph)
-	// zero-sized text boxes are removed
-	tu.AssertEqual(t, len(line.Box().Children), 0)
+	// gopdfgo: tekst o zerowym rozmiarze zostaje w wierszu jako pudełko zerowej szerokości (wiersz nie
+	// jest pusty, CSS 2 § 8.3.1, test WPT font-size-zero-1); w źródle był usuwany
+	tu.AssertEqual(t, len(line.Box().Children), 1)
+	tu.AssertEqual(t, unpack1(line).Box().Width, Fl(0))
 	tu.AssertEqual(t, line.Box().Height, Fl(0))
 	tu.AssertEqual(t, paragraph.Box().Height, Fl(0))
 }

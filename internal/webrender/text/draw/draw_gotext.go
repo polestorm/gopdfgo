@@ -152,6 +152,7 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 		output        backend.TextDrawing
 		lastFont      *font.Font
 		lastFontChars *backend.FontChars
+		lastScale     pr.Fl = 1
 		xAdvance      pr.Fl
 		kerningCarry  pr.Fl // reszta z zaokrąglenia korekt, zob. niżej
 	)
@@ -182,7 +183,15 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 		// Font content
 		face := run.Face
 		outFont := lastFontChars
-		if lastFont != face.Font { // add a new "run"
+		// gopdfgo: przebieg złożony w innym rozmiarze niż tekst (deskryptor size-adjust, font-size-adjust
+		// dla fontu zastępczego, syntetyczny indeks) ma własny rozmiar w PDF; różnica do 1/64 piksela
+		// pochodzi z zaokrąglenia rozmiaru do kształtowania i jest pomijana
+		sizeScale := pr.Fl(1)
+		if diff := fixedToFloat(run.Size) - fontSize; fontSize > 0 && (diff > 1.0/64 || diff < -1.0/64) {
+			sizeScale = fixedToFloat(run.Size) / fontSize
+		}
+		if lastFont != face.Font || sizeScale != lastScale { // add a new "run"
+			lastScale = sizeScale
 			location := fts.FontLocation(face.Font)
 			content := fts.FontContent(location)
 			backendFont := sharedFont(face, location, run.Size.Round())
@@ -192,9 +201,8 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			lastFontChars = outFont
 
 			outRun := backend.TextRun{Font: backendFont}
-			// gopdfgo: twarz z deskryptorem size-adjust albo dopasowana przez font-size-adjust ma swój rozmiar
-			if scale := fts.FaceSizeScale(style, face); scale != 1 {
-				outRun.SizeScale = scale
+			if sizeScale != 1 {
+				outRun.SizeScale = sizeScale
 			}
 			output.Runs = append(output.Runs, outRun)
 		} // else use the last one

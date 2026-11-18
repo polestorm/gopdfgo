@@ -294,7 +294,10 @@ func TestAbsolutePositioning7(t *testing.T) {
 	p1, div, p7 := unpack3(body)
 	p2, p3, p4, p5, p6 := unpack5(div)
 	line := unpack1(p5)
-	span1 := unpack1(line)
+	// gopdfgo: tekst „5” o zerowym rozmiarze fontu zostaje w wierszu (zob. splitTextBoxAt); w źródle
+	// wiersz miał tylko element span
+	textBox, span1 := unpack2(line)
+	tu.AssertEqual(t, textBox.Box().Width, pr.Float(0))
 	img, span2, span3 := unpack3(span1)
 	tu.AssertEqual(t, [2]pr.Float{p1.Box().PositionX, p1.Box().PositionY}, [2]pr.Float{0, 0})
 	tu.AssertEqual(t, [2]pr.Float{div.Box().PositionX, div.Box().PositionY}, [2]pr.Float{0, 20})

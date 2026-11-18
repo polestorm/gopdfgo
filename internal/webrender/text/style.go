@@ -127,6 +127,10 @@ type TextStyle struct {
 
 	// overall direction, as defined by the 'direction' CSS prop: either [pr.Ltr] or [pr.Rtl]
 	Direction pr.Keyword
+
+	// SynthesizedPosition (gopdfgo): "sub" albo "super", gdy font-variant-position wolno syntetyzować
+	// (font-synthesis-position: auto); zob. synthesizePosition
+	SynthesizedPosition string
 }
 
 // If ignoreSpacing is true, 'word-spacing' and 'letter-spacing' are
@@ -193,6 +197,10 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.FontFeatures = getFontFeatures(style, featureValues)
 
 	out.Direction = style.GetDirection()
+	if position := style.GetFontVariantPosition(); (position == "sub" || position == "super") &&
+		style.GetFontSynthesisPosition() != "none" {
+		out.SynthesizedPosition = string(position)
+	}
 
 	return &out
 }
@@ -230,6 +238,7 @@ type styleKey struct {
 	// gopdfgo: font-size-adjust zmienia rozmiar fontów zastępczych (zob. FaceSizeScale), choć rozmiar
 	// fontu podstawowego bywa ten sam co bez niego
 	SizeAdjust pr.SBoolFloat
+	SynthesizedPosition string // gopdfgo: jak w TextStyle
 }
 
 func (ts *TextStyle) key() styleKey {
@@ -257,6 +266,7 @@ func (ts *TextStyle) key() styleKey {
 		ts.HasTabUnit,
 		ts.Direction,
 		ts.SizeAdjust,
+		ts.SynthesizedPosition,
 	}
 }
 
