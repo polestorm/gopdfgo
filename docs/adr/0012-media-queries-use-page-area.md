@@ -1,6 +1,6 @@
 # ADR 0012: cechy rozmiaru w `@media` oceniane względem obszaru strony z `@page`
 
-Status: przyjęta 2026-11-16 (decyzja użytkownika; zamyka pytanie 20 i zastępuje punkt 2 ADR 0007
+Status: zastąpiona 2026-11-18 przez ADR 0019 (Chrome nie bierze rozmiaru z `@page`; CSS Page 3 § 7.1). Wcześniej: przyjęta 2026-11-16 (decyzja użytkownika; zamyka pytanie 20 i zastępuje punkt 2 ADR 0007
 w części dotyczącej rozmiaru).
 
 ## Kontekst

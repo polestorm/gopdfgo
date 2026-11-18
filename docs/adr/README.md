@@ -10,8 +10,9 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | 0016 | PDF/A-2b jako opcja pliku wynikowego (`Options.Conformance`): XMP, profil sRGB generowany w kodzie, identyfikator z treści; zgodność sprawdzana walidatorem veraPDF | przyjęta |
 | 0017 | Tryb ciągły (`Options.Continuous`): jedna strona rosnąca do wysokości treści, bez podziałów; od 2026-11-16 w nim liczony jest sondaż ekranowy | przyjęta |
 | 0018 | Fonty testowe CSSTest z WPT w `testdata/fonts/csstest` (zamiast instalacji w systemie) | przyjęta |
+| 0019 | Cechy rozmiaru w `@media` oceniane względem obszaru domyślnego arkusza (A4 albo arkusz użytkownika), bez wpływu `@page` autora (CSS Page 3 § 7.1; sprawdzone w Chrome 157) | przyjęta |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
-| 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page`, jak w Chromium i Media Queries 4 | przyjęta |
+| 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page` | zastąpiona przez ADR 0019 |
 | 0011 | Element wiersza flex, który nie mieści się na stronie, przechodzi na następną sam (jak w przeglądarkach); gdy nie mieści się żaden, przechodzi cała linia | przyjęta |
 | 0010 | Pismo pionowe (`writing-mode`) tylko jako poddrzewo obrócone i dopiero na potrzebę dokumentu; osie logiczne i pełne pismo pionowe poza projektem | przyjęta |
 | 0009 | Szerokości obramowań, konturów i linii między kolumnami przyciągane do całych pikseli jak w Chromium (CSS Values 4 § 6.1); przełącznik w ADR 0013 | przyjęta; parametr zastąpiony przez ADR 0013 |
