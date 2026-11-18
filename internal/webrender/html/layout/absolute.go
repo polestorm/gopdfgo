@@ -586,27 +586,6 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			return
 		}
 	}
-	// gopdfgo: pudełko w pozycji statycznej (top i bottom auto), które zaczyna się na samym dole strony
-	// albo niżej, nie ma na niej miejsca na treść: cała treść przechodzi na następną stronę i zaczyna się
-	// u jej góry (CSS Break 3 § 4.4). W źródle pierwsze dziecko zostawało na tej stronie, rysowane na
-	// dolnym marginesie (test WPT css-page/page-margin-007). Pozycji nie przesuwamy o wysokość strony
-	// jak wyżej, bo strony mogą mieć różne wysokości, a pozycja statyczna i tak wypada na początku
-	// następnej.
-	if bo.BlockT.IsInstance(newBox) && !context.inColumn && bottomSpace > -pr.Inf && context.pageBottom != pr.Inf && context.clipDepth == 0 &&
-		len(skipStack) == 0 && newBox.Box().Style.GetPosition().String == "absolute" &&
-		newBox.Box().Style.GetTop().Tag == pr.Auto && newBox.Box().Style.GetBottom().Tag == pr.Auto &&
-		newBox.Box().BorderBoxY() >= context.pageBottom-bottomSpace-0.01 && len(newBox.Box().Children) != 0 {
-		if _, isPage := containingBlock.(*bo.PageBox); isPage || containingBlock.Box().Style.GetOverflow() == "visible" {
-			removePlaceholders(context, []Box{newBox}, new([]*AbsolutePlaceholder), fixedBoxes)
-			empty := bo.CopyWithChildren(newBox, nil)
-			empty.Box().Height = pr.Float(0)
-			empty.Box().Style = empty.Box().Style.Copy()
-			empty.Box().Style.SetVisibility("hidden")
-			placeholder.setLaidOutBox(empty)
-			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock, resumeAt: tree.ResumeStack{0: nil}})
-			return
-		}
-	}
 	if resumeAt != nil {
 		context.setBrokenOutOfFlow(placeholder, brokenBox{
 			box:             box,
