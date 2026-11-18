@@ -1778,7 +1778,10 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 			return nil, skip + i + 1, true
 		}
 	}
-	if fontSize == pr.FToV(0) || len(text_) == 0 {
+	// gopdfgo: tekst o zerowym rozmiarze fontu jest układany jak każdy inny (ma zerową szerokość i
+	// wysokość), bo wiersz z nim nie jest pusty: marginesy nie zwijają się przez jego blok (CSS 2 § 8.3.1,
+	// test WPT font-size-zero-1). Źródło taki tekst pomijało.
+	if len(text_) == 0 {
 		return nil, -1, false
 	}
 	var style pr.StyleAccessor = box.Style
