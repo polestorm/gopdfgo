@@ -565,10 +565,11 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 				// gopdfgo: kolumna jest korzeniem kontekstu formatowania, więc jej treść obejmuje też elementy
 				// pływające (CSS 2 § 10.6.7); w źródle równoważenie liczyło tylko pudełka w przepływie.
-				for _, child := range newBox.Box().Children {
-					if ch := child.Box(); ch.IsFloated() {
-						consumedHeight = max(consumedHeight, ch.PositionY+ch.MarginHeight()-currentPositionY)
-					}
+				// gopdfgo: także elementy pływające w potomkach, które nie zakładają własnego kontekstu
+				// (np. w zwykłym bloku o wysokości 0); w źródle liczyły się tylko dzieci kolumny, więc
+				// wyjściowa wysokość równoważenia była za mała (testy WPT floats-clear-multicol-balancing-*).
+				if bottom, found := floatsBottom(newBox); found {
+					consumedHeight = max(consumedHeight, bottom-currentPositionY)
 				}
 				consumedHeights = append(consumedHeights, consumedHeight)
 
@@ -1222,6 +1223,27 @@ func isFloatsOnlyResume(resume tree.ResumeStack, children []Box) bool {
 	}
 	inner, ok := resume[len(children)]
 	return ok && inner == nil
+}
+
+// floatsBottom (gopdfgo) zwraca najniższą dolną krawędź marginesu elementów pływających należących do
+// kontekstu formatowania box: dzieci i potomków w blokach, które nie zakładają własnego kontekstu.
+func floatsBottom(box Box) (bottom pr.Float, found bool) {
+	for _, child := range box.Box().Children {
+		ch := child.Box()
+		if ch.IsFloated() {
+			if b := ch.PositionY + ch.MarginHeight(); !found || b > bottom {
+				bottom, found = b, true
+			}
+			continue
+		}
+		if !ch.IsInNormalFlow() || !bo.BlockT.IsInstance(child) || bo.EstablishesFormattingContext(child) {
+			continue
+		}
+		if b, ok := floatsBottom(child); ok && (!found || b > bottom) {
+			bottom, found = b, true
+		}
+	}
+	return bottom, found
 }
 
 // isEmptyColumnLine mówi, czy dziecko kolumny jest pustym wierszem (np. po końcowym <br>), który nie

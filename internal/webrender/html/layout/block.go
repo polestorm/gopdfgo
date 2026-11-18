@@ -765,6 +765,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	if box.IsColumn && len(context.columnFloats) != 0 {
 		pending := context.columnFloats
 		context.columnFloats = nil
+		// gopdfgo: dalsze ciągi elementów pływających są najpierw układane w układzie współrzędnych bloku
+		// zawierającego z poprzedniej kolumny, a przesuwane do tej kolumny dopiero wszystkie razem. Przesunięty
+		// wcześniej fragment leżał już w nowej kolumnie i następny (np. element pływający w prawo obok
+		// pływającego w lewo) omijał go jako przeszkodę, więc spadał pod niego, poza kolumnę (CSS 2.1 § 9.5.1,
+		// reguły 2 i 3; testy WPT floats-clear-multicol-*).
+		type placedFloat struct {
+			box Box
+			dx  pr.Float
+		}
+		var placedFloats []placedFloat
 		for _, v := range pending {
 			v.box.Box().PositionY = box.ContentBoxY()
 			// gopdfgo: pudełko pozycjonowane bezwzględnie podzielone w poprzedniej kolumnie też ciągnie się
@@ -787,12 +797,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				continue
 			}
 			placed, placedResumeAt := floatLayout(context, v.box, v.containingBlock.Box(), absoluteBoxes, fixedBoxes, bottomSpace, v.resumeAt)
-			placed.Translate(v.x-placed.Box().PositionX, 0, false)
+			placedFloats = append(placedFloats, placedFloat{placed, v.x - placed.Box().PositionX})
 			newChildren = append(newChildren, placed)
 			if placedResumeAt != nil {
 				context.setBrokenOutOfFlow(placed, brokenBox{box: v.box, containingBlock: v.containingBlock, resumeAt: placedResumeAt})
 				brokenOutOfFlow = append(brokenOutOfFlow, placed)
 			}
+		}
+		for _, p := range placedFloats {
+			p.box.Translate(p.dx, 0, false)
 		}
 	}
 
@@ -1432,6 +1445,13 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 		newChild, outOfFlowLayoutResumeAt = floatLayout(context, child_, box.Box(), absoluteBoxes, fixedBoxes, bottomSpace, nil)
 		// Check that child doesn’t overflow page.
 		pageOverflow := context.overflowsPage(bottomSpace, newChild.Box().PositionY+newChild.Box().Height.V())
+		// gopdfgo: element pływający z treścią, który zaczyna się już na samym dole strony albo kolumny, nie ma
+		// w niej miejsca, nawet gdy sam wyszedł o zerowej wysokości (np. kontener kolumn, którego kolumny
+		// wystają); przechodzi do następnego fragmentatora (CSS Break 3 § 4.4; test WPT
+		// nested-at-outer-boundary-as-float). W źródle zostawał pod dołem kolumny.
+		if len(newChild.Box().Children) != 0 && context.overflowsPage(bottomSpace, newChild.Box().BorderBoxY()+0.5) {
+			pageOverflow = true
+		}
 		addChild := (pageIsEmpty && len(*newChildren) == 0) || !pageOverflow || bo.IsMonolithic(box)
 		if addChild {
 			// Child fits or has to fit, add it.
@@ -1521,6 +1541,22 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 	canSlice := bottomSpace > -pr.Inf && context.pageBottom != pr.Inf && !context.inColumn && context.flexMeasuring == 0 &&
 		context.clipDepth == 0
 
+	// gopdfgo: wiersz wznowiony tuż po <br> z clear (zob. clearAfterLine) zaczyna się poniżej elementów
+	// pływających także w nowym fragmentatorze; gdy któryś z nich znów przechodzi dalej, cała reszta
+	// pudełka liniowego czeka na następny (HTML § 15.3.3, CSS 2.1 § 9.5.2; testy WPT
+	// floats-clear-multicol-001, -balancing-001). W źródle clear elementu liniowego nie działał wcale.
+	clearedResume, linesBefore := false, len(newChildren)
+	if !sliced && skipStack != nil {
+		if clear := clearBeforeResume(child_, skipStack); clear != "" {
+			cleared := clearedPosition(context, clear, positionY, true)
+			if cleared == pr.Inf {
+				return false, true, tree.ResumeStack{index: skipStack}, positionY, newChildren, nil, maxLines
+			}
+			clearedResume = cleared > positionY
+			positionY = cleared
+		}
+	}
+
 	linesIterator := iterLineBoxes(context, child_, positionY, bottomSpace, skipStack,
 		box_, absoluteBoxes, fixedBoxes, firstLetterStyle)
 	linesIterator.maxLines = maxLines // gopdfgo: zob. lineBoxeIterator.balanceClamped
@@ -1564,6 +1600,9 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		}
 		// Update line resume_at and position_y
 		line_.ResumeAt = resumeAt
+		if i == 0 && clearedResume {
+			line_.Cleared = true
+		}
 		newPositionY := line.PositionY + line.Height.V()
 		// Add bottom padding and border to the bottom position of the box if needed
 		var offsetY pr.Float
@@ -1675,10 +1714,27 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		newChildren = append(newChildren, line_)
 		positionY = newPositionY
 		skipStack = resumeAt
+		// gopdfgo: po <br> z clear, gdy oczyszczany element pływający ciągnie się w następnym fragmentatorze,
+		// reszta treści przechodzi tam (zob. wyżej, clearBeforeResume)
+		if resumeAt != nil {
+			if clear := clearBeforeResume(child_, resumeAt); clear != "" && clearedPosition(context, clear, positionY, true) == pr.Inf {
+				stop = true
+				break
+			}
+		}
 
 		if traceMode {
 			traceLogger.DumpTree(line_, fmt.Sprintf("lineBoxLayout at line %d -> %s", i, skipStack))
 		}
+	}
+
+	// gopdfgo: po <br> z clear nie ma już treści, ale wznowione pudełko i tak sięga poniżej elementów
+	// pływających: pusty wiersz w miejscu clearance (zob. clearBeforeResume)
+	if clearedResume && len(newChildren) == linesBefore && !abort && !stop {
+		empty := bo.CopyWithChildren(child_, nil).(*bo.LineBox)
+		empty.PositionY, empty.Height, empty.Width = positionY, pr.Float(0), pr.Float(0)
+		empty.ResumeAt, empty.Cleared = nil, true
+		newChildren = append(newChildren, empty)
 	}
 
 	if len(newChildren) != 0 {
@@ -2405,7 +2461,7 @@ func resumeKey(stack tree.ResumeStack) uintptr {
 // pływającym albo pozycjonowanym też ma zerową wysokość, ale wyznacza położenie tego elementu, więc
 // marginesy przed nim muszą być już rozliczone.
 func isEmptyLinebox(line *bo.LineBox) bool {
-	if !isPhantomLinebox(line.Box()) {
+	if line.Cleared || !isPhantomLinebox(line.Box()) {
 		return false
 	}
 	for _, descendant := range bo.DescendantsPlaceholders(line, true) {

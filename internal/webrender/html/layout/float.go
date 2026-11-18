@@ -571,8 +571,78 @@ func clearAfterLine(context *layoutContext, line Box, y pr.Float) pr.Float {
 		}
 	}
 	walk(line)
+	return clearedPosition(context, clear, y, false)
+}
+
+// clearBeforeResume (gopdfgo) zwraca wartość clear elementu <br>, który w pudełku liniowym box stoi tuż przed
+// miejscem wznowienia skip (pusty napis, gdy przed wznowieniem nie ma takiego elementu). Wiersz wznowiony
+// w następnym fragmentatorze po takim złamaniu też musi stanąć poniżej elementów pływających (zob.
+// clearAfterLine).
+func clearBeforeResume(box Box, skip tree.ResumeStack) string {
+	last, found := lastBeforeResume(box, skip)
+	if !found || !isBr(last) {
+		return ""
+	}
+	if c := last.Box().Style.GetClear(); c != "none" {
+		return string(c)
+	}
+	return ""
+}
+
+// lastBeforeResume szuka ostatniego pudełka (liścia albo elementu <br>) przed miejscem wznowienia skip.
+func lastBeforeResume(box Box, skip tree.ResumeStack) (Box, bool) {
+	if len(skip) != 1 {
+		return nil, false
+	}
+	if isBr(box) {
+		return box, true // wznowienie wewnątrz <br>, czyli za jego znakiem nowego wiersza
+	}
+	index, inner := skip.Unpack()
+	children := box.Box().Children
+	if len(children) == 0 {
+		return box, index > 0 // wznowienie w środku tekstu
+	}
+	if inner != nil && index < len(children) {
+		if last, found := lastBeforeResume(children[index], inner); found {
+			return last, true
+		}
+	}
+	if index > 0 && index <= len(children) {
+		return lastLeaf(children[index-1]), true
+	}
+	return nil, false
+}
+
+func isBr(box Box) bool {
+	return box.Box().Element != nil && box.Box().Element.Data == "br" && box.Box().PseudoType == ""
+}
+
+func lastLeaf(box Box) Box {
+	for {
+		children := box.Box().Children
+		if len(children) == 0 || isBr(box) {
+			return box
+		}
+		box = children[len(children)-1]
+	}
+}
+
+// clearedPosition (gopdfgo) zwraca położenie poniżej elementów pływających po stronie clear ("left",
+// "right", "both"; pusta wartość nic nie zmienia). Gdy któryś z nich ciągnie się w następnym fragmentatorze
+// (kolumnie albo stronie), a withBroken jest prawdziwe, wynik jest nieskończony: treść po złamaniu wiersza
+// zaczyna się dopiero za nim, tak jak blok z clear (zob. getClearance; testy WPT floats-clear-multicol-001).
+// Iterator wierszy pyta bez withBroken (wiersz w nieskończoności zapętlałby układ); przerwanie robi
+// lineBoxLayout.
+func clearedPosition(context *layoutContext, clear string, y pr.Float, withBroken bool) pr.Float {
 	if clear == "" || context.excludedShapes == nil {
 		return y
+	}
+	if withBroken {
+		for _, broken := range context.brokenOutOfFlow {
+			if b := broken.box.Box(); b.IsFloated() && (clear == "both" || clear == string(b.Style.GetFloat())) {
+				return pr.Inf
+			}
+		}
 	}
 	for _, shape := range context.excludedShapes.list {
 		if float := string(shape.Style.GetFloat()); clear == "both" || clear == float {
