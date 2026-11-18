@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -66,7 +67,7 @@ func definiteTrackSize(track pr.GridSpec, available pr.Float) (pr.Float, bool) {
 // autoRepeatCount liczy powtórzenia dla repeat(auto-fill | auto-fit, ...): największą liczbę, przy której
 // ścieżki z odstępami mieszczą się w kontenerze (CSS Grid 1 § 7.2.3.2); jedno powtórzenie, gdy rozmiar
 // kontenera albo którejś powtarzanej ścieżki nie jest określony.
-func autoRepeatCount(tracks pr.GridTemplate, repeat pr.GridRepeat, available pr.MaybeFloat, gap pr.Float) int {
+func autoRepeatCount(tracks pr.GridTemplate, repeat pr.GridRepeat, available pr.MaybeFloat, gap pr.Float, atLeast bool) int {
 	if available == nil || available == pr.AutoF {
 		return 1
 	}
@@ -108,12 +109,17 @@ func autoRepeatCount(tracks pr.GridTemplate, repeat pr.GridRepeat, available pr.
 	}
 	// fixed + n*unit + (others + n*perRepeat - 1)*gap <= available
 	n := int((available.V() - fixed - pr.Float(others-1)*gap + 1e-6) / (unit + pr.Float(perRepeat)*gap))
+	if atLeast {
+		// gopdfgo: przy samym minimalnym rozmiarze kontenera najmniejsza liczba powtórzeń, która
+		// go wypełnia (CSS Grid 1 § 7.2.3.2)
+		n = int(math.Ceil(float64((available.V() - fixed - pr.Float(others-1)*gap - 1e-6) / (unit + pr.Float(perRepeat)*gap))))
+	}
 	return max(n, 1)
 }
 
 // gopdfgo: available i gap służą tylko do repeat(auto-fill | auto-fit); w źródle oba dawały jedno
 // powtórzenie z ostrzeżeniem. Puste ścieżki auto-fit zwija potem collapseEmptyAutoFit.
-func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float) []pr.GridSpec {
+func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float, atLeast bool) []pr.GridSpec {
 	if tracks.Tag == pr.None {
 		tracks.Names = []pr.GridSpec{pr.GridNames{}}
 	}
@@ -129,7 +135,7 @@ func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.F
 			if trackR, isRepeat := track.(pr.GridRepeat); isRepeat {
 				repeatNumber := trackR.Repeat
 				if repeatNumber == pr.RepeatAutoFill || repeatNumber == pr.RepeatAutoFit {
-					repeatNumber = autoRepeatCount(tracks, trackR, available, gap)
+					repeatNumber = autoRepeatCount(tracks, trackR, available, gap, atLeast)
 				}
 				for _c := 0; _c < repeatNumber; _c++ {
 					for j, repeatTrack := range trackR.Names {
@@ -164,7 +170,7 @@ func getTemplateTracks(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.F
 // autoFitRange zwraca położenie ścieżek pochodzących z repeat(auto-fit, …):
 // numer pierwszej (od zera, w siatce jawnej) i ich liczbę; (0, 0), gdy
 // szablon nie ma takiego powtórzenia.
-func autoFitRange(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float) (first, count int) {
+func autoFitRange(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float, atLeast bool) (first, count int) {
 	if tracks.Tag == pr.None || tracks.Tag == pr.Subgrid {
 		return 0, 0
 	}
@@ -181,9 +187,9 @@ func autoFitRange(tracks pr.GridTemplate, available pr.MaybeFloat, gap pr.Float)
 		perRepeat := len(repeat.Names) / 2
 		switch repeat.Repeat {
 		case pr.RepeatAutoFit:
-			return before, perRepeat * autoRepeatCount(tracks, repeat, available, gap)
+			return before, perRepeat * autoRepeatCount(tracks, repeat, available, gap, atLeast)
 		case pr.RepeatAutoFill:
-			before += perRepeat * autoRepeatCount(tracks, repeat, available, gap)
+			before += perRepeat * autoRepeatCount(tracks, repeat, available, gap, atLeast)
 		default:
 			before += perRepeat * repeat.Repeat
 		}
@@ -1234,10 +1240,36 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		}
 	}
 
-	rows := getTemplateTracks(style.GetGridTemplateRows(), box.Height, rowGap)
-	columns := getTemplateTracks(style.GetGridTemplateColumns(), box.Width, columnGap)
-	rowsFitFirst, rowsFitCount := autoFitRange(style.GetGridTemplateRows(), box.Height, rowGap)
-	columnsFitFirst, columnsFitCount := autoFitRange(style.GetGridTemplateColumns(), box.Width, columnGap)
+	// gopdfgo: liczba powtórzeń auto-fill i auto-fit przy nieokreślonym rozmiarze kontenera wynika
+	// z określonego max-width (max-height), a bez niego z min-width (min-height) (CSS Grid 1 § 7.2.3.2);
+	// źródło dawało wtedy jedno powtórzenie
+	repeatSpace := func(size, minimum, maximum pr.MaybeFloat) (pr.MaybeFloat, bool) {
+		if _, ok := size.(pr.Float); ok {
+			return size, false
+		}
+		if maximum, ok := maximum.(pr.Float); ok && maximum < pr.Inf {
+			return maximum, false
+		}
+		if minimum, ok := minimum.(pr.Float); ok && minimum > 0 {
+			return minimum, true
+		}
+		return size, false
+	}
+	repeatHeight, rowsAtLeast := repeatSpace(box.Height, box.MinHeight, box.MaxHeight)
+	repeatWidth, columnsAtLeast := box.Width, false
+	if _, known := box.Width.(pr.Float); !known && measure == nil && bo.GridT.IsInstance(box_) {
+		// szerokość siatki blokowej nie jest tu jeszcze wyznaczona, ale jest określona: liczymy ją na
+		// kopii, jak przy odstępie procentowym wyżej; źródło dawało wtedy jedno powtórzenie
+		probe := box_.Copy()
+		blockLevelWidth(probe, context, containingBlock)
+		repeatWidth = probe.Box().Width
+	} else if measure == nil || box.Width == pr.AutoF {
+		repeatWidth, columnsAtLeast = repeatSpace(box.Width, box.MinWidth, box.MaxWidth)
+	}
+	rows := getTemplateTracks(style.GetGridTemplateRows(), repeatHeight, rowGap, rowsAtLeast)
+	columns := getTemplateTracks(style.GetGridTemplateColumns(), repeatWidth, columnGap, columnsAtLeast)
+	rowsFitFirst, rowsFitCount := autoFitRange(style.GetGridTemplateRows(), repeatHeight, rowGap, rowsAtLeast)
+	columnsFitFirst, columnsFitCount := autoFitRange(style.GetGridTemplateColumns(), repeatWidth, columnGap, columnsAtLeast)
 
 	// gopdfgo: bez grid-template-areas siatka jawna ma tyle ścieżek, ile podają grid-template-rows
 	// i grid-template-columns, także zero (CSS Grid 1 § 7.1); źródło dawało wtedy siatkę 1×1 z jedną
@@ -1786,7 +1818,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 	if percentRowGap && skipStack == nil {
 		contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
-		rowGap = pr.ResolvePercentage(style.GetRowGap(), contentHeight).V()
+		// gopdfgo: procent odnosi się do użytej wysokości kontenera, czyli także po min-height
+		// i max-height (CSS Box Alignment 3 § 8.3)
+		rowGap = pr.ResolvePercentage(style.GetRowGap(), clampSize(contentHeight, box.MinHeight, box.MaxHeight)).V()
 	}
 	context.gridShims = previousShims
 

@@ -95,4 +95,25 @@ func TestGridMisc(t *testing.T) {
 	same("compressible-replaced", `<div style="display:grid;width:100px"><img src="`+square(200)+`"
 		style="width:200px;height:auto;max-width:100%"></div>`,
 		`<div class="g" style="width:100px;height:100px"></div>`)
+	// wiersz procentowy przy wysokości auto: najpierw jak auto (wysokość 20 + 60 + 20), potem 20% ze 100,
+	// a wiersze auto rozciągają się do 40; za siatką blok zaczyna się na 100
+	same("percent-rows-auto-height", `<div style="display:grid;width:50px;grid-template-rows:auto 20% auto">
+		<div class="g" style="height:20px"></div><div class="b" style="height:60px"></div><div class="g" style="height:20px"></div></div>
+		<div class="b" style="width:10px;height:10px"></div>`,
+		`<div class="g a" style="width:50px;height:20px"></div><div class="b a" style="top:40px;width:50px;height:60px"></div>
+		<div class="g a" style="top:60px;width:50px;height:20px"></div><div class="b a" style="top:100px;width:10px;height:10px"></div>`)
+	// procentowy row-gap odnosi się do wysokości po min-height
+	same("percent-row-gap-min-height", `<div style="display:grid;grid:40px 40px / 40px;row-gap:20%;min-height:140px">
+		<div class="g"></div><div class="b"></div></div>`,
+		`<div class="g" style="width:40px;height:40px;margin-bottom:28px"></div><div class="b" style="width:40px;height:40px"></div>`)
+	// auto-fill w siatce blokowej o szerokości auto: liczba powtórzeń z szerokości bloku (300 - 140) / 70 = 2
+	same("auto-fill-block-width", `<div style="display:grid;grid-template-columns:10px 20px repeat(auto-fill, 30px 40px) 50px 60px">
+		<div></div><div></div><div></div><div></div><div class="g" style="height:20px"></div><div class="b"></div></div>`,
+		`<div class="g a" style="left:100px;width:30px;height:20px"></div><div class="b a" style="left:130px;width:40px;height:20px"></div>`)
+	// auto-fit przy szerokości max-content: powtórzenia z max-width, puste ścieżki zwinięte (50 + 10 + 50)
+	same("auto-fit-max-content", `<div class="b" style="display:grid;width:max-content;max-width:400px;column-gap:10px;
+		grid-template-columns:repeat(auto-fit, 50px);grid-auto-columns:50px">
+		<div class="g" style="grid-column:1;height:20px"></div><div class="g" style="grid-column:3"></div></div>`,
+		`<div class="g a" style="width:50px;height:20px"></div><div class="b a" style="left:50px;width:10px;height:20px"></div>
+		<div class="g a" style="left:60px;width:50px;height:20px"></div>`)
 }
