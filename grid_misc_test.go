@@ -66,7 +66,7 @@ func TestGridMisc(t *testing.T) {
 		<div style="position:relative;grid-area:1/1"><div class="g a" style="width:100%;height:100%"></div></div></div>`,
 		`<div class="g" style="width:100px;height:100px"></div>`)
 	// minimum automatyczne ograniczone stałą funkcją maksimum ścieżki: ścieżki mają zero
-	same("min-auto-fixed-max", `<div class="g a" style="width:100px;height:100px"></div>
+	same("min-auto-fixed-max", `<div class="g a" style="width:100px;height:100px;z-index:-1"></div>
 		<div style="display:grid;width:10px;height:10px;grid:minmax(auto, 0px) / minmax(auto, 0px)">
 		<div class="r"><div style="width:100px;height:100px"></div></div></div>`,
 		`<div class="g" style="width:100px;height:100px"></div>`)
