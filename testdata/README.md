@@ -10,7 +10,8 @@ Pochodzenie i licencje obcych plików: `THIRD_PARTY.md`.
 | `wpt/` | testy druku z web-platform-tests, bez JavaScriptu | 340 reftestów + 115 ręcznych | plik wzorcowy HTML (reftest) albo opis w treści testu |
 | `wpt/manifest.tsv`, warstwa `layout` | reftesty ekranowe CSS 2.1, tabele, listy, flex, fragmentacja w kolumnach | 8242, tylko lista | pliki w klonie WPT o commicie z `wpt/UPSTREAM` |
 | `fonts/` | Noto Sans (4 odmiany), Noto Sans Mono, Noto Serif | 6 | używane przez `documents/` |
-| `fonts/features/` | Source Sans 3 Regular (Adobe, SIL OFL 1.1), kopia z `samples/weasyprint/invoice/` | 1 | tylko `TestFontFeatureValues`: font z cechami `salt`, `ss01`–`ss06`, `cv01`–`cv05`; CLI go nie wczytuje (czyta tylko główny katalog `fonts/`) |
+| `fonts/features/` | Source Sans 3 Regular (Adobe, SIL OFL 1.1), kopia z `samples/weasyprint/invoice/` | 1 | tylko `TestFontFeatureValues`: font z cechami `salt`, `ss01`–`ss06`, `cv01`–`cv05`; CLI wczytuje go razem z innymi podkatalogami pierwszego poziomu |
+| `fonts/csstest/` | fonty CSSTest z WPT (`fonts/CSSTest`, przerobiony Gentium Basic, SIL OFL 1.1), kopia bez zmian | 53 | testy W3C, które zakładają fonty CSSTest zainstalowane w systemie (`font-family-name-*`; ADR 0018) |
 
 Rozmiar: 15 MB, 833 pliki (pomiar `du -sh`, `find -type f`, 2026-11-12).
 

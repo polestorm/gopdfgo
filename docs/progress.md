@@ -31,7 +31,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 | Miara | Wynik | Uwagi |
 |---|---|---|
 | Sondaż ekranowy W3C | **7771 z 9123 (85,2%)** | ściśle 7371, krawędziowo 400; tryb ciągły; od 17.11 zestaw większy o 13 testów |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1615 z 1839 (87,8%)** | ściśle 1563, krawędziowo 52; `css-text` 792 z 909, `css-backgrounds` 569 z 603, `css-fonts` 254 z 327; od 17.11 zestaw większy o 71 testów |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1627 z 1839 (88,5%)** | ściśle 1575, krawędziowo 52; `css-text` 792 z 909, `css-backgrounds` 569 z 603, `css-fonts` 266 z 327 (od 18.11 z fontami CSSTest, ADR 0018); od 17.11 zestaw większy o 71 testów |
 | Reftesty druku W3C | **245 z 340 (72,1%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
@@ -42,7 +42,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 | Rozmiar binarki | 23,35 MB (macOS arm64, `-s -w`) | 17 razy mniej niż Chromium z bibliotekami |
 | Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
 | Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 17 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
+| Decyzje (ADR) | 18 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
 
 ## Sondaż ekranowy w czasie
 
@@ -151,7 +151,7 @@ css-flexbox (952)               ████████████████
 css-grid bez lanes i subgrid    ████████████████▊    83,8%    104
 css-multicol (370)              █████████████████▌   87,6%     46
 css-text (909)                  █████████████████▍   87,1%    117
-css-fonts (327)                 ███████████████▌     77,7%     73
+css-fonts (327)                 ████████████████▎    81,3%     61
 css-content (40)                ████████████████▌    82,5%      7
 css-grid: subgrid (88)          ██████▎              31,8%     60
 css-grid: grid-lanes (865)      ██▍                  12,1%    760

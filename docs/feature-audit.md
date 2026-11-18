@@ -1885,3 +1885,11 @@ fragmentami) zderzyły się nazwą; pierwsza nazywa się teraz `shiftOutsideMark
 Narzędzie: `bench/survey/tools/chk.sh` liczy teraz tą samą miarą co sondaż (przez `survey96e.py`
 z `SURVEY_LIST`), w 6 procesach i z pamięcią wzorców: ok. 20 testów/s zamiast 1/s; znikły też fałszywe
 straty na stronach wyższych niż 600 px.
+
+## Fonty testowe CSSTest (2026-11-18, ADR 0018)
+
+53 fonty CSSTest z WPT skopiowane do `testdata/fonts/csstest/` (OFL 1.1). Testy, które zakładają je
+zainstalowane w systemie, widzą je jak każdy font z katalogu `-fonts`. `css-fonts`: 254 → 266 z 327
+(zysk 15: `font-family-name-*` 12, `font-weight-bolder/lighter/normal-001`; strata 3 przypadkowych zaliczeń,
+opisanych w ADR 0018). Korpus identyczny co do piksela; pozostałe obszary (4789 testów) bez zmian.
+Liczby z `chk.sh` na binarce z 47b6ec0, wpisane do stanu bazowego bez pełnego sondażu.
