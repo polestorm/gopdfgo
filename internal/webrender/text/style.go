@@ -447,6 +447,14 @@ func getFontFeatures(style pr.StyleAccessor, featureValues validation.FontFeatur
 	}
 
 	// Step 5: incompatible non-OpenType features, already handled by Pango
+	// gopdfgo: niezerowy letter-spacing wyłącza ligatury opcjonalne (CSS Text 3 § 8.3, CSS Fonts 4
+	// § 7.2 krok 4), także włączone przez font-variant-ligatures; włącza je z powrotem tylko
+	// font-feature-settings (test WPT font-feature-resolution-001). Źródło tego nie robiło.
+	if ls := style.GetLetterSpacing(); ls.Tag != pr.Normal && ls.Value != 0 {
+		for _, key := range []tag{{'l', 'i', 'g', 'a'}, {'c', 'l', 'i', 'g'}, {'d', 'l', 'i', 'g'}, {'h', 'l', 'i', 'g'}, {'c', 'a', 'l', 't'}} {
+			features[key] = 0
+		}
+	}
 
 	// Step 6: font-feature-settings
 	features.merge(style.GetFontFeatureSettings())
@@ -468,6 +476,7 @@ func getFontFaceFeatures(ruleDescriptors validation.FontFaceDescriptors) []Featu
 	props.SetFontVariantNumeric(pr.SStrings{})
 	props.SetFontVariantAlternates("")
 	props.SetFontVariantEastAsian(pr.SStrings{})
+	props.SetLetterSpacing(pr.TaggedDim{Tag: pr.Normal}) // gopdfgo: zob. krok 5 w getFontFeatures
 	props.SetFontFeatureSettings(nil)
 	for _, rules := range ruleDescriptors.FontVariant {
 		prop, ok := rules.Value.(pr.CssProperty)

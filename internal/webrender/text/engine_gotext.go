@@ -882,6 +882,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	if wordSpacing := fc.wordSpacing(style); style.LetterSpacing != 0 || wordSpacing != 0 {
 		ws, ls := floatToFixed(wordSpacing), floatToFixed(style.LetterSpacing)
 		shaping.AddSpacing(outputs, text, ws, ls)
+		if ls != 0 {
+			joinersWithoutSpacing(outputs, text, ls)
+		}
 		// add letter spacing at the end, like other browers do
 		lastRun := &outputs[len(outputs)-1]
 		lastRun.Glyphs[len(lastRun.Glyphs)-1].Advance += ls
@@ -1798,6 +1801,38 @@ func (fc *FontConfigurationGotext) synthesizePosition(input shaping.Input, posit
 		out.Glyphs[i].YOffset += shift
 	}
 	return out, true
+}
+
+// joinersWithoutSpacing (gopdfgo) zdejmuje letter-spacing dodany przez go-text do znaków ZWNJ i ZWJ
+// stojących we własnym klastrze. Należą one do klastra grafemów poprzedniego znaku (Grapheme_Extend,
+// UAX 29), a odstęp między literami dodaje się między klastrami grafemów (CSS Text 3 § 8.2), więc
+// „f‌i” ma jeden odstęp, jak „fi” (test WPT font-feature-resolution-001). Źródło dodawało dwa.
+func joinersWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
+	half := ls / 2
+	for r := range runs {
+		run := &runs[r]
+		changed := false
+		for i := range run.Glyphs {
+			g := &run.Glyphs[i]
+			if g.GlyphCount != 1 || g.ClusterIndex < 0 || g.ClusterIndex >= len(text) ||
+				(text[g.ClusterIndex] != 0x200C && text[g.ClusterIndex] != 0x200D) {
+				continue
+			}
+			if i > 0 || r > 0 { // połowa przed klastrem (zob. shaping.Output.AddLetterSpacing)
+				g.Advance -= half
+				g.XAdvance -= half
+				g.XOffset -= half
+			}
+			if i < len(run.Glyphs)-1 || r < len(runs)-1 { // połowa za klastrem
+				g.Advance -= half
+				g.XAdvance -= half
+			}
+			changed = true
+		}
+		if changed {
+			run.RecomputeAdvance()
+		}
+	}
 }
 
 const shapingPrecision = 64
