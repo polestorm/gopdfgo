@@ -195,17 +195,19 @@ var InitialValues = Properties{
 	PTransform:       Transforms{}, // computed value for "none"
 
 	// User Interface 3/4 (REC/WD): https://www.w3.org/TR/css-ui-4/
-	PAppearance:     String("none"),
-	POutlineColor:   CurrentColor, // invert is not supported
-	POutlineStyle:   String("none"),
-	POutlineWidth:   TaggedDim{Dimension: Dimension{Value: 3}}, // computed value for "medium"
-	POutlineOffset:  ZeroPixels.Tagged(),                       // gopdfgo
-	PAspectRatio:    Float(0),                                  // gopdfgo: auto
-	PBoxShadow:      BoxShadows{},                              // gopdfgo: none
-	PTextShadow:     BoxShadows{},                              // gopdfgo: none
-	PContain:        String("none"),                            // gopdfgo
-	PWrapInside:     String("auto"),                            // gopdfgo
-	PWhiteSpaceTrim: String("none"),                            // gopdfgo: CSS Text 4 § 4.2
+	PAppearance:          String("none"),
+	POutlineColor:        CurrentColor, // invert is not supported
+	POutlineStyle:        String("none"),
+	POutlineWidth:        TaggedDim{Dimension: Dimension{Value: 3}}, // computed value for "medium"
+	POutlineOffset:       ZeroPixels.Tagged(),                       // gopdfgo
+	PAspectRatio:         Float(0),                                  // gopdfgo: auto
+	PBoxShadow:           BoxShadows{},                              // gopdfgo: none
+	PTextShadow:          BoxShadows{},                              // gopdfgo: none
+	PContain:             String("none"),                            // gopdfgo
+	PWrapInside:          String("auto"),                            // gopdfgo
+	PWhiteSpaceTrim:      String("none"),                            // gopdfgo: CSS Text 4 § 4.2
+	PBackgroundBlendMode: Strings{"normal"},                         // gopdfgo: CSS Compositing 1 § 3.2
+	PClipPath:            ClipPath{},                                // gopdfgo: none
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

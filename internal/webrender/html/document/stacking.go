@@ -166,7 +166,9 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	// dla potomków pudełka pozycjonowanego lub przekształconego bryłą
 	// zawierającą jest ono samo, więc nie mają dokąd uciekać
 	innerEscape := escape
-	if positioned || hasTransform {
+	// gopdfgo: clip-path przycina wszystkich potomków (CSS Masking 1 § 5.1), więc też nie uciekają
+	hasClipPath := style.GetClipPath().Shape != ""
+	if positioned || hasTransform || hasClipPath {
 		innerEscape = nil
 	}
 	// gopdfgo: element flex lub grid z z-index innym niż auto tworzy kontekst
@@ -182,12 +184,14 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	}
 	if absoluteAndZIndex || style.GetOpacity() < 1 ||
 		// "transform: none" gives a "falsy" empty list here
-		hasTransform || bo.ClipsOverflow(box) {
+		hasTransform || bo.ClipsOverflow(box) ||
+		// gopdfgo: clip-path inne niż none tworzy kontekst nakładania (CSS Masking 1 § 5.1)
+		hasClipPath {
 
 		// Pudełka uciekające spod przycięcia rysujemy po kontekście, z którego
 		// uciekły, tak jak leżałyby w nim: nad jego treścią.
 		var escaped []StackingContext
-		if bo.ClipsOverflow(box) && !positioned && !hasTransform && innerEscape == nil {
+		if bo.ClipsOverflow(box) && !positioned && !hasTransform && !hasClipPath && innerEscape == nil {
 			innerEscape = &escaped
 		}
 		// gopdfgo: element pływający, który tylko przycina treść (overflow inne niż visible), nie tworzy
@@ -200,7 +204,7 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		// abspos-overflow-011); w CSS jego potomkowie należą do zwykłych warstw rodzica, czego tu nie
 		// odtwarzamy (test overflow-scroll-paint-order nadal nie przechodzi).
 		if (box.Box().IsFloated() || (bo.BlockLevelT.IsInstance(box) && box.Box().IsInNormalFlow())) &&
-			!absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned {
+			!absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned && !hasClipPath {
 			*floats = append(*floats, newStackingContextFromBox(box, page, nil, innerEscape))
 			*childContexts = append(*childContexts, escaped...)
 			return nil

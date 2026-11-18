@@ -2057,3 +2057,23 @@ func (s *AnonymousStyle) GetWhiteSpaceTrim() pr.String {
 	return s.Get(pr.PWhiteSpaceTrim.Key()).(pr.String)
 }
 func (s *AnonymousStyle) SetWhiteSpaceTrim(v pr.String) { s.propsCache.setKnown(pr.PWhiteSpaceTrim, v) }
+
+func (s *ComputedStyle) GetBackgroundBlendMode() pr.Strings {
+	return s.Get(pr.PBackgroundBlendMode.Key()).(pr.Strings)
+}
+func (s *ComputedStyle) SetBackgroundBlendMode(v pr.Strings) {
+	s.propsCache.setKnown(pr.PBackgroundBlendMode, v)
+}
+
+func (s *AnonymousStyle) GetBackgroundBlendMode() pr.Strings {
+	return s.Get(pr.PBackgroundBlendMode.Key()).(pr.Strings)
+}
+func (s *AnonymousStyle) SetBackgroundBlendMode(v pr.Strings) {
+	s.propsCache.setKnown(pr.PBackgroundBlendMode, v)
+}
+
+func (s *ComputedStyle) GetClipPath() pr.ClipPath  { return s.Get(pr.PClipPath.Key()).(pr.ClipPath) }
+func (s *ComputedStyle) SetClipPath(v pr.ClipPath) { s.propsCache.setKnown(pr.PClipPath, v) }
+
+func (s *AnonymousStyle) GetClipPath() pr.ClipPath  { return s.Get(pr.PClipPath.Key()).(pr.ClipPath) }
+func (s *AnonymousStyle) SetClipPath(v pr.ClipPath) { s.propsCache.setKnown(pr.PClipPath, v) }

@@ -198,6 +198,9 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				return
 			}
 		}
+		// gopdfgo: clip-path przycina element razem z potomkami w jego układzie po przekształceniu
+		// (CSS Masking 1 § 5.1)
+		ctx.applyClipPath(box)
 
 		// Point 1 is done in drawPage
 

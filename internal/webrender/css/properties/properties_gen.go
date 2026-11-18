@@ -623,6 +623,12 @@ func (s Properties) SetFontSynthesisPosition(v String) { s[PFontSynthesisPositio
 func (s Properties) GetWhiteSpaceTrim() String  { return s[PWhiteSpaceTrim].(String) }
 func (s Properties) SetWhiteSpaceTrim(v String) { s[PWhiteSpaceTrim] = v }
 
+func (s Properties) GetBackgroundBlendMode() Strings  { return s[PBackgroundBlendMode].(Strings) }
+func (s Properties) SetBackgroundBlendMode(v Strings) { s[PBackgroundBlendMode] = v }
+
+func (s Properties) GetClipPath() ClipPath  { return s[PClipPath].(ClipPath) }
+func (s Properties) SetClipPath(v ClipPath) { s[PClipPath] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1232,6 +1238,12 @@ type StyleAccessor interface {
 
 	GetWhiteSpaceTrim() String
 	SetWhiteSpaceTrim(v String)
+
+	GetBackgroundBlendMode() Strings
+	SetBackgroundBlendMode(v Strings)
+
+	GetClipPath() ClipPath
+	SetClipPath(v ClipPath)
 }
 
 var propsNames = [...]string{
@@ -1438,6 +1450,8 @@ var propsNames = [...]string{
 	PFontSynthesisSmallCaps:  "font-synthesis-small-caps",
 	PFontSynthesisPosition:   "font-synthesis-position",
 	PWhiteSpaceTrim:          "white-space-trim",
+	PBackgroundBlendMode:     "background-blend-mode",
+	PClipPath:                "clip-path",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1645,4 +1659,6 @@ var PropsFromNames = map[string]KnownProp{
 	"font-synthesis-small-caps":  PFontSynthesisSmallCaps,
 	"font-synthesis-position":    PFontSynthesisPosition,
 	"white-space-trim":           PWhiteSpaceTrim,
+	"background-blend-mode":      PBackgroundBlendMode,
+	"clip-path":                  PClipPath,
 }

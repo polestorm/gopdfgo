@@ -266,6 +266,8 @@ var (
 		pr.PTextJustify:             textJustify,
 		pr.PWrapInside:              wrapInside,
 		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
+		pr.PBackgroundBlendMode:     backgroundBlendMode,
+		pr.PClipPath:                clipPath,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextWrapMode:            textWrapMode,

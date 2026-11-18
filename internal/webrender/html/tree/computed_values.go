@@ -124,6 +124,7 @@ var (
 		pr.PTransform:     transforms,
 		pr.PBoxShadow:     boxShadows,
 		pr.PTextShadow:    boxShadows,
+		pr.PClipPath:      clipPath,
 		pr.PVerticalAlign: verticalAlign,
 		pr.PWordSpacing:   wordSpacing,
 		pr.PTextAlignAll:  textAlignAll,
@@ -1178,6 +1179,25 @@ func boxShadows(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) 
 		result[index] = shadow
 	}
 	return result
+}
+
+// gopdfgo: długości kształtu clip-path sprowadzone do pikseli; procenty zostają. Promienie
+// closest-side i farthest-side (jednostka Scalar, zob. pr.ClipPath) zostają bez zmian.
+func clipPath(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.ClipPath)
+	if len(value.Args) == 0 {
+		return value
+	}
+	args := make([]pr.Dimension, len(value.Args))
+	for i, d := range value.Args {
+		if d.Unit == pr.Scalar && d.Value < 0 {
+			args[i] = d
+			continue
+		}
+		args[i] = length_(computer, d.Tagged(), -1, false).Dimension
+	}
+	value.Args = args
+	return value
 }
 
 // Compute the “vertical-align“ property.
