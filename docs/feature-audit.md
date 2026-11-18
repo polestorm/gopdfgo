@@ -1782,3 +1782,59 @@ jedyna zmiana to 8 pikseli narożników zwiniętych obramowań w `17-tables`.
   w selektorach (z flagą `s` w arkuszu wskazówek list), `attr()` małymi literami dla elementów HTML.
 - Narzędzie `chk.sh` uwzględnia teraz odnośniki `rel='match'` w pojedynczych cudzysłowach.
 
+
+## Piąta paczka równoległa: flex, siatka, tła, fonty, kolumny (2026-11-18)
+
+Pięciu pomocników, po jednym na obszar; jeden pełny sondaż po scaleniu wszystkiego.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7569 | 7677 (84,1%; ściśle 7279, krawędziowo 398) |
+| bez funkcji eksperymentalnych (8140) | 7436 | 7539 (92,6%) |
+| tekst, tła, fonty (1839) | 1484 | 1582 (86,0%; `css-backgrounds` 562 z 603, `css-fonts` 254 z 327) |
+| reftesty druku (340) | 243 | 244 (`fixedpos-011-print`) |
+| zyski według obszaru | | tła 58, siatka 47 (poza tym subgrid 6), fonty 39, flex 31, kolumny 26, tekst 1 |
+
+Razem 213 zysków i 7 strat, wszystkie wyjaśnione:
+
+- `css/CSS2/box-display/root-box-003.xht` (Hixie, CSS 2.1) oczekuje, że tło `html` z `display: none` wypełni
+  płótno; nowszy `css-backgrounds/background-color-root-propagation-001` (CSS Backgrounds 3, „special
+  backgrounds”) wymaga, by nie przechodziło. Wygrywa nowsza norma.
+- `grid-lanes/…/row-line-names-006`, `-012`, `grid-lanes-percentage-rows-indefinite-height-001`: `grid-lanes`
+  i subgrid nieobsługiwane; przechodziły przez dawną siatkę 1×1 i błędne wyszukiwanie linii nazwanych.
+- `css-fonts/italic-oblique-fallback` (go-text utożsamia italic i oblique, a `size-adjust` jest teraz
+  stosowany), `small-caps-letter-spacing-002` (brak syntezy kapitalików; przechodził, bo obie strony tworzyły
+  ligaturę mimo `letter-spacing`), `css-text/text-autospace-preformatted-001` (wzorzec używa jednostki `ic`,
+  dotąd nieważnej; `text-autospace` niezaimplementowany).
+
+Korpus (22 dokumenty, binarka z 5ef9e30 wobec scalonej): bez zmian w żadnym dokumencie.
+
+- **Flex:** `visibility: collapse` (krok 10, w źródle TODO), linie bazowe w rozmiarze linii (`align-items`,
+  `last baseline`), tabele jako elementy, kontenery zawijające z jedną linią, `safe`, `aspect-ratio`
+  kontenera, wysokość kontenera pozycjonowanego z `top`/`bottom` przed szerokością. Przejęty
+  `TestFlexDirectionColumnMaxHeight` oczekuje 80 zamiast 100 (WPT `flex-column-reverse-multiline-item-position`;
+  zgodność z Chromium niesprawdzona).
+- **Siatka:** pozycja statyczna i obszar dzieci pozycjonowanych, minimum automatyczne elementów, liczba
+  powtórzeń `auto-fill`/`auto-fit` (dotąd zawsze 1 dla bloku o szerokości auto), linie nazwane, pusta siatka
+  jawna, rozmiar fr, wiersze procentowe, `aspect-ratio`, procentowe marginesy i odstępy elementów. Prawie cała
+  grupa `alignment/` wymaga pisma pionowego i została pominięta.
+- **Tła:** `background-clip: border-area`, przycinanie każdej warstwy osobno, `background-origin` (przyczyna:
+  wzorzec PDF dziedziczył alfę poprzedniego wypełnienia), maski `clip-text` (grupa dziedziczyła kolor), SVG bez
+  `viewBox` bez skalowania (SVG 2 § 8.2), promienie cieni przy `spread`, cienie wierszy tabeli, `clip: rect()`
+  (źródło zamieniało `left` i `right`). Przejęte `TestClip`, `TestBackgroundRepeatRound_2/_4` poprawione.
+  Przy scaleniu przypadek własnego testu flex (`abspos-inset-ratio`) zakładał skalowanie SVG bez `viewBox`;
+  dodany `viewBox`.
+- **Fonty:** `font-synthesis*`, `unicode-range` stosowany do cmap, deskryptory `size-adjust`,
+  `ascent-/descent-/line-gap-override`, `font-size-adjust` dla każdego fontu, `font-weight` 1–1000 i tablica
+  `bolder`/`lighter`, tekst o zerowym rozmiarze w wierszu, jednostki `cap`, `ic`, `rex`, `rch`, `rcap`, `ric`,
+  synteza indeksów (`font-variant-position`), pionowe przesunięcia glifów w PDF (`Ts`; dotąd pomijane, także
+  dla znaków diakrytycznych z GPOS). Pominięte: `font-family-name-*` (wymagają fontów systemowych), palety
+  COLR/CPAL, fonty zmienne, WOFF2.
+- **Kolumny:** elementy pływające dzielone między kolumny, wysokość z `min-height`/`max-height`, zagnieżdżone
+  kontenery o podanej wysokości, wymuszone podziały przy elementach rozpinających, kontenery przewijania
+  niepodzielne, `column-width: 0`, kontener kolumn pozycjonowany bezwzględnie, krycie wyniesionego elementu
+  rozpinającego. Pominięte: fragmentacja pozycjonowanych w kolumnach, „równoległe przepływy” Chromium.
+
+Do ewentualnej decyzji: `place-self: safe end` w skrócie jest gubiony (`css/validation/logical.go` nie dzieli
+wartości wielowyrazowych); długie formy działają. Test `matrix/TestTranslate` (losowe macierze) nie przechodzi
+czasem, jak opisano w `THIRD_PARTY.md`.

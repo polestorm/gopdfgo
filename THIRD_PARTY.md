@@ -919,6 +919,111 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- flex, 2026-11-18 (CSS Flexbox 1; testy W3C `css-flexbox`; praca pomocnika):
+  - `html/layout/flex.go`: krok 10 (`visibility: collapse`) zaimplementowany: po pierwszym przebiegu element
+    zwinięty staje się rozpórką o zerowym rozmiarze głównym i rozmiarze poprzecznym swojej linii, a układ
+    zaczyna się od kroku 3; odstępy (`gap`) przylegające do rozpórki znikają (CSS Align 3 § 8.1); w źródle
+    „TODO”. Krok 8.1: `align-self: auto` przyjmuje `align-items`, odległości linii bazowej mogą być ujemne,
+    `last baseline` tworzy osobną grupę przy końcu linii, a krok 7 szuka wtedy ostatniej linii bazowej
+    (w źródle pierwszej). Kontener „jednowierszowy” to `flex-wrap: nowrap` (§ 6), nie kontener z jedną linią;
+    `align-content: stretch` w wielowierszowym tylko powiększa linie; szerokość auto ogranicza
+    `max-width`/`min-width`; wysokość nadana z zewnątrz i z `aspect-ratio` kontenera jest określona; element
+    nierozciągany ma wysokość nieokreśloną dla procentów dzieci (§ 9.8); `safe` w `align-self`/`align-items`/
+    `align-content` (CSS Align 3 § 4.4); element kolumny nierozciągany mierzony przy szerokości fit-content;
+    wysokość auto kontenera kolumnowego z zawijaniem to najdłuższa linia (test przejęty
+    `TestFlexDirectionColumnMaxHeight` oczekuje 80 zamiast 100, zgodnie z WPT
+    `flex-column-reverse-multiline-item-position`). Tabele jako elementy flex: `flex-basis` tabeli
+    z `content-box` powiększany o jej obramowanie i odstępy, `min-height`/`max-height` tabeli pomijane przy
+    rozmiarze bazowym, `min-width` tabeli ogranicza element;
+  - `html/layout/tables.go`: szerokość wymuszona przez układ flex to zawsze pudełko obramowania tabeli;
+    `block.go`: opakowanie tabeli rośnie, gdy treść tabeli jest wyższa niż rozmiar z układu flex;
+  - `html/layout/absolute.go`: kontener flex pozycjonowany bezwzględnie liczy wysokość (z `top`/`bottom`) przed
+    szerokością, a `stretchedRatioContribution` korzysta z niej (§ 9.9.1);
+  - `html/layout/preferred.go`: elementy z `visibility: collapse` w kontenerze wierszowym nie wnoszą szerokości
+    ani odstępów; `min-width: max-content` podnosi udział min-content bloku (CSS Sizing 3 § 5.2); tabela
+    `table-layout: fixed` z szerokością procentową ma umowną szerokość max-content 1e5 (Gecko/Blink:
+    nieskończona); pusty blok z `aspect-ratio` i `min-height` ma szerokość wewnętrzną z proporcji
+    (CSS Sizing 4 § 5.1);
+- siatka, 2026-11-18 (CSS Grid 1; testy W3C `css-grid` poza `grid-lanes` i `subgrid`; praca pomocnika):
+  - `html/layout/grid.go`, `absolute.go`: pozycja statyczna dziecka pozycjonowanego, gdy siatka nie jest
+    pudełkiem zawierającym, to krawędzie treści kontenera, a `grid-row`/`grid-column` są pomijane (§ 9.2);
+    obszar siatki jest pudełkiem zawierającym także w siatce pozycjonowanej bezwzględnie; `last baseline`
+    wyrównuje jak `safe end`, `safe` jak w flex, a pudełko wychodzące przed początek pudełka zawierającego jest
+    dosuwane do jego krawędzi treści (jak Chromium; źródło wracało do początku prostokąta pozycji statycznej);
+    równe linie usuwają linię końcową, odwrócone się zamieniają, liczbowe `span` liczy się od linii określonej
+    (§ 8.3.1, § 9.1); zastępniki dzieci pozycjonowanych stoją w kolejności dokumentu (CSS 2.1 dodatek E);
+  - ścieżki o minimum auto biorą wkład minimalny elementu (§ 11.5, § 6.6): ograniczony sumą stałych maksimów,
+    zero dla kontenera przewijania (poza elementami zastępowanymi), element zastępowany z procentową
+    szerokością lub `max-width` jest ściśliwy (CSS Sizing 3 § 5.2.2); przy rozmiarze kontenera z treści
+    ograniczony wkład min-content; wiersz o maksimum auto dostaje granicę wzrostu max-content (w źródle
+    nieustawioną); rozmiar fr (§ 11.7.1): ścieżki nieelastyczne nie oddają rozmiaru bazowego, przy rozmiarze
+    nieokreślonym rozmiar bazowy dzielony przez współczynnik (źródło mnożyło);
+  - linie nazwane: N-ta linia o nazwie, a przy braku linie niejawne (§ 8.3; źródło kończyło na pierwszej
+    pasującej i wychodziło o linię za daleko); siatka jawna bez szablonów ma zero ścieżek (źródło: 1×1),
+    a siatka bez ścieżek ma linię na początku treści; liczba powtórzeń `auto-fill`/`auto-fit` z szerokości
+    bloku, z określonego `max-width` albo najmniejsza wypełniająca `min-width` (§ 7.2.3.2; źródło zawsze
+    jedno powtórzenie dla bloku o szerokości auto);
+  - procentowe marginesy i odstępy elementu odnoszą się do szerokości obszaru siatki; wiersze procentowe przy
+    wysokości auto rozwiązywane drugi raz w wysokości treści (§ 7.2.1); procentowy `row-gap` po
+    `min-height`/`max-height`; kolumny rozwiązywane ponownie po wierszach dla elementów z wysokością
+    procentową (§ 11.1 kroki 3–4); `aspect-ratio` kontenera siatki o wysokości auto (CSS Sizing 4 § 5.1);
+  - `html/tree/html5_ua.css`: `marquee` jako `inline-block` (HTML, Rendering). Trzy testy `grid-lanes/`
+    tracą przypadkowe zaliczenia (opierały się na siatce 1×1 i starym wyszukiwaniu linii nazwanych);
+- tła, obramowania i cienie, 2026-11-18 (CSS Backgrounds 3 i 4; testy W3C `css-backgrounds`; praca pomocnika):
+  `background-clip: border-area` i `border-area text` (CSS Backgrounds 4 § 3.6; pierścień przycinania dla
+  obramowań pełnych i podwójnych, maska jasności dla pozostałych); każda warstwa tła przycinana do własnego
+  `background-clip`, kolor do ostatniej (źródło przycinało wszystko do ostatniej); `goweasyprint/pdf/page.go`
+  (`SetColorPattern`): wzorzec (obraz tła) zeruje stałą alfa wypełnienia i obrysu; `pdflib/contentstream`
+  (`ForgetColors`, wołane z `NewGroup`): grupy (formy XObject) nie zakładają domyślnego koloru ani alfy, bo
+  dziedziczą stan graficzny, a czarne tło maski miękkiej przejmowało bieżący kolor; `svg/elements.go`: SVG bez
+  `viewBox` nie jest skalowane (SVG 2 § 8.2; źródło budowało viewBox z `width`/`height`); `clip: rect()`
+  z `right`/`left` liczonymi od lewej krawędzi (CSS 2.2 § 11.1.2; źródło je zamieniało; test przejęty
+  `TestClip` poprawiony); `space` z mniej niż dwiema kopiami rysuje jeden obraz; `round` zachowuje
+  `background-position` (testy przejęte `TestBackgroundRepeatRound_2`, `_4` poprawione); `attachment: local`
+  w pudełku przewijanym maluje do krawędzi odstępu; `currentcolor` w gradientach przyjmuje `color` pudełka
+  przy rysowaniu (źródło: czerń); `border-image-width` z `em` i `calc()` liczone do pikseli; promienie cienia
+  przy `spread` według CSS Backgrounds 3 § 7.1.1 (z wyjątkiem łuków stykających się na boku,
+  csswg-drafts#7103); cień wewnętrzny o kształcie ujemnym wypełnia pudełko odstępu; cienie wierszy tabeli
+  i samej tabeli; `box-decoration-break: slice` dla cieni fragmentów; tło `body` nie przechodzi na płótno przy
+  zawieraniu malowania `html`/`body` (CSS Contain 2 § 3.3); element główny z `display: none` bez tła płótna;
+  treść elementów zastępowanych przycinana do zaokrąglonej krawędzi treści; `::first-letter` pomijane przy
+  tekście zaczynającym się od spacji nierozdzielającej; `html/layout/tables.go`: nadmiar wysokości tabeli
+  trafia do wierszy bez wysokości własnej i bez komórek z wysokością (źródło czytało wysokości z już
+  wyzerowanych stylów);
+- fonty, 2026-11-18 (CSS Fonts 4 i 5; testy W3C `css-fonts`; praca pomocnika): właściwości `font-synthesis`,
+  `font-synthesis-weight`/`-style`/`-small-caps`/`-position` (dotąd nieznane; synteza pogrubienia i pochylenia
+  nadal nie jest wykonywana); deskryptor `unicode-range` w `@font-face` ogranicza tablicę cmap twarzy (był
+  czytany, ale pomijany; nowy plik `text/font_face.go`); nowe deskryptory `size-adjust`, `ascent-override`,
+  `descent-override`, `line-gap-override`; `font-size-adjust` liczony osobno dla każdego fontu (także
+  zastępczego), z wartością `from-font` i z wysokością glifu x/H, gdy OS/2 jej nie podaje; klucz pamięci
+  podręcznej układu tekstu obejmuje `font-size-adjust` i syntezę pozycji; `font-weight` jako dowolna liczba
+  1–1000, `bolder`/`lighter` według tablicy CSS Fonts 4 (źródło: tylko wielokrotności 100); tekst o zerowym
+  rozmiarze fontu zostaje w wierszu (źródło go usuwało; zmienione testy przejęte `TestTextFontSizeZero`
+  i `TestAbsolutePositioning7`); jednostki `cap`, `ic`, `rex`, `rch`, `rcap`, `ric`; nazwa rodziny
+  w cudzysłowie równa słowu kluczowemu rodziny generycznej jest zwykłą nazwą fontu; niezerowy
+  `letter-spacing` wyłącza ligatury opcjonalne, ZWNJ/ZWJ bez własnego odstępu; synteza indeksu górnego
+  i dolnego (`font-variant-position`, proporcje jak Firefox, bo Chromium syntezy nie robi);
+  `goweasyprint/pdf/text.go`: przesunięcie pionowe glifu (YOffset z kształtowania) zapisywane jako wzniesienie
+  tekstu `Ts` (źródło je pomijało, także dla znaków diakrytycznych z GPOS); przebieg tekstu może mieć własny
+  rozmiar (`backend.TextRun.SizeScale`). Trzy testy tracą przypadkowe zaliczenia:
+  `italic-oblique-fallback` (go-text utożsamia italic i oblique), `small-caps-letter-spacing-002` (brak syntezy
+  kapitalików), `text-autospace-preformatted-001` (wzorzec używa `ic`, dotąd nieważnej jednostki);
+- kolumny, 2026-11-18 (CSS Multicol 1, CSS Fragmentation 3; testy W3C `css-multicol`; praca pomocnika;
+  `html/layout/column.go`, `block.go`, `absolute.go`, `layout.go`): wysokość kolumn to wysokość treści pudełka
+  ograniczona przez `min-height` i `max-height`, także przy `box-sizing: border-box` i przy wysokości nadanej
+  przez flex albo siatkę; `max-height` bez `height` też ogranicza kolumny (§ 8.2); `column-width: 0` daje
+  kolumny o szerokości co najmniej 1px, a kolumny o zerowej wysokości mają co najmniej 1px; w kolumnach
+  kontener przewijania jest niepodzielny (CSS Fragmentation 3 § 4.1), a równoważenie rośnie co najmniej do
+  wysokości pierwszego pudełka, które nie mieści się w pustej kolumnie; wyniesiony element rozpinający
+  dziedziczy krycie przodka; kontener kolumn może być pozycjonowany bezwzględnie; elementy pływające dzielą
+  się między kolumny, a ich dalszy ciąg stoi u góry następnej kolumny (heurystyka: pozycja x poprzedniego
+  fragmentu przesunięta o kolumnę; niesprawdzone dla elementów pływających w prawo i węższych pudełek
+  zawierających); równoważenie liczy elementy pływające; zagnieżdżony kontener o podanej wysokości, którego
+  treść skończyła się wcześniej, przenosi resztę wysokości do następnej kolumny zewnętrznej (§ 5.1); przy
+  `box-decoration-break: clone` każdy fragment rezerwuje dolne obramowanie; pusty wiersz po końcowym `<br>` nie
+  zawyża wysokości kolumn; wymuszony podział przed elementem rozpinającym albo za nim dzieli fragmentator
+  zewnętrzny; w kolumnach fragment bloku o podanej wysokości zużywa co najmniej wysokość treści, która
+  musiała się w nim zmieścić. W źródle tego nie było;
 - białe znaki i zawijanie, 2026-11-17 (CSS Text 3 § 4, § 5; testy W3C `css-text/white-space`; praca pomocnika):
   `text/engine_gotext.go`, `html/layout/inline.go`, `html/layout/preferred.go`, `html/boxes/build.go`:
   - cały ciąg białych znaków na końcu wiersza (spacje i tabulatory przy `pre-wrap`, odstępy kategorii Zs

@@ -237,7 +237,7 @@ type styleKey struct {
 
 	// gopdfgo: font-size-adjust zmienia rozmiar fontów zastępczych (zob. FaceSizeScale), choć rozmiar
 	// fontu podstawowego bywa ten sam co bez niego
-	SizeAdjust pr.SBoolFloat
+	SizeAdjust          pr.SBoolFloat
 	SynthesizedPosition string // gopdfgo: jak w TextStyle
 }
 
