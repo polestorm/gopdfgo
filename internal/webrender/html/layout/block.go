@@ -1815,7 +1815,13 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 		// inline-block (układanego bez dołu strony): tam nie ma podziałów klasy A kontekstu fragmentacji
 		// strony (CSS Page 3 § 6.1). W źródle podział wypadał także tam, a inline-block gubił dalszy
 		// ciąg swojej treści (testy WPT css-page/page-name-inline-block-*, page-name-abspos-002).
-		namedBreak := !context.behavior.Continuous && bottomSpace > -pr.Inf && context.outOfFlowDepth == 0 && pageNameChanges(lastInFlowChild, child_)
+		// Na początku strony, gdy stoją na niej tylko pudełka o zerowej wysokości z treścią wylewającą się
+		// poza nie, podziału też nie ma (jak w Chromium; test WPT css-page/page-name-zero-height-001).
+		// Puste pudełko bez treści dostaje jednak własną stronę (test page-name-display-none-child).
+		zeroHeightStart := pageIsEmpty && !slices.ContainsFunc(newChildren, func(b Box) bool { return b.Box().IsInNormalFlow() && b.Box().MarginHeight() > 0 }) &&
+			slices.ContainsFunc(newChildren, func(b Box) bool { return b.Box().IsInNormalFlow() && len(b.Box().Children) != 0 })
+		namedBreak := !context.behavior.Continuous && bottomSpace > -pr.Inf && context.outOfFlowDepth == 0 && pageNameChanges(lastInFlowChild, child_) &&
+			!zeroHeightStart
 		if namedBreak || forcePageBreak(pageBreak, context) {
 			pageName, _ := child.PageValues()
 			nextPage = tree.PageBreak{Break: pageBreak, Page: pageName, HasPage: true}
