@@ -858,6 +858,38 @@ func floating(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 	return value
 }
 
+// interpolatedRelativeSize (gopdfgo) wyznacza larger i smaller dla rozmiaru rodzica z zakresu tablicy
+// słów kluczowych (od xx-small do xx-large). Rozmiar z tablicy przechodzi na sąsiedni wpis, a rozmiar
+// między wpisami na odpowiadające miejsce między sąsiednimi wpisami, w skali logarytmicznej (CSS Fonts 4
+// § 2.5: między wpisami UA może interpolować). Tablicę przedłużamy o 0,8 i 1,2 skrajnych wpisów. W źródle
+// rozmiar między wpisami zaokrąglał się do wpisu, więc smaller przy 10 pt dawało 9 pt (ułamek 0,9), a przy
+// 10,7 pt 10,7 pt (0,995); Chromium dzieli zawsze przez 1,2 (10 pt -> 8,33 pt), interpolacja daje 8,26 pt.
+func interpolatedRelativeSize(keywords []pr.Float, parent pr.Float, larger bool) (pr.Float, bool) {
+	n := len(keywords)
+	if n < 2 || parent < keywords[0] || parent > keywords[n-1] {
+		return 0, false
+	}
+	extended := make([]pr.Float, 0, n+2)
+	extended = append(extended, keywords[0]*0.8)
+	extended = append(extended, keywords...)
+	extended = append(extended, keywords[n-1]*1.2)
+	i := 1
+	for i < n && extended[i+1] <= parent {
+		i++
+	}
+	t := 0.0
+	if parent > extended[i] {
+		t = math.Log(float64(parent/extended[i])) / math.Log(float64(extended[i+1]/extended[i]))
+	}
+	if larger {
+		if t == 0 {
+			return extended[i+1], true
+		}
+		return extended[i+1] * pr.Float(math.Pow(float64(extended[i+2]/extended[i+1]), t)), true
+	}
+	return extended[i-1] * pr.Float(math.Pow(float64(extended[i]/extended[i-1]), t)), true
+}
+
 // Compute the “font-size“ property.
 func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
 	value := _value.(pr.TaggedDim)
@@ -873,6 +905,11 @@ func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 	// gopdfgo: larger i smaller przechodzą po tablicy od xx-small do xx-large; xxx-large (CSS Fonts 4
 	// § 2.5) do niej nie należy, tak jak w Chromium (po xx-large mnożnik 1,2)
 	stepKeywords := pr.FontSizeKeywords[:pr.XxLarge-pr.XxSmall+1]
+	if value.Tag == pr.Larger || value.Tag == pr.Smaller {
+		if size, ok := interpolatedRelativeSize(stepKeywords, parentFontSize, value.Tag == pr.Larger); ok {
+			return size.ToValue()
+		}
+	}
 	if value.Tag == pr.Larger {
 		for _, keywordValue := range stepKeywords {
 			if keywordValue > parentFontSize {

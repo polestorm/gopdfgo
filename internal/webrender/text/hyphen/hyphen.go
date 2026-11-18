@@ -21,8 +21,21 @@ type Hyphener struct {
 	left, right int
 }
 
+// defaultRegion (gopdfgo): słownik dla języka bez regionu według najbardziej prawdopodobnego regionu
+// z CLDR (likely subtags: en -> en-US, de -> de-DE), jak w Chromium. Generator słowników przypisywał
+// językowi pierwszy alfabetycznie region (en -> en-GB, de -> de-AT), więc tekst z lang="en" dzielił się
+// po brytyjsku („respons-ibilities” zamiast „responsi-bilities”).
+var defaultRegion = map[language.Language]language.Language{
+	"en": "en-us",
+	"de": "de-de",
+}
+
 func NewHyphener(lang language.Language, left, right int) Hyphener {
-	filename := languages[LanguageFallback(lang)]
+	fallback := LanguageFallback(lang)
+	if region, ok := defaultRegion[fallback]; ok {
+		fallback = region
+	}
+	filename := languages[fallback]
 	var out Hyphener
 	out.left, out.right = left, right
 

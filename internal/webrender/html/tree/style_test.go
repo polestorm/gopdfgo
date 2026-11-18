@@ -540,7 +540,7 @@ var testsFs = []testFontSize{
 	{parentCss: "x-large", parentSize: 24, childCss: "larger", childSize: 32},
 	{parentCss: "xx-large", parentSize: 32, childCss: "larger", childSize: 1.2 * 32},
 	{parentCss: "1px", parentSize: 1, childCss: "larger", childSize: 3. / 5 * 16},
-	{parentCss: "28px", parentSize: 28, childCss: "larger", childSize: 32},
+	{parentCss: "28px", parentSize: 28, childCss: "larger", childSize: 35.2840}, // gopdfgo: interpolacja między wpisami tablicy (zob. interpolatedRelativeSize); w źródle 32
 	{parentCss: "100px", parentSize: 100, childCss: "larger", childSize: 120},
 	{parentCss: "xx-small", parentSize: 3. / 5 * 16, childCss: "larger", childSize: 12},
 	{parentCss: "1em", parentSize: 16, childCss: "smaller", childSize: 8. / 9 * 16},
@@ -549,7 +549,7 @@ var testsFs = []testFontSize{
 	{parentCss: "xx-large", parentSize: 32, childCss: "smaller", childSize: 24},
 	{parentCss: "xx-small", parentSize: 3. / 5 * 16, childCss: "smaller", childSize: 0.8 * 3. / 5 * 16},
 	{parentCss: "1px", parentSize: 1, childCss: "smaller", childSize: 0.8},
-	{parentCss: "28px", parentSize: 28, childCss: "smaller", childSize: 24},
+	{parentCss: "28px", parentSize: 28, childCss: "smaller", childSize: 21.6386}, // gopdfgo: jw.; w źródle 24
 	{parentCss: "100px", parentSize: 100, childCss: "smaller", childSize: 32},
 }
 
