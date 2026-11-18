@@ -62,6 +62,9 @@ type FontConfigurationGotext struct {
 	// rodziny fontów próbowane w podanej kolejności, zanim zadziała tablica podstawień biblioteki go-text.
 	// Klucze małymi literami. Ustawiane przed pierwszym użyciem konfiguracji.
 	GenericFamilies map[string][]string
+
+	// familyKnown (gopdfgo): pamięć wyników familyAvailable
+	familyKnown map[string]bool
 }
 
 func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
@@ -185,6 +188,7 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
+	f.familyKnown = nil // gopdfgo: nowa rodzina z @font-face może zmienić wynik familyAvailable
 	if metrics != (faceMetrics{sizeAdjust: 1}) {
 		if f.fontsMetrics == nil {
 			f.fontsMetrics = map[*font.Font]faceMetrics{}
@@ -458,11 +462,68 @@ func (fc *FontConfigurationGotext) newQuery(fd FontDescription) fontscan.Query {
 			families = append(families, fc.GenericFamilies[strings.ToLower(family)]...)
 			families = append(families, family)
 		}
+		// gopdfgo: gdy żadna z podanych rodzin nie jest dostępna (ani wprost, ani przez podstawienie
+		// zgodnej metrycznie rodziny), używamy fontu domyślnego, czyli rodziny generycznej serif, jak
+		// Chromium (CSS Fonts 4 § 5.1 zostawia wybór agentowi; testy WPT font-family-rule-001,
+		// content-076). go-text dopisywało wtedy sans-serif (reguła fontconfig 49-sansserif).
+		// Rodzinę zastępczą dopisujemy tylko przy liście bez dostępnej rodziny, bo w pierwszym
+		// przebiegu go-text dokładna nazwa (np. Tinos) wygrałaby z podstawieniem Arial → Arimo.
+		if fc.needsDefaultFamily(fd.Family) {
+			families = append(families, fc.GenericFamilies["serif"]...)
+			families = append(families, "serif")
+		}
 	}
 	return fontscan.Query{
 		Families: families,
 		Aspect:   newAspect(fd.Style, fd.Weight, fd.Stretch),
 	}
+}
+
+// cssGenericFamilies to nazwy rodzin generycznych CSS (CSS Fonts 4 § 4.2) małymi literami.
+var cssGenericFamilies = map[string]bool{
+	"serif": true, "sans-serif": true, "monospace": true, "cursive": true, "fantasy": true,
+	"system-ui": true, "ui-serif": true, "ui-sans-serif": true, "ui-monospace": true, "ui-rounded": true,
+	"math": true, "emoji": true, "fangsong": true,
+}
+
+// needsDefaultFamily (gopdfgo) mówi, czy lista rodzin nie zawiera ani rodziny generycznej, ani żadnej
+// rodziny dostępnej w bazie fontów.
+func (fc *FontConfigurationGotext) needsDefaultFamily(families []string) bool {
+	if len(families) == 0 {
+		return false
+	}
+	for _, family := range families {
+		lower := strings.ToLower(strings.TrimSpace(family))
+		if cssGenericFamilies[lower] || len(fc.GenericFamilies[lower]) != 0 || fc.familyAvailable(lower) {
+			return false
+		}
+	}
+	return true
+}
+
+// familyAvailable (gopdfgo) sprawdza, czy rodzina prowadzi do fontu z bazy wprost albo przez tablicę
+// podstawień go-text. Dla rodziny nieznanej go-text dopisuje rodzinę sans-serif (reguła fontconfig
+// 49-sansserif), więc rodzina jest niedostępna, gdy daje ten sam font co sama sans-serif, a font nie
+// nosi jej nazwy. Wynik jest zapamiętywany; zapytanie fontmapy ustawia potem wywołujący (zob. newQuery).
+func (fc *FontConfigurationGotext) familyAvailable(family string) bool {
+	if known, ok := fc.familyKnown[family]; ok {
+		return known
+	}
+	probe := func(families ...string) *font.Face {
+		fc.fm.SetQuery(fontscan.Query{Families: families, Aspect: font.Aspect{Style: font.StyleNormal, Weight: font.WeightNormal, Stretch: font.StretchNormal}})
+		return fc.fm.ResolveFace('a')
+	}
+	known := true
+	if own, fallback := probe(family), probe("sans-serif"); own != nil && fallback != nil &&
+		fc.fm.FontLocation(own.Font) == fc.fm.FontLocation(fallback.Font) {
+		name, _ := fc.fm.FontMetadata(own.Font)
+		known = font.NormalizeFamily(name) == font.NormalizeFamily(family)
+	}
+	if fc.familyKnown == nil {
+		fc.familyKnown = map[string]bool{}
+	}
+	fc.familyKnown[family] = known
+	return known
 }
 
 func newFeatures(features []Feature) []shaping.FontFeature {
