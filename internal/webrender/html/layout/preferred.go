@@ -1245,7 +1245,11 @@ outerLoop:
 		if table.Style.GetBoxSizing() != "content-box" {
 			delta := table.Style.GetBorderLeftWidth().Value + table.Style.GetBorderRightWidth().Value
 			if table.Style.GetBoxSizing() == "border-box" && table.Style.GetBorderCollapse() == "collapse" {
-				delta = 0
+				// gopdfgo: w modelu zwiniętym obramowaniem tabeli jest połowa obramowań skrajnych komórek
+				// (CSS 2.1 § 17.6.2), już wpisana w BorderLeftWidth i BorderRightWidth; źródło przyjmowało
+				// tu zero, więc tabela z width: 100px była o tę połowę z każdej strony za szeroka (test WPT
+				// table-cell-width-0)
+				delta = table.BorderLeftWidth.V() + table.BorderRightWidth.V()
 			}
 			for _, padding := range [...]pr.TaggedDim{table.Style.GetPaddingLeft(), table.Style.GetPaddingRight()} {
 				if padding.Unit == pr.Px && table.Style.GetBorderCollapse() != "collapse" {

@@ -210,6 +210,16 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		*childContexts = append(*childContexts, newStackingContextFromBox(box, page, nil, innerEscape))
 		*childContexts = append(*childContexts, escaped...)
 	} else {
+		// gopdfgo: wiersz, grupa wierszy albo komórka z position: relative bez własnego kontekstu nakładania
+		// jest rysowana razem z tabelą: tła przez drawTable, obramowania zwinięte przez tabelę ponad tłami
+		// komórek (CSS Tables 3 § 5.3.3). Źródło wyjmowało takie pudełko z tabeli do osobnej warstwy, w której
+		// wiersz nie rysował komórek ani swoich obramowań zwiniętych, a tło pozycjonowanej komórki zakrywało
+		// obramowania (test WPT collapsed-border-positioned-tr-td). Uproszczenie: pudełko nie trafia nad
+		// niepozycjonowaną treść, jak wymaga CSS 2.1 dodatek E (krok 8).
+		if positioned && position == "relative" && (bo.TableRowT.IsInstance(box) || bo.TableRowGroupT.IsInstance(box) ||
+			bo.TableCellT.IsInstance(box)) {
+			positioned = false
+		}
 		if positioned {
 			if style.GetZIndex().String != "auto" {
 				panic(fmt.Sprintf("expected auto z-index, got %v", style.GetZIndex()))

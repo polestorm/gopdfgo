@@ -106,7 +106,9 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 				available -= margin.V()
 			}
 		}
-		tableWrapperWidth(context, box_, bo.MaybePoint{max(available, 0), cb_.Height})
+		// gopdfgo: dostępna szerokość tabeli nie przekracza szerokości bloku zawierającego (jak Chromium,
+		// testy WPT absolute-tables-008/009/011.tentative)
+		tableWrapperWidth(context, box_, bo.MaybePoint{max(min(available, cbWidth), 0), cb_.Height})
 		width = box.Width
 	}
 	if left == pr.AutoF && right == pr.AutoF && width == pr.AutoF {
@@ -164,8 +166,15 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 			box.MarginRight = pr.Float(0)
 		}
 		spacing := paddingsBorders + box.MarginLeft.V() + box.MarginRight.V()
+		// gopdfgo: dla tabeli dostępna szerokość nie przekracza bloku zawierającego (zob. wyżej)
+		fit := func(available pr.Float) pr.Float {
+			if box.IsTableWrapper {
+				available = min(available, cbWidth-spacing)
+			}
+			return available
+		}
 		if left == pr.AutoF && width == pr.AutoF {
-			box.Width = shrinkToFit(context, box_, cbWidth-spacing-right.V())
+			box.Width = shrinkToFit(context, box_, fit(cbWidth-spacing-right.V()))
 			translateX = cbWidth - right.V() - spacing + defaultTranslateX
 			translateBoxWidth = true
 		} else if left == pr.AutoF && right == pr.AutoF {
@@ -175,7 +184,7 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 				translateX = defaultTranslateX + availableWidth
 			}
 		} else if width == pr.AutoF && right == pr.AutoF {
-			box.Width = shrinkToFit(context, box_, cbWidth-spacing-left.V())
+			box.Width = shrinkToFit(context, box_, fit(cbWidth-spacing-left.V()))
 			translateX = left.V() + defaultTranslateX
 		} else if left == pr.AutoF {
 			translateX = cbWidth + defaultTranslateX - right.V() - spacing - width.V()
@@ -342,6 +351,12 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 		}
 		if right, ok := box.Right.(pr.Float); ok {
 			available -= right
+		}
+		// gopdfgo: i nie przekracza szerokości bryły zawierającej (jak Chromium, testy WPT
+		// absolute-tables-008/011.tentative: ujemne left albo right nie poszerzają tabeli). Przy obu
+		// podanych szerokość ustaliło już absoluteWidth, a margines nadmiarowy odejmuje autoTableLayout.
+		if box.Left == pr.AutoF || box.Right == pr.AutoF {
+			available = min(available, cbWidth)
 		}
 		tableWrapperWidth(context, box_, bo.MaybePoint{available, cbHeight})
 	}
