@@ -833,17 +833,20 @@ func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 		parentFontSize = computer.parentStyle.GetFontSize().Value
 	}
 
+	// gopdfgo: larger i smaller przechodzą po tablicy od xx-small do xx-large; xxx-large (CSS Fonts 4
+	// § 2.5) do niej nie należy, tak jak w Chromium (po xx-large mnożnik 1,2)
+	stepKeywords := pr.FontSizeKeywords[:pr.XxLarge-pr.XxSmall+1]
 	if value.Tag == pr.Larger {
-		for _, keywordValue := range pr.FontSizeKeywords {
+		for _, keywordValue := range stepKeywords {
 			if keywordValue > parentFontSize {
 				return keywordValue.ToValue()
 			}
 		}
 		return (parentFontSize * 1.2).ToValue()
 	} else if value.Tag == pr.Smaller {
-		for i := len(pr.FontSizeKeywords) - 1; i >= 0; i -= 1 {
-			if pr.FontSizeKeywords[i] < parentFontSize {
-				return (pr.FontSizeKeywords[i]).ToValue()
+		for i := len(stepKeywords) - 1; i >= 0; i -= 1 {
+			if stepKeywords[i] < parentFontSize {
+				return (stepKeywords[i]).ToValue()
 			}
 		}
 		return (parentFontSize * 0.8).ToValue()
