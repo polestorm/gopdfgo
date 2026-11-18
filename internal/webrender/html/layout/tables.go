@@ -955,29 +955,6 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// (bottomSpace = +Inf, zob. columnsLayout) zmieniamy kopię tabeli, nie pudełko źródłowe: inaczej
 	// nagłówek tracił powtarzanie na stałe, a tabela dzieliła się zaraz za nim (fragment z samym
 	// nagłówkiem, bez powtórzenia w następnej kolumnie; korpus 22-multicol-pagination).
-	// gopdfgo: nagłówek albo stopka wyższe niż ćwierć strony nie są powtarzane, tylko płyną jak zwykła
-	// grupa wierszy (CSS 2.1 § 17.2 zostawia powtarzanie przeglądarce; tak robią Gecko i Chromium, testy
-	// WPT CSS2/pagination/row*-page-break-inside-avoid-*). W źródle powtarzany był każdy, który mieścił
-	// się na stronie, i zajmował na każdej z nich miejsce treści.
-	if skipStack == nil && (hasHeader || hasFooter) && !context.inColumn && bottomSpace > -pr.Inf && bottomSpace < pr.Inf &&
-		context.pageBottom != pr.Inf && context.pageHeight > 0 && context.flexMeasuring == 0 {
-		tooTall := func(group_ Box) bool {
-			group, _, _ := groupLayout(group_, positionY, -pr.Inf, false, nil)
-			return group != nil && group.Box().Height.V() > context.pageHeight/4
-		}
-		demoted := false
-		if hasHeader && tooTall(table.Children[0]) {
-			table.Children[0].Box().IsHeader = false
-			demoted = true
-		}
-		if hasFooter && tooTall(table.Children[len(table.Children)-1]) {
-			table.Children[len(table.Children)-1].Box().IsFooter = false
-			demoted = true
-		}
-		if demoted {
-			return tableLayout(context, table_, bottomSpace, skipStack, pageIsEmpty, absoluteBoxes, fixedBoxes)
-		}
-	}
 	if pageIsEmpty && skipStack == nil && (hasHeader || hasFooter) {
 		permanent := !context.inColumn && bottomSpace < pr.Inf
 		groups := table.Children
