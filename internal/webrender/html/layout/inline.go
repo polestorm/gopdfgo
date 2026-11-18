@@ -105,6 +105,9 @@ func (l *lineBoxeIterator) Has() bool {
 	if line != nil {
 		handleLeader(l.context, line, l.containingBlock.Box())
 		l.positionY = line.Box().PositionY + line.Box().Height.V()
+		if forcedBreak { // gopdfgo: clear elementu <br> (clearAfterLine)
+			l.positionY = clearAfterLine(l.context, line, l.positionY)
+		}
 	}
 	if line == nil {
 		l.done = true
@@ -457,8 +460,14 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			placeholder.Translate(0, positionY-placeholder.Box().PositionY.V(), false)
 		} else {
 			// Block-level static position: at the start of the next line
+			// gopdfgo: bez treści przed blokiem wiersz przed nim miałby zerową wysokość,
+			// więc położeniem statycznym jest góra wiersza (contentBeforeInLine).
+			staticY := positionY + line.Height.V()
+			if !contentBeforeInLine(line_, placeholder) {
+				staticY = positionY
+			}
 			placeholder.Translate(line.PositionX-placeholder.Box().PositionX.V(),
-				positionY+line.Height.V()-placeholder.Box().PositionY.V(), false)
+				staticY-placeholder.Box().PositionY.V(), false)
 		}
 	}
 

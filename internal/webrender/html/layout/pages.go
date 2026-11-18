@@ -853,6 +853,12 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	} else {
 		rootBox, tmp, _ = blockLevelLayout(context, rootBox, 0, resumeAt,
 			&initialContainingBlock.BoxFields, true, &positionedBoxes, &positionedBoxes, &adjoiningMargins, false, -1)
+		// gopdfgo: element główny z position: relative przesuwamy jak każde pudełko pozycjonowane
+		// względnie (CSS 2.1 § 9.4.3), z procentami liczonymi od bloku początkowego. Źródło
+		// pomijało przesunięcie elementu głównego.
+		if rootBox != nil {
+			relativePositioning(rootBox, bo.Point{initialContainingBlock.Width.V(), initialContainingBlock.Height.V()})
+		}
 	}
 	resumeAt = tmp.resumeAt
 	if rootBox == nil {

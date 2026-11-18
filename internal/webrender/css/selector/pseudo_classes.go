@@ -460,9 +460,11 @@ type langPseudoClassSelector struct {
 // rozróżniania wielkości liter (Selectors 3 § 6.6.3). Źródło dopasowywało
 // atrybut lang dowolnego przodka, także wtedy, gdy bliższy przodek podawał
 // inny język, nie znało xml:lang i rozróżniało wielkość liter.
+// Wielkość liter zrównujemy tylko w zakresie ASCII (Selectors 4 § 3.10,
+// „ASCII case-insensitive”), żeby np. „İ” ani znak kelwina nie dawały „i”, „k”.
 func (s langPseudoClassSelector) Match(n *html.Node) bool {
-	language := strings.ToLower(elementLanguage(n))
-	want := strings.ToLower(s.lang)
+	language := toLowerASCII(elementLanguage(n))
+	want := toLowerASCII(s.lang)
 	if language == "" || want == "" {
 		return false
 	}

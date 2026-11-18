@@ -615,7 +615,9 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		if err != nil {
 			return out, "", err
 		}
-		val = strings.ToLower(val)
+		// gopdfgo: zakres języka porównujemy bez rozróżniania wielkości liter tylko w ASCII
+		// (Selectors 4 § 14.3); źródło zrównywało ją według Unicode (strings.ToLower).
+		val = toLowerASCII(val)
 		p.skipWhitespace()
 		if p.i >= len(p.s) {
 			return out, "", errors.New("unexpected EOF in pseudo selector")

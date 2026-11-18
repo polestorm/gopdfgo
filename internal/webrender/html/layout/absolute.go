@@ -609,3 +609,49 @@ func absoluteBlockAlignment(box_ Box) (pr.Float, bool) {
 	}
 	return 0, true
 }
+
+// contentBeforeInLine (gopdfgo) podaje, czy w wierszu przed zastępnikiem pudełka
+// pozycjonowanego stoi treść, która nadałaby wierszowi wysokość: tekst inny niż
+// spacje, element atomowy albo pudełko liniowe z niezerowym marginesem, dopełnieniem
+// lub obramowaniem po stronie początku (CSS 2.1 § 9.4.2). Blok pozycjonowany
+// bezwzględnie wewnątrz pudełka liniowego rozdzieliłby je (§ 9.2.1.1); gdy przed nim
+// nie ma takiej treści, wiersz przed nim miałby zerową wysokość, a jego położenie
+// statyczne to góra wiersza, nie jego dół (§ 10.6.4).
+func contentBeforeInLine(line Box, placeholder *AbsolutePlaceholder) bool {
+	found, content := false, false
+	var walk func(b Box)
+	walk = func(b Box) {
+		for _, child := range b.Box().Children {
+			if found || content {
+				return
+			}
+			if child == Box(placeholder) || child.Box() == placeholder.Box() {
+				found = true
+				return
+			}
+			switch {
+			case child.Box().IsAbsolutelyPositioned() || child.Box().IsFloated():
+			case bo.TextT.IsInstance(child):
+				for _, r := range child.(*bo.TextBox).Text {
+					if r != ' ' {
+						content = true
+						return
+					}
+				}
+			case bo.InlineT.IsInstance(child):
+				fields := child.Box()
+				if fields.MarginLeft.V() != 0 || fields.PaddingLeft.V() != 0 || fields.BorderLeftWidth.V() != 0 {
+					content = true
+					return
+				}
+				walk(child)
+			case bo.ParentT.IsInstance(child) && !bo.AtomicInlineLevelT.IsInstance(child):
+				walk(child)
+			default:
+				content = true
+			}
+		}
+	}
+	walk(line)
+	return content
+}
