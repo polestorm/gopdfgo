@@ -120,17 +120,26 @@ func expandLogical(declarations []pa.Compound) []pa.Compound {
 			}
 		case placeShorthands[name] != [2]string{}:
 			// skróty place-*: pierwsza wartość dla osi blokowej (align-*), druga dla liniowej (justify-*);
-			// jedna wartość obowiązuje w obu osiach. Wartości wielowyrazowe (np. "first baseline") nie
-			// są tu rozdzielane i zostają odrzucone jako nieznane.
-			values := withoutWhitespace(declaration.Value)
-			if len(values) != 1 && len(values) != 2 {
+			// jedna wartość obowiązuje w obu osiach.
+			// gopdfgo: wcześniej skrót dzielono na pojedyncze tokeny, więc "safe end" czy "first baseline"
+			// traciły pierwszy wyraz; teraz wartości są dzielone według gramatyki (CSS Box Alignment 3
+			// § 5.2, § 6.2, § 6.3), a w place-content wartość <baseline-position> bez drugiej daje
+			// justify-content: start.
+			alignPart, justifyPart, ok := splitPlaceValue(withoutWhitespace(declaration.Value))
+			if !ok {
 				out = append(out, compound)
 				continue
+			}
+			if justifyPart == nil {
+				justifyPart = alignPart
+				if name == "place-content" && getKeyword(alignPart[len(alignPart)-1]) == "baseline" {
+					justifyPart = []pa.Token{pa.NewIdent("start", alignPart[0].Pos())}
+				}
 			}
 			for i, physical := range placeShorthands[name] {
 				side := declaration
 				side.Name = physical
-				side.Value = []pa.Token{values[min(i, len(values)-1)]}
+				side.Value = [][]pa.Token{alignPart, justifyPart}[i]
 				out = append(out, side)
 			}
 		case name == "overflow-x" || name == "overflow-y":
@@ -162,4 +171,25 @@ func expandLogical(declarations []pa.Compound) []pa.Compound {
 		}
 	}
 	return out
+}
+
+// splitPlaceValue dzieli wartość skrótu place-* na część align-* i (opcjonalną) część justify-*.
+// Pierwsza część ma dwa wyrazy, gdy zaczyna się od first/last (przed baseline) albo od safe/unsafe;
+// reszta (jeden lub dwa wyrazy, np. "legacy left") należy do justify-*.
+func splitPlaceValue(values []pa.Token) (alignPart, justifyPart []pa.Token, ok bool) {
+	if len(values) == 0 {
+		return nil, nil, false
+	}
+	n := 1
+	switch getKeyword(values[0]) {
+	case "first", "last", "safe", "unsafe":
+		n = 2
+	}
+	if len(values) < n || len(values) > n+2 {
+		return nil, nil, false
+	}
+	if len(values) == n {
+		return values, nil, true
+	}
+	return values[:n], values[n:], true
 }

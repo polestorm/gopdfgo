@@ -45,6 +45,11 @@ func resolveIntrinsicSizes(context *layoutContext, box_ Box, available pr.MaybeF
 	measured.Box().Style.SetWidth(pr.TagToV(pr.Auto))
 	measured.Box().Style.SetMinWidth(pr.ZeroPixels.Tagged())
 	measured.Box().Style.SetMaxWidth(pr.Dimension{Value: pr.Inf, Unit: pr.Px}.Tagged())
+	// gopdfgo: jak w shrinkToFit: pudełko o znanej wysokości daje dzieciom określoną bazę wysokości
+	// procentowych już przy liczeniu szerokości treści (CSS Sizing 3 § 5.2.1, test WPT percentage-heights-022)
+	if height, ok := box.Height.(pr.Float); ok && bo.BlockContainerT.IsInstance(box_) && !box.IsTableWrapper {
+		setChildrenDefiniteHeight(box.Children, height)
+	}
 
 	size := func(kind pr.IntrinsicSize) pr.Float {
 		switch kind {

@@ -1271,6 +1271,17 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		repeatWidth = probe.Box().Width
 	} else if measure == nil || box.Width == pr.AutoF {
 		repeatWidth, columnsAtLeast = repeatSpace(box.Width, box.MinWidth, box.MaxWidth)
+	} else if style.GetWidth().Tag == pr.Auto {
+		// gopdfgo: przy pomiarze szerokości wewnętrznej rozmiar kontenera jest nieokreślony, więc liczba
+		// powtórzeń wynika z max-width albo min-width (CSS Grid 1 § 7.2.3.2), a nie z ograniczenia pomiaru
+		repeatWidth, columnsAtLeast = repeatSpace(pr.AutoF, box.MinWidth, box.MaxWidth)
+	}
+	if _, known := repeatWidth.(pr.Float); !known {
+		// gopdfgo: przy aspect-ratio min-height przenosi się na minimalną szerokość (CSS Sizing 4 § 5.2),
+		// więc i ona wyznacza liczbę powtórzeń (testy WPT grid-auto-repeat-aspect-ratio-001 i -002)
+		if minimum, ok := transferredMinWidth(box); ok {
+			repeatWidth, columnsAtLeast = minimum, true
+		}
 	}
 	rows := getTemplateTracks(style.GetGridTemplateRows(), repeatHeight, rowGap, rowsAtLeast)
 	columns := getTemplateTracks(style.GetGridTemplateColumns(), repeatWidth, columnGap, columnsAtLeast)
@@ -3018,6 +3029,7 @@ func stretchesInBlockAxis(item Box, container *bo.BoxFields) bool {
 func setDefiniteHeight(box_ Box, base pr.MaybeFloat, stretch bool) {
 	box := box_.Box()
 	box.DefiniteHeight = nil
+	box.HeightBase = base // gopdfgo: podstawa procentów dla min-height i max-height (zob. replacedHeightLimits)
 	pixels := func(d pr.TaggedDim) pr.Float {
 		if d.Tag == 0 && d.Calc == nil && d.Unit == pr.Px {
 			return d.Value
@@ -3066,4 +3078,41 @@ func setChildrenDefiniteHeight(children []Box, base pr.MaybeFloat) {
 			setDefiniteHeight(child, base, false)
 		}
 	}
+}
+
+// transferredMinWidth (gopdfgo): minimalna szerokość treści pudełka z aspect-ratio i szerokością auto
+// przeniesiona z min-height przez proporcje (CSS Sizing 4 § 5.2). min-height w procentach liczy się od
+// HeightBase, gdy jest znana. false, gdy nie ma proporcji albo minimum.
+func transferredMinWidth(box *bo.BoxFields) (pr.Float, bool) {
+	style := box.Style
+	ratio := pr.Float(math.Abs(float64(style.GetAspectRatio())))
+	if ratio <= 0 || style.GetWidth().Tag != pr.Auto || style.GetWidth().Intrinsic != pr.IntrinsicNone {
+		return 0, false
+	}
+	minHeight := style.GetMinHeight()
+	if minHeight.Tag != 0 || minHeight.Calc != nil {
+		return 0, false
+	}
+	var value pr.Float
+	switch minHeight.Unit {
+	case pr.Px:
+		value = minHeight.Value
+	case pr.Perc:
+		base, ok := box.HeightBase.(pr.Float)
+		if !ok {
+			return 0, false
+		}
+		value = base * minHeight.Value / 100
+	default:
+		return 0, false
+	}
+	if value <= 0 {
+		return 0, false
+	}
+	if style.GetBoxSizing() == "border-box" {
+		frameY := box.PaddingTop.V() + box.PaddingBottom.V() + box.BorderTopWidth.V() + box.BorderBottomWidth.V()
+		frameX := box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
+		return max(max(value, frameY)*ratio-frameX, 0), true
+	}
+	return value * ratio, true
 }
