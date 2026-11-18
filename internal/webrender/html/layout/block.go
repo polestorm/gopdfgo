@@ -1811,7 +1811,12 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 	if lastInFlowChild != nil {
 		// Between in-flow siblings
 		pageBreak = blockLevelPageBreak(lastInFlowChild, child_)
-		if (!context.behavior.Continuous && pageNameChanges(lastInFlowChild, child_)) || forcePageBreak(pageBreak, context) {
+		// gopdfgo: zmiana nazwy strony nie łamie strony wewnątrz pudełka pozycjonowanego, pływającego ani
+		// inline-block (układanego bez dołu strony): tam nie ma podziałów klasy A kontekstu fragmentacji
+		// strony (CSS Page 3 § 6.1). W źródle podział wypadał także tam, a inline-block gubił dalszy
+		// ciąg swojej treści (testy WPT css-page/page-name-inline-block-*, page-name-abspos-002).
+		namedBreak := !context.behavior.Continuous && bottomSpace > -pr.Inf && context.outOfFlowDepth == 0 && pageNameChanges(lastInFlowChild, child_)
+		if namedBreak || forcePageBreak(pageBreak, context) {
 			pageName, _ := child.PageValues()
 			nextPage = tree.PageBreak{Break: pageBreak, Page: pageName, HasPage: true}
 			resumeAt = tree.ResumeStack{index: nil}

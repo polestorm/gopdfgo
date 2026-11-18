@@ -443,6 +443,10 @@ type layoutContext struct {
 	// gopdfgo: pudełka absolute zakotwiczone dołem, czekające na ostatni fragment bloku zawierającego
 	// (klucz: pudełko bloku sprzed układu; zob. deferBottomAnchoredAbsolutes)
 	pendingBottomAbsolutes map[*bo.BoxFields][]Box
+	// gopdfgo: outOfFlowDepth > 0 w trakcie układu treści pudełka pozycjonowanego albo pływającego; zmiana
+	// nazwy strony łamie stronę tylko między pudełkami w przepływie kontekstu fragmentacji (CSS Page 3
+	// § 6.1 i CSS Break 3 § 4.1 — podziały klasy A), nie wewnątrz takich pudełek
+	outOfFlowDepth int
 
 	// gopdfgo: contentScale > 1: obszar strony jest powiększony tyle razy na czas układu treści
 	// (pomniejszanie treści szerszej niż strona, ADR 0014)

@@ -89,6 +89,8 @@ func floatLayout(context *layoutContext, box_ Box, containingBlock *bo.BoxFields
 		}
 		context.finishBlockFormattingContext(box_)
 	}
+	context.outOfFlowDepth++ // gopdfgo: zob. layoutContext.outOfFlowDepth
+	defer func() { context.outOfFlowDepth-- }()
 	if laidOutAsColumns {
 		// ułożony wyżej
 	} else if bo.BlockContainerT.IsInstance(box_) {

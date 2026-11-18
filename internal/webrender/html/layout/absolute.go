@@ -436,6 +436,13 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 			context.finishBlockFormattingContext(box_)
 		}
 	}
+	// gopdfgo: zob. layoutContext.outOfFlowDepth; pudełko w pozycji statycznej w osi pionowej (top
+	// i bottom auto) płynie z treścią i nazwy stron w nim łamią strony, jak w Chromium (testy WPT
+	// css-page/page-name-003 i page-name-abspos-002)
+	staticBlock := box.Style.GetTop().Tag == pr.Auto && box.Style.GetBottom().Tag == pr.Auto
+	if !staticBlock {
+		context.outOfFlowDepth++
+	}
 	if laidOutAsColumns {
 		// ułożony wyżej
 	} else if bo.BlockT.IsInstance(box_) {
@@ -445,6 +452,9 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 		newBox, bl = flexLayout(context, box_, bottomSpace, skipStack, containingBlock, true, &absoluteBoxes, fixedBoxes, false)
 	} else if bo.GridContainerT.IsInstance(box_) {
 		newBox, bl = gridLayout(context, box_, bottomSpace, skipStack, containingBlock, true, &absoluteBoxes, fixedBoxes)
+	}
+	if !staticBlock {
+		context.outOfFlowDepth--
 	}
 
 	for _, childPlaceholder := range absoluteBoxes {
