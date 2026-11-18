@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"unicode"
 
 	"github.com/go-text/typesetting/font"
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
@@ -274,8 +275,15 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 
 				// Mapping between glyphs and characters
 				outGlyph.TextOffset, outGlyph.TextLength = glyphInfo.TextIndex(), glyphInfo.RunesCount()
-				if _, in := outFont.Cmap[outGlyph.Glyph]; !in {
-					outFont.Cmap[outGlyph.Glyph] = textRunes[outGlyph.TextOffset : outGlyph.TextOffset+outGlyph.TextLength]
+				// gopdfgo: znaki pomijalne (ZWJ, ZWNJ…, kategoria Cf) nie trafiają do /ToUnicode: kształtowanie
+				// zastępuje je niewidocznym glifem spacji albo dokleja do skupienia poprzedniego znaku, więc
+				// wyodrębniony tekst miałby łączniki w miejscu spacji i liter
+				space, _ := face.NominalGlyph(' ')
+				invisible := gAdvance == 0 && glyphInfo.GlyphID == space && !slices.Contains(textRunes[outGlyph.TextOffset:outGlyph.TextOffset+outGlyph.TextLength], ' ')
+				if chars := withoutIgnorable(textRunes[outGlyph.TextOffset : outGlyph.TextOffset+outGlyph.TextLength]); len(chars) != 0 && !invisible {
+					if _, in := outFont.Cmap[outGlyph.Glyph]; !in {
+						outFont.Cmap[outGlyph.Glyph] = chars
+					}
 				}
 			}
 
@@ -346,3 +354,19 @@ func syntheticBoldWidth(size pr.Fl) pr.Fl {
 
 func floatToFixed(v pr.Fl) fixed.Int26_6 { return fixed.Int26_6(v * 64) }
 func fixedToFloat(v fixed.Int26_6) pr.Fl { return pr.Fl(v) / 64 }
+
+// withoutIgnorable (gopdfgo) zwraca tekst bez niewidocznych znaków formatujących (Cf).
+func withoutIgnorable(chars []rune) []rune {
+	for i, r := range chars {
+		if unicode.Is(unicode.Cf, r) {
+			out := append([]rune(nil), chars[:i]...)
+			for _, r := range chars[i+1:] {
+				if !unicode.Is(unicode.Cf, r) {
+					out = append(out, r)
+				}
+			}
+			return out
+		}
+	}
+	return chars
+}

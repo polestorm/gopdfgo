@@ -266,6 +266,9 @@ const (
 	PFontSynthesisPosition  // gopdfgo: CSS Fonts 4 § 7.5; dziedziczona
 	PWhiteSpaceTrim         // gopdfgo: CSS Text 4 § 4.2; niedziedziczona
 	PWebkitTextFillColor    // gopdfgo: Compatibility Standard § 5.2 (-webkit-text-fill-color); dziedziczona
+	PBackgroundBlendMode    // gopdfgo: CSS Compositing 1 § 3.2; niedziedziczona
+	PClipPath               // gopdfgo: CSS Masking 1 § 5.1; niedziedziczona
+	PBoxOrient              // gopdfgo: -webkit-box-orient (CSS Overflow 4 § 4.3, starszy line-clamp); niedziedziczona
 
 	nbProperties
 )

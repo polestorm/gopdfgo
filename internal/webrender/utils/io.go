@@ -44,6 +44,15 @@ func (c InputString) String() string {
 	return fmt.Sprintf("string (%d B)", len(c))
 }
 
+// InputStylesheetUrl (gopdfgo) to adres arkusza stylów z kodowaniem środowiska (CSS Syntax 3 § 3.2,
+// krok 3), np. z atrybutu charset elementu <link>.
+type InputStylesheetUrl struct {
+	Url, EnvironmentEncoding string
+}
+
+func (c InputStylesheetUrl) isContentInput() {}
+func (c InputStylesheetUrl) String() string  { return InputUrl(c.Url).String() }
+
 func (c InputReader) String() string {
 	return fmt.Sprintf("reader of type %T", c.ReadCloser)
 }
@@ -79,6 +88,10 @@ func fetchSource(input ContentInput, baseUrl string, urlFetcher UrlFetcher,
 			return
 		}
 	}
+	environmentEncoding := ""
+	if data, ok := input.(InputStylesheetUrl); ok {
+		input, environmentEncoding = InputUrl(data.Url), data.EnvironmentEncoding
+	}
 	switch data := input.(type) {
 	case InputFilename:
 		if baseUrl == "" {
@@ -110,7 +123,7 @@ func fetchSource(input ContentInput, baseUrl string, urlFetcher UrlFetcher,
 			}
 			var decoded []byte
 			if stylesheet {
-				decoded, err = decodeStylesheet(result.Content, result.ProtocolEncoding)
+				decoded, err = decodeStylesheet(result.Content, result.ProtocolEncoding, environmentEncoding)
 			} else {
 				decoded, err = decodeToUtf8(result.Content, result.ProtocolEncoding)
 			}
@@ -148,10 +161,11 @@ func decodeToUtf8(data io.Reader, encod string) ([]byte, error) {
 
 // decodeStylesheet (gopdfgo) ustala kodowanie arkusza według CSS Syntax 3
 // § 3.2: znacznik kolejności bajtów, potem kodowanie z protokołu, potem
-// reguła @charset zapisana dosłownie na początku pliku, na końcu UTF-8.
-// Kodowania środowiska (atrybut charset odsyłacza, kodowanie dokumentu) nie
-// uwzględniamy. Źródło patrzyło tylko na protokół.
-func decodeStylesheet(data io.Reader, protocolEncoding string) ([]byte, error) {
+// reguła @charset zapisana dosłownie na początku pliku, potem kodowanie
+// środowiska (na razie tylko atrybut charset elementu <link>, jak w Chromium;
+// kodowania dokumentu nie znamy, bo dokument jest zawsze czytany jako UTF-8),
+// na końcu UTF-8. Źródło patrzyło tylko na protokół.
+func decodeStylesheet(data io.Reader, protocolEncoding, environmentEncoding string) ([]byte, error) {
 	content, err := io.ReadAll(data)
 	if err != nil {
 		return nil, err
@@ -177,6 +191,9 @@ func decodeStylesheet(data io.Reader, protocolEncoding string) ([]byte, error) {
 				return io.ReadAll(enc.NewDecoder().Reader(bytes.NewReader(content)))
 			}
 		}
+	}
+	if enc, _ := charset.Lookup(environmentEncoding); enc != nil {
+		return io.ReadAll(enc.NewDecoder().Reader(bytes.NewReader(content)))
 	}
 	return content, nil
 }

@@ -163,9 +163,8 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 		out1, out2 := tableLayout(context, table, bottomSpace, skipStack, pageIsEmpty, absoluteBoxes, fixedBoxes)
 		return out1, out2, -1
 	} else if isBlockBox {
-		out1, out2 := blockBoxLayout(context, blockBox, bottomSpace, skipStack, containingBlock,
+		return blockBoxLayoutLines(context, blockBox, bottomSpace, skipStack, containingBlock,
 			pageIsEmpty, absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
-		return out1, out2, -1
 	} else if isReplacedBox && bo.BlockReplacedT.IsInstance(box_) {
 		b, v := blockReplacedBoxLayout(context, replacedBox, containingBlock)
 		v = sliceTallReplaced(context, b, v, bottomSpace, skipStack)
@@ -204,6 +203,19 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	containingBlock *bo.BoxFields, pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, adjoiningMargins *[]pr.Float,
 	discard bool, maxLines int,
 ) (bo.BlockLevelBoxITF, blockLayout) {
+	out, layout, _ := blockBoxLayoutLines(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
+		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+	return out, layout
+}
+
+// blockBoxLayoutLines (gopdfgo) układa pudełko jak blockBoxLayout i zwraca dodatkowo liczbę wierszy,
+// które zostały do obcięcia przez line-clamp (-1 bez ograniczenia), żeby wiersze bloków zagnieżdżonych
+// liczyły się do ograniczenia kontenera (CSS Overflow 4 § 4.1). W źródle ta liczba ginęła, więc
+// kontener line-clamp z blokami w środku nie obcinał niczego.
+func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.Float, skipStack tree.ResumeStack,
+	containingBlock *bo.BoxFields, pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, adjoiningMargins *[]pr.Float,
+	discard bool, maxLines int,
+) (bo.BlockLevelBoxITF, blockLayout, int) {
 	box := box_.Box()
 	if box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto" {
 		newBox_, result := columnsLayout(context, box_, bottomSpace, skipStack, containingBlock,
@@ -220,7 +232,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 					containingBlock, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins)
 			}
 		}
-		return newBox_, result
+		return newBox_, result, -1
 	} else if box.IsTableWrapper {
 		// gopdfgo: tabela będąca elementem flex dostaje szerokość wyznaczoną przez układ flex (rozmiar
 		// docelowy w wierszu, rozciągnięcie w kolumnie); źródło liczyło ją od nowa z samej tabeli, więc
@@ -242,7 +254,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	narrowBesideFloats(context, box_, containingBlock, *adjoiningMargins)
 
 	savedPositionY, savedMargins := box.PositionY, append([]pr.Float(nil), *adjoiningMargins...)
-	newBox__, result, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+	newBox__, result, linesLeft := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
 	// gopdfgo: pudełko z własnym kontekstem i tabela o szerokości auto, które obok elementów pływających
 	// zajęłyby pas węższy niż ich szerokość na całej wysokości, są układane ponownie w węższym pasie
@@ -259,9 +271,9 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			} else {
 				box.Width = width - (box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V())
 			}
-			laidOut, layout, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+			laidOut, layout, left := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
-			newBox__ = laidOut
+			newBox__, linesLeft = laidOut, left
 			return laidOut, layout
 		}
 		if relaid, layout, ok := relayoutBesideFloats(context, box_, newBox__, containingBlock, relayout); ok {
@@ -287,7 +299,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
 			table := box.GetWrappedTable().Box()
 			table.Height = laidOutTable.Height.V() + deficit
-			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+			newBox__, result, linesLeft = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
 		} else if deficit < -0.5 && laidOutTable != nil {
 			// gopdfgo: tabela nie schodzi poniżej wysokości treści (CSS Tables 3 § 3.10), więc pudełko
@@ -296,7 +308,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			// table-as-item-large-intrinsic-size).
 			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
 			box.Height = used
-			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+			newBox__, result, linesLeft = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
 		}
 	}
@@ -304,7 +316,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	// TODO: columns and flex items shouldn't be block boxes, this condition
 	// would then be useless when this is fixed.
 	if newBox == nil || newBox.Box().IsColumn || newBox.Box().IsFlexItem {
-		return newBox, result
+		return newBox, result, linesLeft
 	}
 	if newBox.Box().IsTableWrapper || bo.EstablishesFormattingContext(newBox) {
 		// Don't collide with floats
@@ -342,7 +354,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		}
 	}
 
-	return newBox, result
+	return newBox, result, linesLeft
 }
 
 // narrowedBesideFloats (gopdfgo): kontener flex o szerokości auto, obok którego stoją elementy pływające,
@@ -729,9 +741,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	positionX := box.ContentBoxX()
 
-	if box.Style.GetPosition().String == "relative" {
+	// gopdfgo: blokiem zawierającym jest też pudełko przekształcone, także dla potomków fixed
+	// (CSS Transforms 1 § 3; zob. ownsFixedDescendants)
+	ownsFixed := ownsFixedDescendants(box_)
+	if box.Style.GetPosition().String == "relative" || ownsFixed {
 		// New containing block, use a new absolute list
 		absoluteBoxes = new([]*AbsolutePlaceholder)
+	}
+	if ownsFixed {
+		fixedBoxes = new([]*AbsolutePlaceholder)
 	}
 
 	var (
@@ -866,9 +884,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// gopdfgo: w Pythonie children[skip:] poza zakresem daje pustą listę; w Go to panika. Zdarza się,
 	// gdy komórka tabeli jest układana ponownie bez dzieci, ale z pozycją wznowienia (tables.go).
 	skip = min(skip, len(box.Children))
+	// gopdfgo: czy za dzieckiem w kontenerze line-clamp jest jeszcze treść: za nim w tym pudełku albo,
+	// poza samym kontenerem, za tym pudełkiem (balanceClamped)
+	savedClampAfter := context.clampContentAfter
+	defer func() { context.clampContentAfter = savedClampAfter }()
+	parentClampAfter := savedClampAfter && box.Style.GetMaxLines().Tag == pr.None
 	for i, child_ = range box.Children[skip:] {
 		index := i + skip
 		child := child_.Box()
+		context.clampContentAfter = parentClampAfter || slices.ContainsFunc(box.Children[index+1:], func(b Box) bool { return b.Box().IsInNormalFlow() })
 		child.PositionX = positionX
 		child.PositionY = positionY // does not count margins in adjoiningMargins
 		var newFootnotes []Box
@@ -959,13 +983,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 					stop = true
 					lastChild := (child_ == box.Children[len(box.Children)-1])
 					if !lastChild {
-						children := newChildren
+						children, parent := newChildren, box
 						for len(children) != 0 {
 							lastChild := children[len(children)-1]
 							if lastChildF, ok := lastChild.(*bo.LineBox); ok {
-								lastChildF.BlockEllipsis = box.Style.GetBlockEllipsis()
+								// gopdfgo: wielokropek wstawia układ (insertBlockEllipsis)
+								insertBlockEllipsis(context, lastChildF, box.Style.GetBlockEllipsis(), parent.ContentBoxX()+parent.Width.V())
 							} else if bo.ParentT.IsInstance(lastChild) {
-								children = lastChild.Box().Children
+								children, parent = lastChild.Box().Children, lastChild.Box()
 								continue
 							}
 							break
@@ -1044,11 +1069,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	if splittable && !resumedRemainder && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
 		splittable = false
 	}
-	// Bloku, który w kolumnach jest blokiem zawierającym elementy pozycjonowane, nie dzielimy:
-	// tych elementów nie umiemy podzielić razem z nim.
-	if splittable && context.inColumn && box.Style.GetPosition().String == "relative" && len(*absoluteBoxes) != 0 {
-		splittable = false
-	}
+	// gopdfgo: blok o podanej wysokości, który w kolumnach jest blokiem zawierającym elementy
+	// pozycjonowane, też dzielimy (CSS Break 3 § 4); elementy pozycjonowane dzielą się teraz między
+	// kolumny same (brokenOutOfFlow). Wcześniej taki blok był niepodzielny (testy WPT
+	// multicol-contained-absolute, multicol-span-all-children-height-012).
 	if resumeAt == nil && box.Height != pr.AutoF && splittable && canSplitFixedHeight(context, box_, bottomSpace) {
 		// Dzielimy wysokość używaną, czyli po uwzględnieniu min-height i max-height; dla dalszego ciągu
 		// jest nią reszta z poprzedniej strony.
@@ -1197,7 +1221,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	shiftOutsideMarkerBesideFloat(newBox, newChildren)
 
-	if newBox.Style.GetPosition().String == "relative" {
+	if newBox.Style.GetPosition().String == "relative" || ownsFixed {
 		if bo.TableCellT.IsInstance(newBox_) && len(*absoluteBoxes) != 0 {
 			// gopdfgo: komórka tabeli dostanie ostateczną wysokość dopiero z wiersza; zapamiętujemy
 			// pudełka pierwotne, żeby układ tabeli mógł powtórzyć pozycjonowanie (zob. tables.go)
@@ -1211,9 +1235,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			context.cellPositioned[newBox] = pending
 		}
 		// New containing block, resolve the layout of the absolute descendants
-		for _, absoluteBox := range *absoluteBoxes {
-			absoluteLayout(context, absoluteBox, newBox_, fixedBoxes, bottomSpace, nil)
-		}
+		layoutOwnedPositioned(context, newBox_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
 
 	// gopdfgo: przy wysokości bloku zawierającego zależnej od treści procentowe top i bottom liczą się jak
@@ -1501,7 +1523,8 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 
 	linesIterator := iterLineBoxes(context, child_, positionY, bottomSpace, skipStack,
 		box_, absoluteBoxes, fixedBoxes, firstLetterStyle)
-	linesIterator.maxLines = maxLines // gopdfgo: text-wrap-style: balance nie wyrównuje bloku obcinanego przez line-clamp
+	linesIterator.maxLines = maxLines // gopdfgo: zob. lineBoxeIterator.balanceClamped
+	linesIterator.clampContentAfter = context.clampContentAfter
 	for i := 0; linesIterator.Has(); i++ {
 		tmp := linesIterator.Next()
 		resumeAt = tmp.resumeAt
@@ -1528,7 +1551,9 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		// Break box if we reached max-lines
 		if maxLines != -1 {
 			if maxLines == 0 {
-				newChildren[len(newChildren)-1].(*bo.LineBox).BlockEllipsis = box.Style.GetBlockEllipsis()
+				// gopdfgo: wielokropek wstawia układ (insertBlockEllipsis)
+				insertBlockEllipsis(context, newChildren[len(newChildren)-1].(*bo.LineBox), box.Style.GetBlockEllipsis(),
+					box.ContentBoxX()+box.Width.V())
 
 				if traceMode {
 					traceLogger.Dump("lineBoxLayout -> maxLines == 0")

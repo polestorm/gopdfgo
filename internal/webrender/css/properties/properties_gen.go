@@ -626,6 +626,15 @@ func (s Properties) SetWhiteSpaceTrim(v String) { s[PWhiteSpaceTrim] = v }
 func (s Properties) GetWebkitTextFillColor() Color  { return s[PWebkitTextFillColor].(Color) }
 func (s Properties) SetWebkitTextFillColor(v Color) { s[PWebkitTextFillColor] = v }
 
+func (s Properties) GetBackgroundBlendMode() Strings  { return s[PBackgroundBlendMode].(Strings) }
+func (s Properties) SetBackgroundBlendMode(v Strings) { s[PBackgroundBlendMode] = v }
+
+func (s Properties) GetClipPath() ClipPath  { return s[PClipPath].(ClipPath) }
+func (s Properties) SetClipPath(v ClipPath) { s[PClipPath] = v }
+
+func (s Properties) GetBoxOrient() String  { return s[PBoxOrient].(String) }
+func (s Properties) SetBoxOrient(v String) { s[PBoxOrient] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1238,6 +1247,15 @@ type StyleAccessor interface {
 
 	GetWebkitTextFillColor() Color
 	SetWebkitTextFillColor(v Color)
+
+	GetBackgroundBlendMode() Strings
+	SetBackgroundBlendMode(v Strings)
+
+	GetClipPath() ClipPath
+	SetClipPath(v ClipPath)
+
+	GetBoxOrient() String
+	SetBoxOrient(v String)
 }
 
 var propsNames = [...]string{
@@ -1445,6 +1463,9 @@ var propsNames = [...]string{
 	PFontSynthesisPosition:   "font-synthesis-position",
 	PWhiteSpaceTrim:          "white-space-trim",
 	PWebkitTextFillColor:     "webkit-text-fill-color",
+	PBackgroundBlendMode:     "background-blend-mode",
+	PClipPath:                "clip-path",
+	PBoxOrient:               "box-orient",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1653,4 +1674,7 @@ var PropsFromNames = map[string]KnownProp{
 	"font-synthesis-position":    PFontSynthesisPosition,
 	"white-space-trim":           PWhiteSpaceTrim,
 	"webkit-text-fill-color":     PWebkitTextFillColor,
+	"background-blend-mode":      PBackgroundBlendMode,
+	"clip-path":                  PClipPath,
+	"box-orient":                 PBoxOrient,
 }

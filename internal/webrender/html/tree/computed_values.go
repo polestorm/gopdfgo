@@ -40,7 +40,7 @@ var (
 	// to avoid declaration cycle
 	tmp = [pr.NbProperties]computerFunc{
 		pr.PBackgroundImage:    backgroundImage,
-		pr.PListStyleImage:     listStyleImage, // gopdfgo
+		pr.PListStyleImage:     listStyleImage,
 		pr.PBackgroundPosition: backgroundPosition,
 		pr.PObjectPosition:     objectPosition,
 		pr.PTransformOrigin:    transformOrigin,
@@ -114,6 +114,7 @@ var (
 		pr.PRowGap:        gap,
 		pr.PContent:       content,
 		pr.PDisplay:       display,
+		pr.PContinue:      continueValue,
 		pr.PFloat:         floating,
 		pr.PFontSize:      fontSize,
 		pr.PFontWeight:    fontWeight,
@@ -125,6 +126,7 @@ var (
 		pr.PTransform:     transforms,
 		pr.PBoxShadow:     boxShadows,
 		pr.PTextShadow:    boxShadows,
+		pr.PClipPath:      clipPath,
 		pr.PVerticalAlign: verticalAlign,
 		pr.PWordSpacing:   wordSpacing,
 		pr.PTextAlignAll:  textAlignAll,
@@ -188,18 +190,13 @@ func backgroundImage(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPrope
 	return value
 }
 
-// listStyleImage (gopdfgo): długości w gradiencie list-style-image liczone jak w background-image
-// (CSS Lists 3 § 3.2 dopuszcza każdy <image>).
-func listStyleImage(computer *ComputedStyle, name pr.KnownProp, value pr.CssProperty) pr.CssProperty {
+// listStyleImage (gopdfgo) wylicza długości w gradiencie list-style-image tak jak w background-image.
+func listStyleImage(computer *ComputedStyle, _ pr.KnownProp, value pr.CssProperty) pr.CssProperty {
 	image, ok := value.(pr.Image)
 	if !ok {
 		return value
 	}
-	switch image.(type) {
-	case pr.LinearGradient, pr.RadialGradient, pr.ConicGradient:
-		return backgroundImage(computer, name, pr.Images{image}).(pr.Images)[0]
-	}
-	return value
+	return backgroundImage(computer, pr.PBackgroundImage, pr.Images{image}).(pr.Images)[0]
 }
 
 func centers(computer *ComputedStyle, value pr.Centers) pr.Centers {
@@ -466,6 +463,11 @@ func borderWidth(computer *ComputedStyle, name pr.KnownProp, _value pr.CssProper
 	if style == "none" || style == "hidden" {
 		return pr.FToV(0)
 	}
+	return borderWidthValue(computer, value)
+}
+
+// borderWidthValue (gopdfgo) wylicza szerokość obramowania bez względu na styl obramowania.
+func borderWidthValue(computer *ComputedStyle, value pr.TaggedDim) pr.CssProperty {
 	if bw, in := borderWidthKeywords[value.Tag]; in {
 		return bw.ToValue()
 	}
@@ -792,6 +794,14 @@ func content(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.
 // See http://www.w3.org/TR/CSS21/visuren.html#dis-pos-flo
 func display(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
 	value := _value.(pr.Display)
+	// gopdfgo: pudełko -webkit-box ułożone pionowo jest kontenerem blokowym z własnym kontekstem
+	// formatowania (flow-root), w którym działa -webkit-line-clamp (CSS Overflow 4 § 4.3: kontener
+	// line-clamp); ułożone poziomo układamy jak flex w wierszu (Compat Standard).
+	if value.WebkitBox {
+		if orient := computer.GetBoxOrient(); orient == "vertical" || orient == "block-axis" {
+			value.Inside = pr.FlowRoot
+		}
+	}
 	float_ := computer.specified.Float
 	position := computer.specified.Position
 	if (!position.Bool && (position.String == "absolute" || position.String == "fixed")) || float_ != "none" || computer.isRootElement() {
@@ -808,6 +818,20 @@ func display(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.
 		}
 	}
 	return value
+}
+
+// continueValue (gopdfgo): continue: -webkit-legacy działa jak discard w pudełku display:
+// -webkit-box (albo -webkit-inline-box) z -webkit-box-orient: vertical, a gdzie indziej jak auto
+// (CSS Overflow 4 § 4.2, § 4.3).
+func continueValue(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.String)
+	if value != "-webkit-legacy" {
+		return value
+	}
+	if display := computer.GetDisplay(); display.WebkitBox && display.Inside == pr.FlowRoot {
+		return pr.String("discard")
+	}
+	return pr.String("auto")
 }
 
 // Compute the “float“ property.
@@ -1196,6 +1220,25 @@ func boxShadows(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) 
 		result[index] = shadow
 	}
 	return result
+}
+
+// gopdfgo: długości kształtu clip-path sprowadzone do pikseli; procenty zostają. Promienie
+// closest-side i farthest-side (jednostka Scalar, zob. pr.ClipPath) zostają bez zmian.
+func clipPath(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.ClipPath)
+	if len(value.Args) == 0 {
+		return value
+	}
+	args := make([]pr.Dimension, len(value.Args))
+	for i, d := range value.Args {
+		if d.Unit == pr.Scalar && d.Value < 0 {
+			args[i] = d
+			continue
+		}
+		args[i] = length_(computer, d.Tagged(), -1, false).Dimension
+	}
+	value.Args = args
+	return value
 }
 
 // Compute the “vertical-align“ property.

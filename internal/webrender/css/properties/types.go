@@ -48,6 +48,10 @@ type Display struct {
 	// jego dzieci i pseudoelementy trafiają do rodzica; Outside i Inside mają wtedy wartości pudełka
 	// liniowego, którego styl dziedziczą teksty.
 	Contents bool
+
+	// WebkitBox (gopdfgo): display: -webkit-box albo -webkit-inline-box (CSS Overflow 4 § 4.3,
+	// Compat Standard). Wartość obliczona zależy od -webkit-box-orient, zob. tree.display.
+	WebkitBox bool
 }
 
 // Decorations zero value means "none"
@@ -70,6 +74,25 @@ type BoxShadow struct {
 	Inset              bool
 	X, Y, Blur, Spread Dimension
 	Color              Color // typ ColorCurrentColor oznacza kolor tekstu elementu
+}
+
+// ClipPath (gopdfgo): wartość clip-path (CSS Masking 1 § 5.1) z kształtem podstawowym (CSS Shapes 1
+// § 3.1). Pusty Shape oznacza none. Args zależą od kształtu:
+//   - inset: przesunięcia góra, prawo, dół, lewo, potem promienie zaokrąglenia (poziomy i pionowy) dla
+//     narożników lewy górny, prawy górny, prawy dolny, lewy dolny;
+//   - circle: promień, środek x, środek y;
+//   - ellipse: promień x, promień y, środek x, środek y;
+//   - polygon: kolejne pary x, y.
+//
+// Promień koła lub elipsy może być słowem closest-side albo farthest-side: wtedy Dimension ma wartość
+// -1 (closest-side) albo -2 (farthest-side) i jednostkę Scalar. Środek koła lub elipsy liczy się od lewej
+// i górnej krawędzi, a przy FromRight (FromBottom) od prawej (dolnej). Box to pudełko odniesienia.
+type ClipPath struct {
+	Shape                 string
+	Args                  []Dimension
+	EvenOdd               bool
+	FromRight, FromBottom bool
+	Box                   string
 }
 
 // BoxShadows: lista cieni w kolejności ze stylu (pierwszy leży na wierzchu); pusta oznacza none.
@@ -734,6 +757,7 @@ func (StringSet) isCssProperty()         {}
 func (Strings) isCssProperty()           {}
 func (Transforms) isCssProperty()        {}
 func (BoxShadows) isCssProperty()        {}
+func (ClipPath) isCssProperty()          {}
 func (Values) isCssProperty()            {}
 func (AttrData) isCssProperty()          {}
 func (NoneImage) isCssProperty()         {}
@@ -781,6 +805,7 @@ func (StringSet) isDeclaredValue()         {}
 func (Strings) isDeclaredValue()           {}
 func (Transforms) isDeclaredValue()        {}
 func (BoxShadows) isDeclaredValue()        {}
+func (ClipPath) isDeclaredValue()          {}
 func (Values) isDeclaredValue()            {}
 func (AttrData) isDeclaredValue()          {}
 func (NoneImage) isDeclaredValue()         {}

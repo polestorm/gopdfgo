@@ -52,6 +52,13 @@ type EngineLayout interface {
 	// zdejmuje i zwraca zdjętą szerokość.
 	TrailingLetterSpacing() pr.Float
 	TrimTrailingLetterSpacing() pr.Float
+	// JustifiableClusters (gopdfgo) zwraca liczbę jednostek typograficznych (skupień glifów) tekstu,
+	// między którymi text-justify: inter-character rozsuwa znaki (CSS Text 3 § 6.4); pomija znaki przed
+	// początkiem justowania, wiszące spacje na końcu i niewidoczne znaki formatujące.
+	JustifiableClusters() int
+	// SetCharJustification (gopdfgo) dodaje odstęp justowania za każdą jednostką liczoną przez
+	// JustifiableClusters oprócz ostatniej; działa od [ApplyJustification].
+	SetCharJustification(spacing pr.Float)
 }
 
 // FirstLine exposes the result of laying out

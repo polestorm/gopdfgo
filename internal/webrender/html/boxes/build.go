@@ -529,17 +529,15 @@ func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageSta
 		*children = append(*children, ContentToBoxes(style, box, state.QuoteDepth, state.CounterValues,
 			resolver, targetCollector, cs, nil, nil)...)
 	} else {
-		// gopdfgo: także gradienty (CSS Lists 3 § 3.2); źródło obsługiwało tylko url()
-		var image_ images.Image
-		switch image.(type) {
-		case pr.UrlImage, pr.LinearGradient, pr.RadialGradient:
+		// gopdfgo: znacznikiem może być dowolny <image>, także gradient (CSS Lists 3 § 3.1); źródło
+		// obsługiwało tylko url().
+		if _, none := image.(pr.NoneImage); image != nil && !none {
 			// image may be None here too, in case the image is not available.
-			image_ = contentImage(pr.ContentProperty{Type: "image", Content: pr.ContentImage{Image: image}}, style, resolver)
-		}
-		if image_ != nil {
-			markerBox := InlineReplacedBoxAnonymousFrom(box, image_)
-			markerImageDefaultSize(markerBox, image_)
-			*children = append(*children, markerBox)
+			image_ := contentImage(pr.ContentProperty{Type: "image", Content: pr.ContentImage{Image: image}}, style, resolver)
+			if image_ != nil {
+				markerBox := InlineReplacedBoxAnonymousFrom(box, images.MarkerImage(image_))
+				*children = append(*children, markerBox)
+			}
 		}
 		if len(*children) == 0 && style.GetListStyleType().Name != "none" {
 			counterValue_, has := state.CounterValues["list-item"]
@@ -2237,12 +2235,19 @@ func capitalizeLang(text string, lang language.Tag, letterFound *bool) string {
 			}
 			out.WriteString(title.String(string(letter)))
 			continue
-		} else if isZ := unicode.Is(unicode.Z, letter); isZ {
+		} else if isWordSeparator(letter) {
 			*letterFound = false
 		}
 		out.WriteRune(letter)
 	}
 	return out.String()
+}
+
+// isWordSeparator (gopdfgo) mówi, czy znak kończy słowo dla text-transform: capitalize: separatory
+// Unicode (Z) oraz znaki białe nowego wiersza i tabulacji, np. złamanie wiersza z <br> (CSS Text 3
+// § 2.1.1, granice słów; test WPT text-transform-cap-003). Źródło uznawało tylko separatory Z.
+func isWordSeparator(r rune) bool {
+	return unicode.Is(unicode.Z, r) || r == '\n' || r == '\t' || r == '\r' || r == '\f'
 }
 
 // textTransformLanguage zwraca język treści dla reguł zmiany wielkości liter (CSS Text 3 § 2.1:
@@ -2310,7 +2315,7 @@ func processTextTransform(box Box, withCapitalize bool, letterFound *bool) {
 			for _, r := range text {
 				if unicode.Is(unicode.L, r) || unicode.Is(unicode.N, r) {
 					*letterFound = true
-				} else if unicode.Is(unicode.Z, r) {
+				} else if isWordSeparator(r) {
 					*letterFound = false
 				}
 			}
@@ -2791,30 +2796,7 @@ func addOutsideImageMarkerStrut(box Box) {
 	strut.Box().Style.SetVisibility("hidden")
 	strut.Box().Style.SetWhiteSpace(pr.Nowrap)
 	for _, image := range images {
-		replica := InlineReplacedBoxAnonymousFrom(strut, image.Replacement)
-		markerImageDefaultSize(replica, image.Replacement)
-		strut.Box().Children = append(strut.Box().Children, replica)
+		strut.Box().Children = append(strut.Box().Children, InlineReplacedBoxAnonymousFrom(strut, image.Replacement))
 	}
 	box.Box().Children = append([]Box{marker, strut}, children[1:]...)
-}
-
-// markerImageDefaultSize (gopdfgo): obraz znacznika bez własnych wymiarów (gradient, SVG bez width
-// i height) dostaje domyślny rozmiar obiektu 1em × 1em (CSS Lists 3 § 3.2), wpisany z zachowaniem
-// proporcji, gdy obraz je ma (CSS Images 3 § 5.2). Źródło przyjmowało 300 × 150 px jak dla <img>.
-func markerImageDefaultSize(box *InlineReplacedBox, image images.Image) {
-	fontSize := box.Style.GetFontSize().Value
-	width, height, ratio := image.GetIntrinsicSize(1, fontSize)
-	if width != nil || height != nil {
-		return
-	}
-	w, h := fontSize, fontSize
-	if ratio != nil && ratio.V() > 0 {
-		if r := ratio.V(); r > 1 {
-			h = fontSize / r
-		} else {
-			w = fontSize * r
-		}
-	}
-	box.Style.SetWidth(pr.FToPx(w))
-	box.Style.SetHeight(pr.FToPx(h))
 }

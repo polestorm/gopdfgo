@@ -64,6 +64,13 @@ type lineBoxeIterator struct {
 	maxLines int
 	// hyphenatedLines: liczba kolejnych wierszy zakończonych dzieleniem wyrazu (hyphenate-limit-lines)
 	hyphenatedLines int
+	// gopdfgo: wiersz o numerze ellipsisLine (licząc wydane wiersze) jest dodatkowo zwężony o
+	// ellipsisShrink, miejsce na wielokropek bloku przy wyrównywaniu wierszy obcinanych przez
+	// line-clamp (balanceClamped); -1 bez zwężenia
+	ellipsisLine   int
+	ellipsisShrink pr.Float
+	// clampContentAfter: za tym akapitem w kontenerze line-clamp jest jeszcze treść
+	clampContentAfter bool
 }
 
 func (l *lineBoxeIterator) Has() bool {
@@ -86,8 +93,12 @@ func (l *lineBoxeIterator) Has() bool {
 	if limit := l.box.Style.GetHyphenateLimitLines(); limit.Tag != pr.None && l.hyphenatedLines >= limit.I {
 		l.context.noAutoHyphens = true
 	}
+	shrink := l.shrink
+	if l.emitted == l.ellipsisLine {
+		shrink += l.ellipsisShrink
+	}
 	line, resumeAt, forcedBreak := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
-		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, l.shrink)
+		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, shrink)
 	l.context.noAutoHyphens = savedNoAutoHyphens
 	if line != nil && resumeAt != nil && endsHyphenated(line) {
 		l.hyphenatedLines++
@@ -163,10 +174,10 @@ func (l *lineBoxeIterator) balance() {
 	if lines < 2 || lines > maxBalancedLines {
 		return
 	}
-	if l.maxLines >= 0 && lines > l.maxLines-l.emitted {
-		// Norma każe najpierw obciąć wiersze (line-clamp), a potem wyrównać pozostałe z miejscem na
-		// wielokropek; wielokropek bloku dokładamy dopiero przy rysowaniu, więc układ nie zna jego
-		// szerokości. Obcinanego bloku nie wyrównujemy.
+	if remaining := l.maxLines - l.emitted; l.maxLines >= 0 && (lines > remaining || (lines == remaining && l.clampContentAfter)) {
+		// gopdfgo: norma każe najpierw obciąć wiersze (line-clamp), a potem wyrównać pozostałe
+		// z miejscem na wielokropek (CSS Text 4 § 5.2, CSS Overflow 4 § 4.1)
+		l.balanceClamped(remaining)
 		return
 	}
 	low, high := pr.Float(0), width.V()
@@ -193,10 +204,115 @@ func (l *lineBoxeIterator) balance() {
 	l.shrink = low
 }
 
+// balanceClamped (gopdfgo) wyrównuje n wierszy, które zostają z akapitu obciętego przez line-clamp:
+// treścią do wyrównania jest to, co bez wyrównania mieści się w n wierszach, gdy ostatni z nich ma
+// miejsce na wielokropek bloku (treść, która się z nim nie mieści, jest usuwana, zob.
+// insertBlockEllipsis). Szukamy połowieniem największego zwężenia, przy którym ta sama treść mieści
+// się w n wierszach, a ostatni wiersz jest zwężony dodatkowo o szerokość wielokropka.
+func (l *lineBoxeIterator) balanceClamped(n int) {
+	if n < 1 || n > maxBalancedLines {
+		return
+	}
+	width := l.containingBlock.Box().Width.V()
+	ellipsis := ellipsisWidth(l.context, l.box, l.box.Style.GetBlockEllipsis())
+	target, targetDone := l.trialClampEnd(0, n, ellipsis)
+	reaches := func(shrink pr.Float) bool {
+		end, done := l.trialClampEnd(shrink, n, ellipsis)
+		return done || (!targetDone && compareResume(end, target) >= 0)
+	}
+	low, high := pr.Float(0), width
+	if reaches(high) {
+		low = high
+	} else {
+		for i := 0; i < 20 && high-low > 1.0/64; i++ {
+			middle := (low + high) / 2
+			if reaches(middle) {
+				low = middle
+			} else {
+				high = middle
+			}
+		}
+	}
+	l.shrink = low
+	l.ellipsisLine, l.ellipsisShrink = l.emitted+n-1, ellipsis
+}
+
+// trialClampEnd (gopdfgo) układa próbnie n wierszy przy zwężeniu shrink, z ostatnim zwężonym
+// dodatkowo o ellipsis, i zwraca miejsce, w którym kończy się widoczna treść: za ostatnim wierszem
+// albo przed nim, gdy jego treść się nie mieści (wielokropek ją wyprze). done mówi, że treść
+// akapitu skończyła się wcześniej.
+func (l *lineBoxeIterator) trialClampEnd(shrink pr.Float, n int, ellipsis pr.Float) (end tree.ResumeStack, done bool) {
+	l.trial(func() {
+		l.shrink = shrink
+		l.ellipsisLine, l.ellipsisShrink = l.emitted+n-1, ellipsis
+		limit := l.containingBlock.Box().Width.V() - shrink - ellipsis
+		for count := 0; count < n; count++ {
+			start := l.skipStack
+			if !l.Has() {
+				done = true
+				return
+			}
+			l.balanced = true // odcinek po wymuszonym złamaniu nie jest wyrównywany w próbie
+			if count == n-1 {
+				if line := l.currentBox.line; line.Width.V() > limit+1.0/64 {
+					end = start
+					return
+				}
+			}
+			if l.done {
+				done = l.currentBox.resumeAt == nil
+				end = l.currentBox.resumeAt
+				return
+			}
+		}
+		end = l.skipStack
+	})
+	return end, done && end == nil
+}
+
+// compareResume (gopdfgo) porównuje miejsca w treści dane stosami wznowienia (nil: początek).
+func compareResume(a, b tree.ResumeStack) int {
+	for {
+		if a == nil || b == nil {
+			switch {
+			case a == nil && b == nil:
+				return 0
+			case a == nil:
+				return -1
+			}
+			return 1
+		}
+		ka, sa := a.Unpack()
+		kb, sb := b.Unpack()
+		if ka != kb {
+			if ka < kb {
+				return -1
+			}
+			return 1
+		}
+		a, b = sa, sb
+	}
+}
+
 // trialLines (gopdfgo) układa próbnie wiersze iteratora przy zwężeniu shrink i zwraca ich liczbę,
 // najwyżej maxBalancedLines+1; stan iteratora i skutki uboczne układu (floaty, pudełka
 // pozycjonowane, elementy biegnące) są potem przywracane.
 func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
+	count := 0
+	l.trial(func() {
+		l.shrink = shrink
+		for count <= maxBalancedLines && l.Has() {
+			count++
+			if l.forced {
+				break
+			}
+		}
+	})
+	return count
+}
+
+// trial (gopdfgo) wykonuje próbny układ f i przywraca potem stan iteratora i skutki uboczne układu.
+func (l *lineBoxeIterator) trial(f func()) {
 	saved := *l
 	context := l.context
 	// listy wykluczeń zapamiętujemy jako nagłówki: próbne floaty dopisują się za ich długością, a układ
@@ -215,16 +331,8 @@ func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
 	}
 	var absolutes, fixed []*AbsolutePlaceholder
 	l.absoluteBoxes, l.fixedBoxes = &absolutes, &fixed
-	l.shrink = shrink
-
-	count := 0
 	l.balanced = true
-	for count <= maxBalancedLines && l.Has() {
-		count++
-		if l.forced {
-			break
-		}
-	}
+	f()
 
 	*l = saved
 	context.excludedShapesLists = savedLists
@@ -235,7 +343,6 @@ func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
 	}
 	context.brokenOutOfFlow, context.brokenSequence = savedBroken, savedSequence
 	context.runningElements = savedRunning
-	return count
 }
 
 func (l *lineBoxeIterator) consume() int {
@@ -268,7 +375,7 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 		indentNext: skipStack == nil && (!box.AfterBlock || indent.EachLine),
 		box:        box, context: context, positionY: positionY, bottomSpace: bottomSpace, containingBlock: containingBlock,
 		absoluteBoxes: absoluteBoxes, fixedBoxes: fixedBoxes, skipStack: skipStack, firstLetterStyle: firstLetterStyle,
-		firstLine: skipStack == nil, maxLines: -1,
+		firstLine: skipStack == nil, maxLines: -1, ellipsisLine: -1,
 	}
 }
 
@@ -861,6 +968,23 @@ func isEmptyInline(box Box) bool {
 	return true
 }
 
+// isCollapsibleSpaceOnly (gopdfgo) mówi, czy pudełko tekstu albo element liniowy zawiera wyłącznie
+// zwijaną spację (albo nic), więc nie może zawierać pierwszej litery.
+func isCollapsibleSpaceOnly(box Box) bool {
+	if textBox, ok := box.(*bo.TextBox); ok {
+		return len(textBox.Text) == 0 || isCollapsibleSpace(box)
+	}
+	if !bo.InlineT.IsInstance(box) {
+		return false
+	}
+	for _, child := range box.Box().Children {
+		if !isCollapsibleSpaceOnly(child) {
+			return false
+		}
+	}
+	return true
+}
+
 // Create a box for the ::first-letter selector.
 func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStack, firstLetterStyle pr.ElementStyle) tree.ResumeStack {
 	if firstLetterStyle == nil || len(box.Box().Children) == 0 {
@@ -872,14 +996,64 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 	// At least, position is ignored to avoid layout troubles.
 	firstLetterStyle.SetPosition(pr.BoolString{String: "static"})
 
+	var pending bool
+	return firstLetterIn(context, box, skipStack, firstLetterStyle, &pending)
+}
+
+// firstLetterIn tworzy pudełko ::first-letter w dzieciach pudełka box. pending (gopdfgo) mówi,
+// że wzięto już samą interpunkcję poprzedzającą literę, a litery trzeba szukać w następnym tekście:
+// interpunkcja z ::before należy do ::first-letter razem z pierwszą literą treści elementu (CSS
+// Pseudo 4 § 2.2; testy WPT first-letter-quote-002 i 005). Źródło kończyło na samym cudzysłowie.
+func firstLetterIn(context *layoutContext, box Box, skipStack tree.ResumeStack, firstLetterStyle pr.ElementStyle, pending *bool) tree.ResumeStack {
+	if len(box.Box().Children) == 0 {
+		return skipStack
+	}
+	// gopdfgo: pierwszą literą jest pierwszy znak typograficzny pierwszego sformatowanego wiersza;
+	// poprzedzające go elementy liniowe z samą zwijaną spacją (lub puste) go nie zawierają (CSS
+	// Pseudo 4 § 2.2; test WPT first-letter-nested-006). Źródło patrzyło tylko na pierwsze dziecko.
+	// Miejsce wznowienia wskazuje dziecko, od którego wiersz się zaczyna (po pominiętych spacjach).
+	letterIndex := 0
+	if skipStack != nil {
+		letterIndex, _ = skipStack.Unpack()
+	}
+	childSkip := skipStack
+	if !*pending {
+		for letterIndex < len(box.Box().Children)-1 && isCollapsibleSpaceOnly(box.Box().Children[letterIndex]) {
+			letterIndex++
+			childSkip = nil
+		}
+	}
+	for letterIndex < len(box.Box().Children) {
+		started := childSkip != nil
+		next, newSkip := firstLetterInChild(context, box, letterIndex, childSkip, firstLetterStyle, pending)
+		if started {
+			skipStack = newSkip
+			if newSkip == nil && letterIndex != 0 {
+				// tekst dziecka skrócono o pominięty początek: wiersz zaczyna się od tego dziecka
+				skipStack = tree.ResumeStack{letterIndex: nil}
+			}
+		}
+		if !*pending {
+			break
+		}
+		letterIndex, childSkip = next, nil
+	}
+	return skipStack
+}
+
+// firstLetterInChild obsługuje dziecko o indeksie letterIndex i zwraca indeks następnego dziecka
+// (po ewentualnie wstawionym pudełku litery) oraz miejsce wznowienia po zmianach.
+func firstLetterInChild(context *layoutContext, box Box, letterIndex int, skipStack tree.ResumeStack, firstLetterStyle pr.ElementStyle, pending *bool) (int, tree.ResumeStack) {
 	firstLetter := ""
-	child := box.Box().Children[0]
+	nextIndex := letterIndex + 1
+	child := box.Box().Children[letterIndex]
 	var childSkipStack tree.ResumeStack
 	if textBox, ok := child.(*bo.TextBox); ok {
 		letterStyle := tree.ComputedFromCascaded(nil, nil, firstLetterStyle, context)
 		if strings.HasSuffix(textBox.ElementTag(), "::first-letter") {
 			letterBox := bo.NewInlineBox(letterStyle, textBox.Element, "first-letter", []Box{child})
-			box.Box().Children[0] = letterBox
+			box.Box().Children[letterIndex] = letterBox
+			*pending = false
 		} else if len(textBox.Text) != 0 {
 			text := textBox.Text
 			characterFound := false
@@ -897,6 +1071,11 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 			// Źródło brało taką spację za pierwszą literę.
 			afterSkip := text
 			leadingSpace := len(text) != 0 && text[0] != ' ' && unicode.Is(unicode.Zs, text[0])
+			if *pending && len(text) != 0 && unicode.IsSpace(text[0]) {
+				// po interpunkcji z poprzedniego pudełka spacja kończy szukanie litery
+				leadingSpace = true
+			}
+			*pending = false
 			for len(text) != 0 && !leadingSpace {
 				nextLetter := text[0]
 				isPunc := unicode.In(nextLetter, bo.TableFirstLetter...)
@@ -915,6 +1094,8 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 			textBox.Text = afterSkip
 			if strings.TrimLeft(firstLetter, "\n") != "" {
 				textBox.Text = text
+				*pending = !characterFound && len(text) == 0 && firstLetterStyle.GetFloat() == "none"
+				nextIndex = letterIndex + 2
 				// "This type of initial letter is similar to an
 				// inline-level element if its "float" property is "none",
 				// otherwise it is similar to a floated element."
@@ -925,7 +1106,7 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 					// gopdfgo: pudełko litery trafia przed dzieci pudełka nadrzędnego (w WeasyPrint:
 					// box.children = (letter_box,) + box.children). W źródle dopisywano je do nowego
 					// pudełka tekstu, więc pierwsza litera znikała z dokumentu.
-					box.Box().Children = append([]Box{letterBox}, box.Box().Children...)
+					box.Box().Children = slices.Insert(box.Box().Children, letterIndex, Box(letterBox))
 				} else {
 					letterBox := bo.NewBlockBox(firstLetterStyle, textBox.Element, "first-letter", nil)
 					letterBox.FirstLetterStyle = nil
@@ -938,29 +1119,24 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 					// gopdfgo: pudełko litery trafia przed dzieci pudełka nadrzędnego (w WeasyPrint:
 					// box.children = (letter_box,) + box.children). W źródle dopisywano je do nowego
 					// pudełka tekstu, więc pierwsza litera znikała z dokumentu.
-					box.Box().Children = append([]Box{letterBox}, box.Box().Children...)
+					box.Box().Children = slices.Insert(box.Box().Children, letterIndex, Box(letterBox))
 				}
 				bo.ProcessTextTransform(textBox)
-				if skipStack != nil && childSkipStack != nil {
-					index, _ := skipStack.Unpack()
-					childIndex, grandChildSkipStack := childSkipStack.Unpack()
-					skipStack = tree.ResumeStack{index: tree.ResumeStack{childIndex + 1: grandChildSkipStack}}
-				}
 			}
 		}
 	} else if bo.ParentT.IsInstance(child) {
 		if skipStack != nil {
 			_, childSkipStack = skipStack.Unpack()
-		} else {
-			childSkipStack = nil
 		}
-		childSkipStack = firstLetterToBox(context, child, childSkipStack, firstLetterStyle)
+		childSkipStack = firstLetterIn(context, child, childSkipStack, firstLetterStyle, pending)
 		if skipStack != nil {
 			resumeIndex, _ := skipStack.Unpack()
 			skipStack = tree.ResumeStack{resumeIndex: childSkipStack}
 		}
+	} else {
+		*pending = false
 	}
-	return skipStack
+	return nextIndex, skipStack
 }
 
 func resolveMarginAuto(box *bo.BoxFields) {
@@ -1300,6 +1476,8 @@ func breakWaitingChildren(context *layoutContext, box Box, bottomSpace pr.Float,
 			}
 
 			*children = append(*children, waitingChildrenCopy...)
+			// gopdfgo: dzieci za złamanym przechodzą do następnego wiersza (zob. niżej)
+			dropPlaceholders(waitingChildren[len(waitingChildrenCopy)+1:], absoluteBoxes, fixedBoxes, linePlaceholders)
 			if newChild == nil {
 				// May be nil where we have an empty TextBox.
 				if !bo.TextT.IsInstance(child) {
@@ -1315,10 +1493,34 @@ func breakWaitingChildren(context *layoutContext, box Box, bottomSpace pr.Float,
 	if l := len(*children); l != 0 {
 		// Too wide, can't break waiting children and the inline is
 		// non-empty: put child entirely on the next line.
+		// gopdfgo: pudełka pozycjonowane z odrzuconych oczekujących dzieci przechodzą do następnego
+		// wiersza, więc znikają z list pudełek do ułożenia w tym wierszu
+		dropPlaceholders(waitingChildren, absoluteBoxes, fixedBoxes, linePlaceholders)
 		return tree.ResumeStack{(*children)[l-1].index + 1: nil}
 	}
 
 	return nil
+}
+
+// isAbsolutePlaceholderEntry (gopdfgo): dziecko wiersza jest miejscem pudełka pozycjonowanego
+// absolutnie albo ustalonego.
+func isAbsolutePlaceholderEntry(child indexedBoxC) bool {
+	_, ok := child.box.(*AbsolutePlaceholder)
+	return ok
+}
+
+// dropPlaceholders (gopdfgo) usuwa miejsca pudełek pozycjonowanych spośród dropped z list pudełek
+// do ułożenia.
+func dropPlaceholders(dropped []indexedBoxC, lists ...*[]*AbsolutePlaceholder) {
+	for _, child := range dropped {
+		placeholder, ok := child.box.(*AbsolutePlaceholder)
+		if !ok {
+			continue
+		}
+		for _, list := range lists {
+			*list = slices.DeleteFunc(*list, func(p *AbsolutePlaceholder) bool { return p == placeholder })
+		}
+	}
 }
 
 // Same behavior as splitInlineLevel.
@@ -1526,8 +1728,16 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 
 		if canBreak == pr.True {
-			children = append(children, waitingChildren...)
-			waitingChildren = nil
+			// gopdfgo: pudełka pozycjonowane absolutnie tuż przed miejscem podziału idą z następującą
+			// treścią: gdy wiersz złamie się w tym miejscu, ich położenie statyczne jest na początku
+			// następnego wiersza (CSS Text 3 § 5.1: elementy spoza przepływu nie tworzą miejsc podziału;
+			// test WPT line-breaking-019). W źródle zostawały na końcu poprzedniego wiersza.
+			k := len(waitingChildren)
+			for k > 0 && isAbsolutePlaceholderEntry(waitingChildren[k-1]) {
+				k--
+			}
+			children = append(children, waitingChildren[:k]...)
+			waitingChildren = slices.Clone(waitingChildren[k:])
 		}
 
 		// gopdfgo: pudełko z wrap-inside: avoid, które musiało się złamać w środku, przechodzi w całości
@@ -1820,7 +2030,8 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 		if floatWidth > maxX-positionX && emptyLine && len(*waitingFloats) == 0 {
 			context.floatOnlyLine = true
 		}
-		if (floatWidth > maxX-positionX && !emptyLine) || len(*waitingFloats) != 0 {
+		if (floatWidth > maxX-positionX && !emptyLine) || len(*waitingFloats) != 0 ||
+			(!emptyLine && floatInUnbreakableRun(context, box, index, append(children[:len(children):len(children)], *waitingChildren...), lineChildren, floatWidth, maxX-positionX)) {
 			// TODO: the absolute and fixed boxes in the floats must be
 			// added here, and not in iterLineBoxes
 			*waitingFloats = append(*waitingFloats, child_)
@@ -1865,6 +2076,83 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 		context.addRunning(child_)
 	}
 	return positionX
+}
+
+// floatInUnbreakableRun (gopdfgo) mówi, że element pływający w kontekście bez zawijania (nowrap, pre)
+// nie zmieści się w wierszu razem z nierozdzielnym ciągiem treści, w którym stoi. Wiersz nie może
+// się skończyć między elementem a treścią, która po nim następuje w tym samym pudełku, więc o tym,
+// czy element się zmieści, decyduje szerokość treści ułożonej przed nim (gdy od ostatniego miejsca
+// złamania nic jej nie oddziela) i ciągu po nim do najbliższego miejsca złamania; element, który
+// się nie mieści, czeka na koniec wiersza i staje pod nim (CSS 2.1 § 9.5.1, reguły 7 i 8, jak
+// w Chromium i Gecko; testy WPT float-nowrap-7, -8, -9, a float-nowrap-5 i -6 zostają w wierszu).
+// Źródło porównywało szerokość elementu tylko z treścią ułożoną przed nim.
+func floatInUnbreakableRun(context *layoutContext, box Box, index int, children []indexedBoxC,
+	lineChildren []indexedBox, floatWidth, available pr.Float,
+) bool {
+	if ws := box.Box().Style.GetWhiteSpace(); ws != pr.Nowrap && ws != pr.Pre {
+		return false
+	}
+	if !breakBeforeFloatImpossible(children, lineChildren) {
+		return false
+	}
+	if index+1 >= len(box.Box().Children) {
+		return floatWidth > available
+	}
+	widths := inlineLineWidths(context, box, false, false, true, tree.ResumeStack{index + 1: nil}, true)
+	if len(widths) == 0 {
+		return floatWidth > available
+	}
+	return floatWidth+widths[0] > available
+}
+
+// breakBeforeFloatImpossible (gopdfgo) mówi, że między ostatnią treścią w przepływie przed elementem
+// pływającym a tym elementem nie ma miejsca złamania wiersza.
+func breakBeforeFloatImpossible(children []indexedBoxC, lineChildren []indexedBox) bool {
+	var last Box
+	for i := len(children) - 1; i >= 0 && last == nil; i-- {
+		if children[i].box.Box().IsInNormalFlow() {
+			last = children[i].box
+		}
+	}
+	for i := len(lineChildren) - 1; i >= 0 && last == nil; i-- {
+		if lineChildren[i].box.Box().IsInNormalFlow() {
+			last = lineChildren[i].box
+		}
+	}
+	if last == nil {
+		return false
+	}
+	text := lastInFlowText(last)
+	if text == nil {
+		return true
+	}
+	runes := text.TextS()
+	if len(runes) == 0 {
+		return false
+	}
+	switch text.Style.GetWhiteSpace() {
+	case pr.Nowrap, pr.Pre:
+		return true
+	}
+	return runes[len(runes)-1] != ' '
+}
+
+// lastInFlowText (gopdfgo) zwraca ostatnie pudełko tekstu w przepływie wewnątrz pudełka liniowego
+// albo nil, gdy treść kończy się elementem atomowym.
+func lastInFlowText(box Box) *bo.TextBox {
+	if text, ok := box.(*bo.TextBox); ok {
+		return text
+	}
+	if !bo.InlineT.IsInstance(box) && !bo.LineT.IsInstance(box) {
+		return nil
+	}
+	children := box.Box().Children
+	for i := len(children) - 1; i >= 0; i-- {
+		if children[i].Box().IsInNormalFlow() {
+			return lastInFlowText(children[i])
+		}
+	}
+	return nil
 }
 
 // See https://unicode.org/reports/tr14/
@@ -2282,6 +2570,17 @@ func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float, 
 	} else if lineHasTab(line) {
 		return
 	}
+	if line.Style.GetTextJustify() == "inter-character" && line.Style.GetDirection() != pr.Rtl {
+		if hanging {
+			if count, _, last := trailingPreservedSpaces(line); last != nil && last.TextLayout != nil {
+				last.TextLayout.SetHangingSpaces(count)
+			}
+		}
+		if count := addCharSpacing(line, 0, &charSpacingState{}); count > 0 {
+			addCharSpacing(line, extraWidth/pr.Float(count), &charSpacingState{})
+		}
+		return
+	}
 	nbSpaces := countExpandableSpaces(line)
 	if hanging {
 		if count, _, last := trailingPreservedSpaces(line); last != nil && last.TextLayout != nil {
@@ -2572,6 +2871,62 @@ func isWordSeparator(r rune) bool {
 		return true
 	}
 	return false
+}
+
+// charSpacingState (gopdfgo): stan przejścia addCharSpacing przez wiersz
+type charSpacingState struct {
+	started     bool     // była już jednostka typograficzna
+	afterAtomic bool     // ostatnia jednostka to ciąg elementów atomowych
+	xAdvance    pr.Float // dotychczasowe przesunięcie
+	count       int      // liczba miejsc justowania
+}
+
+// addCharSpacing (gopdfgo) justuje wiersz przy text-justify: inter-character (CSS Text 3 § 6.4):
+// odstęp trafia między każde dwie sąsiednie jednostki typograficzne wiersza, także na granicy
+// pudełek, a ciąg sąsiednich elementów atomowych liczy się jak jedna jednostka (CSS Text 4,
+// #valdef-text-justify-inter-character; test WPT text-justify-inter-character-atomic-inline).
+// Ze spacing równym zero tylko liczy miejsca justowania. Zwraca ich liczbę. Źródło justowało
+// wyłącznie na spacjach.
+func addCharSpacing(box_ Box, spacing pr.Float, s *charSpacingState) int {
+	if textBox, ok := box_.(*bo.TextBox); ok {
+		n := 0
+		if textBox.TextLayout != nil && textBox.Style.GetTextJustify() != "none" {
+			n = textBox.TextLayout.JustifiableClusters()
+		}
+		if n > 0 && s.started {
+			s.count++
+			s.xAdvance += spacing
+		}
+		textBox.PositionX += s.xAdvance
+		if n > 0 {
+			s.count += n - 1
+			if spacing != 0 && n > 1 {
+				textBox.TextLayout.SetCharJustification(spacing)
+				extra := spacing * pr.Float(n-1)
+				textBox.Width = textBox.Width.V() + extra
+				s.xAdvance += extra
+			}
+			s.started, s.afterAtomic = true, false
+		}
+	} else if IsLine(box_) {
+		box := box_.Box()
+		box.PositionX += s.xAdvance
+		before := s.xAdvance
+		for _, child := range box.Children {
+			if child.Box().IsInNormalFlow() {
+				addCharSpacing(child, spacing, s)
+			}
+		}
+		box.Width = box.Width.V() + s.xAdvance - before
+	} else {
+		if s.started && !s.afterAtomic {
+			s.count++
+			s.xAdvance += spacing
+		}
+		box_.Translate(s.xAdvance, 0, false)
+		s.started, s.afterAtomic = true, true
+	}
+	return s.count
 }
 
 func addWordSpacing(context *layoutContext, box_ Box, justificationSpacing, xAdvance pr.Float) pr.Float {

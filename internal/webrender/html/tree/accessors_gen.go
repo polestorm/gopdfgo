@@ -2071,3 +2071,29 @@ func (s *AnonymousStyle) GetWebkitTextFillColor() pr.Color {
 func (s *AnonymousStyle) SetWebkitTextFillColor(v pr.Color) {
 	s.propsCache.setKnown(pr.PWebkitTextFillColor, v)
 }
+
+func (s *ComputedStyle) GetBackgroundBlendMode() pr.Strings {
+	return s.Get(pr.PBackgroundBlendMode.Key()).(pr.Strings)
+}
+func (s *ComputedStyle) SetBackgroundBlendMode(v pr.Strings) {
+	s.propsCache.setKnown(pr.PBackgroundBlendMode, v)
+}
+
+func (s *AnonymousStyle) GetBackgroundBlendMode() pr.Strings {
+	return s.Get(pr.PBackgroundBlendMode.Key()).(pr.Strings)
+}
+func (s *AnonymousStyle) SetBackgroundBlendMode(v pr.Strings) {
+	s.propsCache.setKnown(pr.PBackgroundBlendMode, v)
+}
+
+func (s *ComputedStyle) GetClipPath() pr.ClipPath  { return s.Get(pr.PClipPath.Key()).(pr.ClipPath) }
+func (s *ComputedStyle) SetClipPath(v pr.ClipPath) { s.propsCache.setKnown(pr.PClipPath, v) }
+
+func (s *AnonymousStyle) GetClipPath() pr.ClipPath  { return s.Get(pr.PClipPath.Key()).(pr.ClipPath) }
+func (s *AnonymousStyle) SetClipPath(v pr.ClipPath) { s.propsCache.setKnown(pr.PClipPath, v) }
+
+func (s *ComputedStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
+func (s *ComputedStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }
+
+func (s *AnonymousStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
+func (s *AnonymousStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }

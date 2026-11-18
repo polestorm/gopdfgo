@@ -25,7 +25,7 @@ func TestRenderRequiresFonts(t *testing.T) {
 }
 
 func TestRenderReportsWarnings(t *testing.T) {
-	html := `<p style="frobnicate: 1px; clip-path: inset(50%)">tekst</p>`
+	html := `<p style="frobnicate: 1px; clip-path: path('M 0 0 L 10 10')">tekst</p>`
 	result, err := Render(context.Background(), []byte(html), Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)

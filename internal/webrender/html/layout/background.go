@@ -171,6 +171,8 @@ func layoutBoxBackgroundsIn(page *bo.PageBox, box_ Box, getImageFromUri bo.Image
 	positionsN := len(positions)
 	attachments := style.GetBackgroundAttachment()
 	attachmentsN := len(attachments)
+	blendModes := style.GetBackgroundBlendMode()
+	blendModesN := len(blendModes)
 
 	ir := style.GetImageResolution()
 	layers := make([]bo.BackgroundLayer, len(images_))
@@ -192,6 +194,11 @@ func layoutBoxBackgroundsIn(page *bo.PageBox, box_ Box, getImageFromUri bo.Image
 		clip := clips[cycle(i, clipsN)]
 		layers[i].BorderArea = (clip == "border-area" || clip == "border-area text") && box_ != page
 		layers[i].Text = layers[i].BorderArea && clip == "border-area text"
+		// gopdfgo: background-blend-mode, lista powtarzana jak pozostałe właściwości warstw (CSS
+		// Compositing 1 § 3.2); źródło jej nie znało
+		if blendModesN != 0 {
+			layers[i].BlendMode = blendModes[cycle(i, blendModesN)]
+		}
 	}
 
 	if traceMode {

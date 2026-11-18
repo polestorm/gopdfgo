@@ -881,6 +881,9 @@ func (c *ComputedStyle) ownElement() Element {
 }
 
 func (c *ComputedStyle) compute(key pr.PropKey) pr.CssProperty {
+	if out, ok := c.inheritedBorderWidth(key); ok {
+		return out
+	}
 	value, save := c.cascadeValue(key)
 
 	if css, ok := value.(pr.CssProperty); ok && key.KnownProp.IsTextDecoration() && c.parentStyle != nil {
@@ -913,6 +916,55 @@ func (c *ComputedStyle) compute(key pr.PropKey) pr.CssProperty {
 		out = fn(c, key.KnownProp, out)
 	}
 	return out
+}
+
+// borderWidthProps (gopdfgo) to szerokości obramowań i obrysów; ich właściwość stylu leży tuż przed nimi.
+var borderWidthProps = map[pr.KnownProp]bool{
+	pr.PBorderTopWidth: true, pr.PBorderRightWidth: true, pr.PBorderBottomWidth: true, pr.PBorderLeftWidth: true,
+	pr.POutlineWidth: true, pr.PColumnRuleWidth: true,
+}
+
+// inheritedBorderWidth (gopdfgo) obsługuje jawne inherit szerokości obramowania. Wartość obliczona
+// szerokości nie zależy od stylu obramowania; zero przy stylu none albo hidden to wartość używana
+// (CSS Backgrounds 3 § 3.2 i § 3.3 w obecnym brzmieniu, jak w przeglądarkach; testy WPT
+// border-width-011, outline-width-096). Rodzic bez obramowania przekazuje więc swoją szerokość.
+// Pozostała część silnika czyta szerokość ze stylu jako wartość używaną, dlatego ta ze stylem none
+// albo hidden zostaje w stylu zerem, a niezerowaną wartość odtwarza unzeroedBorderWidth.
+// Źródło dziedziczyło zero.
+func (c *ComputedStyle) inheritedBorderWidth(key pr.PropKey) (pr.CssProperty, bool) {
+	if key.Var != "" || !borderWidthProps[key.KnownProp] {
+		return nil, false
+	}
+	casc, in := c.cascaded[key]
+	if !in || casc.value != pr.Inherit || c.isRootElement() {
+		return nil, false
+	}
+	parent, ok := c.parentStyle.(*ComputedStyle)
+	if !ok {
+		return nil, false
+	}
+	if style := c.Get(pr.PropKey{KnownProp: key.KnownProp - 1}).(pr.String); style == "none" || style == "hidden" {
+		return pr.FToV(0), true
+	}
+	return parent.unzeroedBorderWidth(key), true
+}
+
+// unzeroedBorderWidth (gopdfgo) zwraca wartość obliczoną szerokości obramowania bez zerowania przy
+// stylu none albo hidden (zob. inheritedBorderWidth).
+func (c *ComputedStyle) unzeroedBorderWidth(key pr.PropKey) pr.CssProperty {
+	casc, in := c.cascaded[key]
+	if !in || casc.value == pr.Initial {
+		return borderWidthValue(c, pr.InitialValues[key.KnownProp].(pr.TaggedDim))
+	}
+	if casc.value == pr.Inherit && !c.isRootElement() {
+		if parent, ok := c.parentStyle.(*ComputedStyle); ok {
+			return parent.unzeroedBorderWidth(key)
+		}
+	}
+	if value, ok := casc.value.(pr.TaggedDim); ok {
+		return borderWidthValue(c, value)
+	}
+	return c.Get(key)
 }
 
 // effectiveWhiteSpace (gopdfgo) składa white-space z text-wrap-mode (CSS Text 4 § 3 i § 5.1) w jedno
@@ -1230,7 +1282,14 @@ func findStylesheets(wrapperElement *utils.HTMLNode, deviceMediaType string, url
 				}
 				href := element.GetUrlAttribute("href", baseUrl, false)
 				if href != "" {
-					css, err := newCSS(utils.InputUrl(href), "", urlFetcher, true, deviceMediaType,
+					// gopdfgo: atrybut charset podaje kodowanie środowiska arkusza (CSS Syntax 3 § 3.2,
+					// krok 3; HTML uznaje atrybut za przestarzały, ale Chromium go stosuje; testy WPT
+					// at-charset-010, charset-attr-001). Źródło go pomijało.
+					var input utils.ContentInput = utils.InputUrl(href)
+					if label := strings.TrimSpace(element.Get("charset")); label != "" {
+						input = utils.InputStylesheetUrl{Url: href, EnvironmentEncoding: label}
+					}
+					css, err := newCSS(input, "", urlFetcher, true, deviceMediaType,
 						fontConfig, nil, pageRules, counterStyle)
 					if err != nil {
 						logger.WarningLogger.Printf("Failed to load stylesheet at %s : %s \n", href, err)
