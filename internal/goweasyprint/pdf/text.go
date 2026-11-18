@@ -57,7 +57,11 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 			useFont := g.cache.fontFiles[run.Font.Origin()].isSupported
 
 			if useFont {
-				g.stream.SetFontAndSize(pdfFonts.BuiltFont{Meta: pf.FontDict}, text.FontSize)
+				size := text.FontSize
+				if run.SizeScale != 0 { // gopdfgo: zob. backend.TextRun.SizeScale
+					size *= run.SizeScale
+				}
+				g.stream.SetFontAndSize(pdfFonts.BuiltFont{Meta: pf.FontDict}, size)
 			}
 
 			var out []contentstream.SpacedGlyph

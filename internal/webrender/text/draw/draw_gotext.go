@@ -192,10 +192,19 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			lastFontChars = outFont
 
 			outRun := backend.TextRun{Font: backendFont}
+			// gopdfgo: twarz z deskryptorem size-adjust albo dopasowana przez font-size-adjust ma swój rozmiar
+			if scale := fts.FaceSizeScale(style, face); scale != 1 {
+				outRun.SizeScale = scale
+			}
 			output.Runs = append(output.Runs, outRun)
 		} // else use the last one
 
 		runDst := &output.Runs[len(output.Runs)-1]
+		runScale := pr.Fl(1)
+		if runDst.SizeScale != 0 {
+			runScale = runDst.SizeScale
+		}
+		runSize := fontSize * runScale
 
 		currentL := len(runDst.Glyphs)
 		nextL := currentL + len(run.Glyphs)
@@ -208,8 +217,8 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 				glyph = notFound
 			}
 
-			outGlyph.Offset = fixedToFloat(glyphInfo.XOffset) * 1000 / fontSize
-			outGlyph.Rise = fixedToFloat(glyphInfo.YOffset) * 1000 / fontSize
+			outGlyph.Offset = fixedToFloat(glyphInfo.XOffset) * 1000 / runSize
+			outGlyph.Rise = fixedToFloat(glyphInfo.YOffset) * 1000 / runSize
 			outGlyph.Glyph = backend.GID(glyph)
 
 			if glyph != notFound {
@@ -260,12 +269,12 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			// wiersza: tekst rysowany rozjeżdżał się z szerokością z układu
 			// o setne części piksela na kilkanaście znaków, co przesuwało
 			// wygładzanie krawędzi wszystkiego, co stoi za dłuższym tekstem.
-			wanted := pr.Fl(outFont.Extents[outGlyph.Glyph].Width) - gAdvance*1000/fontSize + outGlyph.Offset + kerningCarry
+			wanted := pr.Fl(outFont.Extents[outGlyph.Glyph].Width) - gAdvance*1000/runSize + outGlyph.Offset + kerningCarry
 			outGlyph.Kerning = int(math.Floor(float64(wanted) + 1e-3)) // reszta nieujemna: znak nie wyprzedza siatki w lewo
 			kerningCarry = wanted - pr.Fl(outGlyph.Kerning)
 			// advance
 			outGlyph.XAdvance = xAdvance
-			xAdvance += gAdvance*1000/fontSize + outGlyph.Offset - pr.Fl(outGlyph.Kerning)
+			xAdvance += (gAdvance*1000/runSize + outGlyph.Offset - pr.Fl(outGlyph.Kerning)) * runScale
 		}
 	}
 

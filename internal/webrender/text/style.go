@@ -226,6 +226,10 @@ type styleKey struct {
 	HasTabUnit         bool
 
 	Direction pr.Keyword
+
+	// gopdfgo: font-size-adjust zmienia rozmiar fontów zastępczych (zob. FaceSizeScale), choć rozmiar
+	// fontu podstawowego bywa ten sam co bez niego
+	SizeAdjust pr.SBoolFloat
 }
 
 func (ts *TextStyle) key() styleKey {
@@ -252,6 +256,7 @@ func (ts *TextStyle) key() styleKey {
 		ts.TabUnit,
 		ts.HasTabUnit,
 		ts.Direction,
+		ts.SizeAdjust,
 	}
 }
 

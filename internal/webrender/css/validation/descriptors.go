@@ -30,6 +30,10 @@ var (
 		"font-feature-settings": fontFeatureSettingsDescriptor,
 		"font-variant":          fontVariant,
 		"unicode-range":         unicodeRange,
+		"size-adjust":           sizeAdjustDescriptor,
+		"ascent-override":       metricOverrideDescriptor(func(d *FontFaceDescriptors) *pr.MaybeFloat { return &d.AscentOverride }),
+		"descent-override":      metricOverrideDescriptor(func(d *FontFaceDescriptors) *pr.MaybeFloat { return &d.DescentOverride }),
+		"line-gap-override":     metricOverrideDescriptor(func(d *FontFaceDescriptors) *pr.MaybeFloat { return &d.LineGapOverride }),
 	}
 
 	counterStyleDescriptors = map[string]counterStyleDescriptorParser{
@@ -59,6 +63,13 @@ type FontFaceDescriptors struct {
 	FontFeatureSettings pr.FontFeatures
 	FontVariant         []NamedProp
 	UnicodeRange        []pa.UnicodeRange
+
+	// gopdfgo: deskryptory metryk (CSS Fonts 5 § 4.10–4.12) jako ułamki (procent / 100); nil oznacza
+	// brak deskryptora albo normal, czyli wartość z fontu
+	SizeAdjust      pr.MaybeFloat
+	AscentOverride  pr.MaybeFloat
+	DescentOverride pr.MaybeFloat
+	LineGapOverride pr.MaybeFloat
 }
 
 type fontFaceDescriptorParser = func(tokens []Token, baseUrl string, out *FontFaceDescriptors) error
@@ -218,6 +229,44 @@ func fontVariant(tokens []Token, _ string, out *FontFaceDescriptors) error {
 	}
 	out.FontVariant = values
 	return nil
+}
+
+// gopdfgo: deskryptor “size-adjust“ (CSS Fonts 5 § 4.12): <percentage [0,∞]>. Źródło go nie znało.
+func sizeAdjustDescriptor(tokens []Token, _ string, out *FontFaceDescriptors) error {
+	if len(tokens) != 1 {
+		return ErrInvalidValue
+	}
+	percentage, ok := tokens[0].(pa.Percentage)
+	if !ok || percentage.ValueF < 0 {
+		return ErrInvalidValue
+	}
+	out.SizeAdjust = pr.Float(percentage.ValueF) / 100
+	return nil
+}
+
+// gopdfgo: deskryptory “ascent-override“, “descent-override“ i “line-gap-override“ (CSS Fonts 5
+// § 4.10, 4.11): [ normal | <percentage [0,∞]> ]{1,2}. Druga wartość dotyczy tekstu pionowego, którego
+// nie obsługujemy, więc liczy się tylko pierwsza. Źródło deskryptorów nie znało.
+func metricOverrideDescriptor(field func(*FontFaceDescriptors) *pr.MaybeFloat) fontFaceDescriptorParser {
+	return func(tokens []Token, _ string, out *FontFaceDescriptors) error {
+		if len(tokens) == 0 || len(tokens) > 2 {
+			return ErrInvalidValue
+		}
+		var values [2]pr.MaybeFloat
+		for i, token := range tokens {
+			if getKeyword(token) == "normal" {
+				values[i] = nil
+				continue
+			}
+			percentage, ok := token.(pa.Percentage)
+			if !ok || percentage.ValueF < 0 {
+				return ErrInvalidValue
+			}
+			values[i] = pr.Float(percentage.ValueF) / 100
+		}
+		*field(out) = values[0]
+		return nil
+	}
 }
 
 // “unicode_range“ descriptor validation.

@@ -3,7 +3,35 @@ package text
 import (
 	"github.com/go-text/typesetting/font"
 	pa "github.com/polestorm/gopdfgo/internal/webrender/css/parser"
+	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
+	"github.com/polestorm/gopdfgo/internal/webrender/css/validation"
 )
+
+// faceMetrics (gopdfgo) to deskryptory metryk reguły @font-face (CSS Fonts 5 § 4.10–4.12):
+// sizeAdjust mnoży rozmiar, w którym twarz jest składana i rysowana, wraz z jej metrykami; ascent,
+// descent i lineGap (pr.Float, ułamek rozmiaru) zastępują wartości z tablic fontu, nil zostawia je.
+// Źródło tych deskryptorów nie znało.
+type faceMetrics struct {
+	sizeAdjust               pr.Fl
+	ascent, descent, lineGap pr.MaybeFloat
+}
+
+func newFaceMetrics(descriptors validation.FontFaceDescriptors) faceMetrics {
+	out := faceMetrics{sizeAdjust: 1, ascent: descriptors.AscentOverride,
+		descent: descriptors.DescentOverride, lineGap: descriptors.LineGapOverride}
+	if v, ok := descriptors.SizeAdjust.(pr.Float); ok {
+		out.sizeAdjust = pr.Fl(v)
+	}
+	return out
+}
+
+// FaceSizeAdjust (gopdfgo) zwraca mnożnik rozmiaru z deskryptora size-adjust twarzy (1 bez niego).
+func (fc *FontConfigurationGotext) FaceSizeAdjust(ft *font.Font) pr.Fl {
+	if metrics, ok := fc.fontsMetrics[ft]; ok {
+		return metrics.sizeAdjust
+	}
+	return 1
+}
 
 // rangeCmap (gopdfgo) ogranicza tablicę cmap fontu do zakresów z deskryptora unicode-range reguły
 // @font-face (CSS Fonts 4 § 4.5): znak spoza zakresów nie jest pokrywany przez tę twarz, więc wybór

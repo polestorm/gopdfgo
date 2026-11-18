@@ -32,6 +32,9 @@ func (td TextDrawing) Matrix() matrix.Transform {
 type TextRun struct {
 	Font   Font
 	Glyphs []TextGlyph
+	// SizeScale (gopdfgo) mnoży FontSize dla tego przebiegu (deskryptor size-adjust w @font-face);
+	// 0 oznacza 1. Kerning, Offset i Rise glifów są wtedy względne do rozmiaru przebiegu.
+	SizeScale Fl
 }
 
 type GID = uint32

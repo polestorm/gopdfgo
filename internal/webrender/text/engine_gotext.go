@@ -44,9 +44,10 @@ type FontConfigurationGotext struct {
 	// WrapWordBreak, zob. shapeWithResiduals
 	residuals []int32
 
-	fontsContent  map[string][]byte        // to be embedded in the target
-	fontsFeatures map[*font.Font][]Feature // as requested by @font-face
-	loadedFaces   map[string]bool          // gopdfgo: reguły @font-face już wczytane (zob. loadOneFont)
+	fontsContent  map[string][]byte          // to be embedded in the target
+	fontsFeatures map[*font.Font][]Feature   // as requested by @font-face
+	loadedFaces   map[string]bool            // gopdfgo: reguły @font-face już wczytane (zob. loadOneFont)
+	fontsMetrics  map[*font.Font]faceMetrics // gopdfgo: deskryptory metryk z @font-face, zob. faceMetrics
 	// featureValues (gopdfgo): nazwy z reguł @font-feature-values, zob. SetFontFeatureValues
 	featureValues validation.FontFeatureValues
 
@@ -142,6 +143,11 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		// gopdfgo: twarze z różnymi unicode-range to różne twarze (zob. rangeCmap)
 		key += fmt.Sprintf("+%v", ruleDescriptors.UnicodeRange)
 	}
+	metrics := newFaceMetrics(ruleDescriptors)
+	if metrics != (faceMetrics{sizeAdjust: 1}) {
+		// gopdfgo: tak samo twarze z różnymi deskryptorami metryk
+		key += fmt.Sprintf("+%v", metrics)
+	}
 
 	// gopdfgo: ta sama reguła @font-face czytana drugi raz (arkusze są przetwarzane dwukrotnie, zob.
 	// ADR 0012) nie pobiera ani nie parsuje fontu ponownie. W źródle każde przetworzenie arkusza
@@ -179,6 +185,12 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
+	if metrics != (faceMetrics{sizeAdjust: 1}) {
+		if f.fontsMetrics == nil {
+			f.fontsMetrics = map[*font.Font]faceMetrics{}
+		}
+		f.fontsMetrics[ft] = metrics
+	}
 
 	if url.Tag == pr.External {
 		f.fontsContent[key] = content
@@ -430,6 +442,7 @@ func (fc *FontConfigurationGotext) shapeRune(r rune, desc FontDescription, featu
 	if face == nil { // fontmap is broken
 		return nil, shaping.Bounds{}, 1
 	}
+	desc.Size *= fc.FaceSizeAdjust(face.Font) // gopdfgo: deskryptor size-adjust, zob. faceMetrics
 
 	// sizeFactor is used to get a better precision
 	sizeFactor := fixed.Int26_6(1000)
@@ -478,9 +491,42 @@ func (fc *FontConfigurationGotext) spaceHeight(style *TextStyle) (height, baseli
 	_, bounds, sizeFactor := fc.shapeRune(' ', style.FontDescription, style.FontFeatures)
 
 	baseline = roundMetric(fixedToFloat(bounds.Ascent) / sizeFactor)
-	height = baseline - roundMetric(fixedToFloat(bounds.Descent)/sizeFactor)
+	descent := roundMetric(-fixedToFloat(bounds.Descent) / sizeFactor)
+	// gopdfgo: ascent-override i descent-override (CSS Fonts 5 § 4.10) zastępują wydłużenia pierwszego
+	// dostępnego fontu procentem rozmiaru, przeskalowanym jeszcze przez size-adjust
+	if face := fc.resolveFace(' ', style.FontDescription); face != nil {
+		if metrics, ok := fc.fontsMetrics[face.Font]; ok {
+			size := pr.Float(style.FontDescription.Size) * pr.Float(metrics.sizeAdjust)
+			if v, ok := metrics.ascent.(pr.Float); ok {
+				baseline = roundMetric(v * size)
+			}
+			if v, ok := metrics.descent.(pr.Float); ok {
+				descent = roundMetric(v * size)
+			}
+		}
+	}
+	height = baseline + descent
 
 	return height, baseline
+}
+
+// faceExtents (gopdfgo) zwraca wydłużenie górne i dolne (ujemne) twarzy w rozmiarze stylu,
+// zaokrąglone do pikseli, z uwzględnieniem deskryptorów ascent-override, descent-override i
+// size-adjust (CSS Fonts 5 § 4.10, 4.12) oraz font-size-adjust dla fontu zastępczego.
+func (fc *FontConfigurationGotext) faceExtents(style *TextStyle, face *font.Face) (ascent, descent pr.Float) {
+	extents, _ := face.FontHExtents()
+	size := pr.Float(style.FontDescription.Size) * pr.Float(fc.FaceSizeScale(style, face))
+	ascent = roundMetric(pr.Float(extents.Ascender) * size / pr.Float(face.Upem()))
+	descent = roundMetric(pr.Float(extents.Descender) * size / pr.Float(face.Upem()))
+	if metrics, ok := fc.fontsMetrics[face.Font]; ok {
+		if v, ok := metrics.ascent.(pr.Float); ok {
+			ascent = roundMetric(v * size)
+		}
+		if v, ok := metrics.descent.(pr.Float); ok {
+			descent = -roundMetric(v * size)
+		}
+	}
+	return ascent, descent
 }
 
 // lineGap (gopdfgo) zwraca odstęp międzywierszowy pierwszego dostępnego fontu, zaokrąglony do całych
@@ -491,6 +537,14 @@ func (fc *FontConfigurationGotext) lineGap(style *TextStyle) pr.Float {
 		return 0
 	}
 	extents, _ := face.FontHExtents()
+	// gopdfgo: line-gap-override i size-adjust (CSS Fonts 5 § 4.11, 4.12)
+	if metrics, ok := fc.fontsMetrics[face.Font]; ok {
+		size := pr.Float(style.FontDescription.Size) * pr.Float(metrics.sizeAdjust)
+		if v, ok := metrics.lineGap.(pr.Float); ok {
+			return roundMetric(v * size)
+		}
+		return max(0, roundMetric(pr.Float(extents.LineGap)*size/pr.Float(face.Upem())))
+	}
 	return max(0, roundMetric(pr.Float(extents.LineGap)*pr.Float(style.FontDescription.Size)/pr.Float(face.Upem())))
 }
 
@@ -498,15 +552,41 @@ func (fc *FontConfigurationGotext) lineGap(style *TextStyle) pr.Float {
 // fontu na rozmiar używany (CSS Fonts 5 § 2.7): podana liczba podzielona przez stosunek wybranej
 // metryki pierwszego dostępnego fontu do jego firetu. Zwraca 1 dla none, dla from-font (liczba jest
 // wtedy z definicji równa stosunkowi fontu podstawowego) i wtedy, gdy font metryki nie podaje.
-// Fonty zastępcze dostają ten sam mnożnik co podstawowy; norma każe liczyć go osobno dla każdego fontu.
+// Fonty zastępcze dopasowuje osobno FaceSizeScale.
 func (fc *FontConfigurationGotext) sizeAdjustFactor(style *TextStyle) pr.Fl {
 	adjust := style.SizeAdjust
 	if adjust.String == "" || adjust.Bool {
 		return 1
 	}
-	face := fc.resolveFace(' ', style.FontDescription)
-	if face == nil || face.Upem() == 0 {
+	return fc.faceSizeAdjustFactor(style, fc.resolveFace(' ', style.FontDescription))
+}
+
+// faceSizeAdjustFactor (gopdfgo) liczy mnożnik font-size-adjust dla podanej twarzy. Metryka twarzy
+// obejmuje deskryptor size-adjust z @font-face (CSS Fonts 5 § 4.12), więc font-size-adjust go znosi.
+// Dla from-font docelową liczbą jest stosunek pierwszego dostępnego fontu elementu.
+func (fc *FontConfigurationGotext) faceSizeAdjustFactor(style *TextStyle, face *font.Face) pr.Fl {
+	adjust := style.SizeAdjust
+	if adjust.String == "" {
 		return 1
+	}
+	ratio := fc.faceAspectRatio(adjust.String, face)
+	if ratio == 0 {
+		return 1
+	}
+	target := adjust.Float
+	if adjust.Bool {
+		if target = fc.faceAspectRatio(adjust.String, fc.resolveFace(' ', style.FontDescription)); target == 0 {
+			return 1
+		}
+	}
+	return target / ratio
+}
+
+// faceAspectRatio (gopdfgo) zwraca stosunek metryki font-size-adjust ([metricName]) twarzy do jej
+// rozmiaru, z deskryptorem size-adjust; 0, gdy twarz metryki nie ma.
+func (fc *FontConfigurationGotext) faceAspectRatio(metricName string, face *font.Face) pr.Fl {
+	if face == nil || face.Upem() == 0 {
+		return 0
 	}
 	advance := func(r rune, vertical bool) float32 {
 		gid, ok := face.NominalGlyph(r)
@@ -522,12 +602,26 @@ func (fc *FontConfigurationGotext) sizeAdjustFactor(style *TextStyle) pr.Fl {
 		}
 		return face.HorizontalAdvance(gid)
 	}
+	// font bez metryki w tablicy OS/2 dostaje wysokość obrysu znaku (x albo H), jak przy jednostce ex
+	// (CSS Values 4 § 6.1.1)
+	glyphHeight := func(r rune) float32 {
+		if gid, ok := face.NominalGlyph(r); ok {
+			if extents, ok := face.GlyphExtents(gid); ok {
+				return extents.YBearing
+			}
+		}
+		return 0
+	}
 	var metric float32
-	switch adjust.String {
+	switch metricName {
 	case "ex-height":
-		metric = face.LineMetric(font.XHeight)
+		if metric = face.LineMetric(font.XHeight); metric == 0 {
+			metric = glyphHeight('x')
+		}
 	case "cap-height":
-		metric = face.LineMetric(font.CapHeight)
+		if metric = face.LineMetric(font.CapHeight); metric == 0 {
+			metric = glyphHeight('H')
+		}
 	case "ch-width":
 		metric = advance('0', false)
 	case "ic-width":
@@ -538,10 +632,21 @@ func (fc *FontConfigurationGotext) sizeAdjustFactor(style *TextStyle) pr.Fl {
 	if metric < 0 {
 		metric = -metric
 	}
-	if metric == 0 {
-		return 1
+	return pr.Fl(metric) / pr.Fl(face.Upem()) * fc.FaceSizeAdjust(face.Font)
+}
+
+// FaceSizeScale (gopdfgo) zwraca mnożnik rozmiaru stylu [style] (już przeliczonego przez
+// font-size-adjust dla pierwszego dostępnego fontu, zob. adjustedTextStyle) dla tekstu składanego
+// twarzą [face]: deskryptor size-adjust twarzy, a przy font-size-adjust stosunek mnożnika tej twarzy
+// do mnożnika pierwszego dostępnego fontu, bo norma każe dopasować każdy użyty font (CSS Fonts 5 § 2.7).
+func (fc *FontConfigurationGotext) FaceSizeScale(style *TextStyle, face *font.Face) pr.Fl {
+	scale := fc.FaceSizeAdjust(face.Font)
+	if style.SizeAdjust.String != "" {
+		if first := fc.sizeAdjustFactor(style); first != 0 {
+			scale *= fc.faceSizeAdjustFactor(style, face) / first
+		}
 	}
-	return adjust.Float * pr.Fl(face.Upem()) / pr.Fl(metric)
+	return scale
 }
 
 // tabUnit: szerokość spacji powiększona o letter-spacing i word-spacing; tab-size podany liczbą jest
@@ -738,6 +843,10 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		defaults := newFeatureSet(fc.fontsFeatures[input.Face.Font])
 		defaults.merge(style.FontFeatures)
 		input.FontFeatures = newFeatures(defaults.list())
+		// gopdfgo: deskryptor size-adjust i font-size-adjust dla twarzy innej niż pierwsza dostępna
+		if scale := fc.FaceSizeScale(style, input.Face); scale != 1 {
+			input.Size = fixed.Int26_6(math.Round(float64(style.FontDescription.Size) * float64(scale) * 64))
+		}
 
 		// shape !
 		outputs[i] = shapeWithResiduals(&fc.shaper, input, residuals)
@@ -986,9 +1095,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	for _, run := range outLine {
 		width += run.Advance
 
-		extents, _ := run.Face.FontHExtents()
-		ascent := roundMetric(pr.Float(extents.Ascender) * pr.Float(style.FontDescription.Size) / pr.Float(run.Face.Upem()))
-		descent := roundMetric(pr.Float(extents.Descender) * pr.Float(style.FontDescription.Size) / pr.Float(run.Face.Upem()))
+		ascent, descent := fc.faceExtents(style, run.Face)
 
 		bottom := top - height
 
