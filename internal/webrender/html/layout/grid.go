@@ -1225,12 +1225,17 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 	// gopdfgo: siatka z position: relative jest pudełkiem zawierającym dla pozycjonowanych potomków;
 	// źródło oddawało ich ułożenie dalszemu przodkowi.
-	ownsPositioned := box_.Box().Style.GetPosition().String == "relative"
+	// gopdfgo: także siatka z transform, wtedy również dla potomków fixed (CSS Transforms 1 § 3)
+	ownsFixed := ownsFixedDescendants(box_)
+	ownsPositioned := box_.Box().Style.GetPosition().String == "relative" || ownsFixed
 	// gopdfgo: pudełkiem zawierającym dzieci position: absolute jest też siatka pozycjonowana bezwzględnie
 	// (jej dzieci układa absoluteBlock); wtedy obszar siatki także wyznaczają grid-row i grid-column
 	containsAbsolute := ownsPositioned || box_.Box().IsAbsolutelyPositioned()
 	if ownsPositioned {
 		absoluteBoxes = &[]*AbsolutePlaceholder{}
+	}
+	if ownsFixed {
+		fixedBoxes = &[]*AbsolutePlaceholder{}
 	}
 
 	// Define explicit grid
@@ -2676,7 +2681,8 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		child.GridArea = nil
 		// gopdfgo: obszar siatki jest pudełkiem zawierającym tylko wtedy, gdy kontener jest pudełkiem
 		// zawierającym dziecka; dziecko position: fixed ma nim widok strony
-		inGridArea := containsAbsolute && child.Style.GetPosition().String == "absolute"
+		inGridArea := containsAbsolute && (child.Style.GetPosition().String == "absolute" ||
+			(ownsFixed || establishesFixedContainingBlock(box_)) && child.Style.GetPosition().String == "fixed")
 		// pozycja statyczna: jak jedyny element w obszarze o krawędziach treści kontenera albo wskazanych linii
 		static := [6]pr.Float{box.ContentBoxX(), box.ContentBoxY(), box.Width.V(), box.Height.V(), 0, 0}
 		if (placedX || placedY) && inGridArea {
@@ -2733,9 +2739,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	newChildren = interleaveByDocumentOrder(newChildren, domOrder)
 	box_ = bo.CopyWithChildren(box_, newChildren)
 	if ownsPositioned {
-		for _, absoluteBox := range *absoluteBoxes {
-			absoluteLayout(context, absoluteBox, box_, fixedBoxes, bottomSpace, nil)
-		}
+		layoutOwnedPositioned(context, box_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
 	newBox := box_.Box()
 	newBox.GridFirstBaseline, newBox.GridLastBaseline = nil, nil

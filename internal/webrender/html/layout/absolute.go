@@ -28,6 +28,54 @@ func NewAbsolutePlaceholder(box Box) *AbsolutePlaceholder {
 
 func (AbsolutePlaceholder) Type() bo.BoxType { return bo.AbsolutePlaceholderT }
 
+// gopdfgo: pudełko z transform innym niż none jest blokiem zawierającym dla wszystkich potomków
+// pozycjonowanych, także position: fixed (CSS Transforms 1 § 3); tak samo pudełko z zawieraniem
+// layout lub paint (CSS Containment 2 § 3.2, § 3.3). Źródło uznawało za blok zawierający potomków
+// absolute tylko pudełka pozycjonowane, a potomków fixed zawsze układało względem strony.
+// Pudełko pozycjonowane bezwzględnie załatwia to samo w absoluteBlock, więc tu jest pomijane;
+// pudełek liniowych niezastępowanych transform nie dotyczy.
+func ownsFixedDescendants(box_ Box) bool {
+	box := box_.Box()
+	if box.IsAbsolutelyPositioned() || bo.InlineT.IsInstance(box_) {
+		return false
+	}
+	return establishesFixedContainingBlock(box_)
+}
+
+func establishesFixedContainingBlock(box_ Box) bool {
+	box := box_.Box()
+	if box.IsForRootElement {
+		return false
+	}
+	if len(box.Style.GetTransform()) != 0 {
+		return true
+	}
+	return bo.HasContainment(box_, "layout") || bo.HasContainment(box_, "paint") ||
+		bo.HasContainment(box_, "strict") || bo.HasContainment(box_, "content")
+}
+
+// ownsAbsoluteDescendants mówi, czy pudełko w przepływie jest blokiem zawierającym dla potomków
+// position: absolute (pozycjonowane względnie albo jak w ownsFixedDescendants).
+func ownsAbsoluteDescendants(box_ Box) bool {
+	return box_.Box().Style.GetPosition().String == "relative" || ownsFixedDescendants(box_)
+}
+
+// layoutOwnedPositioned układa potomków pozycjonowanych, dla których containingBlock jest blokiem
+// zawierającym; przy ownsFixed fixedBoxes jest własną listą tego pudełka. Lista fixed może rosnąć
+// w trakcie (fixed wewnątrz absolute), stąd pętla po indeksie.
+func layoutOwnedPositioned(context *layoutContext, containingBlock Box, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
+	ownsFixed bool, bottomSpace pr.Float,
+) {
+	for _, absoluteBox := range *absoluteBoxes {
+		absoluteLayout(context, absoluteBox, containingBlock, fixedBoxes, bottomSpace, nil)
+	}
+	if ownsFixed {
+		for i := 0; i < len(*fixedBoxes); i++ {
+			absoluteLayout(context, (*fixedBoxes)[i], containingBlock, fixedBoxes, bottomSpace, nil)
+		}
+	}
+}
+
 func (abs *AbsolutePlaceholder) setLaidOutBox(newBox Box) {
 	abs.AliasBox = newBox
 	abs.layoutDone = true
@@ -330,6 +378,11 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 
 	// This box is the containing block for absolute descendants.
 	var absoluteBoxes []*AbsolutePlaceholder
+	// gopdfgo: z transform (albo zawieraniem) także dla potomków fixed (CSS Transforms 1 § 3)
+	ownsFixed := establishesFixedContainingBlock(box_)
+	if ownsFixed {
+		fixedBoxes = new([]*AbsolutePlaceholder)
+	}
 
 	if box.IsTableWrapper {
 		// gopdfgo: tabela pozycjonowana bezwzględnie ma do dyspozycji bryłę
@@ -380,6 +433,11 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 
 	for _, childPlaceholder := range absoluteBoxes {
 		absoluteLayout(context, childPlaceholder, newBox, fixedBoxes, bottomSpace, skipStack)
+	}
+	if ownsFixed {
+		for i := 0; i < len(*fixedBoxes); i++ {
+			absoluteLayout(context, (*fixedBoxes)[i], newBox, fixedBoxes, bottomSpace, nil)
+		}
 	}
 
 	if translateBoxWidth {

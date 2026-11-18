@@ -220,9 +220,15 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		bottomSpace += box.PaddingBottom.V() + box.BorderBottomWidth + box.MarginBottom.V()
 	}
 
-	if box.Style.GetPosition().String == "relative" {
+	// gopdfgo: kontener flex z transform jest blokiem zawierającym także dla potomków fixed
+	// (CSS Transforms 1 § 3; zob. ownsFixedDescendants)
+	ownsFixed := ownsFixedDescendants(box_)
+	if box.Style.GetPosition().String == "relative" || ownsFixed {
 		// New containing block, use a new absolute list
 		absoluteBoxes = new([]*AbsolutePlaceholder)
+	}
+	if ownsFixed {
+		fixedBoxes = new([]*AbsolutePlaceholder)
 	}
 
 	// References are to: https://www.w3.org/TR/css-flexbox-1/#layout-algorithm.
@@ -2208,11 +2214,9 @@ restartCollapsed:
 		}
 	}
 
-	if box.Style.GetPosition().String == "relative" {
+	if box.Style.GetPosition().String == "relative" || ownsFixed {
 		// New containing block, resolve the layout of the absolute descendants.
-		for _, absoluteBox := range *absoluteBoxes {
-			absoluteLayout(context, absoluteBox, box_, fixedBoxes, bottomSpace, nil)
-		}
+		layoutOwnedPositioned(context, box_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
 
 	// TODO: Use real algorithm, see https://www.w3.org/TR/css-flexbox-1/#flex-baselines.

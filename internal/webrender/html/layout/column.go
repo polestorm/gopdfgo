@@ -66,9 +66,15 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	unpaged := context.behavior.Continuous && !wasInColumn
 	context.inColumn = true
 
-	if style.GetPosition().String == "relative" {
+	// gopdfgo: kontener kolumn z transform jest blokiem zawierającym także dla potomków fixed
+	// (CSS Transforms 1 § 3; zob. ownsFixedDescendants)
+	ownsFixed := ownsFixedDescendants(box_)
+	if style.GetPosition().String == "relative" || ownsFixed {
 		// New containing block, use a new absolute list
 		absoluteBoxes = &[]*AbsolutePlaceholder{}
+	}
+	if ownsFixed {
+		fixedBoxes = &[]*AbsolutePlaceholder{}
 	}
 
 	// gopdfgo: element rozpinający może stać głębiej niż dziecko kontenera (CSS Multicol 1 § 6.1);
@@ -878,11 +884,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		}
 	}
 
-	if style.GetPosition().String == "relative" {
+	if style.GetPosition().String == "relative" || ownsFixed {
 		// New containing block, resolve the layout of the absolute descendants
-		for _, absoluteBox := range *absoluteBoxes {
-			absoluteLayout(context, absoluteBox, box_, fixedBoxes, bottomSpace, nil)
-		}
+		layoutOwnedPositioned(context, box_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
 
 	// Calculate skip stack

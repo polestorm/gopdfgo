@@ -729,9 +729,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	positionX := box.ContentBoxX()
 
-	if box.Style.GetPosition().String == "relative" {
+	// gopdfgo: blokiem zawierającym jest też pudełko przekształcone, także dla potomków fixed
+	// (CSS Transforms 1 § 3; zob. ownsFixedDescendants)
+	ownsFixed := ownsFixedDescendants(box_)
+	if box.Style.GetPosition().String == "relative" || ownsFixed {
 		// New containing block, use a new absolute list
 		absoluteBoxes = new([]*AbsolutePlaceholder)
+	}
+	if ownsFixed {
+		fixedBoxes = new([]*AbsolutePlaceholder)
 	}
 
 	var (
@@ -1046,7 +1052,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	}
 	// Bloku, który w kolumnach jest blokiem zawierającym elementy pozycjonowane, nie dzielimy:
 	// tych elementów nie umiemy podzielić razem z nim.
-	if splittable && context.inColumn && box.Style.GetPosition().String == "relative" && len(*absoluteBoxes) != 0 {
+	if splittable && context.inColumn && ownsAbsoluteDescendants(box_) && (len(*absoluteBoxes) != 0 || (ownsFixed && len(*fixedBoxes) != 0)) {
 		splittable = false
 	}
 	if resumeAt == nil && box.Height != pr.AutoF && splittable && canSplitFixedHeight(context, box_, bottomSpace) {
@@ -1197,7 +1203,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	shiftOutsideMarkerBesideFloat(newBox, newChildren)
 
-	if newBox.Style.GetPosition().String == "relative" {
+	if newBox.Style.GetPosition().String == "relative" || ownsFixed {
 		if bo.TableCellT.IsInstance(newBox_) && len(*absoluteBoxes) != 0 {
 			// gopdfgo: komórka tabeli dostanie ostateczną wysokość dopiero z wiersza; zapamiętujemy
 			// pudełka pierwotne, żeby układ tabeli mógł powtórzyć pozycjonowanie (zob. tables.go)
@@ -1211,9 +1217,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			context.cellPositioned[newBox] = pending
 		}
 		// New containing block, resolve the layout of the absolute descendants
-		for _, absoluteBox := range *absoluteBoxes {
-			absoluteLayout(context, absoluteBox, newBox_, fixedBoxes, bottomSpace, nil)
-		}
+		layoutOwnedPositioned(context, newBox_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
 
 	// gopdfgo: przy wysokości bloku zawierającego zależnej od treści procentowe top i bottom liczą się jak
