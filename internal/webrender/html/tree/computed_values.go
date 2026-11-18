@@ -737,6 +737,12 @@ func content(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.
 				return pr.SContent{String: "contents"}
 			}
 		} else if value.String == "none" {
+			// gopdfgo: w ::marker „none” znaczy brak znacznika, a „normal” znacznik z list-style
+			// (CSS Lists 3 § 3.1, CSS Pseudo 4 § 4.2); źródło zamieniało oba na „inhibit”, więc
+			// ::marker { content: none } dalej pokazywał znacznik.
+			if computer.pseudoType == "marker" {
+				return pr.SContent{String: "none"}
+			}
 			return pr.SContent{String: "inhibit"}
 		}
 		props, err := contentList(computer, value.Contents)

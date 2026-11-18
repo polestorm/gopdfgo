@@ -244,9 +244,14 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 
 	counterValues := state.CounterValues
 
-	nestedCounters := updateCounters(state, style, func(name string, withSiblings bool) int {
-		return reversedCounterStart(element, styleFor, name, withSiblings)
-	})
+	// gopdfgo: element bez pudełka (tu display: contents) nie zakłada, nie ustawia i nie zwiększa
+	// liczników (CSS Lists 3 § 4.5); źródło stosowało do niego counter-*.
+	var nestedCounters []string
+	if !generatesNoBox(element, display) {
+		nestedCounters = updateCounters(state, style, func(name string, withSiblings bool) int {
+			return reversedCounterStart(element, styleFor, name, withSiblings)
+		})
+	}
 	// If this element’s direct children create new scopes, the counter
 	// names will be in this new list
 	state.CounterScopes = append(state.CounterScopes, utils.Set{})
@@ -384,6 +389,11 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 	return handleElement(element, box, resolver, baseUrl)
 }
 
+// generatesNoBox mówi, czy element z display: contents nie tworzy własnego pudełka.
+func generatesNoBox(element *utils.HTMLNode, display pr.Display) bool {
+	return display.Contents && !keepsBoxWithDisplayContents(element)
+}
+
 // keepsBoxWithDisplayContents: elementy, dla których display: contents nie znaczy "tylko dzieci"
 // (CSS Display 3, dodatek B wymienia je jako traktowane osobno); tu zachowują zwykłe pudełko.
 func keepsBoxWithDisplayContents(element *utils.HTMLNode) bool {
@@ -457,7 +467,7 @@ func markerToBox(element *utils.HTMLNode, state *tree.PageState, parentStyle pr.
 	children := &box.Box().Children
 	symbolMarker := false // znacznik domyślny z list-style-type: disc, circle albo square
 
-	if style.GetDisplay() == (pr.Display{Outside: pr.None}) {
+	if style.GetDisplay() == (pr.Display{Outside: pr.None}) || style.GetContent().String == "none" {
 		return nil
 	}
 
@@ -1123,14 +1133,17 @@ func reversedCounterStart(origin *utils.HTMLNode, styleFor styleForI, name strin
 		if style == nil || style.GetDisplay() == (pr.Display{Outside: pr.None}) {
 			return false
 		}
-		if !isOrigin {
+		noBox := generatesNoBox(element, style.GetDisplay())
+		if !isOrigin && !noBox {
 			for _, reset := range style.GetCounterReset().Values {
 				if reset.String == name {
 					return true // nowy licznik: element i jego potomkowie są poza zasięgiem
 				}
 			}
 		}
-		count(style, true)
+		if !noBox {
+			count(style, true)
+		}
 		if !done {
 			pseudo(element, "before")
 		}
