@@ -36,6 +36,13 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	width_ := style.GetColumnWidth()
 	count_ := style.GetColumnCount()
 	height_ := style.GetHeight()
+	// gopdfgo: przy box-decoration-break: clone każdy fragment kontenera ma własne dolne obramowanie
+	// i dopełnienie (CSS Fragmentation 3 § 5.4), więc treść kolumn kończy się nad nimi; w źródle miejsce
+	// na nie rezerwował tylko ostatni fragment (test WPT multicol-breaking-004).
+	cloneDecoration := style.GetBoxDecorationBreak() == "clone"
+	if cloneDecoration {
+		bottomSpace += box_.Box().PaddingBottom.V() + box_.Box().BorderBottomWidth.V()
+	}
 	originalBottomSpace := bottomSpace
 
 	wasInColumn := context.inColumn
@@ -81,6 +88,26 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		if remaining, ok := context.minHeightRemaining[resumeKey(skipStack)]; ok {
 			box.MinHeight = remaining
 		}
+	}
+	// gopdfgo: dalszy ciąg kontenera o podanej wysokości, którego treść skończyła się we wcześniejszym
+	// fragmencie: zostaje sama reszta wysokości, dzielona dalej, jeśli się nie mieści (CSS Fragmentation 3
+	// § 5.1; testy WPT multicol-breaking-*). W źródle takiego wznowienia nie było, zob. niżej.
+	if remaining, ok := skipStack.Remainder(); ok {
+		box.Children = nil
+		if !box.IsAbsolutelyPositioned() {
+			blockLevelWidth(box_, nil, containingBlock)
+		}
+		height := pr.Float(remaining)
+		var resume tree.ResumeStack
+		if available := context.pageBottom - originalBottomSpace - box.ContentBoxY(); originalBottomSpace > -pr.Inf &&
+			available > 0 && height > available+0.5 {
+			resume = tree.RemainderResume(float64(height - available))
+			height = available
+			box_.RemoveDecoration(box, false, true)
+		}
+		box.Height = height
+		context.inColumn = wasInColumn
+		return box_, blockLayout{resumeAt: resume, nextPage: tree.PageBreak{Break: "any"}}
 	}
 	// gopdfgo: własny górny margines kontenera kolumn zwija się z marginesami sąsiednimi (CSS 2 § 8.3.1);
 	// w źródle nie był do nich doliczany, więc kontener z marginesem większym niż margines poprzednika
@@ -131,7 +158,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			box.Height = remaining
 		}
 		height_.Value = fixedHeight
-		emptySpace := context.pageBottom - box.ContentBoxY() - height_.Value
+		// gopdfgo: kolumna o zerowej wysokości musi przesuwać treść naprzód (CSS Break 3 § 4.4), więc jak
+		// w przeglądarkach ma co najmniej 1px; w źródle przy height: 0 treść stała w jednej kolumnie
+		// (testy WPT multicol-zero-height-*).
+		emptySpace := context.pageBottom - box.ContentBoxY() - max(height_.Value, 1)
 		// gopdfgo: dodatkowe kolumny w kierunku wiersza powstają tylko wtedy, gdy treść ogranicza
 		// wysokość kontenera; gdy wcześniej kończy się strona, dalsza treść przechodzi na następną
 		// stronę (CSS Multicol 1 § 8.2). W źródle podana wysokość zawsze dawała dodatkowe kolumny.
@@ -224,7 +254,13 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	// gopdfgo: wznowienie elementu rozpinającego (column-span: all) jest jego własnym stosem i trafia do niego
 	// bez zmian. W źródle było przekazywane jak wznowienie treści kolumn: indeks dziecka elementu
 	// rozpinającego był brany za przesunięcie w liście dzieci kontenera.
-	var spannerSkip, spannerResume tree.ResumeStack
+	var spannerSkip, spannerResume, afterSpannerResume tree.ResumeStack
+	forcedOuterBreak := func(value string) bool {
+		if value == "column" {
+			return wasInColumn
+		}
+		return !context.behavior.Continuous && forcePageBreak(value, context)
+	}
 	if skipStack != nil {
 		if skip >= 0 && skip < len(box.Children) && bo.IsColumnSpanner(box.Children[skip]) {
 			spannerSkip, skipStack = skipStack[skip], nil
@@ -278,6 +314,15 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			resolveSizesBox(context, block, box)
 			block.Box().PositionX = box.ContentBoxX()
 			block.Box().PositionY = currentPositionY
+			// gopdfgo: wymuszony podział przed elementem rozpinającym albo za nim dzieli fragmentator
+			// zewnętrzny: kontener kolumn kończy się tu i ciągnie dalej w następnej kolumnie zewnętrznej
+			// albo na następnej stronie (CSS Multicol 1 § 6.1, CSS Break 3 § 3.1; testy WPT
+			// spanner-fragmentation-010, -012). W źródle te podziały były pomijane.
+			if before := string(block.Box().Style.GetBreakBefore()); len(newChildren) != 0 && spannerSkip == nil && forcedOuterBreak(before) {
+				nextPage = tree.PageBreak{Break: before}
+				lastLoop, breakPage = true, true
+				break
+			}
 			newChild, tmp, _ := blockLevelLayout(context, block, originalBottomSpace, spannerSkip,
 				box, pageIsEmpty, absoluteBoxes, fixedBoxes, &adjoiningMargins, false, -1)
 			nextPage, adjoiningMargins = tmp.nextPage, tmp.adjoiningMargins
@@ -294,6 +339,12 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				lastLoop = true
 				breakPage = true
 				spannerResume = tmp.resumeAt
+				break
+			}
+			if after := string(block.Box().Style.GetBreakAfter()); index+1 < len(box.Children) && forcedOuterBreak(after) {
+				nextPage = tree.PageBreak{Break: after}
+				lastLoop = true
+				afterSpannerResume = tree.ResumeStack{index + 1: nil}
 				break
 			}
 			pageIsEmpty = false
@@ -390,7 +441,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				var lastInFlowChildren *bo.BoxFields
 				var lastInFlowBox Box
 				for _, child := range newBox.Box().Children {
-					if ch := child.Box(); ch.IsInNormalFlow() {
+					if ch := child.Box(); ch.IsInNormalFlow() && !isEmptyColumnLine(child) {
 						lastInFlowChildren, lastInFlowBox = ch, child
 					}
 				}
@@ -583,7 +634,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		contentHeight := func(column Box, keepMargin bool) pr.Float {
 			var last *bo.BoxFields
 			for _, child := range column.Box().Children {
-				if ch := child.Box(); ch.IsInNormalFlow() {
+				if ch := child.Box(); ch.IsInNormalFlow() && !isEmptyColumnLine(child) {
 					last = ch
 				}
 			}
@@ -743,6 +794,18 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			fragmentedFixed = true
 		}
 	}
+	// gopdfgo: kontener o podanej wysokości zagnieżdżony w kolumnach, którego treść już się skończyła, a który
+	// sam nie mieści się w kolumnie zewnętrznej, dzieli się: reszta wysokości przechodzi do następnej
+	// kolumny zewnętrznej (CSS Fragmentation 3 § 5.1). W źródle kontener wystawał z kolumny.
+	var remainderResume tree.ResumeStack
+	if hasFixedHeight && wasInColumn && !unpaged && !fragmentedFixed && spannerResume == nil && columnSkipStack == nil &&
+		!breakPage && originalBottomSpace > -pr.Inf {
+		if available := context.pageBottom - originalBottomSpace - box.ContentBoxY(); available > 0 && fixedHeight > available+0.5 &&
+			height <= available {
+			remainderResume = tree.RemainderResume(float64(fixedHeight - available))
+			box.Height = available
+		}
+	}
 	var heightDifference pr.Float
 	if box.Height == pr.AutoF {
 		box.Height = height
@@ -752,7 +815,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	// Update the latest columns’ height to respect min-height
-	fragmented := spannerResume != nil || columnSkipStack != nil || breakPage
+	fragmented := spannerResume != nil || columnSkipStack != nil || breakPage || afterSpannerResume != nil
 	var minHeight pr.Float
 	if box.MinHeight != pr.AutoF {
 		minHeight = box.MinHeight.V()
@@ -792,6 +855,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		skipStack = tree.ResumeStack{index + skip: columnSkipStack[skip]}
 	} else if breakPage {
 		skipStack = tree.ResumeStack{index: nil}
+	} else if remainderResume != nil {
+		skipStack = remainderResume
+	} else if afterSpannerResume != nil {
+		skipStack = afterSpannerResume
 	}
 	// gopdfgo: fragment, po którym kontener ciągnie się dalej, nie ma dolnego marginesu, obramowania ani
 	// dopełnienia (CSS Fragmentation 3 § 5.4); w źródle je zachowywał.
@@ -1010,10 +1077,11 @@ func addSpannerSplitUsed(children []Box) {
 }
 
 // columnFloat to element pływający podzielony w kolumnie, którego dalszy ciąg trafia na górę następnej
-// kolumny; dx to przesunięcie następnej kolumny względem poprzedniej.
+// kolumny; x to położenie dalszego ciągu: położenie poprzedniego fragmentu przesunięte o odległość
+// między kolumnami.
 type columnFloat struct {
 	brokenBox
-	dx pr.Float
+	x pr.Float
 }
 
 // takeColumnFloats przenosi elementy pływające podzielone po znaczniku after (zob.
@@ -1022,7 +1090,7 @@ func takeColumnFloats(context *layoutContext, after int, dx pr.Float) bool {
 	context.columnFloats = nil
 	for key, v := range context.brokenOutOfFlow {
 		if v.order > after && v.box.Box().IsFloated() && v.deferredPages == 0 {
-			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, dx: dx})
+			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, x: key.Box().PositionX + dx})
 			delete(context.brokenOutOfFlow, key)
 		}
 	}
@@ -1052,4 +1120,14 @@ func isFloatsOnlyResume(resume tree.ResumeStack, children []Box) bool {
 	}
 	inner, ok := resume[len(children)]
 	return ok && inner == nil
+}
+
+// isEmptyColumnLine mówi, czy dziecko kolumny jest pustym wierszem (np. po końcowym <br>), który nie
+// zajmuje miejsca (CSS 2 § 9.4.2).
+//
+// gopdfgo: w źródle taki wiersz był brany za ostatnie pudełko kolumny, a jego marginesy zawyżały
+// wysokość treści (test WPT multicol-breaking-000).
+func isEmptyColumnLine(child Box) bool {
+	line, ok := child.(*bo.LineBox)
+	return ok && line.Height == pr.Float(0) && isEmptyLinebox(line)
 }

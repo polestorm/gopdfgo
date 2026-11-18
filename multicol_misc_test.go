@@ -2,6 +2,7 @@ package gopdfgo
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
@@ -13,7 +14,11 @@ func TestMulticolMisc(t *testing.T) {
 	head := `<style>@page { size: 300px 300px; margin: 0 } body { margin: 0 }
 		.g { background: green } .a { position: absolute }</style>`
 	dir := t.TempDir()
-	fonts := testFonts(t)
+	ahem, err := os.ReadFile("testdata/wpt/fonts/Ahem.ttf")
+	if err != nil {
+		t.Skip("brak fontu Ahem")
+	}
+	fonts := append([]Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	page := func(name, body string) []byte {
 		t.Helper()
 		result, err := Render(context.Background(), []byte(head+body), Options{Fonts: fonts})
@@ -67,4 +72,36 @@ func TestMulticolMisc(t *testing.T) {
 	// element pływający w kolumnach o podanej wysokości ciągnie się w następnej kolumnie
 	same("float-split-fill-auto", `<div style="columns:2;column-gap:0;column-fill:auto;width:100px;height:100px">
 		<div class=g style="float:left;width:50px;height:200px"></div></div>`, square)
+	// zagnieżdżony kontener o podanej wysokości dzieli się między kolumny zewnętrzne także wtedy, gdy jego
+	// treść skończyła się wcześniej (multicol-breaking-001)
+	same("nested-fixed-height-remainder", `<div style="columns:3;column-gap:0;column-fill:auto;width:150px;height:100px">
+		<div class=g style="columns:2;column-gap:0;height:300px"><div style="height:20px"></div></div></div>`,
+		`<div class=g style="width:150px;height:100px"></div>`)
+	// box-decoration-break: clone daje każdemu fragmentowi dolne obramowanie (multicol-breaking-004)
+	same("nested-clone-decoration", `<div style="columns:2;column-gap:0;column-fill:auto;width:100px;height:100px">
+		<div style="columns:1;column-gap:0;height:150px;border-bottom:25px solid green;box-decoration-break:clone">
+		<div class=g style="height:150px"></div></div></div>`, square)
+	// pusty wiersz po końcowym <br> nie zawyża wysokości kolumn przy równoważeniu (multicol-breaking-000):
+	// wynik jak bez końcowego <br>
+	nested := func(tail string) string {
+		return `<div style="columns:2;column-gap:0;column-fill:auto;width:200px;height:100px">
+		<div style="columns:2;column-gap:0;height:300px;font:16px/1.25 Ahem;color:green;background:blue">
+		X<br>X<br>X<br>X<br>X` + tail + `</div></div>`
+	}
+	same("trailing-br-balance", nested("<br>\n"), nested("\n"))
+	// wymuszony podział kolumny przed elementem rozpinającym i za nim dzieli kolumny zewnętrzne
+	// (spanner-fragmentation-010, -012)
+	same("spanner-break-before-column", `<div style="width:100px;columns:2;column-fill:auto;column-gap:0;height:300px">
+		<div class=g style="height:50px"></div><div style="columns:2;column-gap:0"><div class=g style="height:100px"></div>
+		<div class=g style="column-span:all;break-before:column;height:100px"></div></div></div>`, square)
+	same("spanner-break-after-column", `<div style="width:100px;columns:2;column-fill:auto;column-gap:0;height:300px">
+		<div class=g style="height:50px"></div><div style="columns:2;column-gap:0">
+		<div class=g style="column-span:all;break-after:column;height:50px"></div><div class=g style="height:200px"></div></div></div>`, square)
+	// kolumny o zerowej wysokości mają 1px, a element pływający ciągnie się przez kolejne kolumny
+	// (multicol-zero-height-001)
+	same("zero-height-columns", `<div style="height:0;width:200px;column-count:10;column-gap:0">
+		<div class=g style="float:left;width:100%;height:10px"></div></div>`, `<div class=g style="width:200px;height:1px"></div>`)
+	// dalszy ciąg elementu pływającego w trzeciej kolumnie i dalszych stoi w swojej kolumnie
+	same("float-split-three-columns", `<div style="columns:3;column-gap:0;column-fill:auto;width:150px;height:100px">
+		<div class=g style="float:left;width:50px;height:300px"></div></div>`, `<div class=g style="width:150px;height:100px"></div>`)
 }

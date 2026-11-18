@@ -209,7 +209,8 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		newBox_, result := columnsLayout(context, box_, bottomSpace, skipStack, containingBlock,
 			pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins)
 		resumeAt := result.resumeAt
-		if resumeAt == nil {
+		// przy box-decoration-break: clone miejsce na dolne odstępy zarezerwował już układ kolumn
+		if resumeAt == nil && box.Style.GetBoxDecorationBreak() != "clone" {
 			newBox := newBox_.Box()
 			columnsBottomSpace := newBox.MarginBottom.V() + newBox.PaddingBottom.V() + newBox.BorderBottomWidth.V()
 			if columnsBottomSpace != 0 {
@@ -740,7 +741,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		for _, v := range pending {
 			v.box.Box().PositionY = box.ContentBoxY()
 			placed, placedResumeAt := floatLayout(context, v.box, v.containingBlock.Box(), absoluteBoxes, fixedBoxes, bottomSpace, v.resumeAt)
-			placed.Translate(v.dx, 0, false)
+			placed.Translate(v.x-placed.Box().PositionX, 0, false)
 			newChildren = append(newChildren, placed)
 			if placedResumeAt != nil {
 				context.setBrokenOutOfFlow(placed, brokenBox{box: v.box, containingBlock: v.containingBlock, resumeAt: placedResumeAt})
