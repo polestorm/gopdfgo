@@ -1964,3 +1964,43 @@ w siódmej paczce): tekst (`inline.go`, `text/`) oraz CSS 2 i kolumny (`block.go
 Zgłoszone przez pomocników do zrobienia w cudzych plikach: szerokość min-content z ZWSP i `text-indent`
 (`preferred.go`), kolor obrysu `-webkit-text-stroke` (`draw_text.go`), `float-nowrap-4` i `::first-line`
 w elementach pływających (`inline.go`).
+
+## Dziewiąta paczka: reftesty druku (2026-11-18)
+
+Dwóch pomocników z rozłącznymi plikami: model strony (`pages.go`, rysowanie stron, `@page`) i fragmentacja
+(`block.go`, `absolute.go`, `float.go`, `flex.go`, `tables.go`, `layout.go`). Listy: 45 i 42 z 95
+niezaliczonych reftestów druku (bez 8 testów pisma pionowego).
+
+| Miara | Przed | Po |
+|---|---|---|
+| reftesty druku (340) | 245 | **279 (82,1%)**, wszystkie ściśle |
+| sondaż ekranowy (10962) | 9498 | 9498 (bez zmian, 0 strat) |
+
+- **Model strony (17):** szerokości pól marginesowych według CSS Page 3 § 5.3 i kolejność ich rysowania,
+  `counter-reset` w `@page` tylko na swojej stronie, `size: portrait|landscape` z rozmiaru arkusza użytkownika
+  (dotąd zawsze A4), nowy deskryptor `page-orientation` (`/Rotate` w PDF), pusta strona przy `html {display:
+  none}`, `vw`/`vh` na nazwanej pierwszej stronie, znacznik `reftest-pages` bez cudzysłowów.
+- **Fragmentacja (17):** treść niepodzielna wyższa niż strona w kolumnie flex, `position: fixed` powtarzane
+  także zagnieżdżone w `absolute`, pudełko `absolute` zakotwiczone dołem w bloku dzielonym między strony,
+  elementy pływające z `break-inside: avoid`, dalszy ciąg elementu pływającego w elemencie flex rysowany
+  podwójnie, blok o podanej wysokości kończący się na stronie, nazwane strony: treść `inline-block` ginęła
+  przy zmianie nazwy strony (znalazł pomocnik od modelu strony, poprawił pomocnik od fragmentacji).
+- Przy scaleniu dwie reguły fragmentacji razem psuły przejęte `TestAbsoluteInInline` i `TestFixedInInline`
+  (pudełko absolutne w tekście trafiało na górę następnej strony); żaden reftest od nich nie zależał, więc są
+  wycofane.
+- `TestWPTReftests` ma filtr `GOPDFGO_REFTEST` (wyrażenie regularne ścieżek) do sprawdzania jednej grupy.
+
+Do decyzji (zgłoszone przez pomocników, wycofane albo niezrobione):
+
+- nagłówek i stopka tabeli wyższe niż 1/4 strony nie powtarzane na każdej stronie (pomocnik sądzi, że tak
+  robią Gecko i Chromium, niesprawdzone): dałoby 2 reftesty, psuje przejęte `TestTableEmptyBody`;
+- `@media` w kontekście `@page` (`media-queries-001`): ADR 0012 liczy szerokość i wysokość z `@page`, test chce
+  rozmiaru domyślnego;
+- `06-margin-boxes`: 3 strony wobec 2 w Chromium to opisane odstępstwo Chromium (`break-before: right` jak
+  `page`), nie nasz błąd.
+
+Otwarte w cudzych plikach: kafel tła `no-repeat` na płótnie stron (`draw.go`, `page-background-002/003`),
+położenie x dalszych ciągów pudełek poza przepływem na stronach o innych marginesach (`pages.go`,
+`page-margin-007`), pudełko `absolute` względem bloku początkowego liczone od strony, na której stanął jego
+zastępnik (5 stron zamiast 3; błąd także przed paczką), przesunięcie wierszy siatki po krojonej treści
+niepodzielnej (`grid.go`, `monolithic-overflow-007`).

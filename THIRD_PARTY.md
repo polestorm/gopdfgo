@@ -919,6 +919,47 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- model strony w druku, 2026-11-18 (CSS Page 3; reftesty druku; praca pomocnika):
+  - `html/layout/pages.go`, `html/document/draw.go`, `stacking.go`: szerokość pola marginesowego środkowego
+    o szerokości auto liczona osobno względem podwojonego pola lewego i podwojonego prawego, wybierana mniejsza
+    (pole boczne o ustalonej szerokości zostawia środkowemu `dostępne − 2×szerokość`); przy zerowej sumie
+    współczynników pola dzielą miejsce po równo (podwojone pole ma współczynnik 2; odczytanie wyniku
+    Chromium, nie dosłowne brzmienie normy); w źródle przy zerowej sumie pola dostawały zero (§ 5.3).
+    Procenty marginesów i odstępów górnych i dolnych od wysokości bloku zawierającego (§ 6); `width`/`height`
+    `min-content`/`max-content`/`fit-content`; pola rysowane zgodnie z ruchem wskazówek zegara od
+    `@top-left-corner`, pola o ujemnym `z-index` pod płótnem dokumentu, `z-index` elementu głównego nie zmienia
+    kolejności względem pól (§ 3.1). Testy przejęte `TestMarginBoxesFixedDimension1`
+    i `TestRunningElementsDisplay` wyliczają pola w nowej kolejności;
+  - `pages.go` (`updatePageCounters`): `counter-reset` w `@page` na liczniku założonym przez element główny
+    zasłania go tylko na swojej stronie i w jej polach (§ 4.3, jak Chromium); w źródle podmieniał licznik
+    dokumentu na stałe;
+  - `css/validation`, `html/tree/style.go` (`pr.PageOrientation`): `size: auto | portrait | landscape`
+    obraca rozmiar arkusza z arkuszy spoza autora (arkusz użytkownika, bez niego A4) (§ 7.1); w źródle zawsze
+    A4; test przejęty `TestSize` oczekuje słów orientacji;
+  - nowy deskryptor `page-orientation` (§ 7.2): `rotate-right`/`rotate-left` dają `/Rotate` 90/270 strony PDF
+    po ułożeniu (`backend.RotatablePage`, `goweasyprint/pdf/page.go` `SetRotation`);
+  - element główny z `display: none`: strona pusta, bez tła, obramowania i pól `@page` (`boxes/build.go`,
+    `RootDisplayNone`; norma nie rozstrzyga, jak Chromium);
+  - `vw`/`vh` względem obszaru pierwszej strony także nazwanej (przybliżenie ze stylów już obliczonych);
+  - `reftest_test.go` (nasz): znacznik `reftest-pages` także z atrybutami bez cudzysłowów;
+- fragmentacja w druku, 2026-11-18 (CSS Fragmentation 3, CSS Page 3, CSS Position 3; praca pomocnika;
+  `html/layout/block.go`, `flex.go`, `absolute.go`, `float.go`, `layout.go`): element `contain: size` wyższy
+  niż strona w kolumnie flex jest krojony między strony, a następne elementy i kontener o wysokości auto
+  przesuwają się o niewykorzystaną wysokość (`canSplitFixedHeight`, `columnShift`; CSS Break 3 § 4.4); po
+  ostatnim wycinku wiersza następny wiersz stoi tuż za nim; pudełko `absolute` z `top`/`bottom` leżące pod
+  stroną zostawia na niej pustą niewidoczną kopię (nic nie jest rysowane na marginesie); pudełka `fixed`
+  zagnieżdżone w `absolute` są powtarzane na każdej stronie i nie wpływają na pomniejszanie treści szerszej
+  niż strona; pudełko `absolute` zakotwiczone dołem w bloku podzielonym między strony trafia do ostatniego
+  fragmentu bloku (`deferBottomAnchoredAbsolutes`); element pływający z `break-inside: avoid` przechodzi na
+  następną stronę (CSS Break 3 § 3.2); układy próbne elementów flex nie zostawiają zgłoszeń dalszego ciągu
+  elementów pływających (w źródle dalszy ciąg był rysowany podwójnie); blok o podanej wysokości mieszczący się
+  na stronie kończy się na niej, gdy treść doszła do jego dołu albo jest przycinana (CSS Break 3 § 5.1);
+  zmiana nazwy strony nie łamie strony wewnątrz `inline-block`, elementu pływającego ani pudełka `absolute`
+  z podanym `top`/`bottom`, ani między pudełkami zerowej wysokości na początku strony (CSS Page 3 § 6.1;
+  w źródle treść `inline-block` ginęła). Przy scaleniu wycofane dwie reguły pomocnika (wiersz w całości poniżej
+  pierwszej strony przenoszony dalej; pudełko w pozycji statycznej na dole strony przenoszone w całości):
+  razem przesuwały pudełko absolutne w tekście na górę strony (testy przejęte `TestAbsoluteInInline`,
+  `TestFixedInInline`), a żaden reftest od nich nie zależał;
 - ósma paczka tekstu, 2026-11-18 (praca pomocnika):
   - nowa właściwość `text-autospace` (CSS Text 4 § 6.4; `css/properties`, `css/validation`, `text/autospace.go`,
     `text/engine_gotext.go`): wartość początkowa `normal` dodaje 1/8 ic między ideogramem a literą lub cyfrą

@@ -45,13 +45,13 @@ pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentat
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069b-print.html	
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069c-print.html	
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069d-print.html	
-fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	strona 2: różne piksele 46080
-fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	strona 2: różne piksele 46080
+pass	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	
+pass	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	
 pass	flex-fragmentation	css/css-flexbox/inline-flexbox-vertical-rl-image-flexitem-crash-print.html	
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-1-print.html	strony 2 vs 3
+pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-1-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-2-print.html	
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-3-print.html	strona 1: różne piksele 8448
-fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-4-print.html	strona 1: różne piksele 8448
+pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-3-print.html	
+pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-4-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-5-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-6-print.html	
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-7-print.html	
@@ -60,7 +60,7 @@ pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-9-pri
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-001-print.html	strona 2: różne piksele 3200
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-002-print.html	strony 1 vs 2
 pass	margin-boxes	css/css-page/margin-boxes/alignment-001-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	strona 1: różne piksele 3256
+pass	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	strona 1: różne piksele 39689
 pass	margin-boxes	css/css-page/margin-boxes/auto-margins-003-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-001-print.html	
@@ -73,7 +73,7 @@ pass	margin-boxes	css/css-page/margin-boxes/content-008-print.html
 pass	margin-boxes	css/css-page/margin-boxes/content-009-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-010-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-011-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/content-012-print.html	strona 3: różne piksele 214
+pass	margin-boxes	css/css-page/margin-boxes/content-012-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-013-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-002-print.html	
@@ -81,33 +81,33 @@ pass	margin-boxes	css/css-page/margin-boxes/dimensions-003-print.html
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-004-print.html	strona 1: różne piksele 1056
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-005-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-006-print.html	strona 1: różne piksele 5504
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-007-print.html	strona 1: różne piksele 5325
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-007-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-008-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-009-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-010-print.html	strona 1: różne piksele 25000
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html	strona 1: różne piksele 24870
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	strona 1: różne piksele 15872
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 57358
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 56318
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-010-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 60287
+fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 59263
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	strony 19 vs 1
 pass	margin-boxes	css/css-page/margin-boxes/inapplicable-properties-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/overconstrained-001-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/paint-order-001-print.html	strona 1: różne piksele 37048
-fail	margin-boxes	css/css-page/margin-boxes/paint-order-002-print.html	strona 1: różne piksele 37048
-fail	margin-boxes	css/css-page/margin-boxes/paint-order-003-print.html	strona 1: różne piksele 2500
+pass	margin-boxes	css/css-page/margin-boxes/paint-order-001-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/paint-order-002-print.html	
+pass	margin-boxes	css/css-page/margin-boxes/paint-order-003-print.html	
 pass	monolithic-overflow	css/css-break/abspos-in-clipped-overflow-print.html	
 pass	monolithic-overflow	css/css-break/abspos-overflow-hidden-001-print.html	
 pass	monolithic-overflow	css/css-break/grid/monolithic-overflow-print.html	
 pass	monolithic-overflow	css/css-break/overflowed-abs-pos-with-percentage-height-print.html	
 pass	monolithic-overflow	css/css-break/overflowing-block-002-print.html	
-fail	monolithic-overflow	css/css-break/overflowing-block-print.html	strona 1: różne piksele 3440
+pass	monolithic-overflow	css/css-break/overflowing-block-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-001-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-002-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-003-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-004-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-005-print.html	strony 2 vs 4
+pass	monolithic-overflow	css/css-page/monolithic-overflow-005-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-006-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-007-print.html	strony 2 vs 4
+fail	monolithic-overflow	css/css-page/monolithic-overflow-007-print.html	strony 5 vs 4
 pass	monolithic-overflow	css/css-page/monolithic-overflow-008-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-009-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-010-print.html	
@@ -115,7 +115,7 @@ pass	monolithic-overflow	css/css-page/monolithic-overflow-011-print.html
 pass	monolithic-overflow	css/css-page/monolithic-overflow-012-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-013-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	strony 5 vs 4
+pass	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-016-print.html	strony 5 vs 4
 fail	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	strona 3: różne piksele 1920
 pass	monolithic-overflow	css/css-page/monolithic-overflow-018-print.html	
@@ -129,7 +129,7 @@ fail	monolithic-overflow	css/css-page/monolithic-overflow-025-print.html	strony 
 pass	monolithic-overflow	css/css-page/monolithic-overflow-026-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-027-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-028-print.html	strony 1 vs 4
-fail	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	strona 1: różne piksele 18432
+pass	monolithic-overflow	css/css-page/monolithic-overflow-029-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-030-print.html	
 fail	monolithic-overflow	css/css-page/monolithic-overflow-031-print.html	strony 8 vs 7
 fail	monolithic-overflow	css/css-page/monolithic-overflow-032-print.tentative.html	strony 6 vs 7
@@ -138,7 +138,7 @@ pass	named-pages	css/css-page/page-name-001-print.html
 pass	named-pages	css/css-page/page-name-002-print.html	
 pass	named-pages	css/css-page/page-name-003-print.html	
 pass	named-pages	css/css-page/page-name-abspos-001-print.html	
-fail	named-pages	css/css-page/page-name-abspos-002-print.html	strony 2 vs 1
+pass	named-pages	css/css-page/page-name-abspos-002-print.html	
 pass	named-pages	css/css-page/page-name-abspos-003-print.html	
 pass	named-pages	css/css-page/page-name-and-break-001-print.html	
 pass	named-pages	css/css-page/page-name-and-break-002-print.html	
@@ -160,8 +160,8 @@ pass	named-pages	css/css-page/page-name-img-001-print.html
 pass	named-pages	css/css-page/page-name-img-002-print.html	
 pass	named-pages	css/css-page/page-name-img-003-print.html	
 pass	named-pages	css/css-page/page-name-img-004-print.html	
-fail	named-pages	css/css-page/page-name-inline-block-001-print.html	strona 1: różne piksele 44
-fail	named-pages	css/css-page/page-name-inline-block-002-print.html	strona 1: różne piksele 44
+pass	named-pages	css/css-page/page-name-inline-block-001-print.html	
+pass	named-pages	css/css-page/page-name-inline-block-002-print.html	
 pass	named-pages	css/css-page/page-name-inline-block-003-print.html	
 pass	named-pages	css/css-page/page-name-margin-001-print.html	
 pass	named-pages	css/css-page/page-name-margin-002-print.html	
@@ -185,7 +185,7 @@ pass	named-pages	css/css-page/page-name-siblings-004-print.html
 pass	named-pages	css/css-page/page-name-siblings-005-print.html	
 pass	named-pages	css/css-page/page-name-table-001-print.html	
 pass	named-pages	css/css-page/page-name-unnamed-trailing-001-print.html	
-fail	named-pages	css/css-page/page-name-zero-height-001-print.html	strony 6 vs 3
+pass	named-pages	css/css-page/page-name-zero-height-001-print.html	
 fail	other	css/css-page/body-background-slr-print.html	strony 1 vs 2
 fail	other	css/css-page/body-background-srl-print.html	strony 1 vs 2
 fail	other	css/css-page/body-background-vlr-print.html	strony 1 vs 2
@@ -206,9 +206,9 @@ pass	page-context	css/css-page/page-context-inherits-from-root-custom-property-p
 pass	page-context	css/css-page/page-context-inherits-from-root-em-rem-print.html	
 pass	page-context	css/css-page/page-context-inherits-from-root-rem-print.html	
 pass	page-context	css/css-page/page-rule-specificity-001-print.html	
-fail	page-context	css/css-page/page-rule-specificity-002-print.html	strona 1: różne piksele -1
+pass	page-context	css/css-page/page-rule-specificity-002-print.html	
 pass	page-context	css/css-page/page-rule-specificity-003-print.html	
-fail	page-context	css/css-page/root-element-display-none-print.html	strona 1: różne piksele 138240
+pass	page-context	css/css-page/root-element-display-none-print.html	
 pass	page-margins	css/css-page/page-box-000-print.html	
 pass	page-margins	css/css-page/page-box-001-print.html	
 pass	page-margins	css/css-page/page-box-002-print.html	
@@ -234,7 +234,7 @@ pass	page-margins	css/css-page/page-margin-auto-print.html
 pass	page-margins	css/css-page/page-margin-negative-print.tentative.html	
 fail	page-margins	css/css-page/tentative/safe-printable-inset-001-print.html	strona 1: różne piksele 61395
 fail	page-margins	css/css-page/tentative/safe-printable-inset-002-print.html	strona 1: różne piksele 31268
-fail	page-margins	css/css-page/tentative/safe-printable-inset-003-print.html	strona 1: różne piksele 35662
+fail	page-margins	css/css-page/tentative/safe-printable-inset-003-print.html	strona 1: różne piksele 33006
 pass	page-margins	css/css-page/tentative/safe-printable-inset-large-crash-print.html	
 pass	page-selectors	css/css-page/page-left-right-001-print.html	
 pass	page-selectors	css/css-page/page-left-right-002-print.html	
@@ -244,11 +244,11 @@ pass	page-selectors	css/css-page/pseudo-first-margin-003-print.html
 pass	page-selectors	css/css-page/pseudo-first-margin-004-print.html	
 pass	page-size	css/css-page/page-context-inherits-from-root-font-size-001-print.html	
 pass	page-size	css/css-page/page-context-inherits-from-root-font-size-002-print.html	
-fail	page-size	css/css-page/page-orientation-on-landscape-001-print.html	strona 1: różne piksele -1
-fail	page-size	css/css-page/page-orientation-on-portrait-001-print.html	strona 1: różne piksele -1
+pass	page-size	css/css-page/page-orientation-on-landscape-001-print.html	
+pass	page-size	css/css-page/page-orientation-on-portrait-001-print.html	
 pass	page-size	css/css-page/page-orientation-on-portrait-002-print.html	
 pass	page-size	css/css-page/page-orientation-on-portrait-003-print.html	
-fail	page-size	css/css-page/page-orientation-on-square-001-print.html	strona 1: różne piksele 10170
+pass	page-size	css/css-page/page-orientation-on-square-001-print.html	
 pass	page-size	css/css-page/page-size-001-print.html	
 pass	page-size	css/css-page/page-size-002-print.html	
 pass	page-size	css/css-page/page-size-003-print.html	
@@ -257,7 +257,7 @@ pass	page-size	css/css-page/page-size-005-print.html
 pass	page-size	css/css-page/page-size-006-print.html	
 fail	page-size	css/css-page/page-size-007-print.html	strona 2: różne piksele 12780
 fail	page-size	css/css-page/page-size-008-print.html	strona 2: różne piksele 116860
-fail	page-size	css/css-page/page-size-009-print.html	strona 2: różne piksele 80000
+pass	page-size	css/css-page/page-size-009-print.html	
 pass	page-size	css/css-page/page-size-010-print.html	
 pass	page-size	css/css-page/page-size-011-print.html	
 fail	page-size	css/css-page/page-size-012-print.html	strona 1: różne piksele 204084
@@ -266,20 +266,20 @@ pass	page-size	css/css-page/page-size-014-print.html
 fail	page-size	css/css-page/page-size-015-print.tentative.html	strony 9 vs 1
 fail	page-size	css/css-page/page-size-016-print.tentative.html	strony 16 vs 1
 fail	page-size	css/css-page/page-size-017-print.tentative.html	strony 27 vs 1
-fail	page-size	css/css-page/subpixel-page-size-001-print.html	strony 2 vs 1
-fail	page-size	css/css-page/subpixel-page-size-002-print.html	strony 2 vs 1
-fail	positioned	css/css-break/abspos-001-print.html	strona 1: różne piksele 5000
+pass	page-size	css/css-page/subpixel-page-size-001-print.html	
+pass	page-size	css/css-page/subpixel-page-size-002-print.html	
+pass	positioned	css/css-break/abspos-001-print.html	
 fail	positioned	css/css-break/abspos-002-print.html	strony 4 vs 3
 pass	positioned	css/css-page/fixedpos-001-print.html	
-fail	positioned	css/css-page/fixedpos-002-print.html	strona 2: różne piksele 938
+pass	positioned	css/css-page/fixedpos-002-print.html	
 pass	positioned	css/css-page/fixedpos-003-print.html	
-fail	positioned	css/css-page/fixedpos-004-print.html	strona 2: różne piksele 1061
+pass	positioned	css/css-page/fixedpos-004-print.html	
 fail	positioned	css/css-page/fixedpos-005-print.html	strony 6 vs 5
 fail	positioned	css/css-page/fixedpos-006-print.html	strony 4 vs 5
-fail	positioned	css/css-page/fixedpos-007-print.html	strona 1: różne piksele 1650
-fail	positioned	css/css-page/fixedpos-008-print.html	strona 1: różne piksele 2146
+pass	positioned	css/css-page/fixedpos-007-print.html	
+fail	positioned	css/css-page/fixedpos-008-print.html	strona 1: różne piksele 1199
 pass	positioned	css/css-page/fixedpos-009-print.html	
-fail	positioned	css/css-page/fixedpos-010-print.html	strona 1: różne piksele 1354
+fail	positioned	css/css-page/fixedpos-010-print.html	strona 2: różne piksele 10000
 pass	positioned	css/css-page/fixedpos-011-print.html	
 pass	positioned	css/css-page/fixedpos-with-abspos-with-link-print.html	
 pass	positioned	css/css-page/fixedpos-with-iframe-print.html	
