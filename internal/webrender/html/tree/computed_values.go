@@ -40,6 +40,7 @@ var (
 	// to avoid declaration cycle
 	tmp = [pr.NbProperties]computerFunc{
 		pr.PBackgroundImage:    backgroundImage,
+		pr.PListStyleImage:     listStyleImage,
 		pr.PBackgroundPosition: backgroundPosition,
 		pr.PObjectPosition:     objectPosition,
 		pr.PTransformOrigin:    transformOrigin,
@@ -185,6 +186,15 @@ func backgroundImage(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPrope
 		value[i] = image
 	}
 	return value
+}
+
+// listStyleImage (gopdfgo) wylicza długości w gradiencie list-style-image tak jak w background-image.
+func listStyleImage(computer *ComputedStyle, _ pr.KnownProp, value pr.CssProperty) pr.CssProperty {
+	image, ok := value.(pr.Image)
+	if !ok {
+		return value
+	}
+	return backgroundImage(computer, pr.PBackgroundImage, pr.Images{image}).(pr.Images)[0]
 }
 
 func centers(computer *ComputedStyle, value pr.Centers) pr.Centers {
@@ -451,6 +461,11 @@ func borderWidth(computer *ComputedStyle, name pr.KnownProp, _value pr.CssProper
 	if style == "none" || style == "hidden" {
 		return pr.FToV(0)
 	}
+	return borderWidthValue(computer, value)
+}
+
+// borderWidthValue (gopdfgo) wylicza szerokość obramowania bez względu na styl obramowania.
+func borderWidthValue(computer *ComputedStyle, value pr.TaggedDim) pr.CssProperty {
 	if bw, in := borderWidthKeywords[value.Tag]; in {
 		return bw.ToValue()
 	}
