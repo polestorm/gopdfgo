@@ -893,13 +893,21 @@ restartCollapsed:
 	} else {
 		if box.Height == pr.AutoF {
 			box.Height = pr.Float(0)
+			// gopdfgo: przy height: min-content, max-content i fit-content wysokość kontenera kolumnowego
+			// to suma wkładów elementów (CSS Flexbox 1 § 9.9.1), a nie ich rozmiarów hipotetycznych
+			// (test WPT flex-container-max-content-001)
+			intrinsicHeight := box.Style.GetHeight().Intrinsic != pr.IntrinsicNone && box.Style.GetFlexWrap() == "nowrap"
 			seen := false // gopdfgo: odstęp tylko między elementami (źródło liczyło od indeksu, także przed pierwszym elementem po dziecku pozycjonowanym)
 			for _, child_ := range children {
 				child := child_.Box()
 				if !child.IsFlexItem {
 					continue
 				}
-				box.Height = box.Height.V() + child.HypotheticalMainSize + child.MainOuterExtra
+				if intrinsicHeight && !struts[child] {
+					box.Height = box.Height.V() + columnItemContribution(context, child_, parentBox, pageIsEmpty) + child.MainOuterExtra
+				} else {
+					box.Height = box.Height.V() + child.HypotheticalMainSize + child.MainOuterExtra
+				}
 				if !struts[child] {
 					if seen {
 						box.Height = box.Height.V() + mainGap
@@ -1193,6 +1201,13 @@ restartCollapsed:
 					minWidth := minContentWidth(context, child_, false)
 					maxWidth := maxContentWidth(context, child_, false)
 					child.Width = min(max(minWidth, newChild_.Box().Width.V()), maxWidth)
+					// gopdfgo: rozmiar hipotetyczny respektuje min-width i max-width elementu (CSS Flexbox 1
+					// § 9.4 krok 7: rozmiar z układu); szerokości wewnętrzne liczą procentowe min-width jako
+					// zero, więc obraz z min-width: 20% dostawał szerokość własną (test WPT
+					// flex-aspect-ratio-img-column-007)
+					if minimum, ok := child.MinWidth.(pr.Float); ok && child.Width.V() < minimum {
+						child.Width = minimum
+					}
 				} else {
 					child.Width = newChild_.Box().Width
 				}
@@ -2724,4 +2739,51 @@ func captionsHeight(context *layoutContext, wrapper Box, bottomSpace pr.Float, c
 		}
 	}
 	return total
+}
+
+// columnItemContribution (gopdfgo): wkład elementu kontenera kolumnowego do jego wysokości wewnętrznej
+// (CSS Flexbox 1 § 9.9.1): większa z wartości: wysokość treści i podana wysokość, ograniczona przez
+// rozmiar bazowy od góry (element nie rośnie) i od dołu (element się nie kurczy), potem przez min-height
+// i max-height. Wysokość treści (bez obramowania i odstępów), jak FlexBaseSize.
+func columnItemContribution(context *layoutContext, item Box, parentBox *bo.BoxFields, pageIsEmpty bool) pr.Float {
+	child := item.Box()
+	probe := item.Copy()
+	if bo.ParentT.IsInstance(item) {
+		probe = bo.CopyWithChildren(item, child.Children)
+	}
+	probe.Box().Style = child.Style.Copy()
+	probe.Box().Style.SetHeight(pr.TagToV(pr.Auto))
+	probe.Box().Style.SetMinHeight(pr.ZeroPixels.Tagged())
+	probe.Box().Style.SetMaxHeight(pr.FToPx(pr.Inf))
+	if width, ok := child.Width.(pr.Float); ok {
+		probe.Box().Style.SetWidth(pr.FToPx(width))
+		if child.Style.GetBoxSizing() == "border-box" {
+			probe.Box().Style.SetBoxSizing("content-box")
+		}
+	}
+	context.flexMeasuring++
+	measured, layout, _ := blockLevelLayout(context, probe.(bo.BlockLevelBoxITF), -pr.Inf, nil, parentBox, pageIsEmpty, nil, nil, nil, false, -1)
+	context.flexMeasuring--
+	v := child.FlexBaseSize
+	if measured != nil {
+		v = measured.Box().Height.V() + collapseMargin(layout.adjoiningMargins)
+	}
+	if height := child.Style.GetHeight(); height.Tag == 0 && height.Unit == pr.Px && height.Calc == nil {
+		specified := height.Value
+		if child.Style.GetBoxSizing() == "border-box" {
+			specified = max(specified-child.PaddingTop.V()-child.PaddingBottom.V()-child.BorderTopWidth.V()-child.BorderBottomWidth.V(), 0)
+		}
+		v = max(v, specified)
+	}
+	if child.Style.GetFlexGrow() == 0 {
+		v = min(v, child.FlexBaseSize)
+	}
+	if child.Style.GetFlexShrink() == 0 {
+		v = max(v, child.FlexBaseSize)
+	}
+	// minimum automatyczne pomijamy, jak w wierszu (zob. clampByBasis)
+	if child.Style.GetMinHeight().Tag != pr.Auto {
+		v = max(child.MinHeight.V(), v)
+	}
+	return min(v, child.MaxHeight.V())
 }

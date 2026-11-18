@@ -54,6 +54,10 @@ func basicUrlJoin(baseUrl string, urls *url.URL) (string, error) {
 
 // defaut: allowRelative = false
 func SafeUrljoin(baseUrl, urls string, allowRelative bool) (string, error) {
+	// gopdfgo: parser URL usuwa z wejścia wszystkie znaki tabulacji i nowego wiersza (URL Standard
+	// § 4.4 „basic URL parser”, krok 3); źródło odrzucało taki adres, np. wieloliniowy data: z SVG
+	// (test WPT flexbox-min-width-auto-006)
+	urls = strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(urls)
 	parsed, err := url.Parse(urls)
 	if err != nil {
 		return "", fmt.Errorf("invalid url : %s (%s)", urls, err)

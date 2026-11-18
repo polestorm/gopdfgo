@@ -981,6 +981,15 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			}
 		}
 		freeSpace = freeSpaceF
+	} else {
+		// gopdfgo: przy rozmiarze nieokreślonym (wysokość auto, pomiar max-content) wolne miejsce jest
+		// nieskończone, więc rozmiary bazowe rosną do granic wzrostu (CSS Grid 1 § 12.6); źródło pomijało
+		// ten krok i wiersz minmax(50px, max-content) zostawał przy 50px (test WPT grid-floats-no-intrude-002)
+		for i, sizes := range tracksSizes {
+			if growthLimit, ok := sizes[1].(pr.Float); ok && growthLimit < pr.Inf && growthLimit > sizes[0].V() {
+				tracksSizes[i][0] = growthLimit
+			}
+		}
 	}
 	// TODO: Respect max-width/-height.
 	// 1.4 Expand flexible tracks.
@@ -2353,6 +2362,11 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				newChild.Box().Width = fitContentItemWidth(context, newChild, childWidth)
 			}
 			diff := childWidth - newChild.Box().Width.V()
+			// gopdfgo: „safe”: element większy niż obszar stoi na jego początku (CSS Align 3 § 4.4);
+			// źródło ignorowało to słowo w justify-self i align-self elementów siatki
+			if justifySelf.Has(pr.Safe) && diff < 0 {
+				diff = 0
+			}
 			if justifySelf.Has(pr.Center) {
 				newChild.Translate(diff/2, 0, false)
 			} else if justifySelf.Intersects(pr.Right, pr.End, pr.FlexEnd, pr.SelfEnd) {
@@ -2382,6 +2396,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			}
 		} else {
 			diff := childHeight - newChild.Box().Height.V()
+			if alignSelf.Has(pr.Safe) && diff < 0 {
+				diff = 0
+			}
 			if alignSelf.Has(pr.Center) {
 				newChild.Translate(0, diff/2, false)
 			} else if alignSelf.Intersects(pr.End, pr.FlexEnd, pr.SelfEnd) {

@@ -1450,6 +1450,13 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 // element węższy niż jego treść zwężał kontener. Zwraca szerokość zewnętrzną treści; false, gdy
 // element nie ma podanej szerokości albo nie może ani rosnąć, ani się kurczyć.
 func flexibleItemContentWidth(context *layoutContext, container, child Box) (pr.Float, bool) {
+	return flexibleItemContribution(context, container, child, minContentWidth)
+}
+
+// flexibleItemContribution: jak flexibleItemContentWidth, z rozmiarem treści liczonym przez measure
+// (min-content albo max-content). gopdfgo: dla max-content też obowiązuje większa z wartości: rozmiar
+// max-content treści i podana szerokość (CSS Flexbox 1 § 9.9.1); źródło brało samą podaną szerokość.
+func flexibleItemContribution(context *layoutContext, container, child Box, measure func(*layoutContext, Box, bool) pr.Float) (pr.Float, bool) {
 	style := child.Box().Style
 	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") || style.GetWidth().Tag == pr.Auto ||
 		(style.GetFlexGrow() == 0 && style.GetFlexShrink() == 0) {
@@ -1464,7 +1471,7 @@ func flexibleItemContentWidth(context *layoutContext, container, child Box) (pr.
 	}
 	probe.Box().Style = style.Copy()
 	probe.Box().Style.SetWidth(pr.TagToV(pr.Auto))
-	content := minContentWidth(context, probe, true)
+	content := measure(context, probe, true)
 	if maxWidth := style.GetMaxWidth(); maxWidth.Unit == pr.Px && maxWidth.Calc == nil && maxWidth.Tag == 0 {
 		content = min(content, adjust(probe, true, maxWidth.Value, true, true))
 	}
@@ -1475,9 +1482,13 @@ func flexibleItemContentWidth(context *layoutContext, container, child Box) (pr.
 // ogranicza wkład elementu do szerokości wewnętrznej kontenera wierszowego (CSS Flexbox 1 § 9.9.1).
 // Tylko w kontenerze wierszowym (w kolumnie flex-basis jest wysokością); automatyczne minimum
 // elementu (§ 4.5) nie pozwala zejść poniżej szerokości min-content jego treści.
-func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bool) {
+func inflexibleBasis(context *layoutContext, container, child Box, floor bool) (pr.Float, bool) {
 	style := child.Box().Style
 	basis := style.GetFlexBasis()
+	if basis.Tag == pr.Auto && style.GetWidth().Tag == 0 && style.GetWidth().Unit == pr.Px && style.GetWidth().Calc == nil {
+		// gopdfgo: flex-basis: auto bierze rozmiar główny elementu (CSS Flexbox 1 § 7.2.3)
+		basis = style.GetWidth()
+	}
 	// element, który nie może się kurczyć, nie zejdzie poniżej flex-basis; gdy może rosnąć, szerokość
 	// treści nadal może dać więcej
 	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") ||
@@ -1506,7 +1517,7 @@ func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bo
 	} else {
 		width = adjust(child, true, basis.Value, true, true)
 	}
-	if minWidth := style.GetMinWidth(); minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone && style.GetOverflow() == "visible" {
+	if minWidth := style.GetMinWidth(); floor && minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone && style.GetOverflow() == "visible" {
 		width = max(width, minContentWidth(context, child, true))
 	}
 	return width, true
@@ -1541,11 +1552,13 @@ func primeFlexDefiniteHeights(box Box) {
 // nie może się kurczyć (CSS Flexbox 1 § 9.9.1). Wcześniej ograniczano tylko elementy bez kurczenia,
 // więc element z flex: 0 1 100px i szeroką treścią poszerzał kontener do szerokości treści.
 func clampByBasis(context *layoutContext, container, child Box, v pr.Float) pr.Float {
-	basis, ok := inflexibleBasis(context, container, child)
+	style := child.Box().Style
+	// element, który może się kurczyć, nie dostaje tu minimum automatycznego: Chromium go nie stosuje,
+	// a wzorzec testu WPT flex-container-max-content-001 (przypadki 13-15) oczekuje samego flex-basis
+	basis, ok := inflexibleBasis(context, container, child, style.GetFlexShrink() == 0)
 	if !ok {
 		return v
 	}
-	style := child.Box().Style
 	if style.GetFlexShrink() == 0 && v < basis {
 		v = basis
 	}
@@ -1696,6 +1709,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		}
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
+			if content, ok := flexibleItemContribution(context, box, child, maxContentWidth); ok && content > v {
+				v = content
+			}
 			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {
 				v = ratioWidth
 			}
