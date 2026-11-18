@@ -67,6 +67,9 @@ func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.
 	case pr.LinearGradient:
 		img.ColorStops = resolveStops(img.ColorStops)
 		return images.NewLinearGradient(img)
+	case pr.ConicGradient: // gopdfgo: gradient stożkowy (CSS Images 4 § 3.3)
+		img.ColorStops = resolveStops(img.ColorStops)
+		return images.NewConicGradient(img)
 	default:
 		panic(fmt.Sprintf("unexpected type for image: %T %v", image, image))
 	}

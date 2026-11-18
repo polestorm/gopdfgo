@@ -572,6 +572,15 @@ type RadialGradient struct {
 	Repeating  bool
 }
 
+// ConicGradient (gopdfgo): conic-gradient() z CSS Images 4 § 3.3. Pozycje przystanków są zapisane
+// w procentach pełnego obrotu (kąty przeliczone przy parsowaniu), From to kąt początkowy w radianach.
+type ConicGradient struct {
+	ColorStops ColorsStops
+	From       Fl
+	Center     CenterPos
+	Repeating  bool
+}
+
 func (v BoolString) IsNone() bool {
 	return v == BoolString{}
 }
@@ -663,6 +672,10 @@ func (v Size) IsNone() bool {
 	return v == Size{}
 }
 
+func (v ConicGradient) IsNone() bool {
+	return v.ColorStops == nil && v.From == 0 && v.Center.IsNone() && !v.Repeating
+}
+
 func (v RadialGradient) IsNone() bool {
 	return v.ColorStops == nil && v.Shape == "" && v.Size == GradientSize{} && v.Center == CenterPos{} && !v.Repeating
 }
@@ -727,6 +740,7 @@ func (NoneImage) isCssProperty()         {}
 func (UrlImage) isCssProperty()          {}
 func (LinearGradient) isCssProperty()    {}
 func (RadialGradient) isCssProperty()    {}
+func (ConicGradient) isCssProperty()     {}
 func (GridAuto) isCssProperty()          {}
 func (GridLine) isCssProperty()          {}
 func (GridTemplateAreas) isCssProperty() {}
@@ -773,6 +787,7 @@ func (NoneImage) isDeclaredValue()         {}
 func (UrlImage) isDeclaredValue()          {}
 func (LinearGradient) isDeclaredValue()    {}
 func (RadialGradient) isDeclaredValue()    {}
+func (ConicGradient) isDeclaredValue()     {}
 func (GridAuto) isDeclaredValue()          {}
 func (GridLine) isDeclaredValue()          {}
 func (GridTemplateAreas) isDeclaredValue() {}

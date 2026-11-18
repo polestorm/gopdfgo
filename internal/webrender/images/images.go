@@ -35,6 +35,7 @@ var (
 	_ Image = rasterImage{}
 	_ Image = SVGImage{}
 	_ Image = LinearGradient{}
+	_ Image = ConicGradient{}
 	_ Image = RadialGradient{}
 )
 

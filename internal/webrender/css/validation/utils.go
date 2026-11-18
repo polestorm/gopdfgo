@@ -85,6 +85,22 @@ func getImage(_token Token, baseUrl string) (pr.Image, error) {
 				ColorStops: parsedColorsStop,
 			}, nil
 		}
+	case "conic-gradient", "repeating-conic-gradient":
+		// gopdfgo: gradient stożkowy (CSS Images 4 § 3.3); źródło go nie znało i odrzucało deklarację.
+		from, center, colorStops, ok := parseConicGradientParameters(arguments)
+		if !ok || len(colorStops) == 0 {
+			return nil, ErrInvalidValue
+		}
+		parsedColorsStop, err := parseColorStopsWith(colorStops, conicStopPosition)
+		if err != nil {
+			return nil, err
+		}
+		return pr.ConicGradient{
+			ColorStops: parsedColorsStop,
+			From:       from,
+			Center:     center,
+			Repeating:  name == "repeating-conic-gradient",
+		}, nil
 	case "radial-gradient", "repeating-radial-gradient":
 		result := parseRadialGradientParameters(arguments)
 		if result.IsNone() {
@@ -130,6 +146,43 @@ func parseLinearGradientParameters(arguments [][]Token) (pr.DirectionType, [][]T
 		}
 	}
 	return pr.DirectionType{Angle: math.Pi}, arguments // Default direction is "to bottom"
+}
+
+// parseConicGradientParameters (gopdfgo) odczytuje „[from <angle>]? [at <position>]?” z pierwszego
+// argumentu conic-gradient(); gdy pierwszy argument ich nie zawiera, jest już przystankiem.
+func parseConicGradientParameters(arguments [][]Token) (from pr.Fl, center pr.CenterPos, stops [][]Token, ok bool) {
+	center = pr.CenterPos{OriginX: pr.Left, OriginY: pr.Top, Pos: pr.Point{fiftyPercent, fiftyPercent}}
+	first := arguments[0]
+	if len(first) == 0 || (getKeyword(first[0]) != "from" && getKeyword(first[0]) != "at") {
+		return 0, center, arguments, true
+	}
+	rest := first
+	if getKeyword(rest[0]) == "from" {
+		if len(rest) < 2 {
+			return 0, center, nil, false
+		}
+		angle, isAngle := getAngle(rest[1])
+		if !isAngle {
+			if number, isNumber := rest[1].(pa.Number); isNumber && number.ValueF == 0 {
+				angle, isAngle = 0, true
+			}
+		}
+		if !isAngle {
+			return 0, center, nil, false
+		}
+		from, rest = pr.Fl(angle), rest[2:]
+	}
+	if len(rest) != 0 {
+		if getKeyword(rest[0]) != "at" || len(rest) < 2 {
+			return 0, center, nil, false
+		}
+		position := parsePosition(rest[1:])
+		if position.IsNone() {
+			return 0, center, nil, false
+		}
+		center = position
+	}
+	return from, center, arguments[1:], true
 }
 
 func reverse(a []Token) []Token {
@@ -254,14 +307,37 @@ func withoutInterpolationSpace(arguments [][]Token) [][]Token {
 // krzywą przejścia wykładniczo; środek przejścia wypada tam, gdzie trzeba, kształt jest odcinkami
 // liniowy). Źródło odrzucało gradient z którymkolwiek z tych zapisów.
 func parseColorStops(stops [][]Token) ([]pr.ColorStop, error) {
+	return parseColorStopsWith(stops, linearStopPosition)
+}
+
+// linearStopPosition: pozycja przystanku gradientu liniowego i kołowego, <length-percentage>.
+func linearStopPosition(token Token) pr.Dimension { return getLength(token, true, true) }
+
+// conicStopPosition (gopdfgo): pozycja przystanku gradientu stożkowego, <angle-percentage>
+// (CSS Images 4 § 3.3.1), przeliczona na procent pełnego obrotu; zero bez jednostki jest kątem.
+func conicStopPosition(token Token) pr.Dimension {
+	if angle, ok := getAngle(token); ok {
+		return pr.Dimension{Value: pr.Float(angle / (2 * math.Pi) * 100), Unit: pr.Perc}
+	}
+	if number, ok := token.(pa.Number); ok && number.ValueF == 0 {
+		return pr.Dimension{Value: 0, Unit: pr.Perc}
+	}
+	if percentage, ok := token.(pa.Percentage); ok {
+		return pr.Dimension{Value: pr.Float(percentage.ValueF), Unit: pr.Perc}
+	}
+	return pr.Dimension{}
+}
+
+// parseColorStopsWith (gopdfgo): parseColorStops z podaną funkcją odczytu pozycji przystanku.
+func parseColorStopsWith(stops [][]Token, stopPosition func(Token) pr.Dimension) ([]pr.ColorStop, error) {
 	out := make([]pr.ColorStop, 0, len(stops))
 	var hints []int // indeksy w out przystanków wstawionych za wskazówki
 	for index, stop := range stops {
 		switch len(stop) {
 		case 1:
-			if position := getLength(stop[0], true, true); !position.IsNone() {
+			if position := stopPosition(stop[0]); !position.IsNone() {
 				// wskazówka: nie może stać na początku, na końcu ani obok innej wskazówki
-				if index == 0 || index == len(stops)-1 || len(stops[index+1]) == 1 && !getLength(stops[index+1][0], true, true).IsNone() {
+				if index == 0 || index == len(stops)-1 || len(stops[index+1]) == 1 && !stopPosition(stops[index+1][0]).IsNone() {
 					return nil, ErrInvalidValue
 				}
 				hints = append(hints, len(out))
@@ -269,18 +345,18 @@ func parseColorStops(stops [][]Token) ([]pr.ColorStop, error) {
 				continue
 			}
 		case 3:
-			first, err := parseColorStop(stop[:2])
+			first, err := parseColorStop(stop[:2], stopPosition)
 			if err != nil {
 				return nil, err
 			}
-			second := getLength(stop[2], true, true)
+			second := stopPosition(stop[2])
 			if second.IsNone() {
 				return nil, ErrInvalidValue
 			}
 			out = append(out, first, pr.ColorStop{Color: first.Color, Position: second})
 			continue
 		}
-		parsed, err := parseColorStop(stop)
+		parsed, err := parseColorStop(stop, stopPosition)
 		if err != nil {
 			return nil, err
 		}
@@ -312,7 +388,7 @@ func parseColorStops(stops [][]Token) ([]pr.ColorStop, error) {
 	return out, nil
 }
 
-func parseColorStop(tokens []Token) (pr.ColorStop, error) {
+func parseColorStop(tokens []Token, stopPosition func(Token) pr.Dimension) (pr.ColorStop, error) {
 	switch len(tokens) {
 	case 1:
 		// gopdfgo: currentcolor zostaje do chwili rysowania, gdzie przyjmuje wartość color pudełka
@@ -324,7 +400,7 @@ func parseColorStop(tokens []Token) (pr.ColorStop, error) {
 		}
 	case 2:
 		color := pa.ParseColor(tokens[0])
-		position := getLength(tokens[1], true, true)
+		position := stopPosition(tokens[1])
 		if !color.IsNone() && !position.IsNone() {
 			return pr.ColorStop{Color: pr.Color(color), Position: position}, nil
 		}

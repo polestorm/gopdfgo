@@ -83,6 +83,7 @@ func (i NoneImage) isImage()      {}
 func (i UrlImage) isImage()       {}
 func (i LinearGradient) isImage() {}
 func (i RadialGradient) isImage() {}
+func (i ConicGradient) isImage()  {}
 
 // -------------------------- Content Property --------------------------
 // func (i NoneImage) copyAsInnerContent() InnerContent      { return i }

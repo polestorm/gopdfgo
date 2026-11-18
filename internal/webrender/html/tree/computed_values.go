@@ -162,6 +162,10 @@ func backgroundImage(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPrope
 				}
 			}
 			image = gradient
+		case pr.ConicGradient:
+			// gopdfgo: pozycje przystanków są już procentami obrotu; zostaje środek
+			gradient.Center = centers(computer, []pr.CenterPos{gradient.Center})[0]
+			image = gradient
 		case pr.RadialGradient:
 			for j, cl := range gradient.ColorStops {
 				if !cl.Position.IsNone() {
