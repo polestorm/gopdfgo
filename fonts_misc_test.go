@@ -89,6 +89,12 @@ func TestFontsMisc(t *testing.T) {
 	same("font-size-zero-margins", `<p style="margin: 20px 0">a</p><p style="font-size: 0">zero</p>
 		<p style="margin: 20px 0">b</p>`,
 		`<p style="margin: 20px 0 40px">a</p><p style="margin: 20px 0">b</p>`)
+	// niezerowy letter-spacing wyłącza ligaturę fi, a ZWNJ nie dostaje własnego odstępu
+	same("letter-spacing-ligatures", `<div style="font: 40px Noto Sans; letter-spacing: 4px">fi fl</div>`,
+		`<div style="font: 40px Noto Sans; letter-spacing: 4px">f&zwnj;i f&zwnj;l</div>`)
+	// bez odstępu ligatura zostaje (wzorzec bez ZWNJ różni się od tekstu z ZWNJ)
+	different("ligatures-without-spacing", `<div style="font: 40px Noto Sans">fi fl</div>`,
+		`<div style="font: 40px Noto Sans">f&zwnj;i f&zwnj;l</div>`)
 	// Ahem nie ma wariantów 'sups', więc indeks górny jest syntetyzowany (mniejszy i podniesiony)...
 	different("synthesized-superscript", `<div style="font-family: Ahem">X<span style="font-variant-position: super">X</span></div>`,
 		`<div style="font-family: Ahem">XX</div>`)
