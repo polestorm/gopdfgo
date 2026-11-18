@@ -89,17 +89,6 @@ func (svg *SVGImage) Draw(dst backend.Canvas, width, height Fl, textContext text
 		dims.innerWidth, dims.innerHeight = vb.Width, vb.Height
 	} else {
 		dims.innerWidth, dims.innerHeight = width, height
-		// gopdfgo: procentowa szerokość lub wysokość elementu głównego odnosi się do obszaru,
-		// w którym obraz jest osadzony, czyli do rozmiaru konkretnego (SVG 2 § 8.2, CSS Images 3
-		// § 4.1; test WPT background-intrinsic-006). Bez viewBox nie ma skalowania, więc
-		// zmienia się tylko rozmiar obszaru, względem którego liczone są procenty zawartości.
-		// Źródło przyjmowało cały rozmiar konkretny.
-		if w := svg.root.width; w.U == Perc {
-			dims.innerWidth = width * w.V / 100
-		}
-		if h := svg.root.height; h.U == Perc {
-			dims.innerHeight = height * h.V / 100
-		}
 	}
 
 	dims.fontSize = defaultFontSize

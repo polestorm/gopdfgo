@@ -56,10 +56,6 @@ func TestCSS2Tail(t *testing.T) {
 	same("br-clear", page+`<div style="float:left;width:100px;height:50px;background:green"></div><br style="clear:both">
 		<div style="float:left;width:100px;height:50px;background:green"></div>`,
 		square)
-	// procentowy rozmiar elementu głównego SVG bez viewBox odnosi się do rozmiaru obrazu
-	// (background-intrinsic-006)
-	same("svg-percent-size", page+`<div style="width:200px;height:200px;background:no-repeat url(&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='50%' height='50%'><rect width='100%' height='100%' fill='green'/></svg>&quot;)"></div>`,
-		square)
 	// podpis tabeli z ujemnym marginesem zakrywa obramowanie tabeli (root-box-002)
 	same("caption-over-table-border", page+`<table style="border-collapse:separate;border-spacing:0;border-top:20px solid red">
 		<caption style="height:20px;margin-bottom:-20px;background:green"></caption>
