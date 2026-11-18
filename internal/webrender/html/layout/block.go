@@ -1043,7 +1043,17 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			return nil, blockLayout{nextPage: tree.PageBreak{Break: "any", Page: page_, HasPage: true}}, maxLines
 		} else if stop {
 			if box.Height != pr.AutoF {
-				if overflows(box.PositionY+box.BorderHeight(), positionY) {
+				// gopdfgo: także gdy treść doszła do samego dołu pudełka, które w całości mieści się na
+				// stronie (np. body o wysokości 100% strony z wyższym dzieckiem): pudełko kończy się tu
+				// z dolnym obramowaniem, a dzieci są dalszym ciągiem wylewającej się treści (CSS
+				// Fragmentation 3 § 5.1; test WPT css-break/overflowing-block). W źródle porównanie
+				// było ostre i takie pudełko dzieliło się, przenosząc obramowanie na następną stronę.
+				// Pudełko przycinające treść, które w całości mieści się na stronie, też się tu kończy:
+				// dalszy ciąg jego dzieci leżałby poza nim, więc byłby niewidoczny.
+				boxBottom := box.PositionY + box.BorderHeight()
+				endsHere := bottomSpace > -pr.Inf && box.Style.GetHeight().Tag != pr.Auto && !box.IsFlexItem && !box.IsGridItem &&
+					!context.overflowsPage(bottomSpace, box.BorderBoxY()+box.BorderHeight())
+				if overflows(boxBottom, positionY) || (endsHere && (positionY > boxBottom-0.5 || box.Style.GetOverflow() != "visible")) {
 					// Box height is fixed and it doesn’t overflow page: the box
 					// ends here, its overflowing children continue on the next page,
 					// unless the overflow is clipped.
