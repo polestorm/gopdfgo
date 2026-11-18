@@ -395,6 +395,18 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 		if bg.TextClip != nil {
 			ctx.setTextMask(bg.TextClip, false)
 		}
+		// gopdfgo: warstwy z background-blend-mode mieszają się tylko z tłem tego samego elementu
+		// (CSS Compositing 1 § 3.2: tło elementu tworzy izolowaną grupę), więc całe tło rysujemy wtedy
+		// do osobnej, izolowanej grupy przezroczystości
+		if blendGroup := backgroundBlendGroup(bg); blendGroup != nil {
+			outer := ctx.dst
+			ctx.dst = outer.NewGroup(blendGroup.Unpack())
+			defer func() {
+				group := ctx.dst
+				ctx.dst = outer
+				outer.DrawWithOpacity(1, group)
+			}()
+		}
 
 		// Background color
 		// gopdfgo: obszar malowania o zerowej wysokości albo szerokości nie ma pola, więc tło nie jest
@@ -470,10 +482,35 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 				} else if layer.BorderArea {
 					ctx.setBorderAreaMask(bg.Owner)
 				}
+				if layer.BlendMode != "" && layer.BlendMode != "normal" {
+					ctx.dst.State().SetBlendingMode(layer.BlendMode)
+				}
 				ctx.drawBackgroundImage(layer, bg.ImageRendering)
 			})
 		}
 	})
+}
+
+// backgroundBlendGroup (gopdfgo) zwraca obszar grupy dla tła z warstwą mieszaną trybem innym niż
+// normal (suma obszarów malowania warstw) albo nil, gdy żadna warstwa się nie miesza.
+func backgroundBlendGroup(bg *bo.Background) *pr.Rectangle {
+	blends := false
+	for _, layer := range bg.Layers {
+		if layer.Image != nil && layer.BlendMode != "" && layer.BlendMode != "normal" {
+			blends = true
+		}
+	}
+	if !blends {
+		return nil
+	}
+	area := bg.Layers[0].PaintingArea
+	for _, layer := range bg.Layers[1:] {
+		x0, y0 := min(area[0], layer.PaintingArea[0]), min(area[1], layer.PaintingArea[1])
+		x1 := max(area[0]+area[2], layer.PaintingArea[0]+layer.PaintingArea[2])
+		y1 := max(area[1]+area[3], layer.PaintingArea[1]+layer.PaintingArea[3])
+		area = pr.Rectangle{x0, y0, x1 - x0, y1 - y0}
+	}
+	return &area
 }
 
 // setTextMask (gopdfgo) ustawia maskę przezroczystości z tekstu pudełka: wszystko, co zostanie potem

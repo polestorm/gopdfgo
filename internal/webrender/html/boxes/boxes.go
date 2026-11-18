@@ -162,6 +162,9 @@ type BackgroundLayer struct {
 	// gopdfgo: Text razem z BorderArea – suma obszaru obramowania i kształtu tekstu
 	// (background-clip: border-area text)
 	Text bool
+	// gopdfgo: BlendMode – tryb mieszania warstwy z warstwami pod nią (background-blend-mode, CSS
+	// Compositing 1 § 3.2); pusty albo "normal" to zwykłe nakładanie
+	BlendMode string
 }
 
 // BoxFields is an abstract base class for all boxes.
