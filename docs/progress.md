@@ -42,7 +42,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 | Rozmiar binarki | 23,35 MB (macOS arm64, `-s -w`) | 17 razy mniej niż Chromium z bibliotekami |
 | Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
 | Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 19 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
+| Decyzje (ADR) | 20 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
 
 ## Sondaż ekranowy w czasie
 
