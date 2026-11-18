@@ -110,6 +110,12 @@ func TestGridMisc(t *testing.T) {
 	same("auto-fill-block-width", `<div style="display:grid;grid-template-columns:10px 20px repeat(auto-fill, 30px 40px) 50px 60px">
 		<div></div><div></div><div></div><div></div><div class="g" style="height:20px"></div><div class="b"></div></div>`,
 		`<div class="g a" style="left:100px;width:30px;height:20px"></div><div class="b a" style="left:130px;width:40px;height:20px"></div>`)
+	// kolumny rozwiązywane ponownie po wierszach: obraz z height: 100% dostaje wysokość wiersza (100),
+	// więc z proporcji szerokość 100, i tyle ma pierwsza kolumna
+	same("columns-after-rows", `<div style="display:grid;width:0;grid-template:auto / auto auto">
+		<div class="g" style="height:100%"><img src="`+square(10)+`" style="height:100%;display:block"></div>
+		<div><div style="height:100px"></div></div></div>`,
+		`<div class="g" style="width:100px;height:100px"></div>`)
 	// auto-fit przy szerokości max-content: powtórzenia z max-width, puste ścieżki zwinięte (50 + 10 + 50)
 	same("auto-fit-max-content", `<div class="b" style="display:grid;width:max-content;max-width:400px;column-gap:10px;
 		grid-template-columns:repeat(auto-fit, 50px);grid-auto-columns:50px">

@@ -1822,10 +1822,31 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		// i max-height (CSS Box Alignment 3 § 8.3)
 		rowGap = pr.ResolvePercentage(style.GetRowGap(), clampSize(contentHeight, box.MinHeight, box.MaxHeight)).V()
 	}
-	context.gridShims = previousShims
 
 	// 3.3 Re-resolve the sizes of the grid columns with min-/max-content.
-	// TODO: Re-resolve.
+	// gopdfgo: element, którego szerokość z treści zależy od wysokości jego obszaru (wysokość procentowa
+	// w poddrzewie, np. obraz z proporcjami), dostaje teraz wysokość wierszy i kolumny są rozwiązywane
+	// jeszcze raz, a po nich wiersze (CSS Grid 1 § 11.1 kroki 3 i 4, jednokrotnie). Źródło: "TODO".
+	if skipStack == nil {
+		changed := false
+		for child, position := range childrenPositions {
+			first, span := position[1]-implicitY1, position[3]
+			if fixedRowsHeight(rowSizingFunctions, first, span, rowGap, specifiedHeight) != nil ||
+				first < 0 || first+span > len(rowsSizes) || !hasPercentHeight(child) {
+				continue
+			}
+			height := sum0(rowsSizes[first:first+span]) + pr.Float(span-1)*rowGap
+			setDefiniteHeight(child, height, stretchesInBlockAxis(child, box))
+			changed = true
+		}
+		if changed {
+			columnsSizes = resolveTracksSizes(context, columnSizingFunctions, box.Width, childrenPositions, implicitX1,
+				'x', columnGap, box_, nil)
+			rowsSizes = resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
+				'y', rowGap, box_, columnsSizes)
+		}
+	}
+	context.gridShims = previousShims
 
 	// 3.4 Re-re-resolve the sizes of the grid columns with min-/max-content.
 	// TODO: Re-re-resolve.
@@ -2759,6 +2780,21 @@ func interleaveByDocumentOrder(children []Box, domOrder map[Box]int) []Box {
 // zastępowanym; obraz z overflow: hidden z arkusza domyślnego zachowuje minimum z treści (CSS Grid 1 § 6.6).
 func isGridScrollContainer(item Box) bool {
 	return isScrollContainer(item.Box().Style) && !bo.ReplacedT.IsInstance(item)
+}
+
+// hasPercentHeight (gopdfgo) mówi, czy pudełko albo któryś z jego potomków w przepływie ma wysokość
+// procentową, czyli czy rozmiar z treści może zależeć od wysokości obszaru siatki.
+func hasPercentHeight(box_ Box) bool {
+	box := box_.Box()
+	if percentHeight(box.Style) {
+		return true
+	}
+	for _, child := range box.Children {
+		if !child.Box().IsAbsolutelyPositioned() && hasPercentHeight(child) {
+			return true
+		}
+	}
+	return false
 }
 
 // fixedMaxLimit (gopdfgo) zwraca sumę funkcji maksimum ścieżek od first do first+span-1, gdy wszystkie
