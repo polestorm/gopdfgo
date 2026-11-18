@@ -364,12 +364,16 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		// nie prostokąta pozycji statycznej, jak Chromium (zagadnienie CSSWG 11934, testy WPT
 		// flex-abspos-align-self-safe-outer-cb-*)
 		cb := containingBlock.Box()
-		resolve := func(start, free, size, fraction, cbStart, cbSize pr.Float) pr.Float {
+		resolve := func(start, free, size, fraction, cbStart, cbSize, clampStart pr.Float) pr.Float {
 			if fraction >= 10 {
 				fraction -= 10
 				position := start + free*fraction
 				if position < cbStart-0.01 || position+size > cbStart+cbSize+0.01 {
-					return start
+					// gopdfgo: pudełko wychodzące przed początek pudełka zawierającego jest dosuwane do
+					// krawędzi treści tego pudełka (CSS Position 3 § 4.4; krawędź jak w Chromium, testy WPT
+					// grid-abspos-staticpos-align-self-safe-*); wcześniej wracało do początku prostokąta
+					// pozycji statycznej
+					return max(min(position, start), clampStart)
 				}
 			}
 			return start + free*fraction
@@ -377,11 +381,11 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		var dx, dy pr.Float
 		if style.GetLeft().Tag == pr.Auto && style.GetRight().Tag == pr.Auto {
 			dx = resolve(static[0], static[2]-laidOut.MarginWidth(), laidOut.MarginWidth(), static[4],
-				cb.PaddingBoxX(), cb.PaddingWidth()) - laidOut.PositionX
+				cb.PaddingBoxX(), cb.PaddingWidth(), cb.ContentBoxX()) - laidOut.PositionX
 		}
 		if style.GetTop().Tag == pr.Auto && style.GetBottom().Tag == pr.Auto {
 			dy = resolve(static[1], static[3]-laidOut.MarginHeight(), laidOut.MarginHeight(), static[5],
-				cb.PaddingBoxY(), cb.PaddingHeight()) - laidOut.PositionY
+				cb.PaddingBoxY(), cb.PaddingHeight(), cb.ContentBoxY()) - laidOut.PositionY
 		}
 		if dx != 0 || dy != 0 {
 			newBox.Translate(dx, dy, false)
