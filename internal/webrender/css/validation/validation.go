@@ -26,7 +26,8 @@ var (
 	ErrInvalidValue = errors.New("invalid or unsupported values for a known CSS property")
 
 	LENGTHUNITS = map[string]pr.Unit{"ex": pr.Ex, "em": pr.Em, "ch": pr.Ch, "rem": pr.Rem, "lh": pr.Lh, "rlh": pr.Rlh, "px": pr.Px, "pt": pr.Pt, "pc": pr.Pc, "in": pr.In, "cm": pr.Cm, "mm": pr.Mm, "q": pr.Q,
-		"vw": pr.Vw, "vh": pr.Vh, "vmin": pr.Vmin, "vmax": pr.Vmax}
+		"vw": pr.Vw, "vh": pr.Vh, "vmin": pr.Vmin, "vmax": pr.Vmax,
+		"cap": pr.Cap, "ic": pr.Ic, "rex": pr.Rex, "rch": pr.Rch, "rcap": pr.Rcap, "ric": pr.Ric} // gopdfgo: CSS Values 4 § 6.1
 	AngleUnits = map[string]pr.Unit{"rad": pr.Rad, "turn": pr.Turn, "deg": pr.Deg, "grad": pr.Grad}
 	// keyword -> (open, insert)
 	contentQuoteKeywords = map[string]pr.Quote{

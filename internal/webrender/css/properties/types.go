@@ -391,6 +391,18 @@ func (u Unit) String() string {
 		return "lh"
 	case Rlh:
 		return "rlh"
+	case Cap:
+		return "cap"
+	case Ic:
+		return "ic"
+	case Rex:
+		return "rex"
+	case Rch:
+		return "rch"
+	case Rcap:
+		return "rcap"
+	case Ric:
+		return "ric"
 	case Px:
 		return "px"
 	case Pt:

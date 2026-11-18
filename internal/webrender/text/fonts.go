@@ -43,6 +43,9 @@ type FontConfiguration interface {
 	tabUnit(style *TextStyle) pr.Fl
 	// returns the height of the 'x' char, using the font described by the given [style]
 	heightx(style *TextStyle) pr.Fl
+	// gopdfgo: wysokość znaku 'H' (jednostka cap) i posunięcie znaku '水' (jednostka ic)
+	heightCap(style *TextStyle) pr.Fl
+	widthIdeographic(style *TextStyle) pr.Fl
 	// returns the height and baseline of a line containing a single space (" ")
 	spaceHeight(style *TextStyle) (height, baseline pr.Float)
 	// gopdfgo: zalecany przez font odstęp między wierszami (lineGap), w pikselach

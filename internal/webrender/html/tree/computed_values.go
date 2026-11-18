@@ -345,7 +345,7 @@ func length_(computer *ComputedStyle, value pr.TaggedDim, fontSize pr.Float, pix
 		default:
 			result = value.Value * max(width, height) / 100
 		}
-	case pr.Em, pr.Ex, pr.Ch, pr.Rem, pr.Lh, pr.Rlh:
+	case pr.Em, pr.Ex, pr.Ch, pr.Rem, pr.Lh, pr.Rlh, pr.Cap, pr.Ic, pr.Rex, pr.Rch, pr.Rcap, pr.Ric:
 		if fontSize < 0 {
 			fontSize = computer.GetFontSize().Value
 		}
@@ -370,6 +370,14 @@ func length_(computer *ComputedStyle, value pr.TaggedDim, fontSize pr.Float, pix
 		case pr.Rlh:
 			line, _ := text.StrutLayout(computer.rootStyle, computer.textContext)
 			result = value.Value * line
+		// gopdfgo: cap, ic i jednostki względem fontu elementu głównego (CSS Values 4 § 6.1.1, 6.1.2);
+		// źródło ich nie znało
+		case pr.Cap:
+			result = value.Value * fontSize * text.FontRatio(computer, computer.cache, text.RatioCap, fonts)
+		case pr.Ic:
+			result = value.Value * fontSize * text.FontRatio(computer, computer.cache, text.RatioIc, fonts)
+		default:
+			result = value.Value * rootFontRatio(computer, unit, fonts)
 		}
 	default:
 		// A percentage or "auto": no conversion needed.
@@ -792,7 +800,8 @@ func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 		return (parentFontSize * 0.8).ToValue()
 	} else if value.Unit == pr.Perc {
 		return (value.Value * parentFontSize / 100.).ToValue()
-	} else if value.Calc == nil && (value.Unit == pr.Ex || value.Unit == pr.Ch || value.Unit == pr.Lh) {
+	} else if value.Calc == nil && (value.Unit == pr.Ex || value.Unit == pr.Ch || value.Unit == pr.Lh ||
+		value.Unit == pr.Cap || value.Unit == pr.Ic) {
 		// gopdfgo: w font-size jednostki zależne od fontu odnoszą się do fontu rodzica (CSS Values 3
 		// § 5.1.1). W źródle liczono je z fontu samego elementu, którego rozmiar właśnie jest
 		// wyznaczany: nieskończona rekurencja i przepełnienie stosu, czyli koniec procesu.
@@ -812,12 +821,28 @@ func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 			return (value.Value * line).ToValue()
 		case pr.Ch:
 			return (value.Value * parentFontSize * text.CharacterRatio(computer.parentStyle, computer.cache, true, fonts)).ToValue()
+		case pr.Cap:
+			return (value.Value * parentFontSize * text.FontRatio(computer.parentStyle, computer.cache, text.RatioCap, fonts)).ToValue()
+		case pr.Ic:
+			return (value.Value * parentFontSize * text.FontRatio(computer.parentStyle, computer.cache, text.RatioIc, fonts)).ToValue()
 		default:
 			return (value.Value * parentFontSize * text.CharacterRatio(computer.parentStyle, computer.cache, false, fonts)).ToValue()
 		}
 	} else {
 		return length_(computer, value, parentFontSize, true)
 	}
+}
+
+// rootFontRatio (gopdfgo) zwraca długość jednostki rex, rch, rcap albo ric: metrykę fontu elementu
+// głównego w jego rozmiarze (CSS Values 4 § 6.1.2). Dla samego elementu głównego (font-size) bez
+// znanego stylu przyjmuje wartości początkowe.
+func rootFontRatio(computer *ComputedStyle, unit pr.Unit, fonts text.FontConfiguration) pr.Float {
+	kind := map[pr.Unit]text.RatioKind{pr.Rex: text.RatioEx, pr.Rch: text.RatioCh, pr.Rcap: text.RatioCap, pr.Ric: text.RatioIc}[unit]
+	root := computer.rootStyle
+	if root == nil {
+		root = pr.InitialValues
+	}
+	return root.GetFontSize().Value * text.FontRatio(root, computer.cache, kind, fonts)
 }
 
 // Compute the “font-weight“ property.

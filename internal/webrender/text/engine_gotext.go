@@ -478,6 +478,26 @@ func (fc *FontConfigurationGotext) heightx(style *TextStyle) pr.Fl {
 	return pr.Fl(fixedToFloat(glyphs[0].YBearing) / sizeFactor) // fixed to float
 }
 
+// heightCap (gopdfgo): wysokość obrysu znaku 'H', przybliżenie wysokości wersalików (jednostka cap,
+// CSS Values 4 § 6.1.1), liczona tak jak wysokość 'x' dla jednostki ex.
+func (fc *FontConfigurationGotext) heightCap(style *TextStyle) pr.Fl {
+	glyphs, _, sizeFactor := fc.shapeRune('H', style.FontDescription, style.FontFeatures)
+	if len(glyphs) == 0 || glyphs[0].GlyphID == 0 {
+		return 0
+	}
+	return pr.Fl(fixedToFloat(glyphs[0].YBearing) / sizeFactor)
+}
+
+// widthIdeographic (gopdfgo): posunięcie znaku '水' (jednostka ic, CSS Values 4 § 6.1.1); 1em, gdy
+// żaden font go nie ma.
+func (fc *FontConfigurationGotext) widthIdeographic(style *TextStyle) pr.Fl {
+	glyphs, _, sizeFactor := fc.shapeRune('水', style.FontDescription, style.FontFeatures)
+	if len(glyphs) == 0 || glyphs[0].GlyphID == 0 {
+		return style.FontDescription.Size
+	}
+	return pr.Fl(fixedToFloat(glyphs[0].Advance) / sizeFactor)
+}
+
 func (fc *FontConfigurationGotext) width0(style *TextStyle) pr.Fl {
 	glyphs, _, sizeFactor := fc.shapeRune('0', style.FontDescription, style.FontFeatures)
 

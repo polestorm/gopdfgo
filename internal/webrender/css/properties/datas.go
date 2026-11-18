@@ -33,6 +33,15 @@ const ( // zero field corresponds to null content
 	Vh
 	Vmin
 	Vmax
+
+	// gopdfgo: jednostki względem fontu z CSS Values 4 § 6.1.1 (cap, ic) i ich odpowiedniki względem
+	// fontu elementu głównego (rex, rch, rcap, ric)
+	Cap
+	Ic
+	Rex
+	Rch
+	Rcap
+	Ric
 )
 
 var (

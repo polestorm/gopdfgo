@@ -278,9 +278,29 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 // Otherwise, if context is `nil`, it returns 1 as a default value.
 // It does not query WordSpacing or LetterSpacing from the style.
 func CharacterRatio(style_ pr.ElementStyle, cache pr.TextRatioCache, isCh bool, fonts FontConfiguration) pr.Float {
+	if isCh {
+		return FontRatio(style_, cache, RatioCh, fonts)
+	}
+	return FontRatio(style_, cache, RatioEx, fonts)
+}
+
+// RatioKind (gopdfgo) wybiera metrykę fontu dla jednostek względnych (CSS Values 4 § 6.1.1).
+type RatioKind uint8
+
+const (
+	RatioEx  RatioKind = iota // wysokość 'x'
+	RatioCh                   // posunięcie '0'
+	RatioCap                  // wysokość 'H'
+	RatioIc                   // posunięcie '水'
+)
+
+// FontRatio (gopdfgo) uogólnia [CharacterRatio] na jednostki cap i ic. Przyjmuje dowolny styl, więc
+// służy też jednostkom liczonym od fontu elementu głównego (rex, rch, rcap, ric).
+func FontRatio(style_ pr.StyleAccessor, cache pr.TextRatioCache, kind RatioKind, fonts FontConfiguration) pr.Float {
 	if fonts == nil {
 		return 1
 	}
+	isCh := kind == RatioCh
 
 	style := newTextStyle(style_, true, fonts) // avoid recursion for letter-spacing and word-spacing properties
 	key := style.cacheKey()
@@ -291,6 +311,9 @@ func CharacterRatio(style_ pr.ElementStyle, cache pr.TextRatioCache, isCh bool, 
 		adjustFactor = fonts.sizeAdjustFactor(style)
 		key += fmt.Sprintf("\x00%s %v %g", adjust.String, adjust.Bool, adjust.Float)
 	}
+	if kind == RatioCap || kind == RatioIc {
+		key += fmt.Sprintf("\x00kind %d", kind) // pamięć podręczna rozróżnia tylko ch i ex
+	}
 	if f, ok := cache.Get(key, isCh); ok {
 		return f
 	}
@@ -300,9 +323,14 @@ func CharacterRatio(style_ pr.ElementStyle, cache pr.TextRatioCache, isCh bool, 
 	style.FontDescription.Size = fontSize
 
 	var measure pr.Fl
-	if isCh {
+	switch kind {
+	case RatioCh:
 		measure = fonts.width0(style)
-	} else {
+	case RatioCap:
+		measure = fonts.heightCap(style)
+	case RatioIc:
+		measure = fonts.widthIdeographic(style)
+	default:
 		measure = fonts.heightx(style)
 	}
 
