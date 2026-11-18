@@ -115,6 +115,10 @@ type drawContext struct {
 
 	hyphenCache       map[text.HyphenDictKey]hyphen.Hyphener
 	strutLayoutsCache map[text.StrutLayoutKey][2]pr.Float
+
+	// gopdfgo: borderMask – drawBorder rysuje kształt obramowania na biało, bez obrazu obramowania,
+	// jako maskę dla background-clip: border-area
+	borderMask bool
 }
 
 func (ctx drawContext) Fonts() text.FontConfiguration { return ctx.fonts }
@@ -370,15 +374,22 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 		return
 	}
 
-	ctx.dst.OnNewStack(func() {
-		if clipBox {
-			for _, box := range bg.Layers[len(bg.Layers)-1].ClippedBoxes {
-				roundedBox(ctx.dst, box)
-			}
-			ctx.dst.State().Clip(false)
+	// gopdfgo: każda warstwa jest przycinana do swojego background-clip, a kolor tła do background-clip
+	// ostatniej warstwy (CSS Backgrounds 3 § 3.7). Źródło przycinało całe tło do pudełka ostatniej
+	// warstwy, więc np. przy background-clip: border-box, content-box pierwszy obraz nie wychodził
+	// poza treść (test WPT clip-border-area-multiple-backgrounds).
+	clipLayer := func(layer bo.BackgroundLayer) {
+		if !clipBox {
+			return
 		}
+		for _, box := range layer.ClippedBoxes {
+			roundedBox(ctx.dst, box)
+		}
+		ctx.dst.State().Clip(false)
+	}
+	ctx.dst.OnNewStack(func() {
 		if bg.TextClip != nil {
-			ctx.setTextMask(bg.TextClip)
+			ctx.setTextMask(bg.TextClip, false)
 		}
 
 		// Background color
@@ -388,6 +399,12 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 		// no-clearance-due-to-large-margin-after-left-right).
 		if bg.Color.A > 0 && !zeroPaintingArea(bg) {
 			ctx.dst.OnNewStack(func() {
+				clipLayer(bg.Layers[len(bg.Layers)-1])
+				if last := bg.Layers[len(bg.Layers)-1]; last.BorderArea && last.Text {
+					ctx.setTextMask(bg.Owner, true)
+				} else if last.BorderArea {
+					ctx.setBorderAreaMask(bg.Owner)
+				}
 				ctx.dst.State().SetColorRgba(bg.Color, false)
 				paintingArea := bg.Layers[len(bg.Layers)-1].PaintingArea
 				ctx.dst.Rectangle(paintingArea.Unpack())
@@ -439,7 +456,18 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 		}
 		// Paint in reversed order: first layer is "closest" to the viewer.
 		for _, layer := range reversed(bg.Layers) {
-			ctx.drawBackgroundImage(layer, bg.ImageRendering)
+			if layer.Image == nil {
+				continue
+			}
+			ctx.dst.OnNewStack(func() {
+				clipLayer(layer)
+				if layer.BorderArea && layer.Text {
+					ctx.setTextMask(bg.Owner, true)
+				} else if layer.BorderArea {
+					ctx.setBorderAreaMask(bg.Owner)
+				}
+				ctx.drawBackgroundImage(layer, bg.ImageRendering)
+			})
 		}
 	})
 }
@@ -448,7 +476,8 @@ func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.
 // namalowane w bieżącym stanie graficznym, jest widoczne tylko w kształcie liter (background-clip: text).
 // Tekst jest rysowany do osobnej grupy na biało, niezależnie od własnego koloru, który zwykle
 // jest przezroczysty.
-func (ctx *drawContext) setTextMask(box_ Box) {
+// withBorder dokłada do maski kształt obramowania (background-clip: border-area text: suma obszarów).
+func (ctx *drawContext) setTextMask(box_ Box, withBorder bool) {
 	rbb := box_.Box().RoundedBorderBox()
 	current := ctx.dst
 	ctx.dst = ctx.dst.NewGroup(fl(rbb.X), fl(rbb.Y), fl(rbb.Width), fl(rbb.Height))
@@ -473,8 +502,66 @@ func (ctx *drawContext) setTextMask(box_ Box) {
 		}
 	}
 	walk(box_)
+	if withBorder {
+		mask := *ctx
+		mask.borderMask = true
+		mask.drawBorder(box_)
+	}
 	current.State().SetAlphaMask(ctx.dst)
 	ctx.dst = current
+}
+
+// setBorderAreaMask (gopdfgo) ustawia maskę przezroczystości w kształcie obramowania pudełka: to, co
+// zostanie potem namalowane w bieżącym stanie graficznym, jest widoczne tylko tam, gdzie obramowanie
+// maluje, z uwzględnieniem szerokości i stylu, ale bez przezroczystości koloru i bez border-image
+// (background-clip: border-area, CSS Backgrounds 4 § 3.6).
+// Obramowanie pełne (solid, inset, outset, groove, ridge) albo podwójne na wszystkich bokach daje
+// ścieżkę przycinania z pierścieni zamiast maski: krawędzie wypadają wtedy dokładnie tam, gdzie krawędzie
+// samego obramowania, bez wygładzania maski.
+func (ctx *drawContext) setBorderAreaMask(box_ Box) {
+	box := box_.Box()
+	if box.Style.GetVisibility() != "visible" {
+		ctx.dst.Rectangle(0, 0, 0, 0)
+		ctx.dst.State().Clip(false)
+		return
+	}
+	full, double := true, true
+	widths := [4]pr.Float{box.BorderTopWidth.V(), box.BorderRightWidth.V(), box.BorderBottomWidth.V(), box.BorderLeftWidth.V()}
+	for i, side := range sides {
+		style := box.Style.Get((pr.PBorderBottomStyle + side*5).Key()).(pr.String)
+		if widths[i] == 0 {
+			continue
+		}
+		switch style {
+		case "solid", "inset", "outset", "groove", "ridge":
+			double = false
+		case "double":
+			full = false
+		case "none", "hidden":
+		default:
+			full, double = false, false
+		}
+	}
+	if full || double {
+		roundedBox(ctx.dst, box.RoundedPaddingBox())
+		if !full {
+			roundedBox(ctx.dst, box.RoundedBoxRatio(1./3))
+			roundedBox(ctx.dst, box.RoundedBoxRatio(2./3))
+		}
+		roundedBox(ctx.dst, box.RoundedBorderBox())
+		ctx.dst.State().Clip(true)
+		return
+	}
+	rbb := box.RoundedBorderBox()
+	current := ctx.dst
+	mask := *ctx
+	mask.dst = ctx.dst.NewGroup(fl(rbb.X), fl(rbb.Y), fl(rbb.Width), fl(rbb.Height))
+	mask.borderMask = true
+	mask.dst.State().SetColorRgba(Color{R: 0, G: 0, B: 0, A: 1}, false)
+	mask.dst.Rectangle(fl(rbb.X), fl(rbb.Y), fl(rbb.Width), fl(rbb.Height))
+	mask.dst.Paint(backend.FillNonZero)
+	mask.drawBorder(box_)
+	current.State().SetAlphaMask(mask.dst)
 }
 
 func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRendering pr.String) {
@@ -508,8 +595,9 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 			repeatWidth = (positioningWidth - imageWidth) / (nRepeats - 1)
 			positionX = pr.Float(0)
 		} else {
-			// We don't repeat the image.
-			repeatWidth = positioningWidth
+			// gopdfgo: gdy nie mieszczą się dwie kopie, rysujemy jeden obraz w miejscu z background-position
+			// (CSS Backgrounds 3 § 3.4, space). Źródło powtarzało go co szerokość obszaru pozycjonowania.
+			repeatWidth = utils.Maxs(imageWidth, 2*paintingWidth)
 		}
 	default:
 		panic(fmt.Sprintf("unexpected repeatX %s", repeatX))
@@ -527,7 +615,7 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 			repeatHeight = (positioningHeight - imageHeight) / (nRepeats - 1)
 			positionY = pr.Float(0)
 		} else {
-			repeatHeight = positioningHeight
+			repeatHeight = utils.Maxs(imageHeight, 2*paintingHeight) // jak wyżej
 		}
 	default:
 		panic(fmt.Sprintf("unexpected repeatY %s", repeatY))
@@ -565,7 +653,11 @@ func (ctx drawContext) drawTable(table *bo.TableBox) {
 	for _, rowGroup := range table.Children {
 		ctx.drawBackgroundDefaut(rowGroup.Box().Background)
 		for _, row := range rowGroup.Box().Children {
+			// gopdfgo: cień wiersza tabeli (box-shadow dotyczy wszystkich elementów, CSS Backgrounds 3
+			// § 7.1; test WPT box-shadow-table-row-display); źródło rysowało cienie tylko komórek
+			ctx.drawBoxShadows(row.Box(), false)
 			ctx.drawBackgroundDefaut(row.Box().Background)
+			ctx.drawBoxShadows(row.Box(), true)
 			for _, cell := range row.Box().Children {
 				cell := cell.Box()
 				if table.Style.GetBorderCollapse() == "collapse" ||

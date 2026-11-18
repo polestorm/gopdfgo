@@ -133,13 +133,18 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 			positions[cycle(i, positionsN)],
 			attachments[cycle(i, attachmentsN)],
 		)
+		// gopdfgo: background-clip: border-area (CSS Backgrounds 4 § 3.6); tło strony maluje się w obszarze
+		// spadu niezależnie od background-clip
+		clip := clips[cycle(i, clipsN)]
+		layers[i].BorderArea = (clip == "border-area" || clip == "border-area text") && box_ != page
+		layers[i].Text = layers[i].BorderArea && clip == "border-area text"
 	}
 
 	if traceMode {
 		traceLogger.Dump(fmt.Sprintf("background: %v", layers))
 	}
 
-	box.Background = &bo.Background{Color: color, ImageRendering: style.GetImageRendering(), Layers: layers}
+	box.Background = &bo.Background{Color: color, ImageRendering: style.GetImageRendering(), Layers: layers, Owner: box_}
 	// gopdfgo: background-clip: text na którejkolwiek warstwie przycina całe tło do tekstu elementu
 	// (uproszczenie: norma pozwala podać to osobno dla każdej warstwy).
 	// Tło elementu głównego przechodzi na płótno strony i tam kształt tekstu nie obowiązuje.
@@ -159,8 +164,9 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 		paintingArea pr.Rectangle
 	)
 	box := box_.Box()
-	if clip == "text" {
-		// kształt tekstu nakłada rysowanie (Background.TextClip); obszar malowania jak dla border-box
+	if clip == "text" || clip == "border-area" || clip == "border-area text" {
+		// kształt tekstu (Background.TextClip) albo obramowania (BackgroundLayer.BorderArea) nakłada
+		// rysowanie; obszar malowania jak dla border-box
 		clip = "border-box"
 	}
 	if box_ == page {
@@ -362,7 +368,9 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvas
 	if strings.ToLower(rootBox.ElementTag()) == "html" && rootBox.Background == nil {
 		// gopdfgo: body bywa głębiej niż bezpośrednie dziecko, gdy element główny jest tabelą (pudełka
 		// anonimowe wiersza i komórki) albo gdy body jest pozycjonowane
-		if body := findBodyBox(rootBox_, 6); body != nil {
+		// gopdfgo: tło body nie przechodzi na płótno, gdy element główny albo body ma zawieranie
+		// malowania (CSS Contain 2 § 3.3; testy WPT background-color-body-propagation-008, -009)
+		if body := findBodyBox(rootBox_, 6); body != nil && !hasPaintContainment(rootBox_) && !hasPaintContainment(body) {
 			chosenBox_ = body
 		}
 	}
@@ -385,6 +393,12 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvas
 	} else {
 		page.CanvasBackground = nil
 	}
+}
+
+// hasPaintContainment (gopdfgo) mówi, czy pudełko ma zawieranie malowania: paint wprost albo przez
+// strict lub content (CSS Contain 2 § 2).
+func hasPaintContainment(box Box) bool {
+	return bo.HasContainment(box, "paint") || bo.HasContainment(box, "strict") || bo.HasContainment(box, "content")
 }
 
 // findBodyBox szuka pudełka elementu body wśród potomków elementu głównego, do podanej głębokości.

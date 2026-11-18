@@ -79,6 +79,11 @@ func (r rootStyleFor) Get(element tree.Element, pseudoType string) pr.ElementSty
 	if style != nil {
 		if element == r.elementTree {
 			style.SetDisplay(pr.Display{Outside: pr.Block, Inside: pr.Flow})
+			// gopdfgo: element główny z display: none nie tworzy pudełka, więc jego tło nie przechodzi
+			// na płótno (CSS Backgrounds 3 § 2.11.1, test WPT background-color-root-propagation-001);
+			// zastępcze pudełko bloku nie ma tła.
+			style.SetBackgroundColor(pr.InitialValues.GetBackgroundColor())
+			style.SetBackgroundImage(pr.InitialValues.GetBackgroundImage())
 		} else {
 			style.SetDisplay(pr.Display{Outside: pr.None})
 		}
