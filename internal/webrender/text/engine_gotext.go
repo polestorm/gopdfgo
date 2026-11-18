@@ -1769,6 +1769,15 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 	if maxWidth, ok := maxWidth.(pr.Float); ok && maxWidth != pr.Inf && fontSize != 0 {
 		// Try to use a small amount of text instead of the whole text
 		shortText := shortTextHint(text, maxWidth, fontSize)
+		// gopdfgo: krótki tekst kształtujemy w całości. Początek tekstu ukształtowany osobno może się
+		// różnić od całości: ligatura obejmująca spację (font z ikonami-ligaturami, test WPT
+		// font-features-across-space-1) rozpadała się na słowa i wiersz łamał się przy spacji, choć cała
+		// ligatura mieściła się w szerokości liczonej z pełnego tekstu (max-content). Skrót z
+		// shortTextHint zostaje dla długich tekstów, gdzie oszczędza kształtowanie całości przy każdym
+		// wierszu.
+		if len(text) <= 128 {
+			shortText = text
+		}
 
 		firstLine = fc.wrap(shortText, style, maxWidth)
 		if firstLine.ResumeAt == -1 && len(shortText) != len(text) {
