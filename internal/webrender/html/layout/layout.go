@@ -402,6 +402,8 @@ type layoutContext struct {
 	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie, do kontynuacji na górze następnej
 	// (zob. columnsLayout, takeColumnFloats)
 	columnFloats []columnFloat
+	// gopdfgo: ile kolumn zostaje w bieżącym rzędzie kontenera kolumn za kolumną układaną teraz
+	columnsLeft int
 	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się
 	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
 	flexMeasuring int

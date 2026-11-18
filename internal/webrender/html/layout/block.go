@@ -1023,6 +1023,12 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			// po zwinięciu marginesów; miejsce liczymy od tego położenia
 			available -= collapseMargin(*thisBoxAdjoiningMargins) - box.MarginTop.V()
 		}
+		// gopdfgo: w kolumnach fragment zużywa co najmniej tyle wysokości, ile zajęła treść, która musiała
+		// się w nim zmieścić (np. niepodzielny wiersz wyższy niż kolumna; CSS Break 3 § 4.4); w źródle
+		// reszta wysokości dawała puste fragmenty w następnych kolumnach (test WPT multicol-zero-height-002).
+		if used := positionY - box.ContentBoxY(); context.inColumn && available > 0 && used > available {
+			available = used
+		}
 		if remaining := usedHeight - available; available > 0 && remaining > 0.5 {
 			splitHeight = available
 			resumeAt = tree.RemainderResume(float64(remaining))

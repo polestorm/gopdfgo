@@ -46,6 +46,8 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	originalBottomSpace := bottomSpace
 
 	wasInColumn := context.inColumn
+	outerColumnsLeft := context.columnsLeft
+	defer func() { context.columnsLeft = outerColumnsLeft }()
 	// gopdfgo: kolumna po pierwszej zaczyna się za podziałem kolumny, więc przylegające do niego marginesy
 	// są obcinane (CSS Fragmentation 3 § 5.2); w źródle tylko na stronach po pierwszej. Pierwsza kolumna
 	// dziedziczy stan fragmentu, w którym stoi kontener.
@@ -142,6 +144,11 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			panic(fmt.Sprintf("expected Px got %v", height_))
 		}
 		fixedHeight, hasFixedHeight = height_.Value, true
+		// gopdfgo: przy box-sizing: border-box wysokość treści jest mniejsza od wartości height; bierzemy
+		// wysokość treści wyliczoną już dla pudełka (CSS Box Sizing 3 § 4). W źródle wartość height.
+		if contentHeight, ok := box.Height.(pr.Float); ok && skipStack == nil {
+			fixedHeight = contentHeight
+		}
 		// gopdfgo: wysokością kolumn jest wysokość używana, ograniczona przez min-height i max-height
 		// (CSS 2 § 10.7); w źródle wartość height bez ograniczeń.
 		if maxHeight, ok := box.MaxHeight.(pr.Float); ok {
@@ -150,7 +157,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		if minHeight, ok := box.MinHeight.(pr.Float); ok {
 			fixedHeight = max(fixedHeight, minHeight)
 		}
-		if skipStack == nil && fixedHeight != height_.Value {
+		if skipStack == nil {
 			box.Height = fixedHeight
 		}
 		if remaining, ok := context.fixedHeightRemaining[resumeKey(skipStack)]; ok && skipStack != nil {
@@ -396,6 +403,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 					takeColumnFloats(context, floatMark, 0)
 				}
 				floatMark = context.brokenSequence
+				context.columnsLeft = count - 1 - i
 				newBox, tmp := blockBoxLayout(context, columnBox, context.pageBottom-currentPositionY-height,
 					columnSkipStack, containingBlock, pageIsEmpty || !balancing, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
 					false, -1)
@@ -678,6 +686,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				tookFloats = takeColumnFloats(context, floatMark, columnBox.Box().PositionX-previousColumnX)
 			}
 			floatMark, previousColumnX = context.brokenSequence, columnBox.Box().PositionX
+			context.columnsLeft = count - 1 - i
 			newChild, tmp := blockBoxLayout(context, columnBox, bottomSpace, skipStack,
 				containingBlock, originalPageIsEmpty || (i > 0 && !deferrable) || unpaged, absoluteBoxes, fixedBoxes, new([]pr.Float),
 				false, -1)
@@ -798,7 +807,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	// sam nie mieści się w kolumnie zewnętrznej, dzieli się: reszta wysokości przechodzi do następnej
 	// kolumny zewnętrznej (CSS Fragmentation 3 § 5.1). W źródle kontener wystawał z kolumny.
 	var remainderResume tree.ResumeStack
-	if hasFixedHeight && wasInColumn && !unpaged && !fragmentedFixed && spannerResume == nil && columnSkipStack == nil &&
+	// Dzielimy tylko wtedy, gdy w rzędzie kolumn zewnętrznych zostaje następna kolumna: sama reszta
+	// wysokości nie tworzy kolumn nadmiarowych (jak w przeglądarkach).
+	if hasFixedHeight && wasInColumn && outerColumnsLeft > 0 && !unpaged && !fragmentedFixed && spannerResume == nil && columnSkipStack == nil &&
 		!breakPage && originalBottomSpace > -pr.Inf {
 		if available := context.pageBottom - originalBottomSpace - box.ContentBoxY(); available > 0 && fixedHeight > available+0.5 &&
 			height <= available {
