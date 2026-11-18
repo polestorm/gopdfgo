@@ -499,7 +499,7 @@ const (
 // affectedTracksTypes : i, c, m ("intrinsic", "content-based", "max-content")
 // sizeContribution : m, c, C ("minimum", "min-content", "max-content")
 // direction : x, y
-func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksTypes, sizeContribution byte, tracksChildren [][]Box,
+func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, affectedTracksTypes, sizeContribution byte, tracksChildren [][]Box,
 	sizingFunctions [][2]pr.TaggedDim, tracksSizes [][2]pr.MaybeFloat, span int, direction byte, containingBlock *bo.BoxFields,
 ) {
 	// 1. Maintain separately for each affected track a planned increase.
@@ -532,7 +532,7 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 			if direction == 'x' {
 				// gopdfgo: wkład minimalny elementu z podanym min-width to ten min-width z obramowaniem,
 				// odstępem i marginesami, a nie szerokość min-content (CSS Grid 1 § 6.6, § 11.5)
-				minimum := func() pr.Float { return gridItemMinimumWidth(context, item, sizingFunctions, i, span) }
+				minimum := func() pr.Float { return gridItemMinimumWidth(context, item, sizingFunctions, i, span, limited) }
 				switch sizeContribution {
 				case 'm':
 					space = minimum()
@@ -565,7 +565,7 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 					containingBlock, true, nil, nil, nil, false, -1)
 				space = item.Box().MarginHeight() + shim
 				if sizeContribution == 'm' {
-					space = gridItemMinimumHeight(item, sizingFunctions, i, span, space)
+					space = gridItemMinimumHeight(item, sizingFunctions, i, span, space, limited)
 				}
 			}
 			for _, sizes := range tracksSizes[min(i, len(tracksSizes)):min(i+span, len(tracksSizes))] {
@@ -661,6 +661,10 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 	implicitStart int, direction byte, gap pr.Float,
 	containingBlock bo.Box, orthogonalSizes [][2]pr.Float,
 ) [][2]pr.Float {
+	// gopdfgo: przy rozmiarze kontenera wyznaczanym z treści (rozmiar auto w osi albo pomiar szerokości
+	// wewnętrznej) ścieżki o minimum auto biorą ograniczony wkład min-content, a nie wkład minimalny
+	// (CSS Grid 1 § 11.5 krok 2): kontener przewijania nie spada wtedy do zera
+	limited := boxSize == pr.AutoF || (context.gridMeasure != nil && context.gridMeasure.target == containingBlock.Box())
 	percentBoxSize := pr.Float(0)
 	if boxSize != pr.AutoF {
 		percentBoxSize = boxSize.V()
@@ -762,7 +766,7 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				child, _, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, nil,
 					parent.Box(), true, nil, nil, nil, false, -1)
 				height = max(height, child.Box().MarginHeight()+shim)
-				minimumHeight = max(minimumHeight, gridItemMinimumHeight(child, sizingFunctions, i, 1, child.Box().MarginHeight()+shim))
+				minimumHeight = max(minimumHeight, gridItemMinimumHeight(child, sizingFunctions, i, 1, child.Box().MarginHeight()+shim, limited))
 			}
 			if isFr(maxFunction) {
 				frContent[i] = height
@@ -772,7 +776,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			} else if minFunction.Tag == pr.Auto {
 				sizes[0] = minimumHeight
 			}
-			if maxFunction.Tag == pr.MinContent || maxFunction.Tag == pr.MaxContent {
+			// gopdfgo: granica wzrostu ścieżki o maksimum auto to wkład max-content (CSS Grid 1 § 11.5
+			// krok 2); źródło jej nie ustawiało, a rozmiar bazowy był wtedy równy wysokości treści
+			if maxFunction.Tag == pr.MinContent || maxFunction.Tag == pr.MaxContent || maxFunction.Tag == pr.Auto {
 				sizes[1] = height
 			}
 			if sizes[0] != nil && sizes[1] != nil {
@@ -802,7 +808,7 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			// szerokość min-content
 			ma := pr.Float(0)
 			for _, child := range children {
-				if v := gridItemMinimumWidth(context, child, sizingFunctions, i, 1); v > ma {
+				if v := gridItemMinimumWidth(context, child, sizingFunctions, i, 1, limited); v > ma {
 					ma = v
 				}
 			}
@@ -878,12 +884,12 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 		}
 		// 1.2.3.1 For intrinsic minimums.
 		// TODO: Respect min-/max-content constraint.
-		distributeExtraSpace(context, sizeMin, 'i', 'm', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMin, 'i', 'm', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
 		// 1.2.3.2 For content-based minimums.
-		distributeExtraSpace(context, sizeMin, 'c', 'c', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMin, 'c', 'c', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
 		// 1.2.3.3 For max-content minimums.
 		// TODO: Respect max-content constraint.
-		distributeExtraSpace(context, sizeMin, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMin, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
 		// 1.2.3.4 Increase growth limit.
 		for j, sizes := range tracksSizes {
 			if sizes[0] != nil && sizes[1] != nil {
@@ -919,9 +925,9 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			}
 		}
 		// 1.2.3.5 For intrinsic maximums.
-		distributeExtraSpace(context, sizeMax, 'i', 'c', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMax, 'i', 'c', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
 		// 1.2.3.6 For max-content maximums.
-		distributeExtraSpace(context, sizeMax, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMax, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
 	}
 	// 1.2.4 Increase sizes to accommodate items spanning flexible tracks.
 	// TODO: Support spans for flexible tracks.
@@ -2719,8 +2725,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 // gridItemMinimumWidth (gopdfgo) zwraca wkład minimalny elementu siatki w szerokość ścieżek od first
 // do first+span-1 (CSS Grid 1 § 11.5): zewnętrzną szerokość przy min-width jako szerokości. Minimum
 // automatyczne (§ 6.6) to szerokość min-content, dla kontenera przewijania zero, a gdy wszystkie ścieżki
-// mają stałą funkcję maksimum, nie więcej niż suma tych maksimów.
-func gridItemMinimumWidth(context *layoutContext, item Box, sizingFunctions [][2]pr.TaggedDim, first, span int) pr.Float {
+// mają stałą funkcję maksimum, nie więcej niż suma tych maksimów. limited: ograniczony wkład min-content
+// (kontener wymiarowany z treści), w którym kontener przewijania zachowuje szerokość min-content.
+func gridItemMinimumWidth(context *layoutContext, item Box, sizingFunctions [][2]pr.TaggedDim, first, span int, limited bool) pr.Float {
 	box := item.Box()
 	minWidth := box.Style.GetMinWidth()
 	if minWidth.Tag != pr.Auto && minWidth.Unit == pr.Px && box.Style.GetWidth().Tag == pr.Auto {
@@ -2730,7 +2737,7 @@ func gridItemMinimumWidth(context *layoutContext, item Box, sizingFunctions [][2
 	if minWidth.Tag != pr.Auto {
 		return content
 	}
-	if isGridScrollContainer(item) && box.Style.GetWidth().Tag == pr.Auto {
+	if !limited && isGridScrollContainer(item) && box.Style.GetWidth().Tag == pr.Auto {
 		return marginWidth(box, 0, true, true)
 	}
 	// gopdfgo: element zastępowany z procentową szerokością albo max-width jest ściśliwy: jego wkład
@@ -2745,7 +2752,7 @@ func gridItemMinimumWidth(context *layoutContext, item Box, sizingFunctions [][2
 }
 
 // gridItemMinimumHeight (gopdfgo) to samo w osi wierszy; outer to zewnętrzna wysokość ułożonego elementu.
-func gridItemMinimumHeight(item Box, sizingFunctions [][2]pr.TaggedDim, first, span int, outer pr.Float) pr.Float {
+func gridItemMinimumHeight(item Box, sizingFunctions [][2]pr.TaggedDim, first, span int, outer pr.Float, limited bool) pr.Float {
 	box := item.Box()
 	style := box.Style
 	if style.GetMinHeight().Tag != pr.Auto || style.GetHeight().Tag != pr.Auto {
@@ -2756,7 +2763,7 @@ func gridItemMinimumHeight(item Box, sizingFunctions [][2]pr.TaggedDim, first, s
 		return outer
 	}
 	extra := outer - height
-	if isGridScrollContainer(item) {
+	if !limited && isGridScrollContainer(item) {
 		return extra
 	}
 	if limit, fixed := fixedMaxLimit(sizingFunctions, first, span); fixed {

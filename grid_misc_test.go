@@ -74,6 +74,11 @@ func TestGridMisc(t *testing.T) {
 	same("min-auto-scroll-container", `<div style="display:grid;grid-template-columns:minmax(auto, 30px) 1fr;width:100px">
 		<div class="g" style="overflow:hidden;height:20px"><div style="width:80px"></div></div><div class="b"></div></div>`,
 		`<div class="g a" style="width:30px;height:20px"></div><div class="b a" style="left:30px;width:70px;height:20px"></div>`)
+	// wiersz auto z kontenerem przewijania: minimum zero, ale granica wzrostu to wysokość treści, więc
+	// wiersz dostaje ją przed ścieżką fr
+	same("scroll-container-auto-row", `<div style="display:grid;width:50px;height:100px;grid-template-rows:auto 1fr">
+		<div style="overflow:hidden"><div class="g" style="height:60px"></div></div><div class="b"></div></div>`,
+		`<div class="g" style="width:50px;height:60px"></div><div class="b" style="width:50px;height:40px"></div>`)
 	// obraz (overflow: hidden z arkusza domyślnego) zachowuje wysokość wiersza
 	same("image-row-height", `<div style="display:grid;width:100px"><img src="`+square(40)+`"></div>
 		<div class="b" style="width:20px;height:20px"></div>`,
