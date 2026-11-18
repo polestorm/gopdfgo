@@ -46,6 +46,7 @@ var expanders = [...]expander{
 	pr.SFlex:               genericExpander(pr.PFlexGrow, pr.PFlexShrink, pr.PFlexBasis)(_expandFlex),
 	pr.SFlexFlow:           genericExpander(pr.PFlexDirection, pr.PFlexWrap)(_expandFlexFlow),
 	pr.SLineClamp:          genericExpander(pr.PMaxLines, pr.PContinue, pr.PBlockEllipsis)(_expandLineClamp),
+	pr.SWebkitLineClamp:    genericExpander(pr.PMaxLines, pr.PContinue, pr.PBlockEllipsis)(_expandWebkitLineClamp),
 	pr.STextAlign:          genericExpander(pr.PTextAlignAll, pr.PTextAlignLast)(_expandTextAlign),
 	pr.SGridColumn:         genericExpander(pr.PGridColumnStart, pr.PGridColumnEnd)(_expandGridColumnRow),
 	pr.SGridRow:            genericExpander(pr.PGridRowStart, pr.PGridRowEnd)(_expandGridColumnRow),
@@ -1600,6 +1601,31 @@ func _expandLineClamp(_ string, _ pr.Shortand, tokens []Token) (out []namedToken
 				}, nil
 			}
 		}
+	}
+	return nil, ErrInvalidValue
+}
+
+// gopdfgo: skrót -webkit-line-clamp (CSS Overflow 4 § 4.3): none daje max-lines: none, continue:
+// auto i block-ellipsis: none, liczba całkowita dodatnia max-lines tej liczby, continue:
+// -webkit-legacy i block-ellipsis: auto. Źródło skrótu nie znało.
+func _expandWebkitLineClamp(_ string, _ pr.Shortand, tokens []Token) (out []namedTokens, err error) {
+	if len(tokens) != 1 {
+		return nil, ErrInvalidValue
+	}
+	pos := tokens[0].Pos()
+	if getSingleKeyword(tokens) == "none" {
+		return []namedTokens{
+			{name: pr.PMaxLines, tokens: []Token{pa.NewIdent("none", pos)}},
+			{name: pr.PContinue, tokens: []Token{pa.NewIdent("auto", pos)}},
+			{name: pr.PBlockEllipsis, tokens: []Token{pa.NewIdent("none", pos)}},
+		}, nil
+	}
+	if nb, ok := tokens[0].(pa.Number); ok && nb.IsInt() && nb.Int() >= 1 {
+		return []namedTokens{
+			{name: pr.PMaxLines, tokens: tokens[0:1]},
+			{name: pr.PContinue, tokens: []Token{pa.NewIdent("-webkit-legacy", pos)}},
+			{name: pr.PBlockEllipsis, tokens: []Token{pa.NewIdent("auto", pos)}},
+		}, nil
 	}
 	return nil, ErrInvalidValue
 }

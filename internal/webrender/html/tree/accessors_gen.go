@@ -2077,3 +2077,9 @@ func (s *ComputedStyle) SetClipPath(v pr.ClipPath) { s.propsCache.setKnown(pr.PC
 
 func (s *AnonymousStyle) GetClipPath() pr.ClipPath  { return s.Get(pr.PClipPath.Key()).(pr.ClipPath) }
 func (s *AnonymousStyle) SetClipPath(v pr.ClipPath) { s.propsCache.setKnown(pr.PClipPath, v) }
+
+func (s *ComputedStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
+func (s *ComputedStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }
+
+func (s *AnonymousStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
+func (s *AnonymousStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }

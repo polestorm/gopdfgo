@@ -450,7 +450,11 @@ func getFontFeatures(style pr.StyleAccessor, featureValues validation.FontFeatur
 	// gopdfgo: niezerowy letter-spacing wyłącza ligatury opcjonalne (CSS Text 3 § 8.3, CSS Fonts 4
 	// § 7.2 krok 4), także włączone przez font-variant-ligatures; włącza je z powrotem tylko
 	// font-feature-settings (test WPT font-feature-resolution-001). Źródło tego nie robiło.
-	if ls := style.GetLetterSpacing(); ls.Tag != pr.Normal && ls.Value != 0 {
+	// gopdfgo: tak samo justowanie z text-justify: inter-character, które rozsuwa znaki (CSS Text 3
+	// § 8.3; test WPT letter-spacing-ligatures-001). Układ glifów powstaje przed podziałem na wiersze,
+	// więc wyłączamy je w każdym tekście, który może być justowany.
+	ls := style.GetLetterSpacing()
+	if (ls.Tag != pr.Normal && ls.Value != 0) || interCharacterJustified(style) {
 		for _, key := range []tag{{'l', 'i', 'g', 'a'}, {'c', 'l', 'i', 'g'}, {'d', 'l', 'i', 'g'}, {'h', 'l', 'i', 'g'}, {'c', 'a', 'l', 't'}} {
 			features[key] = 0
 		}
@@ -466,6 +470,19 @@ func getFontFeatures(style pr.StyleAccessor, featureValues validation.FontFeatur
 	return features.list()
 }
 
+// interCharacterJustified (gopdfgo): tekst justowany przez rozsuwanie znaków (text-justify:
+// inter-character przy text-align albo text-align-last równym justify).
+func interCharacterJustified(style pr.StyleAccessor) bool {
+	if style.GetTextJustify() != "inter-character" {
+		return false
+	}
+	props, ok := style.(pr.Properties)
+	if ok && (props[pr.PTextAlignAll] == nil || props[pr.PTextAlignLast] == nil) {
+		return false
+	}
+	return style.GetTextAlignAll() == "justify" || style.GetTextAlignLast() == "justify"
+}
+
 func getFontFaceFeatures(ruleDescriptors validation.FontFaceDescriptors) []Feature {
 	props := pr.Properties{}
 	// avoid nil values
@@ -477,6 +494,7 @@ func getFontFaceFeatures(ruleDescriptors validation.FontFaceDescriptors) []Featu
 	props.SetFontVariantAlternates("")
 	props.SetFontVariantEastAsian(pr.SStrings{})
 	props.SetLetterSpacing(pr.TaggedDim{Tag: pr.Normal}) // gopdfgo: zob. krok 5 w getFontFeatures
+	props.SetTextJustify("auto")
 	props.SetFontFeatureSettings(nil)
 	for _, rules := range ruleDescriptors.FontVariant {
 		prop, ok := rules.Value.(pr.CssProperty)

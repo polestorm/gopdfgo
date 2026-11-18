@@ -193,6 +193,7 @@ var (
 		PLineBreak,
 		PFontSizeAdjust,
 		PTextJustify,
+		PBlockEllipsis, // gopdfgo: dziedziczona (CSS Overflow 4 § 4.4); w źródle nie była
 		PHyphenateLimitLines,
 		PWordSpaceTransform,
 		PTextWrapMode,

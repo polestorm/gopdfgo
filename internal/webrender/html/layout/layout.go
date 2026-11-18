@@ -383,9 +383,12 @@ type layoutContext struct {
 	forceWordBreak bool // gopdfgo: zob. splitInlineLevel
 	// gopdfgo: wyczerpany limit hyphenate-limit-lines: następny wiersz nie dzieli wyrazów automatycznie
 	noAutoHyphens bool
-	lineStartX    pr.Float
-	lineTabUnit   pr.Float
-	inLine        bool
+	// gopdfgo: w kontenerze line-clamp za układanym pudełkiem jest jeszcze treść (zob.
+	// lineBoxeIterator.clampContentAfter)
+	clampContentAfter bool
+	lineStartX        pr.Float
+	lineTabUnit       pr.Float
+	inLine            bool
 	// gopdfgo: pudełka pozycjonowane bezwzględnie, których blokiem zawierającym jest pudełko liniowe
 	// układanego wiersza; układamy je po wyrównaniu wiersza w pionie (zob. getNextLinebox)
 	deferredInlineAbsolutes *[]inlineAbsolute
