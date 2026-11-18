@@ -422,6 +422,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				consumedHeights []pr.Float
 				newBoxes        []Box
 				trailingMargin  pr.Float
+				// gopdfgo: element pływający z break-inside: avoid podzielony między kolumny przy
+				// równoważeniu (zob. niżej)
+				brokenAvoid bool
 			)
 			floatMark := context.brokenSequence
 			for i := 0; i < count; i += 1 {
@@ -569,6 +572,31 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				}
 				consumedHeights = append(consumedHeights, consumedHeight)
 
+				// gopdfgo: równoważenie nie może kończyć się podziałem elementu pływającego z break-inside:
+				// avoid (CSS Multicol 1 § 7.1, CSS Break 3 § 4.1: najpierw unikamy podziałów, których
+				// unikać należy); kolumny rosną co najmniej do jego pełnej wysokości (test WPT
+				// multicol-fill-balance-032). W źródle taki element dzielono, a równoważenie uznawało, że
+				// cała treść się zmieściła.
+				if balancing {
+					for _, v := range context.brokenOutOfFlow {
+						if v.order <= floatMark || v.resumeAt == nil || !v.box.Box().IsFloated() ||
+							!avoidPageBreak(string(v.box.Box().Style.GetBreakInside()), context) {
+							continue
+						}
+						shapes := len(context.excludedShapes.list)
+						full, _ := floatLayout(context, v.box, v.containingBlock.Box(), new([]*AbsolutePlaceholder),
+							new([]*AbsolutePlaceholder), -pr.Inf, nil)
+						context.excludedShapes.list = context.excludedShapes.list[:shapes]
+						if full == nil {
+							continue
+						}
+						if need := full.Box().MarginHeight() - height; need > 0 {
+							lostSpace = min(lostSpace, need)
+							brokenAvoid = true
+						}
+					}
+				}
+
 				// Append the size needed to render the next box in this
 				// column.
 				//
@@ -603,7 +631,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			}
 
 			if balancing {
-				if columnSkipStack == nil {
+				if columnSkipStack == nil && !brokenAvoid {
 					// We rendered the whole content, stop
 					break
 				}
