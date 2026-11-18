@@ -1195,7 +1195,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		newBox.Height = pr.Float(0)
 	}
 
-	alignOutsideMarker(newBox, newChildren)
+	shiftOutsideMarkerBesideFloat(newBox, newChildren)
 
 	if newBox.Style.GetPosition().String == "relative" {
 		if bo.TableCellT.IsInstance(newBox_) && len(*absoluteBoxes) != 0 {
@@ -2393,14 +2393,14 @@ func isEmptyLinebox(line *bo.LineBox) bool {
 	return true
 }
 
-// alignOutsideMarker (gopdfgo) przesuwa znacznik zewnętrzny na początek pierwszego wiersza
+// shiftOutsideMarkerBesideFloat (gopdfgo) przesuwa znacznik zewnętrzny w poziomie na początek pierwszego wiersza
 // elementu listy, gdy ten wiersz jest skrócony przez element pływający spoza elementu listy:
 // znacznik należy do pierwszego wiersza (CSS Lists 3 § 3.4), tak jak w Chromium. Bierzemy tylko
 // wiersz stojący bezpośrednio w elemencie listy; przy wierszu w bloku potomnym (element pływający
 // albo text-indent wewnątrz) i przy wierszu wyrównanym do środka albo do prawej Chromium zostawia
 // znacznik przy krawędzi treści. W źródle znacznik stał zawsze przy krawędzi treści elementu
 // (testy WPT list-style-applies-to-017).
-func alignOutsideMarker(box *bo.BoxFields, children []Box) {
+func shiftOutsideMarkerBesideFloat(box *bo.BoxFields, children []Box) {
 	if box.Style.GetDirection() != pr.Ltr {
 		return
 	}

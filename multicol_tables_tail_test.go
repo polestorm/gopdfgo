@@ -106,7 +106,9 @@ func TestMulticolTablesTail(t *testing.T) {
 		block(30, 30, 100, 100, "green"))
 
 	// Kolumna z visibility: collapse nie zajmuje miejsca, a komórka rozpięta także na niej jest przycinana.
-	cell := func(color string) string { return `<td style="padding:0;width:50px;height:20px;background:` + color + `"></td>` }
+	cell := func(color string) string {
+		return `<td style="padding:0;width:50px;height:20px;background:` + color + `"></td>`
+	}
 	same("collapsed-column", `<table style="border-spacing:0"><col><col style="visibility:collapse"><col>`+
 		`<tr>`+cell("navy")+cell("red")+cell("green")+`</tr>`+
 		`<tr><td colspan="3" style="padding:0;height:20px"><div style="width:150px;height:20px;background:blue"></div></td></tr></table>`,
