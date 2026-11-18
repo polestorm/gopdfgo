@@ -919,6 +919,22 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- białe znaki i zawijanie, 2026-11-17 (CSS Text 3 § 4, § 5; testy W3C `css-text/white-space`; praca pomocnika):
+  `text/engine_gotext.go`, `html/layout/inline.go`, `html/layout/preferred.go`, `html/boxes/build.go`:
+  - cały ciąg białych znaków na końcu wiersza (spacje i tabulatory przy `pre-wrap`, odstępy kategorii Zs
+    zawsze, także rozłożony na kilka pudełek i fontów) wisi, a wiersz łamie się dopiero po nim: miejsca
+    podziału wyznaczamy na tekście, w którym ciąg jest zamieniony na spacje, i zawijamy z zapasem jego
+    szerokości; go-text pozwalał wystawać tylko ostatniemu glifowi, a glif znaku nowego wiersza (w Ahem
+    z obrysem) wymuszał złamanie wcześniej. Przy `break-spaces` tabulator nie wisi i po każdym wolno złamać;
+  - szerokości wewnętrzne odejmują wiszące odstępy i zwijalną spację z końca tekstu tylko tam, gdzie wiersz
+    się kończy; min-content przy `pre-wrap` pomija spacje na końcu każdego wiersza; przy `pre` spacje na końcu
+    wiersza nie liczą się, gdy wiersz szuka miejsca obok elementów pływających (jak Chromium);
+  - zwijalna spacja przed pustym pudełkiem liniowym znika na końcu wiersza; CR z odwołania znakowego jest
+    spacją (źródło zamieniało go na znak nowego wiersza); złamanie segmentu obok spacji zerowej szerokości
+    znika, także przez granicę pudełek; zachowany znak nowego wiersza łamie wiersz także przy zerowym
+    rozmiarze fontu; znak przed wymuszonym złamaniem dostaje pełny odstęp między literami; dopasowanie
+    spacji nierozdzielających i spacji przy `break-spaces` uwzględnia błąd zaokrągleń szerokości glifów;
+    tekst rodzica nie dokleja się do tekstu dziecka z `display: contents`. Test własny `white_space_test.go`;
 - ogon układu CSS 2, 2026-11-17 (testy W3C `css/CSS2/normal-flow`, `positioning`, `margin-padding-clear`,
   `visudet`, `visuren`, `box-display`, `linebox`, `tables`; praca pomocnika):
   - `html/layout/block.go`: dolny margines pustego dziecka, który dołącza do łańcucha górnego marginesu

@@ -654,12 +654,29 @@ func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
 	var ancestors []Box
 	box := Box(line)
 	for IsLine(box) {
-		ancestors = append(ancestors, box)
 		ch := box.Box().Children
 		if len(ch) == 0 {
+			if box == Box(line) {
+				return
+			}
+			break // gopdfgo: puste pudełko liniowe na końcu, zob. niżej
+		}
+		ancestors = append(ancestors, box)
+		box = ch[len(ch)-1]
+	}
+	// gopdfgo: za końcową spacją bywają puste pudełka liniowe (z samym obramowaniem albo
+	// dopełnieniem, bez treści); spacja jest wtedy nadal na końcu wiersza i znika (CSS Text 3
+	// § 4.1.2, granice pudełek liniowych się nie liczą; test WPT line-edge-white-space-collapse-001).
+	// Źródło sprawdzało tylko ostatni liść. Pudełka za spacją przesuwamy o jej szerokość.
+	var following []Box
+	// Tylko gdy wiersz kończy się pustym pudełkiem liniowym albo pustym tekstem; element pływający
+	// albo atomowy na końcu wiersza zostawia spację jak w źródle (test TestFloatTableAbortedRow).
+	if textBox, ok := box.(*bo.TextBox); line.Style.GetDirection() == pr.Ltr && (ok && len(textBox.Text) == 0 || !ok && IsLine(box)) {
+		path, after, found := lastTextBefore(line, nil)
+		if !found || len(path) < 2 {
 			return
 		}
-		box = ch[len(ch)-1]
+		ancestors, box, following = path[:len(path)-1], path[len(path)-1], after
 	}
 	textBox, ok := box.(*bo.TextBox)
 	if ws := box.Box().Style.GetWhiteSpace(); !(ok && (ws == pr.Normal || ws == pr.Nowrap || ws == pr.PreLine)) {
@@ -695,6 +712,9 @@ func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
 	for _, ancestor := range ancestors {
 		ancestor.Box().Width = ancestor.Box().Width.V() - spaceWidth
 	}
+	for _, box := range following {
+		box.Translate(-spaceWidth, 0, true)
+	}
 
 	// TODO: All tabs (U+0009) are rendered as a horizontal shift that
 	// lines up the start edge of the next glyph with the next tab stop.
@@ -704,6 +724,55 @@ func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
 
 	// TODO: If spaces (U+0020) or tabs (U+0009) at the end of a line have
 	// "white-space" set to "pre-wrap", UAs may visually collapse them.
+}
+
+// lastTextBefore (gopdfgo) szuka w box ostatniego niepustego pudełka tekstowego, pomijając puste
+// pudełka liniowe i puste teksty za nim. Zwraca ścieżkę od box do tego tekstu oraz pominięte
+// pudełka leżące za nim; found jest fałszywe, gdy za ostatnim tekstem jest inna treść (np. element
+// atomowy) albo tekstu nie ma.
+func lastTextBefore(box Box, after []Box) (path, following []Box, found bool) {
+	if _, ok := box.(*bo.TextBox); ok {
+		return []Box{box}, after, true // pusty tekst pomija wywołujący (isEmptyInline)
+	}
+	if !IsLine(box) {
+		return nil, after, false
+	}
+	children := box.Box().Children
+	for i := len(children) - 1; i >= 0; i-- {
+		child := children[i]
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if isEmptyInline(child) {
+			after = append(after, child)
+			continue
+		}
+		if _, isText := child.(*bo.TextBox); !isText && !IsLine(child) {
+			return nil, after, false
+		}
+		subPath, subAfter, found := lastTextBefore(child, after)
+		if found {
+			return append([]Box{box}, subPath...), subAfter, true
+		}
+		return nil, after, false
+	}
+	return nil, after, false
+}
+
+// isEmptyInline (gopdfgo): pudełko liniowe bez treści (bez tekstu i elementów atomowych w przepływie).
+func isEmptyInline(box Box) bool {
+	if textBox, ok := box.(*bo.TextBox); ok {
+		return len(textBox.Text) == 0
+	}
+	if !IsLine(box) {
+		return false
+	}
+	for _, child := range box.Box().Children {
+		if child.Box().IsInNormalFlow() && !isEmptyInline(child) {
+			return false
+		}
+	}
+	return true
 }
 
 // Create a box for the ::first-letter selector.
@@ -1224,6 +1293,9 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		lastStyle                 pr.ElementStyle // gopdfgo: styl poprzedniego dziecka w przepływie
 		preservedLineBreak        = false
 		floatWidths               widths
+		// gopdfgo: położenie, od którego wiersz kończy się samymi wiszącymi odstępami (-1: nie kończy się
+		// nimi); pozwala uznać za wiszący ciąg odstępów rozłożony na kilka pudełek
+		hangStart pr.Float = -1
 	)
 
 	for ; i < L; i++ {
@@ -1377,7 +1449,27 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			}
 			// Check that text doesn’t overflow.
 			newPositionX := newChild.Box().PositionX + newChild.Box().MarginWidth()
-			if newPositionX-trailingWhitespaceSize(context, newChild, true)-trailingPreservedWidth(newChild) > maxX {
+			// gopdfgo: pudełko o zerowej szerokości (np. <wbr>, pusty element) nie może przepełnić wiersza;
+			// gdy wiersz wystaje już przed nim, to przez wiszące odstępy poprzedniego tekstu, przyjęte
+			// wcześniej (CSS Text 3 § 4.1.3; test WPT trailing-other-space-separators-002). Źródło
+			// sprawdzało je jak każde inne i łamało wiersz przed tym tekstem.
+			// gopdfgo: pudełko złożone z samych wiszących odstępów przedłuża ciąg odstępów poprzedniego
+			// pudełka, więc treść wiersza kończy się tam, gdzie ten ciąg się zaczyna (CSS Text 3 § 4.1.3)
+			width, trailing := newChild.Box().MarginWidth(), trailingWhitespaceSize(context, newChild, true)+trailingPreservedWidth(newChild)
+			contentEnd := newPositionX - trailing
+			if width != 0 && trailing >= width {
+				contentEnd = newChild.Box().PositionX
+				if hangStart >= 0 {
+					contentEnd = hangStart
+				}
+			}
+			if width != 0 {
+				hangStart = -1
+				if trailing > 0 {
+					hangStart = contentEnd
+				}
+			}
+			if width != 0 && contentEnd > maxX {
 				// Text overflows, find previous break point.
 				previousResumeAt := breakWaitingChildren(context, containingBlock, bottomSpace, initialSkipStack, absoluteBoxes, fixedBoxes,
 					linePlaceholders, waitingFloats, lineChildren, &children, waitingChildren)
@@ -1677,6 +1769,15 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 ) (_ *bo.TextBox, _ int, _ bool) {
 	fontSize := box.Style.GetFontSize()
 	text_ := box.Text[skip:]
+	if fontSize == pr.FToV(0) && len(text_) != 0 {
+		// gopdfgo: tekst o zerowym rozmiarze fontu nie zajmuje miejsca, ale zachowany znak nowego
+		// wiersza nadal łamie wiersz (CSS Text 3 § 4.1.1; test WPT white-space-zero-fontsize-001).
+		// Źródło pomijało cały tekst. Po zwinięciu białych znaków znak nowego wiersza zostaje tylko
+		// tam, gdzie white-space go zachowuje.
+		if i := slices.Index(text_, '\n'); i >= 0 {
+			return nil, skip + i + 1, true
+		}
+	}
 	if fontSize == pr.FToV(0) || len(text_) == 0 {
 		return nil, -1, false
 	}

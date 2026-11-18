@@ -286,14 +286,19 @@ func (l *TextLayoutGotext) TrailingSpacesWidth() pr.Float {
 	if len(l.Line) == 0 || l.Style == nil || l.Style.Direction == pr.Rtl {
 		return 0
 	}
-	glyphs := l.Line[len(l.Line)-1].Glyphs
+	// gopdfgo: wiszą też odstępy kategorii Zs inne niż spacja (CSS Text 3 § 4.1.3), a ciąg bywa
+	// złożony kilkoma fontami, więc liczymy go przez wszystkie przebiegi od końca
 	var width fixed.Int26_6
-	for i := len(glyphs) - 1; i >= 0; i-- {
-		index := glyphs[i].ClusterIndex
-		if index < 0 || index >= len(l.text) || (!isPreservedSpace(l.text[index]) && l.text[index] != '\t') {
-			break
+runs:
+	for r := len(l.Line) - 1; r >= 0; r-- {
+		glyphs := l.Line[r].Glyphs
+		for i := len(glyphs) - 1; i >= 0; i-- {
+			index := glyphs[i].ClusterIndex
+			if index < 0 || index >= len(l.text) || !isHangingWhiteSpace(l.text[index]) {
+				break runs
+			}
+			width += glyphs[i].Advance
 		}
-		width += glyphs[i].Advance
 	}
 	return fixedToFloat(width)
 }
@@ -773,7 +778,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		for _, run := range line {
 			total += run.Advance
 		}
-		if total > mw {
+		// gopdfgo: wiersz, który mieści się po uwzględnieniu reszt zaokrągleń, zostaje (test WPT
+		// white-space-pre-034: 16 znaków ze spacjami nierozdzielającymi w pudełku o szerokości 16ch)
+		if total > mw && !fc.fitsPrecisely(line, text, total, wrapingMaxWidth) {
 			glyphs := line[len(line)-1].Glyphs
 			var trailing fixed.Int26_6
 			count := 0
@@ -827,11 +834,13 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	if style.breakSpaces() && textWrap && dir.Progression() == di.FromTopLeft {
 		for attempt := 0; attempt < 2; attempt++ {
 			end := wLine.NextLine
-			if end <= 0 || end > len(text) || !isPreservedSpace(text[end-1]) {
+			// gopdfgo: także tabulatory: przy break-spaces wiersz wolno złamać po każdym zachowanym
+			// białym znaku, tabulator nie wisi (CSS Text 3 § 5.1, § 4.1.3; testy WPT break-spaces-tab-*)
+			if end <= 0 || end > len(text) || !isBreakSpace(text[end-1]) {
 				break
 			}
 			spaces := 0
-			for end-spaces-1 >= 0 && isPreservedSpace(text[end-spaces-1]) {
+			for end-spaces-1 >= 0 && isBreakSpace(text[end-spaces-1]) {
 				spaces++
 			}
 			lastRun := &line[len(line)-1]
@@ -876,9 +885,20 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 				lastRun = &line[len(line)-1]
 			}
 			keep := spaces
-			if content+spacesWidth > mw {
+			// gopdfgo: szerokość każdego glifu jest zaokrąglona do 1/64 piksela z błędem najwyżej pół
+			// jednostki, więc suma może przekroczyć dostępną szerokość, choć dokładna się mieści (zob.
+			// LineWrap); dopuszczamy taki błąd (test WPT white-space-pre-034)
+			limit := mw
+			if wrapingMaxWidth < pr.Float(math.MaxInt32>>6) {
+				glyphCount := 0
+				for _, run := range line {
+					glyphCount += len(run.Glyphs)
+				}
+				limit = max(mw, floatToFixed(pr.Fl(wrapingMaxWidth))+fixed.Int26_6(glyphCount+1)/2)
+			}
+			if content+spacesWidth > limit {
 				keep = 0
-				for used := content; keep < spaces && used+trailing[keep].Advance <= mw; keep++ {
+				for used := content; keep < spaces && used+trailing[keep].Advance <= limit; keep++ {
 					used += trailing[keep].Advance
 				}
 				keep = max(minKeep, keep)
@@ -914,6 +934,15 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		firstLineLength = wLine.NextLine - 1
 		lastRun := &line[len(line)-1]
 		lastRun.Glyphs = lastRun.Glyphs[:len(lastRun.Glyphs)-1]
+		// gopdfgo: go-text dzieli odstęp między literami na połowy po obu stronach znaku; drugą
+		// połowę za ostatnim znakiem wiersza miał znak nowego wiersza, który tu usuwamy. Znak przed
+		// wymuszonym złamaniem dostaje pełny odstęp, jak na końcu tekstu (CSS Text 3 § 8.2; test WPT
+		// white-space-letter-spacing-001).
+		if n := len(lastRun.Glyphs); n != 0 && style.LetterSpacing != 0 {
+			lastRun.Glyphs = slices.Clone(lastRun.Glyphs)
+			lastRun.Glyphs[n-1].Advance += floatToFixed(style.LetterSpacing) / 2
+			lastRun.Glyphs[n-1].XAdvance += floatToFixed(style.LetterSpacing) / 2
+		}
 		lastRun.RecalculateAll()
 		wLine.TrimmedTrailingWhitespace = 0 // not to interfere with latter space handling
 	}
@@ -987,22 +1016,32 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		// gopdfgo: przy white-space: pre-wrap spacje i tabulatory, po których wiersz został zawinięty,
 		// wiszą: zachowują szerokość, ale nie liczą się do przepełnienia ani wyrównania wiersza
 		// (CSS Text 3 § 4.1.3).
-		glyphs := outLine[len(outLine)-1].Glyphs
-		for i := len(glyphs) - 1; i >= 0; i-- {
-			index := glyphs[i].ClusterIndex
-			if index < 0 || index >= len(text) || (!isPreservedSpace(text[index]) && text[index] != '\t') {
-				break
-			}
-			hang += glyphs[i].Advance
-		}
-	} else if hasIdeographic && dir.Progression() == di.FromTopLeft {
-		glyphs := outLine[len(outLine)-1].Glyphs
-		if n := len(glyphs); n != 0 && glyphs[n-1].ClusterIndex < len(text) && IsOtherSpaceSeparator(text[glyphs[n-1].ClusterIndex]) {
-			for i := n - 1; i >= 0; i-- {
-				if index := glyphs[i].ClusterIndex; index < 0 || index >= len(text) || (text[index] != ' ' && !IsOtherSpaceSeparator(text[index])) {
-					break
+		// gopdfgo: także odstępy kategorii Zs inne niż spacja, przez wszystkie przebiegi (zob. TrailingSpacesWidth)
+	runs:
+		for r := len(outLine) - 1; r >= 0; r-- {
+			glyphs := outLine[r].Glyphs
+			for i := len(glyphs) - 1; i >= 0; i-- {
+				index := glyphs[i].ClusterIndex
+				if index < 0 || index >= len(text) || !isHangingWhiteSpace(text[index]) {
+					break runs
 				}
 				hang += glyphs[i].Advance
+			}
+		}
+	} else if hasIdeographic && dir.Progression() == di.FromTopLeft {
+		// gopdfgo: ciąg odstępów bywa złożony kilkoma fontami (odstępu brak w foncie podstawowym),
+		// więc liczymy go przez wszystkie przebiegi od końca wiersza, nie tylko w ostatnim
+		glyphs := outLine[len(outLine)-1].Glyphs
+		if n := len(glyphs); n != 0 && glyphs[n-1].ClusterIndex < len(text) && IsOtherSpaceSeparator(text[glyphs[n-1].ClusterIndex]) {
+		otherRuns:
+			for r := len(outLine) - 1; r >= 0; r-- {
+				glyphs := outLine[r].Glyphs
+				for i := len(glyphs) - 1; i >= 0; i-- {
+					if index := glyphs[i].ClusterIndex; index < 0 || index >= len(text) || (text[index] != ' ' && !IsOtherSpaceSeparator(text[index])) {
+						break otherRuns
+					}
+					hang += glyphs[i].Advance
+				}
 			}
 		}
 	}
@@ -1054,8 +1093,19 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 		config.BreakPolicy = shaping.Always
 	}
 
+	// gopdfgo: UAX #14 pozwala łamać wewnątrz ciągu białych znaków: między spacją a następującym po
+	// niej tabulatorem albo odstępem innym niż spacja (LB18), przed spacją ideograficzną zawsze. Ciąg
+	// białych znaków na końcu wiersza wisi jednak w całości, a wiersz łamie się dopiero po nim (CSS
+	// Text 3 § 4.1.3, § 5.1; tak robi Chromium, testy WPT pre-wrap-tab-*,
+	// trailing-other-space-separators-*). Wyznaczaniu miejsc podziału podajemy więc tekst, w którym
+	// każdy ciąg co najmniej dwóch białych znaków (spacje, odstępy kategorii Zs, przy pre-wrap także
+	// tabulatory) jest zamieniony na spacje; kształty i szerokości zostają bez zmian.
+	breakText := text
+	if !style.breakSpaces() {
+		breakText = unifyWhiteSpaceRuns(text, !spaceCollapse)
+	}
 	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
-		fc.lineWrapper.Prepare(config, text, shaping.NewSliceIterator(runs))
+		fc.lineWrapper.Prepare(config, breakText, shaping.NewSliceIterator(runs))
 		line, done := fc.lineWrapper.WrapNextLineF(limit)
 		if spaceCollapse {
 			trimTrailingSpace(&line, text, dir)
@@ -1070,6 +1120,31 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	// mieści się w dostępnej; inaczej próbujemy krótszego.
 	const slack = 32
 	if fc.residuals == nil || len(fc.residuals) != len(text) || maxWidth > maxFixed {
+		line, done := wrap(exact)
+		return exact, line, done
+	}
+	// gopdfgo: go-text pozwala wystawać poza wiersz tylko ostatniemu glifowi bez obrysu, a cały ciąg
+	// białych znaków na końcu wiersza wisi (CSS Text 3 § 4.1.3): przy pre-wrap spacje i tabulatory,
+	// zawsze odstępy kategorii Zs inne niż spacja. Gdy w tekście jest ciąg co najmniej dwóch takich
+	// znaków, zawijamy z zapasem jego szerokości i przyjmujemy wiersz, którego treść bez końcowych
+	// odstępów się mieści; inaczej próbujemy krótszego (testy WPT pre-wrap-002,
+	// trailing-other-space-separators-*).
+	if extra := hangingExtra(runs, text, style, dir); extra > 0 {
+		limit, previous := exact+slack+extra, -1
+		for attempt := 0; attempt < 8; attempt++ {
+			line, done := wrap(limit)
+			rounded, precise := fc.contentWidth(line.Line, text)
+			if rounded <= exact {
+				return exact, line, done
+			}
+			if rounded <= exact+slack && float64(precise) <= float64(maxWidth)*64*shapingPrecision+1 {
+				return rounded, line, done
+			}
+			if line.NextLine == previous {
+				break // krótszego wiersza nie ma
+			}
+			previous, limit = line.NextLine, rounded-1
+		}
 		line, done := wrap(exact)
 		return exact, line, done
 	}
@@ -1092,10 +1167,61 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	return exact, line, done
 }
 
+// hangingExtra (gopdfgo) zwraca szerokość najdłuższego w tekście ciągu co najmniej dwóch wiszących
+// białych znaków (zob. isHangingWhiteSpace) albo ciągu zakończonego znakiem nowego wiersza, albo
+// zero. Spacje wiszą tylko przy pre-wrap; przy break-spaces liczy się tylko znak nowego wiersza, a w
+// zapisie od prawej do lewej zostawiamy zachowanie biblioteki.
+func hangingExtra(runs shaping.Line, text []rune, style *TextStyle, dir di.Direction) fixed.Int26_6 {
+	if dir.Progression() != di.FromTopLeft {
+		return 0
+	}
+	preserved, breakSpaces := !style.spaceCollapse(), style.breakSpaces()
+	var best, current fixed.Int26_6
+	count, newline := 0, false
+	for _, run := range runs {
+		for _, glyph := range run.Glyphs {
+			index := glyph.ClusterIndex
+			if index < 0 || index >= len(text) {
+				current, count, newline = 0, 0, false
+				continue
+			}
+			// znak nowego wiersza kończy ciąg; jego glif (często .notdef z obrysem) też nie może
+			// zmuszać do złamania przed nim
+			// przy break-spaces odstępy nie wiszą, tylko znak nowego wiersza nie zajmuje miejsca
+			if r := text[index]; r == '\n' || !breakSpaces && isHangingWhiteSpace(r) && (preserved || r != ' ') {
+				current += glyph.Advance
+				count++
+				newline = newline || r == '\n'
+				if (count >= 2 || newline) && current > best {
+					best = current
+				}
+				continue
+			}
+			current, count, newline = 0, 0, false
+		}
+	}
+	return best
+}
+
 // contentWidth zwraca szerokość treści wiersza bez końcowych odstępów: zaokrągloną (1/64 px) oraz
 // dokładną, z resztami zaokrągleń (1/4096 px).
 func (fc *FontConfigurationGotext) contentWidth(line shaping.Line, text []rune) (rounded fixed.Int26_6, precise int64) {
-	trailing := true
+	return fc.lineWidth(line, text, true)
+}
+
+// fitsPrecisely (gopdfgo) mówi, czy cały wiersz (z końcowymi odstępami) o zaokrąglonej szerokości
+// total mieści się w maxWidth po uwzględnieniu reszt zaokrągleń (zob. LineWrap).
+func (fc *FontConfigurationGotext) fitsPrecisely(line shaping.Line, text []rune, total fixed.Int26_6, maxWidth pr.Float) bool {
+	if fc.residuals == nil || len(fc.residuals) != len(text) || maxWidth > math.MaxInt32>>6 || float64(total) > float64(maxWidth)*64+32 {
+		return false
+	}
+	_, precise := fc.lineWidth(line, text, false)
+	return float64(precise) <= float64(maxWidth)*64*shapingPrecision+1
+}
+
+// lineWidth zwraca szerokość wiersza, z skipTrailing bez końcowych odstępów (zob. contentWidth).
+func (fc *FontConfigurationGotext) lineWidth(line shaping.Line, text []rune, skipTrailing bool) (rounded fixed.Int26_6, precise int64) {
+	trailing := skipTrailing
 	for r := len(line) - 1; r >= 0; r-- {
 		glyphs := line[r].Glyphs
 		for g := len(glyphs) - 1; g >= 0; g-- {
@@ -1647,3 +1773,49 @@ func IsOtherSpaceSeparator(r rune) bool {
 // isPreservedSpace: spacja zwykła i ideograficzna (U+3000), które na końcu wiersza wiszą albo, przy
 // break-spaces, przechodzą do następnego wiersza (CSS Text 3 § 4.1.3).
 func isPreservedSpace(r rune) bool { return r == ' ' || r == '\u3000' }
+
+// unifyWhiteSpaceRuns (gopdfgo) zwraca tekst, w którym każdy ciąg co najmniej dwóch białych znaków
+// (spacja, odstępy kategorii Zs poza spacją nierozdzielającą, z tabs także tabulator), który nie
+// składa się wyłącznie ze spacji i zawiera znak, po którym wolno łamać, jest zamieniony na spacje.
+// Ciągi samych odstępów nierozdzielających (U+2007, U+202F) zostają. Gdy nie ma czego zmieniać,
+// zwraca text bez kopiowania.
+func unifyWhiteSpaceRuns(text []rune, tabs bool) []rune {
+	isWhite := func(r rune) bool { return r == ' ' || IsOtherSpaceSeparator(r) || tabs && r == '\t' }
+	out := text
+	for i := 0; i < len(text); {
+		if !isWhite(text[i]) {
+			i++
+			continue
+		}
+		j, other, breaking := i, false, false
+		for j < len(text) && isWhite(text[j]) {
+			other = other || text[j] != ' '
+			breaking = breaking || text[j] == ' ' || text[j] == '\t' || isBreakingOtherSpace(text[j])
+			j++
+		}
+		if j-i >= 2 && other && breaking {
+			if &out[0] == &text[0] {
+				out = slices.Clone(text)
+			}
+			for k := i; k < j; k++ {
+				out[k] = ' '
+			}
+		}
+		i = j
+	}
+	return out
+}
+
+// isHangingWhiteSpace (gopdfgo): znaki, które przy pre-wrap na końcu wiersza wiszą: spacja,
+// tabulator i odstępy kategorii Zs inne niż spacja (CSS Text 3 § 4.1.3).
+func isHangingWhiteSpace(r rune) bool { return r == ' ' || r == '\t' || IsOtherSpaceSeparator(r) }
+
+// isBreakingOtherSpace (gopdfgo): odstępy inne niż spacja, po których UAX #14 pozwala łamać wiersz
+// (klasy BA i ID); bez nierozdzielających U+2007 i U+202F.
+func isBreakingOtherSpace(r rune) bool {
+	return IsOtherSpaceSeparator(r) && r != '\u2007' && r != '\u202F'
+}
+
+// isBreakSpace (gopdfgo): zachowany biały znak, po którym przy white-space: break-spaces wolno złamać
+// wiersz: spacja, spacja ideograficzna i tabulator.
+func isBreakSpace(r rune) bool { return isPreservedSpace(r) || r == '\t' }

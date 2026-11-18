@@ -270,14 +270,14 @@ type BoxFields struct {
 
 	IsHeader, IsFooter bool
 
-	Baseline       pr.MaybeFloat
+	Baseline pr.MaybeFloat
 	// gopdfgo: pierwsza i ostatnia linia bazowa kontenera siatki (CSS Grid 1 § 10.7), liczone od górnej
 	// krawędzi marginesu; nil, gdy kontener nie ma linii bazowej. Zapisuje je układ siatki, a czyta
 	// szukanie linii bazowej (findBaseline). Pole Baseline zostaje dla układu w wierszu i flex.
 	GridFirstBaseline, GridLastBaseline pr.MaybeFloat
 	ComputedHeight                      pr.MaybeFloat
-	ContentHeight  pr.Float
-	VerticalAlign  pr.Keyword
+	ContentHeight                       pr.Float
+	VerticalAlign                       pr.Keyword
 
 	// For table cells, [true] when no children is either floated or in normal flow
 	Empty bool

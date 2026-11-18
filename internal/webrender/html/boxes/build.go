@@ -87,9 +87,8 @@ func (r rootStyleFor) Get(element tree.Element, pseudoType string) pr.ElementSty
 }
 
 var (
-	lineFeedRe = regexp.MustCompile(`\r\n?`)
-	tabRe      = regexp.MustCompile(`[\t ]*\n[\t ]*`)
-	spaceRe    = regexp.MustCompile(`[\t ]+`)
+	tabRe   = regexp.MustCompile(`[\t ]*\n[\t ]*`)
+	spaceRe = regexp.MustCompile(`[\t ]+`)
 )
 
 // CreateAnonymousBox create anonymous boxes in box descendants according to layout rules.
@@ -273,6 +272,13 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 		children = append(children, TextBoxAnonymousFrom(box, text))
 	}
 
+	// gopdfgo: tekst doklejamy tylko do tekstu tego samego elementu. Ostatnim dzieckiem bywa tekst
+	// elementu z display: contents (jego dzieci przechodzą do rodzica) o innym stylu, np. innym
+	// white-space; źródło doklejało do niego tekst rodzica (test WPT white-space-applies-to-text-001).
+	var lastOwnText *TextBox
+	if len(children) > 0 {
+		lastOwnText, _ = children[len(children)-1].(*TextBox)
+	}
 	for _, childElement := range element.NodeChildren(false) {
 		// utils.HTMLNode as no notion of tail. Instead, text are converted in text nodes
 		if ok, text := childElement.IsText(); ok && text != "" {
@@ -280,13 +286,15 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 			if len(children) > 0 {
 				// TextBox is a leaf in inheritance tree, so we can type assert against the concrete type
 				// instead of using interfaces.
-				if ct, ok := children[len(children)-1].(*TextBox); ok {
+				if ct, ok := children[len(children)-1].(*TextBox); ok && ct == lastOwnText {
 					ct.Text = append(ct.Text, textBox.Text...)
 				} else {
 					children = append(children, textBox)
+					lastOwnText = textBox
 				}
 			} else {
 				children = append(children, textBox)
+				lastOwnText = textBox
 			}
 		} else {
 			childBoxes := elementToBox(childElement, styleFor, resolver, baseUrl, targetCollector, cs, state, footnotes)
@@ -1896,14 +1904,30 @@ func gridChildren(box Box, children []Box) []Box {
 // and https://drafts.csswg.org/css-text-3/#white-space-rules
 // The default value of followingCollapsibleSpace shoud be `false`.
 func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
+	state := whitespaceState{followingCollapsibleSpace: followingCollapsibleSpace}
+	processWhitespace(box, &state)
+	return state.followingCollapsibleSpace && !box.Box().IsRunning()
+}
+
+// whitespaceState (gopdfgo): stan przetwarzania białych znaków przenoszony między kolejnymi
+// pudełkami treści liniowej.
+type whitespaceState struct {
+	followingCollapsibleSpace bool
+	// afterZWSP: dotychczasowa treść kończy się spacją zerowej szerokości (U+200B)
+	afterZWSP bool
+}
+
+func processWhitespace(box Box, state *whitespaceState) {
 	if box_, isTextBox := box.(*TextBox); isTextBox {
 		text := box_.TextS()
 		if len(text) == 0 {
-			return followingCollapsibleSpace
+			return
 		}
 
-		// Normalize line feeds
-		text = lineFeedRe.ReplaceAllString(text, "\n")
+		// gopdfgo: źródło zamieniało CR i CRLF na znak nowego wiersza. Końce wierszy normalizuje już
+		// parser HTML (i XML), więc CR, który tu dociera, pochodzi z odwołania znakowego (&#x0D;); taki
+		// znak traktujemy dokładnie jak spację (CSS Text 3 § 4.1; test WPT control-chars-00D).
+		text = strings.ReplaceAll(text, "\r", " ")
 		// gopdfgo: znaki sterujące (kategoria Cc) inne niż tabulator i znak nowego wiersza mają być
 		// widoczne (CSS Text 3 § 2.1); rysujemy w ich miejscu znak zastępczy U+FFFD. W źródle znikały.
 		text = visibleControls(text)
@@ -1918,6 +1942,15 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 		}
 
 		if newLineCollapse {
+			// gopdfgo: złamanie segmentu tuż przed spacją zerowej szerokości (U+200B) albo tuż po niej
+			// znika, także gdy spacja jest w poprzednim pudełku liniowym (CSS Text 3 § 4.1.3;
+			// granice pudełek liniowych i elementy spoza przepływu się nie liczą, testy WPT
+			// seg-break-transformation-018, -019). W źródle zamieniało się w spację.
+			text = strings.ReplaceAll(text, "\u200b\n", "\u200b")
+			text = strings.ReplaceAll(text, "\n\u200b", "\u200b")
+			if state.afterZWSP && strings.HasPrefix(text, "\n") {
+				text = text[1:]
+			}
 			// Could also replace with a zero width space character (U+200B),
 			// or no character
 			// CSS3: https://www.w3.org/TR/css3-text/#line-break-transform
@@ -1933,35 +1966,41 @@ func ProcessWhitespace(box Box, followingCollapsibleSpace bool) bool {
 			}
 			text = strings.ReplaceAll(text, "​", replacement)
 		}
+		if text != "" {
+			state.afterZWSP = strings.HasSuffix(text, "\u200b")
+		}
 		if spaceCollapse {
 			text = spaceRe.ReplaceAllString(text, " ")
 			previousText := text
-			if followingCollapsibleSpace && strings.HasPrefix(text, " ") {
+			if state.followingCollapsibleSpace && strings.HasPrefix(text, " ") {
 				text = text[1:]
 				box_.LeadingCollapsibleSpace = true
 			}
-			followingCollapsibleSpace = strings.HasSuffix(previousText, " ")
+			if previousText != "" {
+				state.followingCollapsibleSpace = strings.HasSuffix(previousText, " ")
+			}
 		} else {
-			followingCollapsibleSpace = false
+			state.followingCollapsibleSpace = false
 		}
 		box_.Text = []rune(text)
 	} else {
 		for _, child := range box.Box().Children {
 			switch child.(type) {
 			case *TextBox, *InlineBox: // leaf
-				chidlCollapsibleSpace := ProcessWhitespace(child, followingCollapsibleSpace)
+				childState := *state
+				processWhitespace(child, &childState)
 				if box.Box().IsInNormalFlow() && child.Box().IsInNormalFlow() {
-					followingCollapsibleSpace = chidlCollapsibleSpace
+					childState.followingCollapsibleSpace = childState.followingCollapsibleSpace && !child.Box().IsRunning()
+					*state = childState
 				}
 			default:
 				if child.Box().IsInNormalFlow() {
-					followingCollapsibleSpace = false
+					state.followingCollapsibleSpace = false
+					state.afterZWSP = false
 				}
 			}
 		}
 	}
-
-	return followingCollapsibleSpace && !box.Box().IsRunning()
 }
 
 // Capitalize words according to CSS’s "text-transform: capitalize".
