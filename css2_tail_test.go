@@ -118,6 +118,12 @@ func TestCSS2Tail(t *testing.T) {
 	// ::first-letter z literą w ::before dziedziczy po ::before (before-first-letter-selector-001)
 	same("first-letter-in-before", page+`<style>div::before{content:"AB";color:green} div::first-letter{font-size:40px}</style><div></div>`,
 		page+`<div><span style="color:green"><span style="font-size:40px">A</span>B</span></div>`)
+	// XHTML zachowuje znak nowego wiersza tuż po <pre> (c548-ln-ht-000, white-space-pre-001)
+	same("xhtml-pre-newline", `<html xmlns="http://www.w3.org/1999/xhtml">`+page+`<pre style="margin:0">
+<span style="display:inline-block;width:100px;height:10px;background:green"></span></pre></html>`,
+		page+`<pre style="margin:0">
+
+<span style="display:inline-block;width:100px;height:10px;background:green"></span></pre>`)
 	// ::first-letter nie usuwa złamania wiersza z <br> na początku bloku (first-letter-selector-005)
 	same("first-letter-after-br", page+`<style>div::first-letter{color:red}</style><div><br>AB</div>`,
 		page+`<div><br>AB</div>`)
