@@ -1487,9 +1487,10 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 		if child.TrailingCollapsibleSpace {
 			lastLetter = letterTrue
-		} else {
+		} else if last != 0 || first != 0 || !bo.InlineT.IsInstance(child_) {
 			lastLetter = last
-		}
+		} // gopdfgo: puste pudełko liniowe nie przerywa ciągu znaków: o podziale za nim decyduje znak
+		// przed nim (UAX 14 nie zna granic elementów; test WPT hyphens-span-002, „high<span></span>way”)
 		previousStyle := lastStyle
 		lastStyle = child.Style
 
@@ -1841,7 +1842,7 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 		return nil, -1, false
 	}
 	var style pr.StyleAccessor = box.Style
-	if context.noAutoHyphens && box.Style.GetHyphens() == "auto" {
+	if (context.noAutoHyphens || box.ManualHyphens) && box.Style.GetHyphens() == "auto" {
 		style = manualHyphensStyle{box.Style}
 	}
 	v := text.SplitFirstLineAt(text_, style, context, availableWidth, false, isLineStart, tabOffset, tabUnit)
