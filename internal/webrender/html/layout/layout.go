@@ -431,6 +431,10 @@ type layoutContext struct {
 	// gopdfgo: ostatnio układana strona umieściła dalszy ciąg pudełka poza przepływem albo czeka na
 	// pudełko odłożone (zob. makePage)
 	outOfFlowProgress bool
+	// gopdfgo: położenie pierwszego fragmentu pudełka pozycjonowanego w osi fragmentacji oraz kopie
+	// dalszych fragmentów przesunięte do tego położenia jako bloki zawierające potomków (zob. absoluteBlock)
+	fragmentStarts map[Box]pr.Float
+	shiftedBlocks  map[Box]bool
 	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie, do kontynuacji na górze następnej
 	// (zob. columnsLayout, takeColumnFloats)
 	columnFloats []columnFloat
@@ -558,6 +562,8 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 	self.runningElements = make(map[string]map[int][]Box)
 	self.brokenOutOfFlow = make(map[Box]brokenBox)
 	self.lateBoxes = make(map[int][]lateBox)
+	self.fragmentStarts = make(map[Box]pr.Float)
+	self.shiftedBlocks = make(map[Box]bool)
 
 	// Cache
 	self.stringSet = make(map[string]map[int][]string)

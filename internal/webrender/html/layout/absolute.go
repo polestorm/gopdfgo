@@ -457,8 +457,27 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 		context.outOfFlowDepth--
 	}
 
+	// gopdfgo: dalszy ciąg pudełka podzielonego między strony jest blokiem zawierającym swoich potomków
+	// pozycjonowanych tak, jakby nie był podzielony (CSS Break 3 § 2: treść układa się w jednym ciągłym
+	// przepływie fragmentacji, jak w Chrome, test WPT css-page/fixedpos-008): przesuwamy go w górę
+	// o wysokość fragmentów na poprzednich stronach. Źródło liczyło top potomka od góry bieżącego fragmentu.
+	childCB := newBox
+	if paged := len(context.pageAreas) > 0 && !context.behavior.Continuous && newBox != nil; paged {
+		g := context.geometryPage
+		f := newBox.Box().PositionY - context.area(g).y + context.pageOffset(g)
+		if len(skipStack) == 0 {
+			defer func() {
+				context.fragmentStarts[box_] = newBox.Box().PositionY - context.area(g).y + context.pageOffset(g)
+			}()
+		} else if start, ok := context.fragmentStarts[box_]; ok && f-start > 0.01 {
+			shifted := newBox.Copy()
+			shifted.Box().PositionY -= f - start
+			context.shiftedBlocks[shifted] = true
+			childCB = shifted
+		}
+	}
 	for _, childPlaceholder := range absoluteBoxes {
-		absoluteLayout(context, childPlaceholder, newBox, fixedBoxes, bottomSpace, skipStack)
+		absoluteLayout(context, childPlaceholder, childCB, fixedBoxes, bottomSpace, skipStack)
 	}
 	if ownsFixed {
 		for i := 0; i < len(*fixedBoxes); i++ {
@@ -510,7 +529,10 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		layoutCB = context.icbFor(containingBlock.(*bo.PageBox), context.geometryPage)
 	}
 	newBox, resumeAt := absoluteBoxLayout(context, box, layoutCB, fixedBoxes, bottomSpace, skipStack)
-	if icb && newBox != nil {
+	shiftedCB := !icb && context.shiftedBlocks[containingBlock] && len(skipStack) == 0 && bottomSpace > -pr.Inf &&
+		box.Box().Style.GetPosition().String == "absolute" &&
+		(box.Box().Style.GetTop().Tag != pr.Auto || box.Box().Style.GetBottom().Tag != pr.Auto)
+	if (icb || shiftedCB) && newBox != nil {
 		// pudełko zaczyna się na wcześniejszej stronie: tam układamy jego fragmenty, a na tej stronie
 		// zostaje dalszy ciąg albo pusta, niewidoczna kopia
 		cur := context.geometryPage
@@ -518,9 +540,12 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			f := top - (context.area(cur).y - context.pageOffset(cur))
 			if first := context.pageAt(f, cur); first < cur {
 				removePlaceholders(context, []Box{newBox}, new([]*AbsolutePlaceholder), fixedBoxes)
-				page := containingBlock.(*bo.PageBox)
-				fragment, fragmentResumeAt, reached := context.layoutEarlierFragments(box,
-					func(j int) Box { return context.icbFor(page, j) }, first, cur, fixedBoxes)
+				cbFor := func(j int) Box { return context.shiftedBlockFor(containingBlock, cur, j) }
+				if icb {
+					page := containingBlock.(*bo.PageBox)
+					cbFor = func(j int) Box { return context.icbFor(page, j) }
+				}
+				fragment, fragmentResumeAt, reached := context.layoutEarlierFragments(box, cbFor, first, cur, fixedBoxes)
 				if !reached {
 					placeholder.setLaidOutBox(hiddenEmpty(newBox))
 					return
@@ -579,6 +604,25 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			empty.Box().Style.SetVisibility("hidden")
 			placeholder.setLaidOutBox(empty)
 			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock, nextColumn: true})
+			return
+		}
+	}
+	// gopdfgo: to samo na stronie: pudełko w pozycji statycznej w pionie, którego górna krawędź leży na
+	// dole strony albo niżej (zastępnik na samym dole strony), ma tu pusty pierwszy fragment, a całe
+	// zaczyna się u góry następnej strony (CSS Break 3 § 4.4, test WPT css-page/page-margin-007). W źródle
+	// pierwsze dziecko było wymuszane na tę stronę i wystawało na jej dolny margines. Tylko zastępnik
+	// dokładnie na dolnej krawędzi: zastępnik poniżej niej zostaje po treści przeniesionej na następną
+	// stronę, gdzie pudełko jest układane ponownie (test goweasyprint TestAbsoluteInInline).
+	if !context.inColumn && !context.behavior.Continuous && newBox != nil && len(skipStack) == 0 && bottomSpace > -pr.Inf &&
+		context.pageBottom != pr.Inf && context.clipDepth == 0 && len(context.pageAreas) > 0 &&
+		math.Abs(float64(newBox.Box().PositionY-(context.pageBottom-bottomSpace))) < 0.01 &&
+		newBox.Box().PositionY > context.area(context.geometryPage).y+0.01 && newBox.Box().MarginHeight() > 0 &&
+		box.Box().Style.GetPosition().String == "absolute" &&
+		box.Box().Style.GetTop().Tag == pr.Auto && box.Box().Style.GetBottom().Tag == pr.Auto {
+		if _, isPage := containingBlock.(*bo.PageBox); isPage || containingBlock.Box().Style.GetOverflow() == "visible" {
+			removePlaceholders(context, []Box{newBox}, new([]*AbsolutePlaceholder), fixedBoxes)
+			placeholder.setLaidOutBox(hiddenEmpty(newBox))
+			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock})
 			return
 		}
 	}
@@ -658,7 +702,9 @@ func absoluteBoxLayout(context *layoutContext, box Box, cb_ Box, fixedBoxes *[]*
 		resumeAt tree.ResumeStack
 	)
 	if bo.BlockReplacedT.IsInstance(box) {
+		startY := box.Box().PositionY // dalszy ciąg: góra strony (zob. makePage)
 		newBox = absoluteReplaced(box, containingBlock)
+		newBox, resumeAt = sliceAbsoluteReplaced(context, newBox, bottomSpace, skipStack, startY)
 	} else {
 		// Absolute tables are wrapped into block boxes
 		newBox, resumeAt = absoluteBlock(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
@@ -1032,4 +1078,47 @@ func attachLateBoxes(context *layoutContext, pages []*bo.PageBox) {
 			root.Children = append(root.Children, late.box)
 		}
 	}
+}
+
+// sliceAbsoluteReplaced (gopdfgo) kroi element zastępowany pozycjonowany bezwzględnie, wyższy niż strona,
+// między strony, jak element zastępowany w przepływie (zob. sliceTallReplaced; treść monolityczna wyższa
+// niż strona jest dzielona, CSS Break 3 § 4.4, jak w Chrome: wzorce WPT css-page/page-background-002/003).
+// Źródło zostawiało go w całości na stronie, na której się zaczynał. Fragment jest kopią pudełka; dalszy
+// ciąg (skipStack z resztą wysokości) zaczyna się w startY, u góry strony.
+func sliceAbsoluteReplaced(context *layoutContext, box Box, bottomSpace pr.Float, skipStack tree.ResumeStack,
+	startY pr.Float,
+) (Box, tree.ResumeStack) {
+	fields := box.Box()
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || context.clipDepth > 0 ||
+		context.behavior.Continuous || !pr.Is(fields.Height) || avoidPageBreak(string(fields.Style.GetBreakInside()), context) {
+		return box, nil
+	}
+	fullHeight := fields.Height.V()
+	if fullHeight >= maxSliceableHeight {
+		return box, nil
+	}
+	var consumed pr.Float
+	if remaining, isRemainder := skipStack.Remainder(); isRemainder {
+		consumed = max(fullHeight-pr.Float(remaining), 0)
+	} else if fields.BorderHeight() <= context.pageHeight {
+		return box, nil
+	}
+	fragment := box.Copy()
+	out := fragment.Box()
+	if consumed > 0 {
+		fragment.RemoveDecoration(out, true, false)
+		out.PositionY = startY
+	}
+	available := context.pageBottom - bottomSpace - out.ContentBoxY()
+	remaining := fullHeight - consumed
+	if consumed == 0 && (available <= 0 || remaining <= available) {
+		return box, nil
+	}
+	visible := max(min(remaining, available), 0)
+	out.SliceFullHeight, out.SliceOffset, out.Height = fullHeight, consumed, visible
+	if left := remaining - visible; left > 0.5 {
+		fragment.RemoveDecoration(out, false, true)
+		return fragment, tree.RemainderResume(float64(left))
+	}
+	return fragment, nil
 }

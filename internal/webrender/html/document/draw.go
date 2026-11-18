@@ -640,13 +640,14 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 	repeatX, repeatY := layer.Repeat.Reps[0], layer.Repeat.Reps[1]
 	imageWidth, imageHeight := pr.Fl(layer.Size[0]), pr.Fl(layer.Size[1])
 	var repeatWidth, repeatHeight pr.Fl
+	var singleX, singleY bool // obraz rysowany raz w danej osi (zob. niżej)
 	switch repeatX {
 	case "no-repeat":
 		// We want at least the whole image_width drawn on sub_surface, but we
 		// want to be sure it will not be repeated on the painting_width. We
 		// double the painting width to ensure viewers don't incorrectly bleed
 		// the edge of the pattern into the painting area. (See #1539.)
-		repeatWidth = utils.Maxs(imageWidth, 2*paintingWidth)
+		repeatWidth, singleX = utils.Maxs(imageWidth, 2*paintingWidth), true
 	case "repeat", "round":
 		// We repeat the image each imageWidth.
 		repeatWidth = imageWidth
@@ -662,7 +663,7 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 		} else {
 			// gopdfgo: gdy nie mieszczą się dwie kopie, rysujemy jeden obraz w miejscu z background-position
 			// (CSS Backgrounds 3 § 3.4, space). Źródło powtarzało go co szerokość obszaru pozycjonowania.
-			repeatWidth = utils.Maxs(imageWidth, 2*paintingWidth)
+			repeatWidth, singleX = utils.Maxs(imageWidth, 2*paintingWidth), true
 		}
 	default:
 		panic(fmt.Sprintf("unexpected repeatX %s", repeatX))
@@ -671,7 +672,7 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 	// Comments above apply here too.
 	switch repeatY {
 	case "no-repeat":
-		repeatHeight = utils.Maxs(imageHeight, 2*paintingHeight)
+		repeatHeight, singleY = utils.Maxs(imageHeight, 2*paintingHeight), true
 	case "repeat", "round":
 		repeatHeight = imageHeight
 	case "space":
@@ -680,7 +681,7 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 			repeatHeight = (positioningHeight - imageHeight) / (nRepeats - 1)
 			positionY = pr.Float(0)
 		} else {
-			repeatHeight = utils.Maxs(imageHeight, 2*paintingHeight) // jak wyżej
+			repeatHeight, singleY = utils.Maxs(imageHeight, 2*paintingHeight), true // jak wyżej
 		}
 	default:
 		panic(fmt.Sprintf("unexpected repeatY %s", repeatY))
@@ -688,6 +689,17 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 
 	X := pr.Fl(positionX.V()) + positioningX
 	Y := pr.Fl(positionY.V()) + positioningY
+
+	// gopdfgo: obraz bez powtarzania leżący daleko od obszaru malowania (tło płótna na dalszych stronach
+	// ma początek na pierwszej stronie, kilka wysokości strony wyżej) powtarzał się na obszarze, bo kafel
+	// miał tylko dwie wysokości obszaru. Kafel musi sięgać od obrazu przez cały obszar malowania w obie
+	// strony (CSS Backgrounds 3 § 3.4, no-repeat: obraz jest rysowany raz).
+	if singleX {
+		repeatWidth = utils.Maxs(repeatWidth, paintingWidth+pr.Fl(math.Abs(float64(X-paintingX)))+imageWidth)
+	}
+	if singleY {
+		repeatHeight = utils.Maxs(repeatHeight, paintingHeight+pr.Fl(math.Abs(float64(Y-paintingY)))+imageHeight)
+	}
 
 	// draw the image on a pattern
 	patttern := ctx.dst.NewGroup(0, 0, repeatWidth, repeatHeight)
