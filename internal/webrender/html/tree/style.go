@@ -411,6 +411,27 @@ func (sf *StyleFor) setComputedStyles(element, parent Element,
 	sf.computedStyles[key] = style
 }
 
+// PseudoStyleWithParent (gopdfgo) oblicza styl pseudoelementu z jego kaskady, dziedziczący po
+// podanym stylu zamiast po elemencie; zwraca nil, gdy pseudoelement nie ma kaskady. Służy
+// ::first-letter, którego litera leży w ::before: pseudoelement dziedziczy wtedy po ::before
+// (CSS Pseudo 4 § 2.5, „inherits from the innermost element containing the letter”).
+func (s StyleFor) PseudoStyleWithParent(element *utils.HTMLNode, pseudoType string, parentStyle pr.ElementStyle) pr.ElementStyle {
+	for _, sc := range s.pseudoCascades[element] {
+		if sc.pseudoType != pseudoType {
+			continue
+		}
+		rootStyle := s.computedStyles[utils.ElementKey{Element: s.root, PseudoType: ""}]
+		style := computedFromCascaded(element, sc.style, parentStyle, rootStyle, pseudoType, s.baseUrl,
+			s.targetCollector, s.textContext, s.share)
+		if computed, ok := style.(*ComputedStyle); ok {
+			computed.viewport = s.viewport
+			computed.monospaceScale = s.monospaceScale
+		}
+		return style
+	}
+	return nil
+}
+
 func (s StyleFor) Get(element Element, pseudoType string) pr.ElementStyle {
 	style := s.computedStyles[element.ToKey(pseudoType)]
 	if style == nil && pseudoType != "" {

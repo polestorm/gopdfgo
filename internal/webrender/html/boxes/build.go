@@ -265,6 +265,17 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 
 	vs := beforeAfterToBox(element, "before", state, styleFor, resolver, targetCollector, cs)
 	children = append(children, vs...)
+	// gopdfgo: gdy pierwsza litera leży w ::before, ::first-letter dziedziczy po ::before (CSS Pseudo 4
+	// § 2.5; test WPT before-first-letter-selector-001); źródło zawsze dziedziczyło po elemencie.
+	if box.Box().FirstLetterStyle != nil && len(vs) == 1 && hasVisibleText(vs[0]) {
+		if restyler, ok := styleFor.(interface {
+			PseudoStyleWithParent(*utils.HTMLNode, string, pr.ElementStyle) pr.ElementStyle
+		}); ok {
+			if style := restyler.PseudoStyleWithParent(element, "first-letter", vs[0].Box().Style); style != nil {
+				box.Box().FirstLetterStyle = style
+			}
+		}
+	}
 
 	// collect anchor's counter_values, maybe it's a target.
 	// to get the spec-conform counter_values we must do it here,
@@ -2006,6 +2017,19 @@ func processWhitespace(box Box, state *whitespaceState) {
 			}
 		}
 	}
+}
+
+// hasVisibleText (gopdfgo) podaje, czy w poddrzewie pudełka jest tekst inny niż białe znaki.
+func hasVisibleText(box Box) bool {
+	if text, ok := box.(*TextBox); ok {
+		return strings.TrimSpace(string(text.Text)) != ""
+	}
+	for _, child := range box.Box().Children {
+		if hasVisibleText(child) {
+			return true
+		}
+	}
+	return false
 }
 
 // inheritInlineStacking (gopdfgo): blok wydzielony z pudełka liniowego, które tworzy kontekst

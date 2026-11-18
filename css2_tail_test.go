@@ -115,4 +115,10 @@ func TestCSS2Tail(t *testing.T) {
 	// tło elementu głównego SVG wyświetlanego jako obraz wypełnia obraz (background-image-007)
 	same("svg-root-background", page+`<div style="width:100px;height:100px;background:red url(&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' style='background: green'></svg>&quot;)"></div>`,
 		square)
+	// ::first-letter z literą w ::before dziedziczy po ::before (before-first-letter-selector-001)
+	same("first-letter-in-before", page+`<style>div::before{content:"AB";color:green} div::first-letter{font-size:40px}</style><div></div>`,
+		page+`<div><span style="color:green"><span style="font-size:40px">A</span>B</span></div>`)
+	// ::first-letter nie usuwa złamania wiersza z <br> na początku bloku (first-letter-selector-005)
+	same("first-letter-after-br", page+`<style>div::first-letter{color:red}</style><div><br>AB</div>`,
+		page+`<div><br>AB</div>`)
 }
