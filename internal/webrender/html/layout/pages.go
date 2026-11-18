@@ -808,6 +808,18 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		context.pageHeight = continuousPageHeight
 	}
 	initialContainingBlock := page
+	// gopdfgo: obszar strony zapamiętujemy dla bloku początkowego ciągnącego się przez strony (zob. icbFor);
+	// fragmenty dołożone wcześniej przez tę stronę do stron poprzednich unieważniamy, bo powstaną od nowa
+	area := pageArea{page.ContentBoxX(), page.ContentBoxY(), page.Width.V(), page.Height.V()}
+	if pageNumber-1 < len(context.pageAreas) {
+		context.pageAreas = context.pageAreas[:pageNumber-1]
+	}
+	for len(context.pageAreas) < pageNumber-1 { // strony nieznane: przyjmujemy obszar bieżącej
+		context.pageAreas = append(context.pageAreas, area)
+	}
+	context.pageAreas = append(context.pageAreas, area)
+	context.geometryPage = pageNumber
+	delete(context.lateBoxes, pageNumber)
 
 	footnoteAreaStyle := context.styleFor.Get(pageType, "@footnote")
 	footnoteArea := bo.NewFootnoteAreaBox(page, footnoteAreaStyle)
@@ -856,23 +868,55 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	for _, v := range orderedBroken(contextOutOfFlow) {
 		box, containingBlock := v.box, v.containingBlock
 		if v.deferredPages > 0 {
-			// pudełko pozycjonowane poniżej wcześniejszej strony: układamy je od nowa i przesuwamy
-			// o wysokość stron, które minęły; jeśli nadal leży poniżej tej strony, czeka dalej
-			shift := pr.Float(v.deferredPages) * context.pageHeight
-			placed, placedResumeAt := absoluteBoxLayout(context, box, containingBlock, &positionedBoxes, -shift, nil)
-			if placed.Box().PositionY-shift >= context.pageBottom {
-				context.setBrokenOutOfFlow(placed, brokenBox{box: box, containingBlock: containingBlock, deferredPages: v.deferredPages + 1})
+			// pudełko pozycjonowane poniżej wcześniejszej strony: układamy je od nowa względem bloku
+			// zawierającego przeniesionego na tę stronę; jeśli nadal leży poniżej tej strony, czeka dalej.
+			// gopdfgo: przesunięcie liczymy z obszarów stron (zob. shiftedBlockFor), a blok początkowy
+			// bierzemy z bieżącej strony (icbFor); źródło przesuwało o liczbę stron razy wysokość bieżącej.
+			cbFor := func(j int) Box { return context.shiftedBlockFor(containingBlock, v.fromPage, j) }
+			if v.icb {
+				cbFor = func(j int) Box { return context.icbFor(page, j) }
+			}
+			placed, placedResumeAt := absoluteBoxLayout(context, box, cbFor(pageNumber), &positionedBoxes, 0, nil)
+			if placed.Box().PositionY >= context.pageBottom {
+				removePlaceholders(context, []Box{placed}, new([]*AbsolutePlaceholder), &positionedBoxes)
+				context.setBrokenOutOfFlow(placed, brokenBox{box: box, containingBlock: containingBlock, deferredPages: v.deferredPages + 1, icb: v.icb})
+				deferred := context.brokenOutOfFlow[placed]
+				deferred.fromPage = v.fromPage // blok zawierający został w układzie tamtej strony
+				context.brokenOutOfFlow[placed] = deferred
 				continue
 			}
-			placed.Translate(0, -shift, false)
+			if top := placed.Box().PositionY; top < rootBox.Box().ContentBoxY()-0.01 {
+				// pudełko zagnieżdżone, ułożone na wcześniejszej stronie, wypada na stronę między tamtą
+				// a bieżącą: dokładamy je do strony już ułożonej
+				f := top - (rootBox.Box().ContentBoxY() - context.pageOffset(pageNumber))
+				if first := context.pageAt(f, pageNumber); first < pageNumber {
+					removePlaceholders(context, []Box{placed}, new([]*AbsolutePlaceholder), &positionedBoxes)
+					var reached bool
+					placed, placedResumeAt, reached = context.layoutEarlierFragments(box, cbFor, first, pageNumber, &positionedBoxes)
+					if !reached {
+						continue
+					}
+				}
+			}
 			outOfFlowBoxes = append(outOfFlowBoxes, placed)
 			pageIsEmpty = false
 			if placedResumeAt != nil {
-				context.setBrokenOutOfFlow(placed, brokenBox{box: box, containingBlock: containingBlock, resumeAt: placedResumeAt})
+				context.setBrokenOutOfFlow(placed, brokenBox{box: box, containingBlock: cbFor(pageNumber), resumeAt: placedResumeAt, icb: v.icb})
 			}
 			continue
 		}
 		box.Box().PositionY = rootBox.Box().ContentBoxY()
+		if previous, isPage := containingBlock.(*bo.PageBox); isPage {
+			// gopdfgo: dalszy ciąg pudełka, którego blokiem zawierającym jest strona, układamy względem
+			// bieżącej strony i przesuwamy w poziomie o różnicę lewych krawędzi obszarów stron (strony
+			// nazwane i :left/:right mają różne marginesy, CSS Page 3 § 3). Źródło zostawiało blok
+			// zawierający i położenie poziome ze strony, na której pudełko się zaczęło.
+			box.Box().PositionX += page.ContentBoxX() - previous.ContentBoxX()
+			containingBlock = page
+			if v.icb {
+				containingBlock = context.icbFor(page, pageNumber)
+			}
+		}
 
 		var (
 			outOfFlowBox      Box
@@ -891,7 +935,16 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		outOfFlowBoxes = append(outOfFlowBoxes, outOfFlowBox)
 		pageIsEmpty = false
 		if outOfFlowResumeAt != nil {
-			context.setBrokenOutOfFlow(outOfFlowBox, brokenBox{box: box, containingBlock: containingBlock, resumeAt: outOfFlowResumeAt})
+			context.setBrokenOutOfFlow(outOfFlowBox, brokenBox{box: box, containingBlock: containingBlock, resumeAt: outOfFlowResumeAt, icb: v.icb})
+		}
+	}
+
+	// gopdfgo: strona z dalszym ciągiem pudełek poza przepływem albo czekająca na pudełko odłożone robi
+	// postęp, choć miejsce wznowienia treści w przepływie się nie zmienia (zob. bezpiecznik w makeAllPages)
+	context.outOfFlowProgress = !pageIsEmpty
+	for _, v := range context.brokenOutOfFlow {
+		if v.deferredPages > 0 {
+			context.outOfFlowProgress = true
 		}
 	}
 
@@ -1329,6 +1382,9 @@ func (context *layoutContext) remakePage(index int, pageGroups *[]pageGroup, roo
 	return page, resumeAt
 }
 
+// maxOutOfFlowPages (gopdfgo) ogranicza liczbę kolejnych stron z samą treścią poza przepływem.
+const maxOutOfFlowPages = 1000
+
 // Return a list of laid out pages without margin boxes.
 // Re-make pages only if necessary.
 func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tree.HTML, pages []*bo.PageBox) []*bo.PageBox {
@@ -1339,18 +1395,21 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		pageGroups        []pageGroup
 	)
 
-	stalledPages := 0 // kolejne strony bez postępu
+	stalledPages := 0   // kolejne strony bez postępu
+	outOfFlowPages := 0 // kolejne strony z samą treścią poza przepływem
 	for {
 		remakeState := context.pageMaker[i].RemakeState
 		var (
 			resumeAt tree.ResumeStack
 			page     *bo.PageBox
+			remade   bool
 		)
 		if len(pages) == 0 || remakeState.ContentChanged || remakeState.PagesWanted {
 			logger.ProgressLogger.Printf("Step 5 - Creating layout - Page %d", i+1)
 			// Reset remakeState
 			context.pageMaker[i].RemakeState = tree.RemakeState{}
 			page, resumeAt = context.remakePage(i, &pageGroups, rootBox, html)
+			remade = true
 			reportedFootnotes = context.reportedFootnotes
 			out = append(out, page)
 		} else {
@@ -1365,14 +1424,21 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		// postępu; jedna taka strona bywa uprawniona (pusta strona przed break-before: right, strona
 		// z samym dalszym ciągiem pudełek poza przepływem), ale trzy z rzędu oznaczają pętlę. Kończymy
 		// wtedy dokument z ostrzeżeniem, zamiast tworzyć strony w nieskończoność.
+		// gopdfgo: strona, która umieściła dalszy ciąg pudełka poza przepływem albo czeka na pudełko
+		// odłożone, robi postęp (pudełko pozycjonowane wyższe niż trzy strony ginęło); takich stron z rzędu
+		// dopuszczamy jednak najwyżej maxOutOfFlowPages.
 		if resumeAt != nil && resumeAt.Equals(context.pageMaker[i-1].ResumeAt) {
-			stalledPages++
-			if stalledPages >= 3 {
+			if remade && context.outOfFlowProgress {
+				outOfFlowPages++
+			} else {
+				stalledPages++
+			}
+			if stalledPages >= 3 || outOfFlowPages >= maxOutOfFlowPages {
 				logger.WarningLogger.Printf("układ nie robi postępu od strony %d; pozostała treść została pominięta", i-2)
 				resumeAt, reportedFootnotes = nil, nil
 			}
 		} else {
-			stalledPages = 0
+			stalledPages, outOfFlowPages = 0, 0
 		}
 		if resumeAt == nil && len(reportedFootnotes) == 0 {
 			// Throw away obsolete pages and content

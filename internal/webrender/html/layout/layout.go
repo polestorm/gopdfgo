@@ -269,6 +269,8 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 		}
 	}
 
+	attachLateBoxes(context, pages)
+
 	out := make([]*bo.PageBox, len(pages))
 	// Add margin boxes
 	var (
@@ -329,6 +331,12 @@ type brokenBox struct {
 	// deferredPages > 0: pudełko pozycjonowane leży poniżej strony, na której zostało ułożone; liczba mówi,
 	// o ile stron dalej jesteśmy teraz względem tamtej strony
 	deferredPages int
+	// fromPage (gopdfgo): numer strony, w której układzie współrzędnych pudełko zostało ułożone
+	// (layoutContext.geometryPage); przesunięcie odłożonego pudełka liczymy z geometrii stron od tamtej
+	fromPage int
+	// icb (gopdfgo): blokiem zawierającym jest blok początkowy (strona), liczony od pierwszej strony
+	// (zob. icbFor); dalszy ciąg i odłożone pudełko układamy względem bloku początkowego bieżącej strony
+	icb bool
 	// columnX (gopdfgo): położenie kolumny, w której pudełko zostało podzielone (zob. layoutContext.columnX)
 	columnX pr.Float
 	// nextColumn (gopdfgo): pudełko pozycjonowane, które w kolumnie nie zmieściło żadnej treści i w całości
@@ -349,6 +357,7 @@ func (l *layoutContext) setBrokenOutOfFlow(key Box, broken brokenBox) {
 	broken.order = l.brokenSequence
 	broken.columnX = l.columnX
 	broken.owner = l.columnOwner
+	broken.fromPage = l.geometryPage
 	l.brokenOutOfFlow[key] = broken
 }
 
@@ -410,6 +419,22 @@ type layoutContext struct {
 	excludedShapesLists []shapeList
 	brokenOutOfFlow     map[Box]brokenBox
 	brokenSequence      int
+	// gopdfgo: obszary stron ułożonych w bieżącym przebiegu (indeks = numer strony - 1), zob. pageArea
+	pageAreas []pageArea
+	// gopdfgo: numer strony, której obszar odpowiada współrzędnym bieżącego układu; zwykle bieżąca
+	// strona, przy układzie fragmentów na wcześniejszych stronach (layoutEarlierFragments) tamta strona
+	geometryPage int
+	// gopdfgo: fragmenty pudełek pozycjonowanych dołożone do wcześniejszych, już ułożonych stron;
+	// klucz to numer strony, której układ je wytworzył (wpisy kasujemy, gdy ta strona jest układana od
+	// nowa), a dokładamy je do stron po zakończeniu paginacji (layoutDocument)
+	lateBoxes map[int][]lateBox
+	// gopdfgo: ostatnio układana strona umieściła dalszy ciąg pudełka poza przepływem albo czeka na
+	// pudełko odłożone (zob. makePage)
+	outOfFlowProgress bool
+	// gopdfgo: położenie pierwszego fragmentu pudełka pozycjonowanego w osi fragmentacji oraz kopie
+	// dalszych fragmentów przesunięte do tego położenia jako bloki zawierające potomków (zob. absoluteBlock)
+	fragmentStarts map[Box]pr.Float
+	shiftedBlocks  map[Box]bool
 	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie, do kontynuacji na górze następnej
 	// (zob. columnsLayout, takeColumnFloats)
 	columnFloats []columnFloat
@@ -536,6 +561,9 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 	self.counterStyle = counterStyle
 	self.runningElements = make(map[string]map[int][]Box)
 	self.brokenOutOfFlow = make(map[Box]brokenBox)
+	self.lateBoxes = make(map[int][]lateBox)
+	self.fragmentStarts = make(map[Box]pr.Float)
+	self.shiftedBlocks = make(map[Box]bool)
 
 	// Cache
 	self.stringSet = make(map[string]map[int][]string)

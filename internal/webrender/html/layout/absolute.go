@@ -457,8 +457,27 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 		context.outOfFlowDepth--
 	}
 
+	// gopdfgo: dalszy ciąg pudełka podzielonego między strony jest blokiem zawierającym swoich potomków
+	// pozycjonowanych tak, jakby nie był podzielony (CSS Break 3 § 2: treść układa się w jednym ciągłym
+	// przepływie fragmentacji, jak w Chrome, test WPT css-page/fixedpos-008): przesuwamy go w górę
+	// o wysokość fragmentów na poprzednich stronach. Źródło liczyło top potomka od góry bieżącego fragmentu.
+	childCB := newBox
+	if paged := len(context.pageAreas) > 0 && !context.behavior.Continuous && newBox != nil; paged {
+		g := context.geometryPage
+		f := newBox.Box().PositionY - context.area(g).y + context.pageOffset(g)
+		if len(skipStack) == 0 {
+			defer func() {
+				context.fragmentStarts[box_] = newBox.Box().PositionY - context.area(g).y + context.pageOffset(g)
+			}()
+		} else if start, ok := context.fragmentStarts[box_]; ok && f-start > 0.01 {
+			shifted := newBox.Copy()
+			shifted.Box().PositionY -= f - start
+			context.shiftedBlocks[shifted] = true
+			childCB = shifted
+		}
+	}
 	for _, childPlaceholder := range absoluteBoxes {
-		absoluteLayout(context, childPlaceholder, newBox, fixedBoxes, bottomSpace, skipStack)
+		absoluteLayout(context, childPlaceholder, childCB, fixedBoxes, bottomSpace, skipStack)
 	}
 	if ownsFixed {
 		for i := 0; i < len(*fixedBoxes); i++ {
@@ -503,7 +522,38 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		!slices.Contains(page.FixedBoxes, box) {
 		page.FixedBoxes = append(page.FixedBoxes, box)
 	}
-	newBox, resumeAt := absoluteBoxLayout(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
+	// gopdfgo: blok początkowy liczony od pierwszej strony (zob. icbFor); układamy względem niego zamiast
+	// względem bieżącej strony
+	layoutCB, icb := containingBlock, context.usesInitialContainingBlock(box, containingBlock, bottomSpace, skipStack)
+	if icb {
+		layoutCB = context.icbFor(containingBlock.(*bo.PageBox), context.geometryPage)
+	}
+	newBox, resumeAt := absoluteBoxLayout(context, box, layoutCB, fixedBoxes, bottomSpace, skipStack)
+	shiftedCB := !icb && context.shiftedBlocks[containingBlock] && len(skipStack) == 0 && bottomSpace > -pr.Inf &&
+		box.Box().Style.GetPosition().String == "absolute" &&
+		(box.Box().Style.GetTop().Tag != pr.Auto || box.Box().Style.GetBottom().Tag != pr.Auto)
+	if (icb || shiftedCB) && newBox != nil {
+		// pudełko zaczyna się na wcześniejszej stronie: tam układamy jego fragmenty, a na tej stronie
+		// zostaje dalszy ciąg albo pusta, niewidoczna kopia
+		cur := context.geometryPage
+		if top := newBox.Box().PositionY; top < context.area(cur).y-0.01 {
+			f := top - (context.area(cur).y - context.pageOffset(cur))
+			if first := context.pageAt(f, cur); first < cur {
+				removePlaceholders(context, []Box{newBox}, new([]*AbsolutePlaceholder), fixedBoxes)
+				cbFor := func(j int) Box { return context.shiftedBlockFor(containingBlock, cur, j) }
+				if icb {
+					page := containingBlock.(*bo.PageBox)
+					cbFor = func(j int) Box { return context.icbFor(page, j) }
+				}
+				fragment, fragmentResumeAt, reached := context.layoutEarlierFragments(box, cbFor, first, cur, fixedBoxes)
+				if !reached {
+					placeholder.setLaidOutBox(hiddenEmpty(newBox))
+					return
+				}
+				newBox, resumeAt = fragment, fragmentResumeAt
+			}
+		}
+	}
 	if static := box.Box().StaticAlign; static != nil && newBox != nil {
 		// gopdfgo: wyrównanie pozycji statycznej dziecka siatki w osi bez podanych przesunięć
 		style, laidOut := newBox.Box().Style, newBox.Box()
@@ -557,6 +607,25 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			return
 		}
 	}
+	// gopdfgo: to samo na stronie: pudełko w pozycji statycznej w pionie, którego górna krawędź leży na
+	// dole strony albo niżej (zastępnik na samym dole strony), ma tu pusty pierwszy fragment, a całe
+	// zaczyna się u góry następnej strony (CSS Break 3 § 4.4, test WPT css-page/page-margin-007). W źródle
+	// pierwsze dziecko było wymuszane na tę stronę i wystawało na jej dolny margines. Tylko zastępnik
+	// dokładnie na dolnej krawędzi: zastępnik poniżej niej zostaje po treści przeniesionej na następną
+	// stronę, gdzie pudełko jest układane ponownie (test goweasyprint TestAbsoluteInInline).
+	if !context.inColumn && !context.behavior.Continuous && newBox != nil && len(skipStack) == 0 && bottomSpace > -pr.Inf &&
+		context.pageBottom != pr.Inf && context.clipDepth == 0 && len(context.pageAreas) > 0 &&
+		math.Abs(float64(newBox.Box().PositionY-(context.pageBottom-bottomSpace))) < 0.01 &&
+		newBox.Box().PositionY > context.area(context.geometryPage).y+0.01 && newBox.Box().MarginHeight() > 0 &&
+		box.Box().Style.GetPosition().String == "absolute" &&
+		box.Box().Style.GetTop().Tag == pr.Auto && box.Box().Style.GetBottom().Tag == pr.Auto {
+		if _, isPage := containingBlock.(*bo.PageBox); isPage || containingBlock.Box().Style.GetOverflow() == "visible" {
+			removePlaceholders(context, []Box{newBox}, new([]*AbsolutePlaceholder), fixedBoxes)
+			placeholder.setLaidOutBox(hiddenEmpty(newBox))
+			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock})
+			return
+		}
+	}
 	placeholder.setLaidOutBox(newBox)
 	// gopdfgo: dalszy ciąg pudełka przyciętego przez blok zawierający nie jest widoczny, więc nie tworzy stron
 	if _, isPage := containingBlock.(*bo.PageBox); !isPage && containingBlock.Box().Style.GetOverflow() != "visible" {
@@ -582,7 +651,7 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			empty.Box().Style.SetVisibility("hidden")
 			empty.Box().DeferredToLaterPage = true
 			placeholder.setLaidOutBox(empty)
-			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock, deferredPages: 1})
+			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock, deferredPages: 1, icb: icb})
 			return
 		}
 	}
@@ -591,6 +660,7 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 			box:             box,
 			containingBlock: containingBlock,
 			resumeAt:        resumeAt,
+			icb:             icb,
 		})
 		return
 	}
@@ -632,7 +702,9 @@ func absoluteBoxLayout(context *layoutContext, box Box, cb_ Box, fixedBoxes *[]*
 		resumeAt tree.ResumeStack
 	)
 	if bo.BlockReplacedT.IsInstance(box) {
+		startY := box.Box().PositionY // dalszy ciąg: góra strony (zob. makePage)
 		newBox = absoluteReplaced(box, containingBlock)
+		newBox, resumeAt = sliceAbsoluteReplaced(context, newBox, bottomSpace, skipStack, startY)
 	} else {
 		// Absolute tables are wrapped into block boxes
 		newBox, resumeAt = absoluteBlock(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
@@ -831,4 +903,222 @@ func contentBeforeInLine(line Box, placeholder *AbsolutePlaceholder) bool {
 	}
 	walk(line)
 	return content
+}
+
+// gopdfgo: blok początkowy w druku. Pudełko pozycjonowane bezwzględnie bez pozycjonowanego przodka ma za
+// blok zawierający blok początkowy (CSS 2.1 § 10.1 pkt 4), czyli obszar pierwszej strony; w układzie
+// stronicowanym ciągnie się on w dół przez kolejne strony, a pudełko jest dzielone między nie (CSS Break 3
+// § 2, jak Chrome: `top: 100vh` to zawsze druga strona dokumentu). Źródło liczyło przesunięcia od strony,
+// na którą trafił zastępnik pudełka w przepływie, więc pudełko lądowało o tyle stron dalej.
+
+// pageArea to położenie i rozmiar obszaru strony (pudełka treści strony) we współrzędnych tej strony.
+type pageArea struct{ x, y, width, height pr.Float }
+
+// lateBox to fragment pudełka pozycjonowanego dla wcześniejszej strony page (numer od 1).
+type lateBox struct {
+	page int
+	box  Box
+}
+
+// pageOffset podaje odległość początku obszaru strony n od początku obszaru pierwszej strony w ciągłej
+// osi fragmentacji: suma wysokości obszarów stron poprzednich.
+func (l *layoutContext) pageOffset(n int) pr.Float {
+	var offset pr.Float
+	for i := 0; i < n-1 && i < len(l.pageAreas); i++ {
+		offset += l.pageAreas[i].height
+	}
+	return offset
+}
+
+// pageAt podaje numer strony (od 1, najwyżej last), na którą w osi fragmentacji wypada położenie f.
+func (l *layoutContext) pageAt(f pr.Float, last int) int {
+	var offset pr.Float
+	for j := 1; j < last && j <= len(l.pageAreas); j++ {
+		offset += l.pageAreas[j-1].height
+		if f < offset {
+			return j
+		}
+	}
+	return last
+}
+
+// area podaje obszar strony n albo, gdy go nie znamy, obszar ostatniej znanej strony.
+func (l *layoutContext) area(n int) pageArea {
+	if n >= 1 && n <= len(l.pageAreas) {
+		return l.pageAreas[n-1]
+	}
+	return l.pageAreas[len(l.pageAreas)-1]
+}
+
+// icbFor zwraca blok początkowy widziany ze strony j: rozmiar obszaru pierwszej strony, początek
+// przesunięty w górę o wysokość stron poprzednich, poziomo przy lewej krawędzi obszaru strony j.
+// page jest wzorcem (pudełko strony bieżącej); zwracamy jego płytką kopię.
+func (l *layoutContext) icbFor(page *bo.PageBox, j int) *bo.PageBox {
+	first, target := l.area(1), l.area(j)
+	icb := page.Copy().(*bo.PageBox)
+	icb.PositionX += target.x - page.ContentBoxX()
+	icb.PositionY += target.y - l.pageOffset(j) - page.ContentBoxY()
+	icb.Width, icb.Height = first.width, first.height
+	return icb
+}
+
+// shiftedBlockFor zwraca płytką kopię bloku zawierającego ułożonego we współrzędnych strony from,
+// przeniesioną do współrzędnych strony j (to samo miejsce w osi fragmentacji).
+func (l *layoutContext) shiftedBlockFor(cb Box, from, j int) Box {
+	if from == j || from < 1 {
+		return cb
+	}
+	a, b := l.area(from), l.area(j)
+	shifted := cb.Copy()
+	shifted.Box().PositionX += b.x - a.x
+	shifted.Box().PositionY += (b.y - l.pageOffset(j)) - (a.y - l.pageOffset(from))
+	return shifted
+}
+
+// onPage wykonuje f z dołem strony i numerem strony geometrii ustawionymi na stronę j.
+func (l *layoutContext) onPage(j int, f func()) {
+	savedBottom, savedHeight, savedPage := l.pageBottom, l.pageHeight, l.geometryPage
+	a := l.area(j)
+	l.pageBottom, l.pageHeight, l.geometryPage = a.y+a.height, a.height, j
+	f()
+	l.pageBottom, l.pageHeight, l.geometryPage = savedBottom, savedHeight, savedPage
+}
+
+// usesInitialContainingBlock mówi, czy pudełko pozycjonowane w bloku zawierającym cb jest liczone od
+// bloku początkowego w osi stron (zob. wyżej). Pudełko w pozycji statycznej w pionie (top i bottom auto)
+// podąża za zastępnikiem; tryb ciągły nie ma stron.
+func (l *layoutContext) usesInitialContainingBlock(box Box, cb Box, bottomSpace pr.Float, skipStack tree.ResumeStack) bool {
+	_, isPage := cb.(*bo.PageBox)
+	style := box.Box().Style
+	return isPage && len(skipStack) == 0 && bottomSpace > -pr.Inf && !l.behavior.Continuous &&
+		l.pageBottom != pr.Inf && l.pageHeight > 0 && l.clipDepth == 0 && !l.inColumn &&
+		l.geometryPage >= 1 && l.geometryPage <= len(l.pageAreas) &&
+		style.GetPosition().String == "absolute" && (style.GetTop().Tag != pr.Auto || style.GetBottom().Tag != pr.Auto)
+}
+
+// layoutEarlierFragments układa pudełko box od strony first (wcześniejszej niż bieżąca strona cur) aż
+// do strony cur: fragmenty dla stron wcześniejszych trafiają do lateBoxes, fragment dla strony cur
+// zwracamy (reached == true) razem z miejscem wznowienia. cbFor podaje blok zawierający we współrzędnych
+// danej strony. Ograniczenie: pudełka zagnieżdżone, które dzielą się na wcześniejszej stronie, są
+// kontynuowane dopiero na stronie po cur.
+func (l *layoutContext) layoutEarlierFragments(box Box, cbFor func(j int) Box, first, cur int,
+	fixedBoxes *[]*AbsolutePlaceholder,
+) (fragment Box, resumeAt tree.ResumeStack, reached bool) {
+	for j := first; j <= cur; j++ {
+		l.onPage(j, func() {
+			if j == first {
+				fragment, resumeAt = absoluteBoxLayout(l, box, cbFor(j), fixedBoxes, 0, nil)
+				return
+			}
+			box.Box().PositionX += l.area(j).x - l.area(j-1).x
+			box.Box().PositionY = l.area(j).y
+			fragment, resumeAt = absoluteBoxLayout(l, box, cbFor(j), fixedBoxes, 0, resumeAt)
+		})
+		if j == cur {
+			return fragment, resumeAt, true
+		}
+		l.lateBoxes[cur] = append(l.lateBoxes[cur], lateBox{page: j, box: fragment})
+		if resumeAt == nil {
+			return nil, nil, false
+		}
+	}
+	return nil, nil, false
+}
+
+// hiddenEmpty zwraca pustą, niewidoczną kopię pudełka o zerowej wysokości: zastępnik pudełka, którego
+// treść jest na innej stronie.
+func hiddenEmpty(box Box) Box {
+	empty := bo.CopyWithChildren(box, nil)
+	empty.Box().Height = pr.Float(0)
+	empty.Box().Style = empty.Box().Style.Copy()
+	empty.Box().Style.SetVisibility("hidden")
+	return empty
+}
+
+// takeFixedPlaceholders usuwa z drzewa box zastępniki pudełek fixed i je zwraca.
+func takeFixedPlaceholders(box Box) []Box {
+	var taken []Box
+	fields := box.Box()
+	kept := fields.Children[:0:0]
+	for _, child := range fields.Children {
+		if placeholder, ok := child.(*AbsolutePlaceholder); ok && placeholder.Box().Style.GetPosition().String == "fixed" {
+			taken = append(taken, child)
+			continue
+		}
+		taken = append(taken, takeFixedPlaceholders(child)...)
+		kept = append(kept, child)
+	}
+	if len(kept) != len(fields.Children) {
+		fields.Children = kept
+	}
+	return taken
+}
+
+// attachLateBoxes dokłada fragmenty z lateBoxes do stron po zakończeniu paginacji, w kolejności stron,
+// które je wytworzyły.
+func attachLateBoxes(context *layoutContext, pages []*bo.PageBox) {
+	origins := make([]int, 0, len(context.lateBoxes))
+	for origin := range context.lateBoxes {
+		origins = append(origins, origin)
+	}
+	slices.Sort(origins)
+	for _, origin := range origins {
+		if origin > len(pages) {
+			continue
+		}
+		originRoot := pages[origin-1].Box().Children[0].Box()
+		for _, late := range context.lateBoxes[origin] {
+			if late.page < 1 || late.page > len(pages) {
+				continue
+			}
+			// pudełka fixed zagnieżdżone we fragmencie należą do strony, która je ułożyła (na pozostałe
+			// powtarza je layoutFixedBoxes); we fragmencie byłyby narysowane drugi raz
+			originRoot.Children = append(originRoot.Children, takeFixedPlaceholders(late.box)...)
+			root := pages[late.page-1].Box().Children[0].Box()
+			root.Children = append(root.Children, late.box)
+		}
+	}
+}
+
+// sliceAbsoluteReplaced (gopdfgo) kroi element zastępowany pozycjonowany bezwzględnie, wyższy niż strona,
+// między strony, jak element zastępowany w przepływie (zob. sliceTallReplaced; treść monolityczna wyższa
+// niż strona jest dzielona, CSS Break 3 § 4.4, jak w Chrome: wzorce WPT css-page/page-background-002/003).
+// Źródło zostawiało go w całości na stronie, na której się zaczynał. Fragment jest kopią pudełka; dalszy
+// ciąg (skipStack z resztą wysokości) zaczyna się w startY, u góry strony.
+func sliceAbsoluteReplaced(context *layoutContext, box Box, bottomSpace pr.Float, skipStack tree.ResumeStack,
+	startY pr.Float,
+) (Box, tree.ResumeStack) {
+	fields := box.Box()
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || context.clipDepth > 0 ||
+		context.behavior.Continuous || !pr.Is(fields.Height) || avoidPageBreak(string(fields.Style.GetBreakInside()), context) {
+		return box, nil
+	}
+	fullHeight := fields.Height.V()
+	if fullHeight >= maxSliceableHeight {
+		return box, nil
+	}
+	var consumed pr.Float
+	if remaining, isRemainder := skipStack.Remainder(); isRemainder {
+		consumed = max(fullHeight-pr.Float(remaining), 0)
+	} else if fields.BorderHeight() <= context.pageHeight {
+		return box, nil
+	}
+	fragment := box.Copy()
+	out := fragment.Box()
+	if consumed > 0 {
+		fragment.RemoveDecoration(out, true, false)
+		out.PositionY = startY
+	}
+	available := context.pageBottom - bottomSpace - out.ContentBoxY()
+	remaining := fullHeight - consumed
+	if consumed == 0 && (available <= 0 || remaining <= available) {
+		return box, nil
+	}
+	visible := max(min(remaining, available), 0)
+	out.SliceFullHeight, out.SliceOffset, out.Height = fullHeight, consumed, visible
+	if left := remaining - visible; left > 0.5 {
+		fragment.RemoveDecoration(out, false, true)
+		return fragment, tree.RemainderResume(float64(left))
+	}
+	return fragment, nil
 }
