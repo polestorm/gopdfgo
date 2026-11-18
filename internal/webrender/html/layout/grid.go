@@ -501,6 +501,7 @@ const (
 // direction : x, y
 func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, affectedTracksTypes, sizeContribution byte, tracksChildren [][]Box,
 	sizingFunctions [][2]pr.TaggedDim, tracksSizes [][2]pr.MaybeFloat, span int, direction byte, containingBlock *bo.BoxFields,
+	growable ...bool,
 ) {
 	// 1. Maintain separately for each affected track a planned increase.
 	plannedIncreases := make([]pr.Float, len(tracksSizes))
@@ -568,8 +569,15 @@ func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, a
 					space = gridItemMinimumHeight(item, sizingFunctions, i, span, space, limited)
 				}
 			}
+			// gopdfgo: nieskończoną granicę wzrostu liczymy jak rozmiar bazowy (CSS Grid 1 § 11.5.1 krok 1);
+			// źródło odejmowało nieskończoność, więc element rozpięty na ścieżki o maksimum min-content bez
+			// własnych elementów nie podnosił ich granic (test WPT grid-intrinsic-maximums)
 			for _, sizes := range tracksSizes[min(i, len(tracksSizes)):min(i+span, len(tracksSizes))] {
-				space -= sizes[affectedSizes].V()
+				if affectedSizes == sizeMax && sizes[1] == pr.Inf {
+					space -= sizes[0].V()
+				} else {
+					space -= sizes[affectedSizes].V()
+				}
 			}
 			space = max(0, space)
 			// 2.2 Distribute space up to limits.
@@ -596,6 +604,13 @@ func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, a
 					for _, trackNumber := range active {
 						room := tracksSizes[trackNumber][1].V() - tracksSizes[trackNumber][affectedSizes].V() -
 							itemIncurredIncreases[trackNumber]
+						if affectedSizes == sizeMax {
+							// granica wzrostu: bez ograniczenia, gdy jest nieskończona, inaczej bez wzrostu (§ 11.5.1 krok 2.2)
+							room = 0
+							if tracksSizes[trackNumber][1] == pr.Inf || (trackNumber < len(growable) && growable[trackNumber]) {
+								room = pr.Inf
+							}
+						}
 						if room <= share {
 							room = max(room, 0)
 							itemIncurredIncreases[trackNumber] += room
@@ -925,9 +940,18 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			}
 		}
 		// 1.2.3.5 For intrinsic maximums.
+		// gopdfgo: ścieżka, której granica wzrostu przestała tu być nieskończona, pozostaje „nieskończenie
+		// rosnąca” w kroku dla maksimów max-content (CSS Grid 1 § 11.5.1 krok 3)
+		growable := make([]bool, len(tracksSizes))
+		for i, sizes := range tracksSizes {
+			growable[i] = sizes[1] == pr.Inf
+		}
 		distributeExtraSpace(context, limited, sizeMax, 'i', 'c', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		for i, sizes := range tracksSizes {
+			growable[i] = growable[i] && sizes[1] != pr.Inf
+		}
 		// 1.2.3.6 For max-content maximums.
-		distributeExtraSpace(context, limited, sizeMax, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMax, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box(), growable...)
 	}
 	// 1.2.4 Increase sizes to accommodate items spanning flexible tracks.
 	// TODO: Support spans for flexible tracks.
