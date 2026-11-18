@@ -57,6 +57,11 @@ func TestTextTail(t *testing.T) {
 	same("ideographic-space-hangs", `<div style="width:40px;text-align:right">x&#x3000;x</div>`,
 		box(20, 0, 20)+box(20, 20, 20))
 
+	// zachowane spacje (pre-wrap) przed odstępem ideograficznym przy white-space: normal wiszą
+	// bezwarunkowo razem z nim
+	same("hanging-sequence", `<div style="width:60px;text-align:right"><span style="white-space:pre-wrap">X  </span>&#x3000;<br>X</div>`,
+		box(40, 0, 20)+box(40, 20, 20))
+
 	// liniowy element absolutny przed pierwszym wierszem stoi za wcięciem
 	same("abspos-static-text-indent", `<div style="text-indent:20px"><span style="position:absolute;width:20px;height:20px;background:green"></span>xx</div>`,
 		box(20, 0, 20)+`<div style="margin-left:20px">xx</div>`)

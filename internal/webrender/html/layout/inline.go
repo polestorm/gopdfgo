@@ -378,13 +378,18 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		// § 4.1.3): zachowują szerokość i tło, ale nie liczą się do wyrównania ani justowania. W wierszu
 		// zawiniętym wiszą wszystkie, w wierszu zakończonym wymuszonym podziałem albo ostatnim tylko
 		// ta część, która nie mieści się w wierszu.
-		hang := trailingPreservedWidth(line_)
-		if resumeAt == nil || preservedLineBreak {
-			hang = max(0, min(hang, line.Width.V()-alignmentAvailableWidth))
+		// gopdfgo: odstępy inne niż spacja (np. U+3000) przy zwijanych białych znakach wiszą bezwarunkowo,
+		// także przez kilka pudełek tekstu (CSS Text 3 § 4.1.3; testy WPT text-transform-fullwidth-008,
+		// hanging-whitespace-002, -003); ciąg kończący się zachowanymi spacjami przed wymuszonym
+		// złamaniem wisi warunkowo w całości
+		hang, conditional := trailingHangingWidth(line_)
+		if conditional > 0 && (resumeAt == nil || preservedLineBreak) {
+			// odstępy bezwarunkowe przed warunkowymi wiszą tylko wtedy, gdy cały ciąg warunkowy jest
+			// poza wierszem; inaczej wisi tylko część, która się nie mieści
+			if overflow := line.Width.V() - alignmentAvailableWidth; overflow < conditional {
+				hang = max(0, overflow)
+			}
 		}
-		// gopdfgo: odstępy inne niż spacja (np. U+3000) na końcu wiersza przy zwijanych białych znakach
-		// wiszą bezwarunkowo (CSS Text 3 § 4.1.3; test WPT text-transform-fullwidth-008)
-		hang += trailingOtherSpacesWidth(line_)
 		offsetX := textAlign(context, line_, alignmentAvailableWidth, resumeAt == nil || preservedLineBreak, hang)
 
 		if traceMode {
@@ -2255,20 +2260,64 @@ func trailingPreservedWidth(box Box) pr.Float {
 	return last.TextLayout.TrailingSpacesWidth()
 }
 
-// trailingOtherSpacesWidth (gopdfgo) zwraca szerokość odstępów innych niż spacja (kategoria Zs, np.
-// U+3000) na końcu wiersza, gdy ostatni tekst ma zwijane białe znaki (normal, nowrap, pre-line).
-func trailingOtherSpacesWidth(box Box) pr.Float {
-	path, _, found := lastTextBefore(box, nil)
-	if !found {
-		return 0
+// trailingHangingWidth (gopdfgo) zwraca szerokość ciągu wiszących białych znaków na końcu wiersza,
+// także rozłożonego na kilka pudełek tekstu: przy pre-wrap spacje, tabulatory i odstępy kategorii Zs,
+// przy zwijanych białych znakach odstępy Zs (spacje znikają wcześniej, removeLastWhitespace).
+// conditional to szerokość końcowej części ciągu złożonej z zachowanych znaków pre-wrap: przed
+// wymuszonym złamaniem wisi ona tylko w tej części, która się nie mieści (CSS Text 3 § 4.1.3).
+func trailingHangingWidth(box Box) (width, conditional pr.Float) {
+	texts := lineTexts(box, nil)
+	first := true // jeszcze w końcowej części pre-wrap
+	for i := len(texts) - 1; i >= 0; i-- {
+		textBox := texts[i]
+		n := len(textBox.Text)
+		if n == 0 {
+			continue
+		}
+		if textBox.TextLayout == nil || textBox.FirstLineIsRTL {
+			break
+		}
+		ws := textBox.Style.GetWhiteSpace()
+		collapsing := ws == pr.Normal || ws == pr.Nowrap || ws == pr.PreLine
+		hangs := func(r rune) bool {
+			return (collapsing || ws == pr.PreWrap) && text.IsOtherSpaceSeparator(r) ||
+				ws == pr.PreWrap && (r == ' ' || r == '\t') || collapsing && r == ' '
+		}
+		if !hangs(textBox.Text[n-1]) {
+			break
+		}
+		w := textBox.TextLayout.TrailingSpacesWidth()
+		if first && ws == pr.PreWrap {
+			conditional += w
+		} else {
+			first = false
+		}
+		width += w
+		for _, r := range textBox.Text {
+			if !hangs(r) {
+				return width, conditional
+			}
+		}
 	}
-	textBox := path[len(path)-1].(*bo.TextBox)
-	n := len(textBox.Text)
-	if ws := textBox.Style.GetWhiteSpace(); n == 0 || textBox.TextLayout == nil || textBox.FirstLineIsRTL ||
-		!(ws == pr.Normal || ws == pr.Nowrap || ws == pr.PreLine) || !text.IsOtherSpaceSeparator(textBox.Text[n-1]) {
-		return 0
+	return width, conditional
+}
+
+// lineTexts (gopdfgo) zbiera teksty wiersza w kolejności; element atomowy zaczyna listę od nowa, a
+// elementy spoza przepływu są pomijane
+func lineTexts(box Box, out []*bo.TextBox) []*bo.TextBox {
+	for _, child := range box.Box().Children {
+		if !child.Box().IsInNormalFlow() {
+			continue
+		}
+		if textBox, ok := child.(*bo.TextBox); ok {
+			out = append(out, textBox)
+		} else if IsLine(child) {
+			out = lineTexts(child, out)
+		} else {
+			out = out[:0]
+		}
 	}
-	return textBox.TextLayout.TrailingSpacesWidth()
+	return out
 }
 
 // trailingPreservedSpaces szuka ostatniego tekstu w wierszu i liczy jego końcowe zachowane spacje
