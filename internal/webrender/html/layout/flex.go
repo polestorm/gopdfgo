@@ -1885,7 +1885,10 @@ restartCollapsed:
 		}
 		if cross == pr.PHeight {
 			box.Height = clamp(crossSize, box.MinHeight, box.MaxHeight)
-		} else {
+		} else if _, known := box.Width.(pr.Float); !known || len(flexLines) < 2 {
+			// gopdfgo: szerokość wieloliniowego kontenera kolumnowego wyznaczona już przed układem (blok,
+			// shrink-to-fit elementu pływającego) zostaje; linie mogą z niego wystawać (CSS Flexbox 1
+			// § 9.2 krok 2, § 9.9.2; test WPT multiline-shrink-to-fit). Źródło brało sumę linii.
 			box.Width = clamp(crossSize, box.MinWidth, box.MaxWidth)
 		}
 	}

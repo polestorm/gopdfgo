@@ -2103,7 +2103,11 @@ func translateSubtree(box Box, dy pr.Float) {
 		}
 	} else {
 		// Text or atomic boxes
-		box.Translate(0, dy, true)
+		// gopdfgo: pudełko atomowe (inline-block, inline-flex…) tworzy własny kontekst formatowania, więc
+		// jego elementy pływające przesuwają się razem z nim; źródło je pomijało (ignoreFloats), przez co
+		// przy vertical-align: top/bottom zostawały w miejscu sprzed wyrównania (wzorzec WPT
+		// flexbox-align-self-horiz-004-ref)
+		box.Translate(0, dy, false)
 	}
 }
 

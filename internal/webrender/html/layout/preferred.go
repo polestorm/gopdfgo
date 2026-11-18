@@ -44,8 +44,25 @@ func shrinkToFit(context *layoutContext, box Box, availableContentWidth pr.Float
 // [outer] defaults to true
 func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if width, ok := ratioContentWidth(box); ok {
-		return adjust(box, outer, width, true, true)
+		return adjust(box, outer, ratioFloor(context, box, width), true, true)
 	}
+	return contentMinContentWidth(context, box, outer)
+}
+
+// ratioFloor (gopdfgo): szerokość wynikająca z proporcji nie schodzi poniżej szerokości min-content
+// treści, o ile pudełko nie przewija (minimum automatyczne, CSS Sizing 4 § 5.1 „aspect-ratio-minimum”;
+// test WPT aspect-ratio-nonreplaced-max-content-contribution-001). Źródło brało samą proporcję.
+func ratioFloor(context *layoutContext, box Box, width pr.Float) pr.Float {
+	style := box.Box().Style
+	// Uproszczenie: min-width nie jest sprawdzane, bo kopie pomiarowe (flex, intrinsic.go) mają min-width: 0.
+	if style.GetOverflow() != "visible" {
+		return width
+	}
+	return max(width, contentMinContentWidth(context, box, false))
+}
+
+// contentMinContentWidth to minContentWidth bez szerokości wynikającej z aspect-ratio.
+func contentMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if box.Box().IsTableWrapper {
 		return tableAndColumnsPreferredWidths(context, box, outer).tableMinContentWidth
 	} else if bo.TableCellT.IsInstance(box) {
@@ -71,7 +88,10 @@ func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 // i wysokością podaną długością wynika z proporcji (CSS Sizing 4 § 5.1); dotyczy pudełek dopasowujących się
 // do treści: elementów flex i grid, pływających, pozycjonowanych, inline-block.
 func ratioContentWidth(box Box) (pr.Float, bool) {
-	if _, isReplaced := box.(bo.ReplacedBoxITF); isReplaced || !bo.BlockContainerT.IsInstance(box) || box.Box().IsTableWrapper {
+	// gopdfgo: także kontenery flex i siatki (CSS Sizing 4 § 5.1 dotyczy wszystkich pudełek
+	// niezastępowanych; test WPT aspect-ratio-nonreplaced-max-content-contribution-001)
+	container := bo.BlockContainerT.IsInstance(box) || bo.FlexContainerT.IsInstance(box) || bo.GridContainerT.IsInstance(box)
+	if _, isReplaced := box.(bo.ReplacedBoxITF); isReplaced || !container || box.Box().IsTableWrapper {
 		return 0, false
 	}
 	style := box.Box().Style
@@ -110,7 +130,7 @@ func ratioContentWidth(box Box) (pr.Float, bool) {
 // outer=true
 func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if width, ok := ratioContentWidth(box); ok {
-		return adjust(box, outer, width, true, true)
+		return adjust(box, outer, ratioFloor(context, box, width), true, true)
 	}
 	rep, isReplaced := box.(bo.ReplacedBoxITF)
 	if box.Box().IsTableWrapper {
@@ -1489,9 +1509,10 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") && box.Box().Style.GetFlexWrap() == "nowrap" {
 		return adjust(box, outer, sum+flexMainGaps(box), true, true)
 	} else {
-		if wrapped, ok := columnWrapContentWidth(context, box, minContentWidth); ok {
-			return adjust(box, outer, wrapped, true, true)
-		}
+		// gopdfgo: szerokość min-content wieloliniowego kontenera w kolumnie to największy wkład min-content
+		// elementu, a nie suma kolumn (CSS Flexbox 1 § 9.9.2; suma dotyczy tylko max-content). Wcześniej
+		// liczyliśmy tu columnWrapContentWidth, więc kontener nie zwężał się do dostępnego miejsca (test WPT
+		// multiline-shrink-to-fit).
 		return adjust(box, outer, max, true, true)
 	}
 }

@@ -2263,7 +2263,10 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		// stretch (CSS Grid 1 § 6.2): zachowuje rozmiar wynikający z proporcji. Źródło rozciągało obraz
 		// do całego obszaru siatki.
 		replaced := bo.ReplacedT.IsInstance(child)
-		stretchInline := justifySelf.Intersects(pr.Normal, pr.Stretch) && !(replaced && !justifySelf.Has(pr.Stretch))
+		// gopdfgo: tak samo pudełko niezastępowane z aspect-ratio i podaną wysokością w osi wierszy (CSS Grid 1
+		// § 6.2 „preferred aspect ratio”; test WPT aspect-ratio-nonreplaced-max-content-contribution-002)
+		ratioInline := childB.Style.GetAspectRatio() != 0 && childB.Style.GetHeight().Tag != pr.Auto && childB.Style.GetWidth().Tag == pr.Auto
+		stretchInline := justifySelf.Intersects(pr.Normal, pr.Stretch) && !((replaced || ratioInline) && !justifySelf.Has(pr.Stretch))
 		stretchBlock := alignSelf.Intersects(pr.Normal, pr.Stretch) && !(replaced && !alignSelf.Has(pr.Stretch))
 		// gopdfgo: marginesy auto elementu siatki pochłaniają wolne miejsce w swojej osi przed
 		// wyrównaniem i wyłączają rozciąganie (CSS Grid 1 § 6.4). W źródle: "TODO: Apply auto margins".
@@ -2275,6 +2278,20 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		if !inlineAuto && stretchInline {
 			if widthAuto {
 				childB.Style.SetWidth(pr.FToPx(childWidth))
+			}
+		} else if widthAuto && !replaced && !childB.IsTableWrapper {
+			// gopdfgo: element nierozciągany ma szerokość fit-content (CSS Grid 1 § 6.2) i z nią układamy jego
+			// treść; źródło układało ją w całej szerokości obszaru i dopiero potem zwężało pudełko, więc
+			// wiersze tekstu wychodziły poza nie, gdy fit-content wypadało poniżej max-content (pudełko
+			// z aspect-ratio, test WPT aspect-ratio-nonreplaced-max-content-contribution-002)
+			// (dla innych pudełek fit-content < obszar oznacza max-content, przy którym wiersze się nie łamią)
+			if _, isRatio := ratioContentWidth(child); !isRatio {
+				// bez proporcji nic do zrobienia
+			} else if fit := fitContentItemWidth(context, child, childWidth); fit < childWidth {
+				if childB.Style.GetBoxSizing() == "border-box" {
+					fit += childB.PaddingLeft.V() + childB.PaddingRight.V() + childB.BorderLeftWidth.V() + childB.BorderRightWidth.V()
+				}
+				childB.Style.SetWidth(pr.FToPx(fit))
 			}
 		}
 		if !blockAuto && stretchBlock && childSkipStack == nil {
