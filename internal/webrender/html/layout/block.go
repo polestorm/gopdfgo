@@ -1105,6 +1105,13 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		if used := positionY - box.ContentBoxY(); context.inColumn && available > 0 && used > available {
 			available = used
 		}
+		// gopdfgo: w pustej kolumnie, w której nie ma miejsca nawet na obramowania (np. powielane przez
+		// box-decoration-break: clone w kolumnie o wysokości 1px), fragment zużywa 1px treści, żeby układ
+		// posuwał się naprzód, jak w Chromium (CSS Break 3 § 4.4; test WPT multicol-zero-height-003).
+		// Wcześniej blok zostawał w całości w pierwszej kolumnie.
+		if context.inColumn && pageIsEmpty && box.IsInNormalFlow() && available <= 0 && usedHeight > 1 {
+			available = 1
+		}
 		if remaining := usedHeight - available; available > 0 && remaining > 0.5 {
 			splitHeight = available
 			resumeAt = tree.RemainderResume(float64(remaining))
@@ -1464,6 +1471,9 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 			pageBreak := blockLevelPageBreak(lastInFlowChild, child_)
 			resumeAt = tree.ResumeStack{index: nil}
 			stop = true
+			// gopdfgo: element pływający przenoszony w całości do następnego fragmentatora nie ma tu dalszego
+			// ciągu; w źródle jego wznowienie było i tak zgłaszane, więc w następnej kolumnie stał dwa razy
+			outOfFlowLayoutResumeAt = nil
 			if len(*newChildren) != 0 && avoidPageBreak(pageBreak, context) {
 				// Can’t break inside float, find an earlier page break.
 				r1, r2 := findEarlierPageBreak(context, *newChildren, absoluteBoxes, fixedBoxes)

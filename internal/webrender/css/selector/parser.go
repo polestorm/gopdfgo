@@ -481,8 +481,10 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 	name = toLowerASCII(name)
 	if mustBePseudoElement {
 		switch name {
+		// gopdfgo: dodany ::column (CSS Multicol 2 § 3); stosują się do niego tylko właściwości
+		// scroll-snap-*, więc nie zmienia wydruku, ale selektor jest poprawny (@supports selector(::column))
 		case "after", "backdrop", "before", "cue", "first-letter", "first-line", "grammar-error",
-			"marker", "placeholder", "selection", "spelling-error", "footnote-call", "footnote-marker":
+			"marker", "placeholder", "selection", "spelling-error", "footnote-call", "footnote-marker", "column":
 			// OK
 		default:
 			return out, "", fmt.Errorf("unknown pseudo-element :%s", name)
@@ -636,7 +638,7 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		// Not applicable in a static context: never match.
 		out = neverMatchSelector{value: ":" + name}
 	case "after", "backdrop", "before", "cue", "first-letter", "first-line",
-		"grammar-error", "marker", "placeholder", "selection", "spelling-error", "footnote-call", "footnote-marker":
+		"grammar-error", "marker", "placeholder", "selection", "spelling-error", "footnote-call", "footnote-marker", "column":
 		return nil, name, nil
 	default:
 		return out, "", fmt.Errorf("unknown pseudoclass or pseudoelement :%s", name)
