@@ -1254,6 +1254,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			}
 			context.cellPositioned[newBox] = pending
 		}
+		if !bo.TableCellT.IsInstance(newBox_) {
+			deferBottomAnchoredAbsolutes(context, box, newBox_, absoluteBoxes, isStart, resumeAt != nil, bottomSpace)
+		}
 		// New containing block, resolve the layout of the absolute descendants
 		layoutOwnedPositioned(context, newBox_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
@@ -2580,5 +2583,56 @@ func alignBlockContent(box_ Box, contentBottom pr.Float) {
 	}
 	for _, child := range box.Children {
 		child.Translate(0, offset, false)
+	}
+}
+
+// deferBottomAnchoredAbsolutes (gopdfgo) przenosi pudełka absolute zakotwiczone dołem (top: auto, bottom
+// inne niż auto) z niekońcowego fragmentu bloku zawierającego podzielonego między strony do jego ostatniego
+// fragmentu. Blokiem zawierającym jest cały, niepodzielony blok (CSS Position 3 § 2.1, CSS Break 3 § 2.4
+// pozwala go potraktować jak jedną całość), więc jego dolna krawędź leży w ostatnim fragmencie. W źródle
+// pudełko było pozycjonowane względem fragmentu, w którym stało, i lądowało na dole pierwszej strony
+// (test WPT css-break/abspos-001). original to pudełko bloku sprzed układu, wspólne dla wszystkich
+// fragmentów; na stronie pozostaje po przeniesionym pudełku pusta, niewidoczna kopia.
+func deferBottomAnchoredAbsolutes(context *layoutContext, original *bo.BoxFields, newBox_ Box, absoluteBoxes *[]*AbsolutePlaceholder,
+	isStart, fragmented bool, bottomSpace pr.Float,
+) {
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || context.flexMeasuring > 0 || context.clipDepth > 0 {
+		return
+	}
+	if isStart {
+		delete(context.pendingBottomAbsolutes, original)
+	}
+	if fragmented {
+		kept := (*absoluteBoxes)[:0:0]
+		for _, placeholder := range *absoluteBoxes {
+			style := placeholder.AliasBox.Box().Style
+			if placeholder.layoutDone || style.GetPosition().String != "absolute" || style.GetTop().Tag != pr.Auto || style.GetBottom().Tag == pr.Auto {
+				kept = append(kept, placeholder)
+				continue
+			}
+			if context.pendingBottomAbsolutes == nil {
+				context.pendingBottomAbsolutes = map[*bo.BoxFields][]Box{}
+			}
+			if !slices.Contains(context.pendingBottomAbsolutes[original], placeholder.AliasBox) {
+				context.pendingBottomAbsolutes[original] = append(context.pendingBottomAbsolutes[original], placeholder.AliasBox)
+			}
+			empty := bo.CopyWithChildren(placeholder.AliasBox, nil)
+			empty.Box().Height, empty.Box().Width = pr.Float(0), pr.Float(0)
+			empty.Box().Style = empty.Box().Style.Copy()
+			empty.Box().Style.SetVisibility("hidden")
+			placeholder.setLaidOutBox(empty)
+		}
+		*absoluteBoxes = kept
+		return
+	}
+	if isStart {
+		return
+	}
+	newBox := newBox_.Box()
+	for _, box := range context.pendingBottomAbsolutes[original] {
+		placeholder := NewAbsolutePlaceholder(box)
+		box.Box().PositionX, box.Box().PositionY = newBox.ContentBoxX(), newBox.ContentBoxY()
+		newBox.Children = append(newBox.Children, placeholder)
+		*absoluteBoxes = append(*absoluteBoxes, placeholder)
 	}
 }

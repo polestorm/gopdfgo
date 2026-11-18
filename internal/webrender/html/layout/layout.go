@@ -440,6 +440,9 @@ type layoutContext struct {
 	// gopdfgo: pudełka pozycjonowane względem komórki tabeli, do ponownego ułożenia po ustaleniu
 	// wysokości wiersza; klucz to ułożona komórka
 	cellPositioned map[*bo.BoxFields][]cellPositioned
+	// gopdfgo: pudełka absolute zakotwiczone dołem, czekające na ostatni fragment bloku zawierającego
+	// (klucz: pudełko bloku sprzed układu; zob. deferBottomAnchoredAbsolutes)
+	pendingBottomAbsolutes map[*bo.BoxFields][]Box
 
 	// gopdfgo: contentScale > 1: obszar strony jest powiększony tyle razy na czas układu treści
 	// (pomniejszanie treści szerszej niż strona, ADR 0014)
