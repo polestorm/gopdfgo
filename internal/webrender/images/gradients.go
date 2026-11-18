@@ -155,6 +155,11 @@ func (g gradient) Draw(dst backend.Canvas, _ text.TextLayoutContext, concreteWid
 		return
 	}
 
+	// gopdfgo: gradient zajmuje tylko swój konkretny rozmiar (CSS Images 3 § 3); źródło malowało
+	// cieniowanie bez przycięcia, co poza wzorkiem tła (np. w content: linear-gradient(), CSS Content 3)
+	// zalewało całą stronę.
+	dst.Rectangle(0, 0, concreteWidth, concreteHeight)
+	dst.State().Clip(false)
 	dst.DrawGradient(layout, concreteWidth, concreteHeight)
 }
 

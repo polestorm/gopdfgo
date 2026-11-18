@@ -872,7 +872,8 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			}
 			if child.IsOutsideMarker {
 				newChild.Box().PositionX = box.BorderBoxX()
-				if child.Style.GetDirection() == pr.Rtl {
+				// gopdfgo: kierunek elementu listy, nie ::marker (CSS Lists 3 § 3.4); źródło brało kierunek znacznika
+				if box.Style.GetDirection() == pr.Rtl {
 					newChild.Box().PositionX += box.Width.V() + box.PaddingRight.V()
 				}
 			}

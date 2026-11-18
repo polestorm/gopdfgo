@@ -107,6 +107,12 @@ func (s Float) isInnerContent()     {}
 func (s Int) isInnerContent()       {}
 func (s Color) isInnerContent()     {}
 func (s Quote) isInnerContent()     {}
+
+// ContentImage (gopdfgo) to obraz inny niż url() w content (gradient, image-set();
+// CSS Content 3 § 1: <image>), element listy typu "image".
+type ContentImage struct{ Image Image }
+
+func (s ContentImage) isInnerContent() {}
 func (s AttrData) isInnerContent()  {}
 func (s VarData) isInnerContent()   {}
 

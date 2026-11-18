@@ -73,6 +73,14 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 	box := box_.Box()
 
 	ltr := box.Style.ParentStyle() == nil || box.Style.ParentStyle().GetDirection() == pr.Ltr
+	if box.IsOutsideMarker {
+		// gopdfgo: znacznik zewnętrzny stoi na początku elementu listy według kierunku elementu,
+		// nie samego ::marker (CSS Lists 3 § 3.4); pudełko anonimowe dziedziczy po ::marker, a ten
+		// po elemencie listy. Źródło brało kierunek ::marker (test WPT marker-direction-does-not-move-box).
+		if marker := box.Style.ParentStyle(); marker != nil && marker.ParentStyle() != nil {
+			ltr = marker.ParentStyle().GetDirection() == pr.Ltr
+		}
+	}
 	paddingsBorders := box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
 
 	marginL := box.MarginLeft

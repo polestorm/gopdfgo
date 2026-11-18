@@ -654,6 +654,18 @@ func contentList(computer *ComputedStyle, values pr.ContentProperties) (pr.Conte
 		switch value.Type {
 		case "string", "content", "url", "quote", "leader()":
 			computedValue = value
+		case "image": // gopdfgo: długości w gradientach jak w background-image
+			image := value.Content.(pr.ContentImage).Image
+			switch gradient := image.(type) { // kopia przystanków: backgroundImage zmienia je w miejscu
+			case pr.LinearGradient:
+				gradient.ColorStops = append([]pr.ColorStop(nil), gradient.ColorStops...)
+				image = gradient
+			case pr.RadialGradient:
+				gradient.ColorStops = append([]pr.ColorStop(nil), gradient.ColorStops...)
+				image = gradient
+			}
+			image = backgroundImage(computer, 0, pr.Images{image}).(pr.Images)[0]
+			computedValue = pr.ContentProperty{Type: "image", Content: pr.ContentImage{Image: image}}
 		case "attr()":
 			attr, ok := value.Content.(pr.AttrData)
 			if !ok || attr.TypeOrUnit != "string" {

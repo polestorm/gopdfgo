@@ -52,6 +52,58 @@ func getCustomIdent(token Token) string {
 }
 
 // Parse an <image> token.
+// imageSet (gopdfgo) czyta image-set() (CSS Images 4 § 2.2): „[ <image> | <string> ]
+// [ <resolution> || type(<string>) ]?” po przecinkach. Drukujemy w rozdzielczości 1x, więc
+// wybieramy wariant 1x (brak rozdzielczości to 1x), a gdy go nie ma, wariant o najmniejszej
+// rozdzielczości nie mniejszej niż 1x, a w ostateczności pierwszy. Źródło nie znało image-set().
+func imageSet(arguments [][]Token, baseUrl string) (pr.Image, error) {
+	var (
+		best           pr.Image
+		bestResolution float64
+	)
+	for _, argument := range arguments {
+		if len(argument) == 0 || len(argument) > 3 {
+			return nil, nil
+		}
+		var (
+			image pr.Image
+			err   error
+		)
+		if str, ok := argument[0].(pa.String); ok {
+			url, _, err := parseURLToken(str.Value, baseUrl)
+			if err != nil {
+				return nil, err
+			}
+			image = pr.UrlImage(url.S)
+		} else if image, err = getImage(argument[0], baseUrl); err != nil || image == nil {
+			return nil, err
+		}
+		resolution := 1.
+		for _, token := range argument[1:] {
+			switch token := token.(type) {
+			case pa.Dimension:
+				dppx, ok := map[string]float64{"x": 1, "dppx": 1, "dpi": 1. / 96, "dpcm": 2.54 / 96}[utils.AsciiLower(token.Unit)]
+				if !ok || token.ValueF <= 0 {
+					return nil, nil
+				}
+				resolution = float64(token.ValueF) * dppx
+			case pa.FunctionBlock:
+				if utils.AsciiLower(token.Name) != "type" {
+					return nil, nil
+				}
+			default:
+				return nil, nil
+			}
+		}
+		better := best == nil ||
+			(resolution >= 1 && (bestResolution < 1 || resolution < bestResolution))
+		if better {
+			best, bestResolution = image, resolution
+		}
+	}
+	return best, nil
+}
+
 func getImage(_token Token, baseUrl string) (pr.Image, error) {
 	parsed, _, err := getUrl(_token, baseUrl)
 	if err != nil {
@@ -72,6 +124,8 @@ func getImage(_token Token, baseUrl string) (pr.Image, error) {
 		return nil, nil
 	}
 	switch name {
+	case "image-set", "-webkit-image-set":
+		return imageSet(arguments, baseUrl)
 	case "linear-gradient", "repeating-linear-gradient":
 		direction, colorStops := parseLinearGradientParameters(arguments)
 		if len(colorStops) > 0 {
@@ -769,6 +823,18 @@ func getContentListToken(token Token, baseUrl string) (pr.ContentProperty, error
 		return pr.ContentProperty{Type: "url", Content: url}, nil
 	} else if !attr.IsNone() {
 		return pr.ContentProperty{Type: "attr()", Content: attr}, nil
+	}
+
+	// gopdfgo: <image> poza url() (gradienty, image-set(); CSS Content 3 § 1); źródło je odrzucało
+	if _, isFunction := token.(pa.FunctionBlock); isFunction {
+		if image, err := getImage(token, baseUrl); err != nil {
+			return pr.ContentProperty{}, err
+		} else if image != nil {
+			if url, ok := image.(pr.UrlImage); ok {
+				return pr.ContentProperty{Type: "url", Content: pr.TaggedString{Tag: pr.External, S: string(url)}}, nil
+			}
+			return pr.ContentProperty{Type: "image", Content: pr.ContentImage{Image: image}}, nil
+		}
 	}
 
 	// <quote>

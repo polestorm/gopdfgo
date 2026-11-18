@@ -252,6 +252,13 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 			return reversedCounterStart(element, styleFor, name, withSiblings)
 		}, false)
 	}
+	if !display.Contents && element.Type == html.ElementNode {
+		if image := replacementImage(style, resolver); image != nil {
+			PopNestedCounters(state, nestedCounters)
+			return []Box{makeReplacedBox(element, box, image)}
+		}
+	}
+
 	// If this element’s direct children create new scopes, the counter
 	// names will be in this new list
 	state.CounterScopes = append(state.CounterScopes, utils.Set{})
@@ -441,6 +448,18 @@ func beforeAfterToBox(element *utils.HTMLNode, pseudoType string, state *tree.Pa
 	children = append(children, ContentToBoxes(
 		style, box, state.QuoteDepth, state.CounterValues, resolver, targetCollector, cs, nil, nil)...)
 
+	// gopdfgo: pojedynczy <image> w content (CSS Content 3 § 1, <content-replacement>) ma rozmiar
+	// pseudoelementu: obraz dostaje jego width i height. Norma czyni wtedy zastępowanym sam
+	// pseudoelement; przyjmujemy model Chromium (pseudoelement zwykły, obraz z jego wymiarami,
+	// test WPT pseudo-element-inline-box), który daje ten sam rozmiar obrazu. W źródle gradient
+	// bez wymiarów naturalnych dostawał 300×150 px.
+	if len(children) == 1 && replacementImage(style, resolver) != nil {
+		if image, ok := children[0].(*InlineReplacedBox); ok {
+			image.Style.SetWidth(style.GetWidth())
+			image.Style.SetHeight(style.GetHeight())
+		}
+	}
+
 	box.Box().Children = children
 
 	// calculate the bookmark-label
@@ -577,6 +596,58 @@ func collectMissingTargetCounter(counterName string, lookupCounterValues tree.Co
 	}
 }
 
+// contentImage zamienia element "url" albo "image" listy content na obraz; nil, gdy obrazu nie ma.
+// Przystanki gradientu z currentcolor biorą kolor pudełka (CSS Images 3 § 3.4).
+func contentImage(content pr.ContentProperty, style pr.ElementStyle, resolver URLResolver) images.Image {
+	resolveStops := func(stops pr.ColorsStops) pr.ColorsStops {
+		out := append(pr.ColorsStops(nil), stops...)
+		for i, stop := range out {
+			if stop.Color.Type == parser.ColorCurrentColor {
+				out[i].Color = style.GetColor()
+			}
+		}
+		return out
+	}
+	switch content.Type {
+	case "url":
+		value, ok := content.Content.(pr.TaggedString)
+		if !ok || value.Tag != pr.External || resolver.FetchImage == nil {
+			return nil
+		}
+		if image := resolver.FetchImage(value.S, "", style.GetImageOrientation()); image != nil {
+			return image
+		}
+	case "image":
+		switch image := content.Content.(pr.ContentImage).Image.(type) {
+		case pr.UrlImage:
+			if resolver.FetchImage != nil {
+				if image := resolver.FetchImage(string(image), "", style.GetImageOrientation()); image != nil {
+					return image
+				}
+			}
+		case pr.LinearGradient:
+			image.ColorStops = resolveStops(image.ColorStops)
+			return images.NewLinearGradient(image)
+		case pr.RadialGradient:
+			image.ColorStops = resolveStops(image.ColorStops)
+			return images.NewRadialGradient(image)
+		}
+	}
+	return nil
+}
+
+// replacementImage podaje obraz, którym content zastępuje zawartość elementu (CSS Content 3 § 1:
+// pojedynczy <image> na elemencie czyni go elementem zastępowanym, także <img>); nil, gdy content
+// tego nie robi albo obrazu nie da się wczytać.
+// gopdfgo: źródło stosowało content tylko do pseudoelementów.
+func replacementImage(style pr.ElementStyle, resolver URLResolver) images.Image {
+	contents := style.GetContent().Contents
+	if len(contents) != 1 || (contents[0].Type != "url" && contents[0].Type != "image") {
+		return nil
+	}
+	return contentImage(contents[0], style, resolver)
+}
+
 // Compute and return the boxes corresponding to the “content_list“.
 //
 // “parseAgain“ is called to compute the “content_list“ again when
@@ -636,6 +707,10 @@ outerLoop:
 			}
 			image := resolver.FetchImage(value.S, "", parentBox.Box().Style.GetImageOrientation())
 			if image != nil {
+				contentBoxes = append(contentBoxes, InlineReplacedBoxAnonymousFrom(parentBox, image))
+			}
+		case "image": // gopdfgo: gradienty i image-set() w content (CSS Content 3 § 1)
+			if image := contentImage(content, parentBox.Box().Style, resolver); image != nil {
 				contentBoxes = append(contentBoxes, InlineReplacedBoxAnonymousFrom(parentBox, image))
 			}
 		case "content()":
