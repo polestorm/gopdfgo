@@ -46,4 +46,28 @@ func TestMulticolTablesTail(t *testing.T) {
 		`<table style="border-spacing:0;width:100%"><thead><tr><th style="padding:0;height:20px;background:green"></th></tr></thead>`+
 		`<tbody style="background:navy">`+rows+`</tbody></table></div>`,
 		block(0, 0, 100, 170, "blue")+block(100, 0, 100, 20, "green")+block(100, 20, 100, 60, "navy"))
+
+	// Górny margines przodka zwija się z górnym marginesem wyniesionego elementu rozpinającego, który
+	// jest jego pierwszym dzieckiem, ale nie z dolnym marginesem poprzedniego elementu rozpinającego.
+	spanner := `<div style="column-span:all;margin:20px 0;height:20px;background:black"></div>`
+	same("hoisted-spanner-margins", `<div style="columns:2;column-gap:0;width:200px;background:yellow">`+
+		`<div style="height:40px;background:navy"></div>`+spanner+`<div style="margin-top:20px">`+spanner+`</div>`+
+		`<div style="height:40px;background:navy"></div></div>`,
+		block(0, 0, 200, 160, "yellow")+block(0, 0, 200, 20, "navy")+block(0, 40, 200, 20, "black")+
+			block(0, 100, 200, 20, "black")+block(0, 140, 200, 20, "navy"))
+
+	// Element rozpinający zakłada nowy kontekst formatowania blokowego: margines jego dziecka nie
+	// wychodzi poza niego.
+	same("spanner-establishes-bfc", `<div style="columns:2;column-gap:0;width:200px;background:yellow">`+
+		`<div style="column-span:all;background:black"><div style="margin:20px 0;height:20px;background:green"></div></div></div>`,
+		block(0, 0, 200, 60, "black")+block(0, 20, 200, 20, "green"))
+
+	// Komórka rozpięta na zwiniętym wierszu (visibility: collapse) kończy się na poprzednim wierszu, a jej
+	// treść jest przycinana.
+	same("rowspan-over-collapsed-row", `<table style="border-spacing:0">`+
+		`<tr><td style="padding:0;width:50px;height:20px;background:navy"></td>`+
+		`<td rowspan="2" style="padding:0;width:50px;vertical-align:top"><div style="height:100px;background:green"></div></td></tr>`+
+		`<tr style="visibility:collapse"><td style="padding:0;height:20px"></td></tr>`+
+		`<tr><td style="padding:0;height:20px;background:navy"></td><td style="padding:0;background:navy"></td></tr></table>`,
+		block(0, 0, 50, 20, "navy")+block(50, 0, 50, 20, "green")+block(0, 20, 100, 20, "navy"))
 }

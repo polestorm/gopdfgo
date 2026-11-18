@@ -315,6 +315,13 @@ type BoxFields struct {
 	// SpannerSplitUsed: wspólny dla fragmentów jednego przodka licznik wysokości zużytej przez fragmenty
 	// stojące przed elementami rozpinającymi; ostatni fragment dostaje resztę podanej wysokości.
 	SpannerSplitUsed *pr.Float
+	// gopdfgo: IsSpanner: pudełko ułożone jako element rozpinający kolumny kontenera (column-span: all
+	// wewnątrz kontenera kolumn); zakłada nowy kontekst formatowania blokowego (CSS Multicol 1 § 6.1).
+	IsSpanner bool
+	// gopdfgo: SpannerMarginsBefore, SpannerMarginsAfter: style przodków wyniesionego elementu rozpinającego,
+	// których górny (dolny) margines przylegał w drzewie do jego marginesu i zwija się z nim (CSS 2
+	// § 8.3.1); pusty fragment przodka przed elementem (za nim) nie ma wtedy tego marginesu.
+	SpannerMarginsBefore, SpannerMarginsAfter []pr.ElementStyle
 
 	BorderImage, MaskBorderImage images.Image
 
@@ -696,6 +703,10 @@ func EstablishesFormattingContext(box_ Box) bool {
 	return (box.IsFloated() ||
 		box.IsAbsolutelyPositioned() ||
 		box.IsColumn ||
+		// gopdfgo: element rozpinający kolumny zakłada nowy kontekst formatowania blokowego (CSS Multicol 1
+		// § 6.1), więc marginesy jego dzieci nie wychodzą poza niego (test WPT
+		// multicol-span-all-margin-nested-firstchild-001); w źródle wychodziły.
+		box.IsSpanner ||
 		(BlockContainerT.IsInstance(box_) && !BlockT.IsInstance(box_)) ||
 		(BlockT.IsInstance(box_) && box.Style.GetOverflow() != "visible" && box.Style.GetOverflow() != "clip") ||
 		box.Style.GetDisplay().Has(pr.FlowRoot) ||

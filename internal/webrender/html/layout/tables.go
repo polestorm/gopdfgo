@@ -504,6 +504,33 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if row.Style.GetVisibility() == "collapse" && resumeAt == nil {
 				row.Height = pr.Float(0)
 				nextPositionY = row.PositionY
+				// gopdfgo: komórka rozpięta także na zwiniętym wierszu traci jego wysokość, a jej treść jest
+				// przycinana (CSS Tables 3 § 9.2, „visibility-collapse-cell-rendering”; test WPT
+				// visibility-collapse-rowspan-005); w źródle wystawała pod komórkę.
+				clip := func(cell Box) {
+					if cell.Box().Rowspan > 1 && cell.Box().Style.GetOverflow() == "visible" {
+						cell.Box().Style = cell.Box().Style.Copy()
+						cell.Box().Style.SetOverflow("hidden")
+					}
+				}
+				for _, cell_ := range endingCells {
+					clip(cell_)
+					// komórka kończy się teraz na dole poprzedniego wiersza
+					cell := cell_.Box()
+					if cell.Rowspan > 1 {
+						delta := row.PositionY - borderSpacingY - (cell.PositionY + cell.BorderHeight())
+						if delta < 0 {
+							shrink := min(-delta, cell.PaddingBottom.V())
+							cell.PaddingBottom = cell.PaddingBottom.V() - shrink
+							cell.Height = max(0, cell.Height.V()+delta+shrink)
+						}
+					}
+				}
+				for _, cells := range endingCellsByRow {
+					for _, cell := range cells {
+						clip(cell)
+					}
+				}
 			}
 
 			// Break if one cell was broken.

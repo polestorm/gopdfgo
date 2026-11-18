@@ -248,7 +248,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			if len(columnChildren) != 0 {
 				columnsAndBlocks = append(columnsAndBlocks, ibl{index - len(columnChildren), boxOrList{list: columnChildren}})
 			}
-			columnsAndBlocks = append(columnsAndBlocks, ibl{index, boxOrList{box: child.Copy().(bo.BlockLevelBoxITF)}})
+			spanner := child.Copy().(bo.BlockLevelBoxITF)
+			spanner.Box().IsSpanner = true
+			columnsAndBlocks = append(columnsAndBlocks, ibl{index, boxOrList{box: spanner}})
 			columnChildren = nil
 			continue
 		}
@@ -330,6 +332,22 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				lastLoop, breakPage = true, true
 				break
 			}
+			// marginesy przodków przylegające do marginesów elementu (zob. hoistSpanners)
+			ancestorMargin := func(styles []pr.ElementStyle, top bool) (out []pr.Float) {
+				for _, s := range styles {
+					value := s.GetMarginBottom()
+					if top {
+						value = s.GetMarginTop()
+					}
+					if margin, ok := pr.ResolvePercentage(value, box.Width.V()).(pr.Float); ok {
+						out = append(out, margin)
+					}
+				}
+				return out
+			}
+			if spannerSkip == nil {
+				adjoiningMargins = append(adjoiningMargins, ancestorMargin(block.Box().SpannerMarginsBefore, true)...)
+			}
 			newChild, tmp, _ := blockLevelLayout(context, block, originalBottomSpace, spannerSkip,
 				box, pageIsEmpty, absoluteBoxes, fixedBoxes, &adjoiningMargins, false, -1)
 			nextPage, adjoiningMargins = tmp.nextPage, tmp.adjoiningMargins
@@ -342,6 +360,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			newChildren = append(newChildren, newChild)
 			currentPositionY = newChild.Box().BorderHeight() + newChild.Box().BorderBoxY()
 			adjoiningMargins = append(adjoiningMargins, newChild.Box().MarginBottom.V())
+			if tmp.resumeAt == nil {
+				adjoiningMargins = append(adjoiningMargins, ancestorMargin(block.Box().SpannerMarginsAfter, false)...)
+			}
 			if tmp.resumeAt != nil {
 				lastLoop = true
 				breakPage = true
@@ -981,11 +1002,29 @@ func hoistSpanners(children []Box) ([]Box, bool) {
 		var run []Box
 		first := true
 		used := new(pr.Float)
+		var lastSpanner Box
+		var pendingBefore []pr.ElementStyle
 		flush := func(last bool) {
 			part := bo.CopyWithChildren(child, run)
 			part.Box().SpannerSplitUsed = used
 			part.Box().SpannerSplitBefore = !first
 			part.Box().SpannerSplitAfter = !last
+			// gopdfgo: margines przodka przylega w drzewie do marginesu elementu rozpinającego, gdy między
+			// nimi nie ma treści, obramowania ani dopełnienia, i zwija się z nim (CSS 2 § 8.3.1); pusty
+			// fragment przodka go wtedy nie ma (test WPT multicol-span-all-margin-nested-002). W źródle
+			// pusty fragment zachowywał margines, który dodawał się do marginesu elementu.
+			style := child.Box().Style
+			if len(run) == 0 && first && !last && style.GetBorderTopWidth().Value == 0 && style.GetPaddingTop().Value == 0 {
+				part.Box().Style = style.Copy()
+				part.Box().Style.SetMarginTop(pr.ZeroPixels.Tagged())
+				pendingBefore = append(pendingBefore, style)
+			}
+			if len(run) == 0 && !first && last && lastSpanner != nil && style.GetBorderBottomWidth().Value == 0 &&
+				style.GetPaddingBottom().Value == 0 {
+				part.Box().Style = style.Copy()
+				part.Box().Style.SetMarginBottom(pr.ZeroPixels.Tagged())
+				lastSpanner.Box().SpannerMarginsAfter = append(slices.Clip(lastSpanner.Box().SpannerMarginsAfter), style)
+			}
 			out = append(out, part)
 			run, first = nil, false
 		}
@@ -995,12 +1034,17 @@ func hoistSpanners(children []Box) ([]Box, bool) {
 				if first || len(run) != 0 {
 					flush(false)
 				}
+				c = c.Copy()
+				if len(pendingBefore) != 0 {
+					c.Box().SpannerMarginsBefore = append(append([]pr.ElementStyle(nil), pendingBefore...), c.Box().SpannerMarginsBefore...)
+					pendingBefore = nil
+				}
+				lastSpanner = c
 				// gopdfgo: element rozpinający nadal należy do przodka, więc przezroczystość przodka
 				// dotyczy także jego (CSS Color 4 § 13: opacity działa na całą grupę potomków). Grupa
 				// przodka zawiera tu tylko element, więc wystarczy pomnożyć krycie (test WPT
 				// spanner-in-opacity); bez tego wyniesiony element tracił krycie przodka.
 				if opacity := child.Box().Style.GetOpacity(); opacity < 1 {
-					c = c.Copy()
 					c.Box().Style = c.Box().Style.Copy()
 					c.Box().Style.SetOpacity(c.Box().Style.GetOpacity() * opacity)
 				}
