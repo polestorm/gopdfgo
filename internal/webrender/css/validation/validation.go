@@ -274,6 +274,7 @@ var (
 		pr.PFontSynthesisStyle:      fontSynthesisStyle,
 		pr.PFontSynthesisSmallCaps:  fontSynthesisAutoNone,
 		pr.PFontSynthesisPosition:   fontSynthesisAutoNone,
+		pr.PWebkitTextFillColor:     otherColors, // gopdfgo
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2308,7 +2309,7 @@ func fontSize(tokens []Token, _ string) (pr.CssProperty, error) {
 		return length.Tagged(), nil
 	}
 	tag := getKeywordT(token)
-	if isIn := pr.XxSmall <= tag && tag <= pr.XxLarge; isIn || tag == pr.Smaller || tag == pr.Larger {
+	if isIn := pr.XxSmall <= tag && tag <= pr.XxxLarge; isIn || tag == pr.Smaller || tag == pr.Larger {
 		return pr.TaggedDim{Tag: tag}, nil
 	}
 	return nil, nil

@@ -119,3 +119,23 @@ func TestListMarkersAndBlockAlignment(t *testing.T) {
 	same("marker-gradient", `<ul style="margin: 0; padding-left: 60px; font: 20px/1 Ahem; list-style-image: linear-gradient(green, green)"><li><div style="display: inline">X</div></li></ul>`,
 		`<ul style="margin: 0; padding-left: 60px; font: 20px/1 Ahem; list-style: none"><li><span style="display: inline-block; width: 20px; height: 20px; background: green; margin-left: -27px; margin-right: 7px"></span><div style="display: inline">X</div></li></ul>`)
 }
+
+func TestFillColorAndFallbackLineHeight(t *testing.T) {
+	same := ahemComparer(t)
+	// -webkit-text-fill-color maluje glify, także znaczniki list
+	same("text-fill-color", `<div style="color: red; -webkit-text-fill-color: green">XX</div>`,
+		`<div style="color: green">XX</div>`)
+	same("text-fill-color-marker", `<ul style="margin: 0; padding-left: 40px; font: 20px/20px Ahem; color: red; -webkit-text-fill-color: green"><li>X</li></ul>`,
+		`<ul style="margin: 0; padding-left: 40px; font: 20px/20px Ahem; color: green"><li>X</li></ul>`)
+	// przy line-height: normal znak z fontu zastępczego powiększa wiersz o metryki tego fontu,
+	// tak jak element liniowy pisany tym fontem
+	same("fallback-line-height", `<div style="font: 20px Ahem">X&#x436;</div><div style="font: 20px Ahem">X</div>`,
+		`<div style="font: 20px Ahem">X<span style="font-family: 'Noto Sans'">&#x436;</span></div><div style="font: 20px Ahem">X</div>`)
+}
+
+func TestFontSizeXxxLarge(t *testing.T) {
+	same := ahemComparer(t)
+	// słowo kluczowe xxx-large to 3 × medium, czyli 48 px (CSS Fonts 4 § 2.5)
+	same("xxx-large", `<div style="font-size: xxx-large; line-height: 1">X</div>`,
+		`<div style="font-size: 48px; line-height: 1">X</div>`)
+}

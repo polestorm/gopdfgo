@@ -1,6 +1,7 @@
 package text
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math"
@@ -538,6 +539,16 @@ func (fc *FontConfigurationGotext) shapeRune(r rune, desc FontDescription, featu
 }
 
 func (fc *FontConfigurationGotext) heightx(style *TextStyle) pr.Fl {
+	// gopdfgo: jednostka ex to wysokość x pierwszego dostępnego fontu (CSS Values 4 § 6.1.1). Gdy
+	// 'x' pochodzi z innego fontu (unicode-range pierwszego jej nie obejmuje), bierzemy sxHeight
+	// z tablicy OS/2 pierwszego dostępnego, ze size-adjust (test WPT size-adjust.tentative); źródło
+	// mierzyło glif 'x' fontu zastępczego.
+	if primary := fc.resolveFace(' ', style.FontDescription); primary != nil && primary.Upem() != 0 &&
+		fc.resolveFace('x', style.FontDescription) != primary {
+		if xHeight := primary.LineMetric(font.XHeight); xHeight > 0 {
+			return pr.Fl(xHeight) / pr.Fl(primary.Upem()) * style.FontDescription.Size * fc.FaceSizeAdjust(primary.Font)
+		}
+	}
 	glyphs, _, sizeFactor := fc.shapeRune('x', style.FontDescription, style.FontFeatures)
 
 	if len(glyphs) == 0 { // fontmap is broken, return a 'reasonnable' value
@@ -894,7 +905,24 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	var lang language.Language
 	if flo := style.FontLanguageOverride; (flo != fontLanguageOverride{}) {
-		lang = language.NewLanguage(lstToISO[flo])
+		// gopdfgo: znacznik systemu językowego OpenType przekazany wprost (prywatny podznacznik
+		// "x-hbot" HarfBuzz), obok języka treści (CSS Fonts 4 § 6.13). Źródło zamieniało znacznik na
+		// kod ISO 639-3, a ten dla języków z kodem dwuliterowym (TRK → tur) nie dawał znacznika
+		// (test WPT font-language-override-01).
+		// znacznik w zapisie szesnastkowym, bo zapis literowy HarfBuzz zamienia na wielkie litery
+		var tag [4]byte
+		copy(tag[:], strings.TrimRight(string(flo[:]), "\x00"))
+		for i := range tag {
+			if tag[i] == 0 {
+				tag[i] = ' '
+			}
+		}
+		private := "x-hbot-" + hex.EncodeToString(tag[:])
+		if lg := style.Lang; lg != "" {
+			lang = language.NewLanguage(lg + "-" + private)
+		} else {
+			lang = language.NewLanguage(private)
+		}
 	} else if lg := style.Lang; lg != "" {
 		lang = language.NewLanguage(lg)
 	} else {
@@ -916,6 +944,13 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		Size:      floatToFixed(style.FontDescription.Size),
 		Direction: dir, // default, will be overriden
 	}, fc.fm)
+	if (style.FontLanguageOverride != fontLanguageOverride{}) {
+		// gopdfgo: segmentacja go-text zastępuje język przebiegów językiem zgodnym z pismem i gubi
+		// prywatny podznacznik z font-language-override, więc przywracamy go
+		for i := range inputs {
+			inputs[i].Language = lang
+		}
+	}
 	inputs = fc.spacesInOwnFace(inputs)
 	inputs = fc.controlsInSpaceFace(inputs)
 

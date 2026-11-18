@@ -983,7 +983,7 @@ func (c *ComputedStyle) fontSizeFromKeyword() bool {
 		result = parent()
 	case pr.TaggedDim:
 		switch {
-		case pr.XxSmall <= value.Tag && value.Tag <= pr.XxLarge:
+		case pr.XxSmall <= value.Tag && value.Tag <= pr.XxxLarge:
 			result = true
 		case value.Tag == pr.Larger || value.Tag == pr.Smaller,
 			value.Calc == nil && (value.Unit == pr.Perc || value.Unit == pr.Em):
@@ -1017,7 +1017,7 @@ func (c *ComputedStyle) monospaceFontSize(size pr.CssProperty) pr.CssProperty {
 		inherited = isMonospaceOnly(c.parentStyle.GetFontFamily())
 	}
 	if casc, has := c.cascaded[pr.PFontSize.Key()]; has {
-		if value, isDim := casc.value.(pr.TaggedDim); (isDim && pr.XxSmall <= value.Tag && value.Tag <= pr.XxLarge) || casc.value == pr.Initial {
+		if value, isDim := casc.value.(pr.TaggedDim); (isDim && pr.XxSmall <= value.Tag && value.Tag <= pr.XxxLarge) || casc.value == pr.Initial {
 			// słowo kluczowe podane wprost: rozmiar nie zależy od rodzica
 			inherited = false
 		}

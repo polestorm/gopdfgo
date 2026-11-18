@@ -89,6 +89,11 @@ func expandLogical(declarations []pa.Compound) []pa.Compound {
 				continue
 			}
 			out = append(out, compound)
+		case name == "-webkit-text-fill-color":
+			// gopdfgo: nazwa właściwości z przedrostkiem (Compatibility Standard § 5.2); stała
+			// PWebkitTextFillColor ma nazwę bez początkowego łącznika
+			declaration.Name = "webkit-text-fill-color"
+			out = append(out, declaration)
 		case physicalName(name) != "":
 			declaration.Name = physicalName(name)
 			out = append(out, declaration)

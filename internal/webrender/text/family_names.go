@@ -342,3 +342,41 @@ func (fc *FontConfigurationGotext) Synthesis(face *font.Face, fd FontDescription
 	}
 	return skew, bold
 }
+
+// FallbackLineExtents (gopdfgo) zwraca, ile nad linią bazową i pod nią sięgają w ułożonym tekście
+// fonty inne niż pierwszy dostępny, każdy z połową własnego odstępu międzywierszowego. Przy
+// line-height: normal wysokość wiersza obejmuje metryki wszystkich użytych fontów (CSS Inline 3
+// § 4.2: „normal”, tak robi Chromium; test WPT font-face-unicode-range-2). ok jest fałszywe, gdy
+// tekst złożono tylko pierwszym dostępnym fontem.
+func FallbackLineExtents(context TextLayoutContext, layout EngineLayout) (above, below pr.Float, ok bool) {
+	fc, isGotext := context.Fonts().(*FontConfigurationGotext)
+	l, isLayout := layout.(*TextLayoutGotext)
+	if !isGotext || !isLayout || len(l.Line) == 0 {
+		return 0, 0, false
+	}
+	primary := fc.resolveFace(' ', l.Style.FontDescription)
+	for _, run := range l.Line {
+		if run.Face == nil || run.Face == primary || len(run.Glyphs) == 0 {
+			continue
+		}
+		ascent, descent := fc.faceExtents(l.Style, run.Face)
+		top, bottom := SplitLeading(fc.faceLineGap(l.Style, run.Face), true)
+		above, below, ok = max(above, ascent+top), max(below, -descent+bottom), true
+	}
+	return above, below, ok
+}
+
+// faceLineGap (gopdfgo): odstęp międzywierszowy podanej twarzy w rozmiarze stylu, jak lineGap.
+func (fc *FontConfigurationGotext) faceLineGap(style *TextStyle, face *font.Face) pr.Float {
+	if face.Upem() == 0 {
+		return 0
+	}
+	extents, _ := face.FontHExtents()
+	size := pr.Float(style.FontDescription.Size) * pr.Float(fc.FaceSizeScale(style, face))
+	if metrics, ok := fc.fontsMetrics[face.Font]; ok {
+		if v, ok := metrics.lineGap.(pr.Float); ok {
+			return roundMetric(v * size)
+		}
+	}
+	return max(0, roundMetric(pr.Float(extents.LineGap)*size/pr.Float(face.Upem())))
+}

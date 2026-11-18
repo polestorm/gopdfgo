@@ -76,8 +76,15 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 		}
 	}
 
-	ctx.dst.State().SetColorRgba(textbox.Style.GetColor().RGBA, false)
-	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y, textbox.Style.GetColor().RGBA)
+	// gopdfgo: glify wypełnia -webkit-text-fill-color (Compatibility Standard § 5.2), domyślnie
+	// currentcolor, czyli color
+	fill := textbox.Style.GetWebkitTextFillColor()
+	fillColor := fill.RGBA
+	if fill.Type == parser.ColorCurrentColor {
+		fillColor = textbox.Style.GetColor().RGBA
+	}
+	ctx.dst.State().SetColorRgba(fillColor, false)
+	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y, fillColor)
 
 	if decoration&pr.LineThrough != 0 {
 		thickness := metrics.StrikethroughThickness

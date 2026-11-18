@@ -38,6 +38,7 @@ const (
 	Large
 	XLarge
 	XxLarge
+	XxxLarge // gopdfgo: CSS Fonts 4 § 2.5
 
 	Smaller
 	Larger

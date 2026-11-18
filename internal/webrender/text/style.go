@@ -797,8 +797,10 @@ func newFontLanguageOverrride(flo pr.String) fontLanguageOverride {
 		return [4]byte{}
 	}
 
+	// gopdfgo: znacznik systemu językowego OpenType rozróżnia wielkość liter ("trk" to nie TRK,
+	// test WPT font-language-override-03); źródło zamieniało go na małe litery
 	var out [4]byte
-	copy(out[:], strings.ToLower(string(flo)))
+	copy(out[:], string(flo))
 	return out
 }
 

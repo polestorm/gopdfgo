@@ -73,6 +73,7 @@ var (
 		InitialValues.GetFontSize().Value * 6 / 5,
 		InitialValues.GetFontSize().Value * 3 / 2,
 		InitialValues.GetFontSize().Value * 2 / 1,
+		InitialValues.GetFontSize().Value * 3 / 1, // gopdfgo: xxx-large (CSS Fonts 4 § 2.5)
 	}
 
 	// http://www.w3.org/TR/css3-page/#size
@@ -140,6 +141,7 @@ var (
 	// link: click events normally bubble up to link ancestors
 	// See http://lists.w3.org/Archives/Public/www-style/2012Jun/0315.html
 	Inherited = NewSetK(
+		PWebkitTextFillColor, // gopdfgo
 		PBorderCollapse,
 		PBorderSpacing,
 		PCaptionSide,

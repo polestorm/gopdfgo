@@ -824,7 +824,7 @@ func floating(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 // Compute the “font-size“ property.
 func fontSize(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
 	value := _value.(pr.TaggedDim)
-	if in := pr.XxSmall <= value.Tag && value.Tag <= pr.XxLarge; in {
+	if in := pr.XxSmall <= value.Tag && value.Tag <= pr.XxxLarge; in {
 		return pr.FontSizeKeywords[value.Tag-pr.XxSmall].ToValue()
 	}
 

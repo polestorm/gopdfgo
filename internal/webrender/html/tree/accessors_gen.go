@@ -2057,3 +2057,17 @@ func (s *AnonymousStyle) GetWhiteSpaceTrim() pr.String {
 	return s.Get(pr.PWhiteSpaceTrim.Key()).(pr.String)
 }
 func (s *AnonymousStyle) SetWhiteSpaceTrim(v pr.String) { s.propsCache.setKnown(pr.PWhiteSpaceTrim, v) }
+
+func (s *ComputedStyle) GetWebkitTextFillColor() pr.Color {
+	return s.Get(pr.PWebkitTextFillColor.Key()).(pr.Color)
+}
+func (s *ComputedStyle) SetWebkitTextFillColor(v pr.Color) {
+	s.propsCache.setKnown(pr.PWebkitTextFillColor, v)
+}
+
+func (s *AnonymousStyle) GetWebkitTextFillColor() pr.Color {
+	return s.Get(pr.PWebkitTextFillColor.Key()).(pr.Color)
+}
+func (s *AnonymousStyle) SetWebkitTextFillColor(v pr.Color) {
+	s.propsCache.setKnown(pr.PWebkitTextFillColor, v)
+}

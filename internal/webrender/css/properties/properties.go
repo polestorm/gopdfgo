@@ -188,6 +188,7 @@ var InitialValues = Properties{
 	PFontSynthesisStyle:     String("auto"),       // gopdfgo
 	PFontSynthesisSmallCaps: String("auto"),       // gopdfgo
 	PFontSynthesisPosition:  String("auto"),       // gopdfgo
+	PWebkitTextFillColor:    CurrentColor,         // gopdfgo
 	PWordSpacing:            TaggedDim{},          // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/

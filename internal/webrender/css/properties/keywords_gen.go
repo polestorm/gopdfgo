@@ -54,6 +54,8 @@ func NewKeyword(s string) Keyword {
 		return XLarge
 	case "xx-large":
 		return XxLarge
+	case "xxx-large":
+		return XxxLarge
 	case "smaller":
 		return Smaller
 	case "larger":
@@ -229,6 +231,8 @@ func (t Keyword) String() string {
 		return "x-large"
 	case XxLarge:
 		return "xx-large"
+	case XxxLarge:
+		return "xxx-large"
 	case Smaller:
 		return "smaller"
 	case Larger:

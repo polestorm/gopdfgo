@@ -1947,6 +1947,15 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 			// więc jeden znak spoza fontu (symbol, łącznik nierozdzielający) powiększał wiersz.
 			leadingTop = strutBaseline - v.Baseline
 			leadingBottom = lineHeight - height - leadingTop
+		} else if above, below, ok := text.FallbackLineExtents(context, layout); ok {
+			// gopdfgo: przy line-height: normal font zastępczy powiększa pudełko o swoje metryki z
+			// połową odstępu międzywierszowego (CSS Inline 3 § 4.2), zob. FallbackLineExtents
+			if extra := above - (v.Baseline + leadingTop); extra > 0 {
+				leadingTop += extra
+			}
+			if extra := below - (height - v.Baseline + leadingBottom); extra > 0 {
+				leadingBottom += extra
+			}
 		}
 		box.MarginTop = leadingTop
 		box.MarginBottom = leadingBottom
