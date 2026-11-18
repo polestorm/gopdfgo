@@ -68,8 +68,11 @@ func TestTranslate(t *testing.T) {
 
 		mat1.Translate(2, 3)
 
-		if mat1 != exp {
-			t.Fatalf("unexpected Scale: %v", mat1)
+		// gopdfgo: źródło porównywało dokładnie; Mul i Translate liczą te same iloczyny w innej
+		// kolejności (na arm64 także z FMA), więc wyniki float32 różnią się w ostatnim bicie i test
+		// z losowymi macierzami prawie zawsze padał. Porównujemy z tolerancją względną.
+		if !almostEqualTransform(mat1, exp) {
+			t.Fatalf("unexpected Translate: %v, expected %v", mat1, exp)
 		}
 	}
 }
@@ -144,4 +147,16 @@ func TestApply(t *testing.T) {
 	if x, y := m.Apply(1, 1); math.Hypot(float64(x+1), float64(y+1)) > 1e-4 {
 		t.Fatalf("%f %f != -1, -1", x, y)
 	}
+}
+
+// almostEqualTransform (gopdfgo) porównuje współczynniki z tolerancją względną 1e-5.
+func almostEqualTransform(a, b Transform) bool {
+	x := [...]fl{a.A, a.B, a.C, a.D, a.E, a.F}
+	y := [...]fl{b.A, b.B, b.C, b.D, b.E, b.F}
+	for i := range x {
+		if math.Abs(float64(x[i]-y[i])) > 1e-5*math.Max(1, math.Abs(float64(y[i]))) {
+			return false
+		}
+	}
+	return true
 }
