@@ -1164,6 +1164,8 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		newBox.Height = pr.Float(0)
 	}
 
+	alignOutsideMarker(newBox, newChildren)
+
 	if newBox.Style.GetPosition().String == "relative" {
 		if bo.TableCellT.IsInstance(newBox_) && len(*absoluteBoxes) != 0 {
 			// gopdfgo: komórka tabeli dostanie ostateczną wysokość dopiero z wiersza; zapamiętujemy
@@ -2358,4 +2360,53 @@ func isEmptyLinebox(line *bo.LineBox) bool {
 		}
 	}
 	return true
+}
+
+// alignOutsideMarker (gopdfgo) ustawia znacznik zewnętrzny przy pierwszym wierszu elementu listy:
+// znacznik należy do pierwszego wiersza (CSS Lists 3 § 3.4), więc idzie za nim, gdy wiersz zaczyna
+// się dalej, niż zaczyna się treść elementu (obok elementu pływającego, pod wypełnieniem bloku
+// potomnego, po przesunięciu przez align-content). Wiersz szukamy w dzieciach w przepływie i w
+// zwykłych blokach potomnych. W źródle znacznik stał zawsze w górnym rogu treści elementu
+// (testy WPT list-style-applies-to-017, outside-marker-with-align-content).
+func alignOutsideMarker(box *bo.BoxFields, children []Box) {
+	var marker *AbsolutePlaceholder
+	for _, child := range children {
+		if placeholder, ok := child.(*AbsolutePlaceholder); ok && placeholder.Box().IsOutsideMarker {
+			marker = placeholder
+			break
+		}
+	}
+	if marker == nil {
+		return
+	}
+	var firstLine func(children []Box) (*bo.LineBox, bool)
+	firstLine = func(children []Box) (*bo.LineBox, bool) {
+		for _, child := range children {
+			if _, ok := child.(*AbsolutePlaceholder); ok || child.Box().IsFloated() {
+				continue
+			}
+			switch child := child.(type) {
+			case *bo.LineBox:
+				return child, true
+			case *bo.BlockBox:
+				if line, stop := firstLine(child.Children); stop {
+					return line, true
+				}
+				if len(child.Children) != 0 {
+					return nil, true // blok z treścią bez wierszy: znacznik zostaje na miejscu
+				}
+			default:
+				return nil, true
+			}
+		}
+		return nil, false
+	}
+	line, _ := firstLine(children)
+	if line == nil {
+		return
+	}
+	if box.Style.GetDirection() == pr.Ltr {
+		marker.Box().PositionX += line.PositionX - box.ContentBoxX()
+	}
+	marker.Box().PositionY = line.PositionY
 }
