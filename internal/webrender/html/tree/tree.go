@@ -31,10 +31,6 @@ type HTML struct {
 
 	// Behavior (gopdfgo): przełączniki zachowań układu ustawiane przez wywołującego.
 	Behavior Behavior
-
-	// gopdfgo: LayoutCache przechowuje kontekst układu przygotowany przez przedbieg (layout.MediaPageArea),
-	// żeby właściwy układ nie liczył stylów drugi raz; zna go tylko pakiet layout.
-	LayoutCache any
 }
 
 // Behavior zbiera przełączniki zachowań, w których norma i przeglądarki się różnią.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"mime"
 	"path/filepath"
 	"runtime/debug"
@@ -228,9 +229,11 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 	parsed.Behavior = tree.Behavior{MarginsEscapeHeightLimits: opts.MarginsEscapeHeightLimits,
 		MonospaceFontSize: opts.MonospaceFontSize, ExactLengths: opts.ExactLengths, MaxShrink: maxShrink(opts.MaxShrink), Continuous: opts.Continuous}
-	// Cechy width, height, aspect-ratio i orientation w @media oceniamy względem obszaru strony
-	// dokumentu (ADR 0012). Arkusze czytamy najpierw z rozmiarem domyślnym; jeśli któreś zapytanie
-	// zależy od rozmiaru, a @page daje inny obszar strony, czytamy je drugi raz z tym obszarem.
+	// Cechy width, height, aspect-ratio i orientation w @media oceniamy względem obszaru strony arkusza
+	// domyślnego, bez wpływu @page autora (ADR 0019, CSS Page 3 § 7.1). Arkusz domyślny to A4 w pionie
+	// z marginesami arkusza przeglądarki, chyba że arkusz użytkownika (odpowiednik okna druku) podaje
+	// w @page rozmiar albo marginesy: wtedy obszar strony liczymy na pustym dokumencie z samym arkuszem
+	// użytkownika i, jeśli się różni, czytamy ten arkusz drugi raz. Arkusze autora czytane są raz.
 	userSheets := func() ([]tree.CSS, error) {
 		if opts.UserCSS == "" {
 			return nil, nil
@@ -247,10 +250,18 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if width, height, needed := layout.MediaPageArea(parsed, sheets, true, fontConfig); needed {
-		tree.SetMediaReference(float64(width), float64(height))
-		if sheets, err = userSheets(); err != nil {
-			return Result{}, err
+	if len(sheets) > 0 && strings.Contains(strings.ToLower(opts.UserCSS), "@page") {
+		empty, err := tree.NewHTML(utils.InputString("<html></html>"), opts.BaseURL, fetch, "print")
+		if err != nil {
+			return Result{}, fmt.Errorf("gopdfgo: %w", err)
+		}
+		width, height := layout.PageArea(empty, sheets, fontConfig)
+		if defaultWidth, defaultHeight := tree.MediaReference(); width > 0 && height > 0 &&
+			(math.Abs(float64(width)-defaultWidth) > 0.01 || math.Abs(float64(height)-defaultHeight) > 0.01) {
+			tree.SetMediaReference(float64(width), float64(height))
+			if sheets, err = userSheets(); err != nil {
+				return Result{}, err
+			}
 		}
 	}
 

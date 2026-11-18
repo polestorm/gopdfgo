@@ -1327,9 +1327,13 @@ func findStylesheets(wrapperElement *utils.HTMLNode, deviceMediaType string, url
 			mediaAttr = "all"
 		}
 		// gopdfgo: atrybut media to pełna lista zapytań, nie tylko typy medium
-		media := parseMediaQuery(pa.Tokenize([]byte(mediaAttr), true))
+		media, sizeDependent := parseMediaQueryForSize(pa.Tokenize([]byte(mediaAttr), true))
 		if !evaluateMediaQuery(media, deviceMediaType) {
 			continue
+		}
+		// gopdfgo: size w @page arkusza z zapytaniem zależnym od rozmiaru medium jest pomijane (CSS Page 3 § 7.1)
+		if sizeDependent {
+			sizeMediaDepth++
 		}
 		switch element.DataAtom {
 		case atom.Style:
@@ -1351,10 +1355,7 @@ func findStylesheets(wrapperElement *utils.HTMLNode, deviceMediaType string, url
 				out = append(out, css)
 			}
 		case atom.Link:
-			if element.Get("href") != "" {
-				if !element.HasLinkType("stylesheet") || element.HasLinkType("alternate") {
-					continue
-				}
+			if element.Get("href") != "" && element.HasLinkType("stylesheet") && !element.HasLinkType("alternate") {
 				href := element.GetUrlAttribute("href", baseUrl, false)
 				if href != "" {
 					// gopdfgo: atrybut charset podaje kodowanie środowiska arkusza (CSS Syntax 3 § 3.2,
@@ -1373,6 +1374,9 @@ func findStylesheets(wrapperElement *utils.HTMLNode, deviceMediaType string, url
 					}
 				}
 			}
+		}
+		if sizeDependent {
+			sizeMediaDepth--
 		}
 	}
 	return out
@@ -2196,7 +2200,7 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 				} else {
 					continue
 				}
-				media := parseMediaQuery(tokens[1:])
+				media, sizeDependent := parseMediaQueryForSize(tokens[1:])
 				if media == nil {
 					logger.WarningLogger.Printf("Invalid media type '%s' the whole @import rule was ignored. \n",
 						pa.Serialize(rule.Prelude))
@@ -2207,14 +2211,22 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 				}
 				url = utils.UrlJoin(baseUrl, url, false, "@import")
 				if url != "" {
+					// gopdfgo: size w @page wewnątrz @import z zapytaniem zależnym od rozmiaru medium jest
+					// pomijane (CSS Page 3 § 7.1)
+					if sizeDependent {
+						sizeMediaDepth++
+					}
 					_, err := newCSS(utils.InputUrl(url), "", urlFetcher, false,
 						deviceMediaType, fontConfig, matcher, pageRules, counterStyle)
+					if sizeDependent {
+						sizeMediaDepth--
+					}
 					if err != nil {
 						logger.WarningLogger.Printf("Failed to load stylesheet at %s : %s \n", url, err)
 					}
 				}
 			case "media":
-				media := parseMediaQuery(rule.Prelude)
+				media, sizeDependent := parseMediaQueryForSize(rule.Prelude)
 				if media == nil {
 					logger.WarningLogger.Printf("Invalid media type '%s' the whole @media rule was ignored. \n",
 						pa.Serialize(rule.Prelude))
@@ -2224,10 +2236,19 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 				if !evaluateMediaQuery(media, deviceMediaType) {
 					continue
 				}
+				// gopdfgo: size w @page wewnątrz @media z cechą width, height, aspect-ratio albo
+				// orientation jest pomijane (CSS Page 3 § 7.1), bo rozmiar strony nie może zależeć od
+				// zapytania o rozmiar medium; źródło je stosowało
+				if sizeDependent {
+					sizeMediaDepth++
+				}
 				contentRules := pa.ParseRuleList(rule.Content, false, false)
 				preprocessLayer(
 					deviceMediaType, baseUrl, contentRules, urlFetcher,
 					matcher, pageRules, fontConfig, counterStyle, true, layer)
+				if sizeDependent {
+					sizeMediaDepth--
+				}
 			case "supports":
 				// gopdfgo: @supports (CSS Conditional 3 § 6); źródło pomijało całą regułę jako nieznaną
 				ignoreImports = true
@@ -2263,6 +2284,9 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 					pageType.Specificity = selector.Specificity{}
 					content := pa.ParseBlocksContents(rule.Content, false)
 					declarations := validation.PreprocessDeclarations(baseUrl, content)
+					if sizeMediaDepth > 0 {
+						declarations = withoutPageSize(declarations)
+					}
 
 					var selectors []selectorPageRule
 					if len(declarations) > 0 {
@@ -2478,4 +2502,16 @@ func resolveVar(computed map[string]pr.RawTokens, token Token, knownVariables ut
 func parseListInteger(attribute string) (int, bool) {
 	value, err := strconv.Atoi(strings.TrimSpace(attribute))
 	return value, err == nil
+}
+
+// withoutPageSize (gopdfgo) usuwa deklaracje size z reguły @page stojącej w @media zależnym od rozmiaru
+// medium (CSS Page 3 § 7.1).
+func withoutPageSize(declarations []validation.Declaration) []validation.Declaration {
+	out := declarations[:0:0]
+	for _, declaration := range declarations {
+		if declaration.Name.KnownProp != pr.PSize {
+			out = append(out, declaration)
+		}
+	}
+	return out
 }

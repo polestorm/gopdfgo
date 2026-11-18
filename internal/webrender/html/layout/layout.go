@@ -63,13 +63,7 @@ func Layout(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, f
 func layoutScaled(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
 	contentScale pr.Float,
 ) []*bo.PageBox {
-	var context *layoutContext
-	if cached, ok := html.LayoutCache.(*preparedContext); ok && cached.matches(stylesheets, presentationalHints, fontConfig) {
-		context = cached.context
-	} else {
-		context = newLayoutContext(html, stylesheets, presentationalHints, fontConfig, make(counters.CounterStyle))
-	}
-	html.LayoutCache = nil
+	context := newLayoutContext(html, stylesheets, presentationalHints, fontConfig, make(counters.CounterStyle))
 	counterStyle := context.counterStyle
 	context.contentScale = contentScale
 
@@ -551,38 +545,12 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 	return &self
 }
 
-// MediaPageArea (gopdfgo) czyta arkusze dokumentu i podaje obszar strony wynikający z @page, o ile
-// któreś zapytanie @media zależy od rozmiaru medium (needed); wywołujący ustawia go wtedy przez
-// tree.SetMediaReference i czyta arkusze ponownie (ADR 0012).
-func MediaPageArea(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
-) (width, height pr.Float, needed bool) {
-	context := newLayoutContext(html, stylesheets, presentationalHints, fontConfig, make(counters.CounterStyle))
-	if tree.MediaSizeSeen() {
-		width, height = context.styleFor.PageArea()
-		if width > 0 && height > 0 {
-			return width, height, true
-		}
-	}
-	// Arkusze nie będą czytane drugi raz, więc policzone style służą właściwemu układowi. Bez tego
-	// każdy dokument płacił za style dwukrotnie (tabela 4000 wierszy: ok. 0,25 s z 1,3 s).
-	html.LayoutCache = &preparedContext{context: context, stylesheets: stylesheets,
-		presentationalHints: presentationalHints, fontConfig: fontConfig}
-	return 0, 0, false
-}
-
-// preparedContext to kontekst układu z policzonymi stylami, zbudowany przez MediaPageArea.
-type preparedContext struct {
-	context             *layoutContext
-	stylesheets         []tree.CSS
-	presentationalHints bool
-	fontConfig          text.FontConfiguration
-}
-
-func (p *preparedContext) matches(stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration) bool {
-	if p.presentationalHints != presentationalHints || p.fontConfig != fontConfig || len(p.stylesheets) != len(stylesheets) {
-		return false
-	}
-	return len(stylesheets) == 0 || &p.stylesheets[0] == &stylesheets[0]
+// PageArea (gopdfgo) podaje obszar zwykłej strony wynikający z arkuszy przeglądarki i podanych arkuszy
+// (bez marginesów, obramowania i odstępu); zero, gdy nie da się go ustalić. Służy do wyznaczenia
+// rozmiaru medium z arkusza użytkownika na pustym dokumencie (ADR 0019).
+func PageArea(html *tree.HTML, stylesheets []tree.CSS, fontConfig text.FontConfiguration) (width, height pr.Float) {
+	context := newLayoutContext(html, stylesheets, false, fontConfig, make(counters.CounterStyle))
+	return context.styleFor.PageArea()
 }
 
 func (l *layoutContext) CurrentPage() int { return l.currentPage }
