@@ -306,15 +306,11 @@ func (s svg) draw(dst backend.Canvas, attrs *attributes, img *SVGImage, dims dra
 		width, height = dims.point(attrs.width, attrs.height)
 	}
 
+	// gopdfgo: korzeń bez viewBox nie jest skalowany: obszarem widoku jest konkretny rozmiar obrazu,
+	// a długości procentowe liczą się względem niego (SVG 2 § 8.2 i 8.7, CSS Images 3 § 5.2; testy WPT
+	// background-size/vector/*--nonpercent-width-nonpercent-height). Źródło tworzyło viewBox z atrybutów
+	// width i height, więc obraz rysowany w innym rozmiarze był skalowany.
 	viewbox := attrs.viewbox
-	if viewbox == nil && s.isRoot {
-		width, height := img.DisplayedSize()
-		if width.U != Perc && height.U != Perc {
-			w := width.Resolve(dims.fontSize, 0)
-			h := height.Resolve(dims.fontSize, 0)
-			viewbox = &Rectangle{Width: w, Height: h}
-		}
-	}
 
 	sx, sy, tx, ty := s.preserveRatio.resolveTransforms(width, height, viewbox, nil)
 	if !s.isRoot && s.isOverflowHidden {

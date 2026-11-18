@@ -634,6 +634,17 @@ func expandBackground(baseURL string, shortand pr.Shortand, tokens []Token) (out
 				continue
 			}
 
+			// gopdfgo: text i border-area w skrócie background ustawiają tylko background-clip
+			// (CSS Backgrounds 4 § 3.6 i 3.10, <bg-clip>); źródło ich nie znało.
+			if kw := getSingleKeyword(lastToken); kw == "text" || kw == "border-area" {
+				if err = results.add("clip"); err != nil {
+					return pr.Color{}, backgroundProps{}, err
+				}
+				results.clip = kw
+				tokens = tokens[:len(tokens)-1]
+				continue
+			}
+
 			origin := _box(lastToken)
 			if origin != "" {
 				if err = results.add("origin"); err != nil {

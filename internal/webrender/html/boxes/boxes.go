@@ -126,6 +126,10 @@ type Background struct {
 	// gopdfgo: TextClip to pudełko, którego tekst wyznacza kształt tła (background-clip: text);
 	// nil, gdy tło jest malowane zwyczajnie.
 	TextClip Box
+
+	// gopdfgo: Owner to pudełko, do którego należy tło; potrzebne warstwom z background-clip: border-area,
+	// które rysujemy w kształcie obramowania tego pudełka.
+	Owner Box
 }
 
 type Area struct {
@@ -152,6 +156,12 @@ type BackgroundLayer struct {
 	PositioningArea pr.Rectangle
 	Size            [2]pr.Float // width, height
 	Unbounded       bool
+	// gopdfgo: BorderArea – warstwa przycięta do obszaru malowanego przez obramowanie
+	// (background-clip: border-area, CSS Backgrounds 4 § 3.6)
+	BorderArea bool
+	// gopdfgo: Text razem z BorderArea – suma obszaru obramowania i kształtu tekstu
+	// (background-clip: border-area text)
+	Text bool
 }
 
 // BoxFields is an abstract base class for all boxes.

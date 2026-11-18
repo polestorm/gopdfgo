@@ -44,15 +44,28 @@ func boxRectangle(box bo.BoxFields, whichRectangle string) [4]pr.Float {
 // i is the current iteration index, N the length of the target slice.
 func cycle(i, N int) int { return i % N }
 
-func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.ImageFetcher) images.Image {
+// gopdfgo: currentColor to wartość color, którą przystanki gradientu z currentcolor przyjmują przy
+// rysowaniu (CSS Images 3 § 3.4); dla pudełek w ::first-line jest to kolor z tego pseudoelementu.
+func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.ImageFetcher, currentColor pr.Color) images.Image {
+	resolveStops := func(stops []pr.ColorStop) []pr.ColorStop {
+		out := append([]pr.ColorStop(nil), stops...)
+		for i, stop := range out {
+			if stop.Color.Type == parser.ColorCurrentColor {
+				out[i].Color = currentColor
+			}
+		}
+		return out
+	}
 	switch img := image.(type) {
 	case nil, pr.NoneImage:
 		return nil
 	case pr.UrlImage:
 		return getImageFromUri(string(img), "", orientation)
 	case pr.RadialGradient:
+		img.ColorStops = resolveStops(img.ColorStops)
 		return images.NewRadialGradient(img)
 	case pr.LinearGradient:
+		img.ColorStops = resolveStops(img.ColorStops)
 		return images.NewLinearGradient(img)
 	default:
 		panic(fmt.Sprintf("unexpected type for image: %T %v", image, image))
@@ -80,8 +93,8 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 
 	// This is for the border image, not the background, but this is a
 	// convenient place to get the image.
-	box.BorderImage = resolveImage(style.GetBorderImageSource(), pr.SBoolFloat{}, getImageFromUri)
-	box.MaskBorderImage = resolveImage(style.GetMaskBorderSource(), pr.SBoolFloat{}, getImageFromUri)
+	box.BorderImage = resolveImage(style.GetBorderImageSource(), pr.SBoolFloat{}, getImageFromUri, style.GetColor())
+	box.MaskBorderImage = resolveImage(style.GetMaskBorderSource(), pr.SBoolFloat{}, getImageFromUri, style.GetColor())
 
 	var (
 		color     parser.RGBA // transparent
@@ -94,7 +107,7 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 		bs := style.GetBackgroundImage()
 		images_ = make([]images.Image, len(bs))
 		for i, v := range bs {
-			images_[i] = resolveImage(v, orientation, getImageFromUri)
+			images_[i] = resolveImage(v, orientation, getImageFromUri, style.GetColor())
 			if images_[i] != nil {
 				anyImages = true
 			}
@@ -133,13 +146,18 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 			positions[cycle(i, positionsN)],
 			attachments[cycle(i, attachmentsN)],
 		)
+		// gopdfgo: background-clip: border-area (CSS Backgrounds 4 § 3.6); tło strony maluje się w obszarze
+		// spadu niezależnie od background-clip
+		clip := clips[cycle(i, clipsN)]
+		layers[i].BorderArea = (clip == "border-area" || clip == "border-area text") && box_ != page
+		layers[i].Text = layers[i].BorderArea && clip == "border-area text"
 	}
 
 	if traceMode {
 		traceLogger.Dump(fmt.Sprintf("background: %v", layers))
 	}
 
-	box.Background = &bo.Background{Color: color, ImageRendering: style.GetImageRendering(), Layers: layers}
+	box.Background = &bo.Background{Color: color, ImageRendering: style.GetImageRendering(), Layers: layers, Owner: box_}
 	// gopdfgo: background-clip: text na którejkolwiek warstwie przycina całe tło do tekstu elementu
 	// (uproszczenie: norma pozwala podać to osobno dla każdej warstwy).
 	// Tło elementu głównego przechodzi na płótno strony i tam kształt tekstu nie obowiązuje.
@@ -159,9 +177,18 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 		paintingArea pr.Rectangle
 	)
 	box := box_.Box()
-	if clip == "text" {
-		// kształt tekstu nakłada rysowanie (Background.TextClip); obszar malowania jak dla border-box
+	if clip == "text" || clip == "border-area" || clip == "border-area text" {
+		// kształt tekstu (Background.TextClip) albo obramowania (BackgroundLayer.BorderArea) nakłada
+		// rysowanie; obszar malowania jak dla border-box
 		clip = "border-box"
+	}
+	// gopdfgo: przy background-attachment: local w pudełku przewijanym (overflow inne niż visible) tło
+	// należy do przewijanej treści, więc nie wchodzi pod obramowanie: obszar malowania kończy się na
+	// krawędzi odstępu (CSS Backgrounds 3 § 3.5; test WPT background-attachment-local-hidden)
+	if attachment == "local" && clip == "border-box" && box_ != page {
+		if overflow := box.Style.GetOverflow(); overflow != "visible" && overflow != "clip" {
+			clip = "padding-box"
+		}
 	}
 	if box_ == page {
 		// [The page’s] background painting area is the bleed area […]
@@ -286,6 +313,28 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 			pr.ResolvePercentage(sizeWidth, positioningWidth), pr.ResolvePercentage(sizeHeight, positioningHeight), positioningWidth, positioningHeight)
 	}
 
+	repeatX, repeatY := repeat[0], repeat[1]
+
+	// gopdfgo: round najpierw skaluje obraz, a potem background-position działa zwyczajnie, z procentami
+	// liczonymi od nowego rozmiaru (CSS Backgrounds 3 § 3.4 i 3.9; test WPT background-repeat-round-4).
+	// Źródło pomijało background-position w wymiarze z round.
+	if repeatX == "round" {
+		nRepeats := max(1, int(math.Round(float64(positioningWidth/imageWidth))))
+		newWidth := positioningWidth / pr.Float(nRepeats)
+		if repeatY != "round" && size.Height.Tag == pr.Auto {
+			imageHeight *= newWidth / imageWidth
+		}
+		imageWidth = newWidth
+	}
+	if repeatY == "round" {
+		nRepeats := max(1, int(math.Round(float64(positioningHeight/imageHeight))))
+		newHeight := positioningHeight / pr.Float(nRepeats)
+		if repeatX != "round" && size.Width.Tag == pr.Auto {
+			imageWidth *= newHeight / imageHeight
+		}
+		imageHeight = newHeight
+	}
+
 	originX, positionX_, originY, positionY_ := position.OriginX, position.Pos[0], position.OriginY, position.Pos[1]
 	refX := positioningWidth - imageWidth
 	refY := positioningHeight - imageHeight
@@ -296,27 +345,6 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 	}
 	if originY == pr.Bottom {
 		positionY = refY - positionY.V()
-	}
-
-	repeatX, repeatY := repeat[0], repeat[1]
-
-	if repeatX == "round" {
-		nRepeats := max(1, int(math.Round(float64(positioningWidth/imageWidth))))
-		newWidth := positioningWidth / pr.Float(nRepeats)
-		positionX = pr.Float(0) // Ignore background-position for this dimension
-		if repeatY != "round" && size.Height.Tag == pr.Auto {
-			imageHeight *= newWidth / imageWidth
-		}
-		imageWidth = newWidth
-	}
-	if repeatY == "round" {
-		nRepeats := max(1, int(math.Round(float64(positioningHeight/imageHeight))))
-		newHeight := positioningHeight / pr.Float(nRepeats)
-		positionY = pr.Float(0) // Ignore background-position for this dimension
-		if repeatX != "round" && size.Width.Tag == pr.Auto {
-			imageWidth *= newHeight / imageHeight
-		}
-		imageHeight = newHeight
 	}
 
 	return bo.BackgroundLayer{
@@ -362,7 +390,9 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvas
 	if strings.ToLower(rootBox.ElementTag()) == "html" && rootBox.Background == nil {
 		// gopdfgo: body bywa głębiej niż bezpośrednie dziecko, gdy element główny jest tabelą (pudełka
 		// anonimowe wiersza i komórki) albo gdy body jest pozycjonowane
-		if body := findBodyBox(rootBox_, 6); body != nil {
+		// gopdfgo: tło body nie przechodzi na płótno, gdy element główny albo body ma zawieranie
+		// malowania (CSS Contain 2 § 3.3; testy WPT background-color-body-propagation-008, -009)
+		if body := findBodyBox(rootBox_, 6); body != nil && !hasPaintContainment(rootBox_) && !hasPaintContainment(body) {
 			chosenBox_ = body
 		}
 	}
@@ -385,6 +415,12 @@ func layoutBackgrounds(page *bo.PageBox, getImageFromUri bo.ImageFetcher, canvas
 	} else {
 		page.CanvasBackground = nil
 	}
+}
+
+// hasPaintContainment (gopdfgo) mówi, czy pudełko ma zawieranie malowania: paint wprost albo przez
+// strict lub content (CSS Contain 2 § 2).
+func hasPaintContainment(box Box) bool {
+	return bo.HasContainment(box, "paint") || bo.HasContainment(box, "strict") || bo.HasContainment(box, "content")
 }
 
 // findBodyBox szuka pudełka elementu body wśród potomków elementu głównego, do podanej głębokości.

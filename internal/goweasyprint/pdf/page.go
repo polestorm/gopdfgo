@@ -53,6 +53,15 @@ func (g *group) SetColorPattern(p backend.Canvas, contentWidth, contentHeight fl
 		g.stream.Ops(cs.OpSetFillColorSpace{ColorSpace: model.ColorSpacePattern})
 		g.stream.Ops(cs.OpSetFillColorN{Pattern: patternName})
 	}
+	// gopdfgo: wzorzec niesie własną przezroczystość, więc stała alfa wypełnienia (ca) albo obrysu (CA)
+	// wraca do 1. W źródle zostawała alfa poprzedniego koloru, np. półprzezroczystego obramowania
+	// sąsiedniego pudełka, i obraz tła był malowany wyblakły (CSS Backgrounds 3 § 3.1: obraz tła
+	// rysujemy z jego własną przezroczystością; testy WPT background-origin/*).
+	if stroke {
+		g.stream.SetStrokeAlpha(1)
+	} else {
+		g.stream.SetFillAlpha(1)
+	}
 }
 
 func (g *group) SetBlendingMode(mode string) {
@@ -263,6 +272,9 @@ func (g *group) OnNewStack(task func()) {
 // bounding box.
 func (g *group) NewGroup(x fl, y fl, width fl, height fl) backend.Canvas {
 	out := newGroup(g.cache, x, y, x+width, y+height)
+	// gopdfgo: grupa dziedziczy stan graficzny z miejsca użycia, więc jej kolory nie są znane
+	// (zob. ForgetColors; test WPT clip-text-descendants)
+	out.stream.ForgetColors()
 	return &out
 }
 

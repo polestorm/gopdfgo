@@ -81,6 +81,56 @@ func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 // przycięte do obszaru poza pudełkiem obramowania; wewnętrzne nad tłem, przycięte do pudełka odstępu
 // wewnętrznego. Pierwszy cień z listy leży na wierzchu. Rozmycie jest przybliżane kilkoma współśrodkowymi
 // warstwami o rosnącej przezroczystości (PDF nie ma rozmycia; bez rasteryzacji to najbliższy odpowiednik).
+// spreadShape (gopdfgo) powiększa kształt o s z każdej strony (ujemne s zmniejsza) i koryguje promienie
+// narożników według CSS Backgrounds 3 § 7.1.1: promień rośnie o s (maleje do zera), ale gdy promień r
+// jest mniejszy od |s|, przyrost jest mnożony przez 1 + (r/|s| − 1)³, żeby mały promień dawał prawie ostry
+// narożnik. Źródło dodawało (odejmowało) s wprost (testy WPT box-shadow-radius-000, -001).
+//
+// Wyjątek: gdy łuki na boku stykają się (np. border-radius: 50%, koło albo pigułka), promień rośnie o s
+// wprost, żeby kształt pozostał w pełni zaokrąglony (csswg-drafts#7103, test WPT
+// box-shadow-border-radius-001).
+func spreadShape(shape bo.RoundedBox, s pr.Float) bo.RoundedBox {
+	const eps = 1e-6
+	fullX := [2]bool{ // górny i dolny bok w całości zaokrąglone
+		shape.TopLeft[0]+shape.TopRight[0] >= shape.Width-eps,
+		shape.BottomLeft[0]+shape.BottomRight[0] >= shape.Width-eps,
+	}
+	fullY := [2]bool{ // lewy i prawy bok
+		shape.TopLeft[1]+shape.BottomLeft[1] >= shape.Height-eps,
+		shape.TopRight[1]+shape.BottomRight[1] >= shape.Height-eps,
+	}
+	shape.X -= s
+	shape.Y -= s
+	shape.Width += 2 * s
+	shape.Height += 2 * s
+	if s == 0 {
+		return shape
+	}
+	abs := s
+	if abs < 0 {
+		abs = -abs
+	}
+	radius := func(r pr.Float, full bool) pr.Float {
+		if r == 0 {
+			return 0
+		}
+		if s < 0 {
+			return max(0, r+s)
+		}
+		if r < abs && !full {
+			ratio := r / abs
+			return r + s*(1+(ratio-1)*(ratio-1)*(ratio-1))
+		}
+		return r + s
+	}
+	tl, tr, br, bl := &shape.TopLeft, &shape.TopRight, &shape.BottomRight, &shape.BottomLeft
+	tl[0], tl[1] = radius(tl[0], fullX[0]), radius(tl[1], fullY[0])
+	tr[0], tr[1] = radius(tr[0], fullX[0]), radius(tr[1], fullY[1])
+	br[0], br[1] = radius(br[0], fullX[1]), radius(br[1], fullY[1])
+	bl[0], bl[1] = radius(bl[0], fullX[1]), radius(bl[1], fullY[0])
+	return shape
+}
+
 func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 	shadows := box.Style.GetBoxShadow()
 	if len(shadows) == 0 || box.Style.GetVisibility() != "visible" {
@@ -103,8 +153,58 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 		}
 		return shape
 	}
+	// gopdfgo: przy box-decoration-break: slice fragment jest wycinkiem cienia całego, nieprzerwanego
+	// pudełka (CSS Fragmentation 3 § 5.4, CSS Backgrounds 3 § 7.1): kształty cienia i pudełka wydłużamy
+	// za krawędzie przerwania, a rysowanie przycinamy na tych krawędziach. Źródło rysowało każdy fragment
+	// jak osobne pudełko, z cieniem także przy krawędziach przerwania (testy WPT slice-*-fragmentation).
+	broken := box.RemoveDecorationSides
+	if box.Style.GetBoxDecorationBreak() == "clone" {
+		broken = [4]bool{}
+	}
+	const far = pr.Float(1e4)
+	extend := func(shape bo.RoundedBox) bo.RoundedBox {
+		if broken[bo.SLeft] {
+			shape.X -= far
+			shape.Width += far
+			shape.TopLeft, shape.BottomLeft = bo.Point{}, bo.Point{}
+		}
+		if broken[bo.SRight] {
+			shape.Width += far
+			shape.TopRight, shape.BottomRight = bo.Point{}, bo.Point{}
+		}
+		if broken[bo.STop] {
+			shape.Y -= far
+			shape.Height += far
+			shape.TopLeft, shape.TopRight = bo.Point{}, bo.Point{}
+		}
+		if broken[bo.SBottom] {
+			shape.Height += far
+			shape.BottomLeft, shape.BottomRight = bo.Point{}, bo.Point{}
+		}
+		return shape
+	}
+	clipBroken := func() {
+		if broken == ([4]bool{}) {
+			return
+		}
+		x0, y0, x1, y1 := -1e5, -1e5, 1e5, 1e5
+		if broken[bo.SLeft] {
+			x0 = float64(box.BorderBoxX())
+		}
+		if broken[bo.SRight] {
+			x1 = float64(box.BorderBoxX() + box.BorderWidth())
+		}
+		if broken[bo.STop] {
+			y0 = float64(box.BorderBoxY())
+		}
+		if broken[bo.SBottom] {
+			y1 = float64(box.BorderBoxY() + box.BorderHeight())
+		}
+		ctx.dst.Rectangle(fl(x0), fl(y0), fl(x1-x0), fl(y1-y0))
+		ctx.dst.State().Clip(false)
+	}
 	translated := func(distance, dx, dy pr.Float) bo.RoundedBox {
-		shape := sharpen(box.RoundedBoxInset(distance))
+		shape := extend(sharpen(spreadShape(box.RoundedBorderBox(), -distance)))
 		shape.X += dx
 		shape.Y += dy
 		return shape
@@ -129,12 +229,13 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 			color.RGBA.A = pr.Fl(1 - math.Pow(1-float64(color.RGBA.A), 1/float64(layers)))
 		}
 		ctx.dst.OnNewStack(func() {
+			clipBroken()
 			if inset {
-				roundedBox(ctx.dst, box.RoundedPaddingBox())
+				roundedBox(ctx.dst, extend(box.RoundedPaddingBox()))
 				ctx.dst.State().Clip(false)
 			} else {
 				ctx.dst.Rectangle(-1e5, -1e5, 2e5, 2e5)
-				roundedBox(ctx.dst, box.RoundedBorderBox())
+				roundedBox(ctx.dst, extend(box.RoundedBorderBox()))
 				ctx.dst.State().Clip(true)
 			}
 			ctx.dst.State().SetColorRgba(color.RGBA, false)
@@ -146,11 +247,16 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 				}
 				if inset {
 					// cień wewnętrzny: wszystko w pudełku odstępu poza kształtem zmniejszonym o spread
-					inner := sharpen(box.RoundedPaddingBoxInset(spread + edge))
+					inner := extend(sharpen(spreadShape(box.RoundedPaddingBox(), -(spread + edge))))
 					inner.X += dx
 					inner.Y += dy
 					ctx.dst.Rectangle(-1e5, -1e5, 2e5, 2e5)
-					roundedBox(ctx.dst, inner)
+					// gopdfgo: kształt zmniejszony poniżej zera jest pusty i cień wypełnia całe pudełko
+					// odstępu (CSS Backgrounds 3 § 7.1.1); prostokąt o ujemnych wymiarach wycinał dziurę
+					// (test WPT inset-shadow-large-spread-clipped-to-padding-box)
+					if inner.Width > 0 && inner.Height > 0 {
+						roundedBox(ctx.dst, inner)
+					}
 					ctx.dst.Paint(backend.FillEvenOdd)
 				} else {
 					roundedBox(ctx.dst, translated(-(spread+edge), dx, dy))
@@ -188,13 +294,13 @@ func (ctx drawContext) drawBorder(box_ Box) {
 
 	// Draw column rules.
 	columns := bo.BlockContainerT.IsInstance(box_) && (box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto")
-	if columns && !box.Style.GetColumnRuleWidth().IsNone() {
+	if columns && !box.Style.GetColumnRuleWidth().IsNone() && !ctx.borderMask {
 		// with stream.artifact():
 		ctx.drawColumnRules(box)
 	}
 
 	// If there's a border image, that takes precedence.
-	if box.Style.GetBorderImageSource() != (pr.NoneImage{}) && box.BorderImage != nil {
+	if box.Style.GetBorderImageSource() != (pr.NoneImage{}) && box.BorderImage != nil && !ctx.borderMask {
 		ctx.drawBorderImage(box, false)
 		return
 	}
@@ -212,6 +318,9 @@ func (ctx drawContext) drawBorder(box_ Box) {
 	)
 	for i, side := range sides {
 		colors[i] = tree.ResolveColor(box.Style, pr.PBorderBottomColor+side*5).RGBA
+		if ctx.borderMask {
+			colors[i] = Color{R: 1, G: 1, B: 1, A: 1}
+		}
 		colorsSet[colors[i]] = true
 		if colors[i].A != 0 {
 			styles[i] = box.Style.Get((pr.PBorderBottomStyle + side*5).Key()).(pr.String)
@@ -242,7 +351,11 @@ func (ctx drawContext) drawBorder(box_ Box) {
 			radii := [4]bo.Point{rb.TopLeft, rb.TopRight, rb.BottomRight, rb.BottomLeft}
 			clipBorderSegment(ctx.dst, style, fl(width), side,
 				roundedBox, &widths, &radii)
-			ctx.drawRoundedBorder(box, style, styledColor(style, color, side))
+			colors := styledColor(style, color, side)
+			if ctx.borderMask {
+				colors = [2]Color{color, color}
+			}
+			ctx.drawRoundedBorder(box, style, colors)
 		})
 	}
 }
@@ -320,7 +433,9 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 		} else if dimension.Unit == pr.Scalar {
 			return fl(dimension.Value) * original
 		} else if dimension.Unit == pr.Perc {
-			return fl(dimension.Value) / 100 * areaDimension
+			// gopdfgo: także calc() z procentem (procent z dodatkiem w pikselach albo wyrażenie
+			// min/max/clamp); źródło brało tylko część procentową
+			return fl(pr.ResolvePercentage(dimension, pr.Float(areaDimension)).V())
 		} else {
 			// assert dimension.unit == "px"
 			return fl(dimension.Value)

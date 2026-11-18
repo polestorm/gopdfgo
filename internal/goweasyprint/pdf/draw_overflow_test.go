@@ -128,6 +128,8 @@ func TestOverflow_5(t *testing.T) {
 func TestClip(t *testing.T) {
 	defer testutils.CaptureLogs().AssertNoLogs(t)
 
+	// gopdfgo: oczekiwania według CSS 2.2 § 11.1.2: right i left liczone od lewej krawędzi obramowania,
+	// prostokąt z right < left jest pusty (w źródle oba boki były zamienione)
 	for _, data := range [][2]string{
 		{"5px, 5px, 9px, auto", `
 				______________
@@ -136,10 +138,10 @@ func TestClip(t *testing.T) {
 				______________
 				______________
 				______________
-				______rBBBrBg_
-				______BBBBBBg_
-				______BBBBBBg_
-				______BBBBBBg_
+				_grBBB________
+				_gBBBB________
+				_gBBBB________
+				_gBBBB________
 				______________
 				______________
 				______________
@@ -154,13 +156,13 @@ func TestClip(t *testing.T) {
 				______________
 				______________
 				______________
-				______rBBBr___
-				______BBBBB___
-				______BBBBB___
-				______BBBBB___
-				______rBBBr___
-				______BBBBB___
-				______ggggg___
+				______________
+				______________
+				______________
+				______________
+				______________
+				______________
+				______________
 				______________
 				______________
 				______________
@@ -172,10 +174,10 @@ func TestClip(t *testing.T) {
 				______________
 				______________
 				______________
-				_grBBBrBBBr___
-				_gBBBBBBBBB___
-				_gBBBBBBBBB___
-				_gBBBBBBBBB___
+				___________Bg_
+				___________Bg_
+				___________Bg_
+				___________Bg_
 				______________
 				______________
 				______________
@@ -185,15 +187,15 @@ func TestClip(t *testing.T) {
 			`},
 		{"auto, 5px, 9px, 10px", `
 				______________
-				______ggggg___
-				______rBBBr___
-				______BBBBB___
-				______BBBBB___
-				______BBBBB___
-				______rBBBr___
-				______BBBBB___
-				______BBBBB___
-				______BBBBB___
+				______________
+				______________
+				______________
+				______________
+				______________
+				______________
+				______________
+				______________
+				______________
 				______________
 				______________
 				______________

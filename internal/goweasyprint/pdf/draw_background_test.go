@@ -728,6 +728,10 @@ func TestBackgroundRepeatRound_2(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 	assertPixelsEqual(t, `
         __________
+        _BBBBBBBB_
+        _BBBBBBBB_
+        _BBBBBBBB_
+        _BBBBBBBB_
         _rrBBBBBB_
         _rrBBBBBB_
         _BBBBBBBB_
@@ -738,10 +742,6 @@ func TestBackgroundRepeatRound_2(t *testing.T) {
         _BBBBBBBB_
         _rrBBBBBB_
         _rrBBBBBB_
-        _BBBBBBBB_
-        _BBBBBBBB_
-        _BBBBBBBB_
-        _BBBBBBBB_
         _BBBBBBBB_
         _BBBBBBBB_
         __________
@@ -788,9 +788,9 @@ func TestBackgroundRepeatRound_4(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 	assertPixelsEqual(t, `
         __________
-        _rBBBrBBB_
-        _rBBBrBBB_
-        _rBBBrBBB_
+        _BBrBBBrB_
+        _BBrBBBrB_
+        _BBrBBBrB_
         _BBBBBBBB_
         _BBBBBBBB_
         _BBBBBBBB_

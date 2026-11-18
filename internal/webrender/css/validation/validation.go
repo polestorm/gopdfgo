@@ -1204,8 +1204,16 @@ func backgroundClip(tokens []Token, _ string) pr.CssProperty {
 	for _, part := range pa.SplitOnComma(tokens) {
 		part = pa.RemoveWhitespace(part)
 		result := _box(part)
-		if result == "" && getSingleKeyword(part) == "text" {
-			result = "text"
+		if kw := getSingleKeyword(part); result == "" && (kw == "text" || kw == "border-area") {
+			// gopdfgo: border-area – tło tylko tam, gdzie maluje obramowanie (CSS Backgrounds 4 § 3.6)
+			result = kw
+		}
+		// gopdfgo: border-area || text – suma obu obszarów; inne połączenia nie są obsługiwane
+		if len(part) == 2 && result == "" {
+			a, b := getKeyword(part[0]), getKeyword(part[1])
+			if (a == "border-area" && b == "text") || (a == "text" && b == "border-area") {
+				result = "border-area text"
+			}
 		}
 		if result == "" {
 			return nil

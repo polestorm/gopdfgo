@@ -498,8 +498,18 @@ func borderImageSlice(_ *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) p
 }
 
 // Compute the “border-image-width“ property.
-func borderImageWidth(_ *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
-	values := _value.(pr.Values)
+func borderImageWidth(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	values := append(pr.Values(nil), _value.(pr.Values)...)
+	// gopdfgo: długości (em, calc() itd.) sprowadzamy do pikseli, a calc() z procentem do procentu
+	// z dodatkiem (CSS Backgrounds 3 § 6.3: wartością obliczoną jest długość bezwzględna albo procent);
+	// źródło zostawiało wartości określone, więc np. calc(100px) rysowało się jak 0
+	for i, value := range values {
+		if value.Tag != pr.Auto && value.Unit != pr.Scalar && value.Unit != pr.Perc {
+			values[i] = length_(computer, value, -1, false)
+		} else if value.Calc != nil {
+			values[i] = length_(computer, value, -1, false)
+		}
+	}
 	switch len(values) {
 	case 1:
 		return values.Repeat(4)

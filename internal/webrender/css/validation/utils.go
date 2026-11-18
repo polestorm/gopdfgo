@@ -287,7 +287,18 @@ func parseColorStops(stops [][]Token) ([]pr.ColorStop, error) {
 		out = append(out, parsed)
 	}
 	for _, index := range hints {
+		if out[index-1].Color.Type == pa.ColorCurrentColor && out[index+1].Color.Type == pa.ColorCurrentColor {
+			out[index].Color = out[index-1].Color // przejście między currentcolor a currentcolor
+			continue
+		}
+		// uproszczenie: currentcolor obok wskazówki liczy się tu jak czerń
 		before, after := out[index-1].Color.RGBA, out[index+1].Color.RGBA
+		if out[index-1].Color.Type == pa.ColorCurrentColor {
+			before = pa.RGBA{A: 1}
+		}
+		if out[index+1].Color.Type == pa.ColorCurrentColor {
+			after = pa.RGBA{A: 1}
+		}
 		// średnia na składowych przemnożonych przez krycie, jak w interpolacji gradientu
 		alpha := (before.A + after.A) / 2
 		mixed := pa.RGBA{A: alpha}
@@ -304,10 +315,10 @@ func parseColorStops(stops [][]Token) ([]pr.ColorStop, error) {
 func parseColorStop(tokens []Token) (pr.ColorStop, error) {
 	switch len(tokens) {
 	case 1:
+		// gopdfgo: currentcolor zostaje do chwili rysowania, gdzie przyjmuje wartość color pudełka
+		// (CSS Color 4 § 6.4, CSS Images 3 § 3.4; test WPT linear-gradient-currentcolor-first-line).
+		// Źródło zamieniało je na czerń.
 		color := pa.ParseColor(tokens[0])
-		if color.Type == pa.ColorCurrentColor {
-			return pr.ColorStop{Color: pr.Color(pa.ParseColorString("black"))}, nil
-		}
 		if !color.IsNone() {
 			return pr.ColorStop{Color: pr.Color(color)}, nil
 		}
