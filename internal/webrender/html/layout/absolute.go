@@ -320,7 +320,26 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 		newBox Box
 		bl     blockLayout
 	)
-	if bo.BlockT.IsInstance(box_) {
+	laidOutAsColumns := false
+	if multicol, ok := box_.(bo.BlockBoxITF); ok && bo.BlockT.IsInstance(box_) &&
+		(box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto") {
+		// gopdfgo: pudełko pozycjonowane bezwzględnie może być kontenerem kolumn (CSS Multicol 1 § 2);
+		// w źródle jego treść była układana jak w zwykłym bloku (test WPT column-count-used-001).
+		// Szerokość jest już wyznaczona przez absoluteWidth.
+		cb := &bo.BoxFields{Style: box.Style, Width: cbWidth, Height: cbHeight}
+		context.createBlockFormattingContext()
+		laidOut, columnsResult := columnsLayout(context, multicol, bottomSpace, skipStack, cb,
+			true, &absoluteBoxes, fixedBoxes, nil)
+		if laidOut != nil {
+			newBox, bl, laidOutAsColumns = laidOut, blockLayout{resumeAt: columnsResult.resumeAt}, true
+			context.finishBlockFormattingContext(laidOut)
+		} else {
+			context.finishBlockFormattingContext(box_)
+		}
+	}
+	if laidOutAsColumns {
+		// ułożony wyżej
+	} else if bo.BlockT.IsInstance(box_) {
 		newBox, bl, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, true,
 			&absoluteBoxes, fixedBoxes, new([]pr.Float), false, -1)
 	} else if bo.FlexContainerT.IsInstance(box_) {

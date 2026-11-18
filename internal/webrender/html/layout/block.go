@@ -209,7 +209,8 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		newBox_, result := columnsLayout(context, box_, bottomSpace, skipStack, containingBlock,
 			pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins)
 		resumeAt := result.resumeAt
-		if resumeAt == nil {
+		// przy box-decoration-break: clone miejsce na dolne odstępy zarezerwował już układ kolumn
+		if resumeAt == nil && box.Style.GetBoxDecorationBreak() != "clone" {
 			newBox := newBox_.Box()
 			columnsBottomSpace := newBox.MarginBottom.V() + newBox.PaddingBottom.V() + newBox.BorderBottomWidth.V()
 			if columnsBottomSpace != 0 {
@@ -670,6 +671,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		context.clipDepth++
 		defer func() { context.clipDepth-- }()
 	}
+	// gopdfgo: w kolumnach kontener przewijania (overflow: hidden, scroll, auto; CSS Overflow 3 § 3) jest
+	// niepodzielny (CSS Break 3 § 4.1), także przy wysokości auto: jego treść układamy bez ograniczenia,
+	// a o przeniesieniu całości do następnej kolumny decyduje rodzic. W źródle treść dzieliła się między
+	// kolumny (test WPT overflow-unsplittable-003). Na stronach zostaje zachowanie źródła: na papierze
+	// nie da się przewinąć, więc treść dzielimy jak przeglądarki przy druku.
+	if context.inColumn && !box.IsColumn && bo.BlockT.IsInstance(box_) && skipStack == nil && box.IsInNormalFlow() {
+		if overflow := box.Style.GetOverflow(); overflow == "hidden" || overflow == "scroll" || overflow == "auto" {
+			bottomSpace = -pr.Inf
+		}
+	}
 
 	// See https://www.w3.org/TR/CSS21/visuren.html#block-formatting
 	// gopdfgo: pudełko opakowujące tabelę zakłada kontekst formatowania blokowego (CSS 2.1 § 17.4),
@@ -730,6 +741,23 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		resumeAt                     tree.ResumeStack
 		lastInFlowChild              Box
 	)
+	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie ciągną się od góry tej kolumny
+	// (CSS Break 3 § 4.4: fragmenty pudełka trafiają do kolejnych fragmentatorów), tak jak na stronach
+	// robi to pages.go. W źródle ich dalszy ciąg trafiał dopiero na następną stronę.
+	if box.IsColumn && len(context.columnFloats) != 0 {
+		pending := context.columnFloats
+		context.columnFloats = nil
+		for _, v := range pending {
+			v.box.Box().PositionY = box.ContentBoxY()
+			placed, placedResumeAt := floatLayout(context, v.box, v.containingBlock.Box(), absoluteBoxes, fixedBoxes, bottomSpace, v.resumeAt)
+			placed.Translate(v.x-placed.Box().PositionX, 0, false)
+			newChildren = append(newChildren, placed)
+			if placedResumeAt != nil {
+				context.setBrokenOutOfFlow(placed, brokenBox{box: v.box, containingBlock: v.containingBlock, resumeAt: placedResumeAt})
+				brokenOutOfFlow = append(brokenOutOfFlow, placed)
+			}
+		}
+	}
 
 	if ml := box.Style.GetMaxLines(); ml.Tag != pr.None {
 		if maxLines <= 0 || ml.I <= maxLines {
@@ -1003,6 +1031,12 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			// pudełko bez górnego obramowania i odstępu dostaje ostateczne położenie dopiero niżej,
 			// po zwinięciu marginesów; miejsce liczymy od tego położenia
 			available -= collapseMargin(*thisBoxAdjoiningMargins) - box.MarginTop.V()
+		}
+		// gopdfgo: w kolumnach fragment zużywa co najmniej tyle wysokości, ile zajęła treść, która musiała
+		// się w nim zmieścić (np. niepodzielny wiersz wyższy niż kolumna; CSS Break 3 § 4.4); w źródle
+		// reszta wysokości dawała puste fragmenty w następnych kolumnach (test WPT multicol-zero-height-002).
+		if used := positionY - box.ContentBoxY(); context.inColumn && available > 0 && used > available {
+			available = used
 		}
 		if remaining := usedHeight - available; available > 0 && remaining > 0.5 {
 			splitHeight = available
