@@ -340,6 +340,9 @@ type brokenBox struct {
 	// nextColumn (gopdfgo): pudełko pozycjonowane, które w kolumnie nie zmieściło żadnej treści i w całości
 	// zaczyna się w następnej kolumnie (zob. absoluteLayout)
 	nextColumn bool
+	// owner (gopdfgo): element kontenera kolumn, w którego kolumnie pudełko zostało podzielone (zob.
+	// layoutContext.columnOwner); dalszy ciąg bierze tylko ten kontener, także gdy jest zagnieżdżony
+	owner *html.Node
 }
 
 // gopdfgo: pudełka poza przepływem podzielone między strony są kontynuowane w kolejności zgłoszenia.
@@ -351,6 +354,7 @@ func (l *layoutContext) setBrokenOutOfFlow(key Box, broken brokenBox) {
 	l.brokenSequence++
 	broken.order = l.brokenSequence
 	broken.columnX = l.columnX
+	broken.owner = l.columnOwner
 	l.brokenOutOfFlow[key] = broken
 }
 
@@ -418,6 +422,8 @@ type layoutContext struct {
 	// columnX (gopdfgo): położenie najgłębszej układanej właśnie kolumny; dalszy ciąg pudełka poza
 	// przepływem zachowuje w następnej kolumnie odległość od jej lewej krawędzi
 	columnX pr.Float
+	// columnOwner (gopdfgo): element najgłębszego układanego właśnie kontenera kolumn (nil poza kolumnami)
+	columnOwner *html.Node
 	// gopdfgo: ile kolumn zostaje w bieżącym rzędzie kontenera kolumn za kolumną układaną teraz
 	columnsLeft int
 	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się

@@ -29,7 +29,10 @@ type LineBox struct {
 	TextIndent pr.MaybeFloat
 	// gopdfgo: przed tym pudełkiem wiersza jest w kontenerze blokowym treść w normalnym przepływie,
 	// więc jego pierwszy wiersz nie jest pierwszym sformatowanym wierszem kontenera (CSS Text 3 § 7.1)
-	AfterBlock    bool
+	AfterBlock bool
+	// gopdfgo: wiersz wznowiony po <br> z clear stoi poniżej elementów pływających (clearance), więc nie jest
+	// pustym wierszem, przez który przechodzą marginesy, nawet bez treści
+	Cleared       bool
 	TextOverflow  string
 	BlockEllipsis pr.TaggedString
 }

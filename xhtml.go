@@ -46,6 +46,7 @@ func expandSelfClosing(document []byte) []byte {
 		if loc != nil {
 			plain = rest[:loc[0]]
 		}
+		plain = unwrapCDATA(plain)
 		out.Write(selfClosingTag.ReplaceAllFunc(plain, func(tag []byte) []byte {
 			parts := selfClosingTag.FindSubmatch(tag)
 			name := bytes.ToLower(parts[1])
@@ -127,4 +128,37 @@ func decodeStyleEntities(document []byte) []byte {
 		out = append(out, decoded...)
 		return append(out, parts[3]...)
 	})
+}
+
+var (
+	cdataSection = regexp.MustCompile(`(?s)<!\[CDATA\[(.*?)\]\]>`)
+	rawTextBlock = regexp.MustCompile(`(?is)<(style|script)\b.*?</(?:style|script)\s*>`)
+)
+
+// unwrapCDATA zamienia w treści dokumentu XHTML sekcje CDATA na zwykły tekst z encjami. W XML sekcja CDATA
+// to dane znakowe (XML 1.0 § 2.7), a parser HTML5 poza SVG i MathML czyta ją jako komentarz i tekst ginie
+// (test WPT first-letter-selector-000). Treść <style> i <script> zostaje bez zmian (sekcje CDATA w arkuszu
+// obsługuje tree/style.go).
+func unwrapCDATA(document []byte) []byte {
+	if !bytes.Contains(document, []byte("<![CDATA[")) {
+		return document
+	}
+	var out bytes.Buffer
+	rest := document
+	for len(rest) > 0 {
+		loc := rawTextBlock.FindIndex(rest)
+		plain := rest
+		if loc != nil {
+			plain = rest[:loc[0]]
+		}
+		out.Write(cdataSection.ReplaceAllFunc(plain, func(section []byte) []byte {
+			return []byte(html.EscapeString(string(cdataSection.FindSubmatch(section)[1])))
+		}))
+		if loc == nil {
+			break
+		}
+		out.Write(rest[loc[0]:loc[1]])
+		rest = rest[loc[1]:]
+	}
+	return out.Bytes()
 }
