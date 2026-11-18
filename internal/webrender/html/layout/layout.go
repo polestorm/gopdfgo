@@ -155,7 +155,10 @@ func layoutFixedBoxes(context *layoutContext, pages []*bo.PageBox, containingPag
 			// Absolute boxes in fixed boxes are rendered as fixed boxes'
 			// children, even when they are fixed themselves.
 			var absoluteBoxes []*AbsolutePlaceholder
-			b, _ := absoluteBoxLayout(context, box, containingPage, &absoluteBoxes, -pr.Inf, nil)
+			// gopdfgo: pudełko fixed powtarzane na innej stronie ma położenie i rozmiar z bloku zawierającego
+			// strony, na której je ułożono (w Chromium: z okna pierwszej strony), a nie z bieżącej; inaczej
+			// na stronie o innym rozmiarze (nazwane strony) przesuwało się (test WPT css-page/fixedpos-010).
+			b, _ := absoluteBoxLayout(context, box, page, &absoluteBoxes, -pr.Inf, nil)
 			out = append(out, b)
 			for len(absoluteBoxes) != 0 {
 				var newAbsoluteBoxes []*AbsolutePlaceholder
@@ -872,6 +875,12 @@ func contentRightEdge(box_ Box) pr.Float {
 	}
 	box := box_.Box()
 	edge := -pr.Inf
+	// gopdfgo: pudełko fixed, którego blokiem zawierającym jest strona, nie należy do przewijalnej treści
+	// dokumentu (CSSOM View 1 § 3.3, tak jak w Chromium), więc nie pomniejsza treści, nawet gdy wystaje
+	// poza stronę (test WPT css-page/fixedpos-010).
+	if box.Style.GetPosition().String == "fixed" && box.IsAbsolutelyPositioned() {
+		return edge
+	}
 	switch box_.(type) {
 	case *bo.LineBox:
 		// szerokość wiersza nie jest szerokością treści; liczą się jego dzieci

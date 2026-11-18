@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils/testutils/tracer"
@@ -484,6 +485,14 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		panic("placeholder can't have its layout done.")
 	}
 	box := placeholder.AliasBox
+	// gopdfgo: pudełko fixed, którego blokiem zawierającym jest strona, powtarza się na każdej stronie
+	// (CSS 2.1 § 9.6.1, CSS Position 3 § 2.1). Strona zapamiętuje je przed układem pudełek pozycjonowanych,
+	// więc pudełka fixed zagnieżdżone w pudełkach absolute (dopisywane do listy w trakcie tego układu) nie
+	// były powtarzane (testy WPT css-page/fixedpos-002, -004).
+	if page, isPage := containingBlock.(*bo.PageBox); isPage && bottomSpace > -pr.Inf && box.Box().Style.GetPosition().String == "fixed" &&
+		!slices.Contains(page.FixedBoxes, box) {
+		page.FixedBoxes = append(page.FixedBoxes, box)
+	}
 	newBox, resumeAt := absoluteBoxLayout(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
 	if static := box.Box().StaticAlign; static != nil && newBox != nil {
 		// gopdfgo: wyrównanie pozycji statycznej dziecka siatki w osi bez podanych przesunięć
