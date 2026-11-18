@@ -93,7 +93,7 @@ func TestFlexMisc(t *testing.T) {
 		<div class="g a" style="left:50px;width:50px;height:40px"></div></div><div class=g style="width:10px;height:10px"></div>`)
 	// kontener pozycjonowany z top i bottom: obraz rozciągnięty do wysokości ma szerokość z proporcji
 	same("abspos-inset-ratio", `<div style="position:relative;height:100px"><div style="display:flex;position:absolute;top:0;bottom:0">
-		<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='green'/%3E%3C/svg%3E" style="display:block"></div></div>`,
+		<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1' viewBox='0 0 1 1'%3E%3Crect width='1' height='1' fill='green'/%3E%3C/svg%3E" style="display:block"></div></div>`,
 		`<div class=g style="width:100px;height:100px"></div>`)
 	// kontener z aspect-ratio ma określoną wysokość, do której rozciągają się elementy
 	same("container-aspect-ratio", `<div style="display:flex;width:200px;aspect-ratio:2/1"><div class=g style="width:50px"></div></div>`,
