@@ -2022,3 +2022,20 @@ dokumenty próbne w scratchpadzie sesji, opis pomiaru w ADR 0019):
 Reftesty druku 279 → 282 z 340; sondaż ekranowy bez zmian (9498, 0 strat); korpus bez zmian. Poprawionych
 8 przejętych testów (lista w `THIRD_PARTY.md`). `TestTranslate` (macierze) naprawiony: dokładne porównanie
 `float32` zastąpione tolerancją.
+
+## Otwarte: pudełko `absolute` względem bloku początkowego w druku (pomiar 2026-11-18)
+
+Pudełko `position: absolute` bez przodka pozycjonowanego (blok zawierający początkowy) jest liczone od strony,
+na której stanął jego zastępnik w przepływie, a nie od początku pierwszej strony. Chrome 157 (`--print-to-pdf`,
+strona 400 × 200 px, marginesy 0; pliki próbne w scratchpadzie sesji `pos/abs2.html`):
+
+| Blok nad pudełkiem, `top`, wysokość pudełka | Chrome | gopdfgo |
+|---|---|---|
+| 250 px, `top: 200px`, 50 px | 2 strony, pudełko na stronie 2, y = 0 | 3 strony, pudełko na stronie 3 |
+| 250 px, `top: 200px`, 300 px | 3 strony, pudełko od strony 2 | 4 strony, od strony 3 |
+| 450 px, `top: 100px`, 50 px | pudełko na stronie 1, y = 100 px | na stronie 3, y = 100 px |
+
+Chrome traktuje blok początkowy jak pierwszą stronę ciągnącą się w dół (CSS 2.1 § 10.1) i dzieli wynik
+między strony. Poprawka wymaga dołożenia pudełka do strony już ułożonej (`pages.go`, `absolute.go`); reftesty
+`css-page/fixedpos-005/006/008-print`. Przerwane: pomocnicy zatrzymani przez tygodniowy limit API
+(reset 2026-11-20 23:00).
