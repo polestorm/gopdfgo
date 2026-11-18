@@ -64,6 +64,13 @@ type lineBoxeIterator struct {
 	maxLines int
 	// hyphenatedLines: liczba kolejnych wierszy zakończonych dzieleniem wyrazu (hyphenate-limit-lines)
 	hyphenatedLines int
+	// gopdfgo: wiersz o numerze ellipsisLine (licząc wydane wiersze) jest dodatkowo zwężony o
+	// ellipsisShrink, miejsce na wielokropek bloku przy wyrównywaniu wierszy obcinanych przez
+	// line-clamp (balanceClamped); -1 bez zwężenia
+	ellipsisLine   int
+	ellipsisShrink pr.Float
+	// clampContentAfter: za tym akapitem w kontenerze line-clamp jest jeszcze treść
+	clampContentAfter bool
 }
 
 func (l *lineBoxeIterator) Has() bool {
@@ -86,8 +93,12 @@ func (l *lineBoxeIterator) Has() bool {
 	if limit := l.box.Style.GetHyphenateLimitLines(); limit.Tag != pr.None && l.hyphenatedLines >= limit.I {
 		l.context.noAutoHyphens = true
 	}
+	shrink := l.shrink
+	if l.emitted == l.ellipsisLine {
+		shrink += l.ellipsisShrink
+	}
 	line, resumeAt, forcedBreak := getNextLinebox(l.context, l.box, l.positionY, l.bottomSpace, l.skipStack, l.containingBlock,
-		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, l.shrink)
+		l.absoluteBoxes, l.fixedBoxes, l.firstLetterStyle, l.firstLine, shrink)
 	l.context.noAutoHyphens = savedNoAutoHyphens
 	if line != nil && resumeAt != nil && endsHyphenated(line) {
 		l.hyphenatedLines++
@@ -163,10 +174,10 @@ func (l *lineBoxeIterator) balance() {
 	if lines < 2 || lines > maxBalancedLines {
 		return
 	}
-	if l.maxLines >= 0 && lines > l.maxLines-l.emitted {
-		// Norma każe najpierw obciąć wiersze (line-clamp), a potem wyrównać pozostałe z miejscem na
-		// wielokropek; wielokropek bloku dokładamy dopiero przy rysowaniu, więc układ nie zna jego
-		// szerokości. Obcinanego bloku nie wyrównujemy.
+	if remaining := l.maxLines - l.emitted; l.maxLines >= 0 && (lines > remaining || (lines == remaining && l.clampContentAfter)) {
+		// gopdfgo: norma każe najpierw obciąć wiersze (line-clamp), a potem wyrównać pozostałe
+		// z miejscem na wielokropek (CSS Text 4 § 5.2, CSS Overflow 4 § 4.1)
+		l.balanceClamped(remaining)
 		return
 	}
 	low, high := pr.Float(0), width.V()
@@ -193,10 +204,115 @@ func (l *lineBoxeIterator) balance() {
 	l.shrink = low
 }
 
+// balanceClamped (gopdfgo) wyrównuje n wierszy, które zostają z akapitu obciętego przez line-clamp:
+// treścią do wyrównania jest to, co bez wyrównania mieści się w n wierszach, gdy ostatni z nich ma
+// miejsce na wielokropek bloku (treść, która się z nim nie mieści, jest usuwana, zob.
+// insertBlockEllipsis). Szukamy połowieniem największego zwężenia, przy którym ta sama treść mieści
+// się w n wierszach, a ostatni wiersz jest zwężony dodatkowo o szerokość wielokropka.
+func (l *lineBoxeIterator) balanceClamped(n int) {
+	if n < 1 || n > maxBalancedLines {
+		return
+	}
+	width := l.containingBlock.Box().Width.V()
+	ellipsis := ellipsisWidth(l.context, l.box, l.box.Style.GetBlockEllipsis())
+	target, targetDone := l.trialClampEnd(0, n, ellipsis)
+	reaches := func(shrink pr.Float) bool {
+		end, done := l.trialClampEnd(shrink, n, ellipsis)
+		return done || (!targetDone && compareResume(end, target) >= 0)
+	}
+	low, high := pr.Float(0), width
+	if reaches(high) {
+		low = high
+	} else {
+		for i := 0; i < 20 && high-low > 1.0/64; i++ {
+			middle := (low + high) / 2
+			if reaches(middle) {
+				low = middle
+			} else {
+				high = middle
+			}
+		}
+	}
+	l.shrink = low
+	l.ellipsisLine, l.ellipsisShrink = l.emitted+n-1, ellipsis
+}
+
+// trialClampEnd (gopdfgo) układa próbnie n wierszy przy zwężeniu shrink, z ostatnim zwężonym
+// dodatkowo o ellipsis, i zwraca miejsce, w którym kończy się widoczna treść: za ostatnim wierszem
+// albo przed nim, gdy jego treść się nie mieści (wielokropek ją wyprze). done mówi, że treść
+// akapitu skończyła się wcześniej.
+func (l *lineBoxeIterator) trialClampEnd(shrink pr.Float, n int, ellipsis pr.Float) (end tree.ResumeStack, done bool) {
+	l.trial(func() {
+		l.shrink = shrink
+		l.ellipsisLine, l.ellipsisShrink = l.emitted+n-1, ellipsis
+		limit := l.containingBlock.Box().Width.V() - shrink - ellipsis
+		for count := 0; count < n; count++ {
+			start := l.skipStack
+			if !l.Has() {
+				done = true
+				return
+			}
+			l.balanced = true // odcinek po wymuszonym złamaniu nie jest wyrównywany w próbie
+			if count == n-1 {
+				if line := l.currentBox.line; line.Width.V() > limit+1.0/64 {
+					end = start
+					return
+				}
+			}
+			if l.done {
+				done = l.currentBox.resumeAt == nil
+				end = l.currentBox.resumeAt
+				return
+			}
+		}
+		end = l.skipStack
+	})
+	return end, done && end == nil
+}
+
+// compareResume (gopdfgo) porównuje miejsca w treści dane stosami wznowienia (nil: początek).
+func compareResume(a, b tree.ResumeStack) int {
+	for {
+		if a == nil || b == nil {
+			switch {
+			case a == nil && b == nil:
+				return 0
+			case a == nil:
+				return -1
+			}
+			return 1
+		}
+		ka, sa := a.Unpack()
+		kb, sb := b.Unpack()
+		if ka != kb {
+			if ka < kb {
+				return -1
+			}
+			return 1
+		}
+		a, b = sa, sb
+	}
+}
+
 // trialLines (gopdfgo) układa próbnie wiersze iteratora przy zwężeniu shrink i zwraca ich liczbę,
 // najwyżej maxBalancedLines+1; stan iteratora i skutki uboczne układu (floaty, pudełka
 // pozycjonowane, elementy biegnące) są potem przywracane.
 func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
+	count := 0
+	l.trial(func() {
+		l.shrink = shrink
+		for count <= maxBalancedLines && l.Has() {
+			count++
+			if l.forced {
+				break
+			}
+		}
+	})
+	return count
+}
+
+// trial (gopdfgo) wykonuje próbny układ f i przywraca potem stan iteratora i skutki uboczne układu.
+func (l *lineBoxeIterator) trial(f func()) {
 	saved := *l
 	context := l.context
 	// listy wykluczeń zapamiętujemy jako nagłówki: próbne floaty dopisują się za ich długością, a układ
@@ -215,16 +331,8 @@ func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
 	}
 	var absolutes, fixed []*AbsolutePlaceholder
 	l.absoluteBoxes, l.fixedBoxes = &absolutes, &fixed
-	l.shrink = shrink
-
-	count := 0
 	l.balanced = true
-	for count <= maxBalancedLines && l.Has() {
-		count++
-		if l.forced {
-			break
-		}
-	}
+	f()
 
 	*l = saved
 	context.excludedShapesLists = savedLists
@@ -235,7 +343,6 @@ func (l *lineBoxeIterator) trialLines(shrink pr.Float) int {
 	}
 	context.brokenOutOfFlow, context.brokenSequence = savedBroken, savedSequence
 	context.runningElements = savedRunning
-	return count
 }
 
 func (l *lineBoxeIterator) consume() int {
@@ -268,7 +375,7 @@ func iterLineBoxes(context *layoutContext, box *bo.LineBox, positionY, bottomSpa
 		indentNext: skipStack == nil && (!box.AfterBlock || indent.EachLine),
 		box:        box, context: context, positionY: positionY, bottomSpace: bottomSpace, containingBlock: containingBlock,
 		absoluteBoxes: absoluteBoxes, fixedBoxes: fixedBoxes, skipStack: skipStack, firstLetterStyle: firstLetterStyle,
-		firstLine: skipStack == nil, maxLines: -1,
+		firstLine: skipStack == nil, maxLines: -1, ellipsisLine: -1,
 	}
 }
 

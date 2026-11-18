@@ -1349,6 +1349,26 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	return privateLayout(out)
 }
 
+// joinersAfterSpaces (gopdfgo) zastępuje w tekście do wyznaczania miejsc podziału łącznik (ZWJ, ZWNJ)
+// stojący tuż po spacji spacją. UAX 14 LB9 nie dokleja znaków łączących do spacji, więc po LB10 łącznik
+// liczy się jak litera (AL) i przed nim wolno złamać wiersz (LB18). Kształtowanie łączy jednak spację
+// z łącznikiem w jedno skupienie, a go-text łamie tylko między skupieniami i doklejał łącznik do spacji
+// (LB8a: po ZWJ nie łamać), więc miejsce podziału za spacją znikało (test WPT
+// white-space-vs-joiners-002). Ze spacją w miejscu łącznika podział wypada zaraz za skupieniem.
+// Kształty i szerokości zostają bez zmian.
+func joinersAfterSpaces(text []rune) []rune {
+	out := text
+	for i := 1; i < len(text); i++ {
+		if (text[i] == '\u200d' || text[i] == '\u200c') && (text[i-1] == ' ' || text[i-1] == '\t' || text[i-1] == '\u3000') {
+			if &out[0] == &text[0] {
+				out = slices.Clone(text)
+			}
+			out[i] = ' '
+		}
+	}
+	return out
+}
+
 func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs shaping.Line, maxWidth pr.Float, allowWordBreak bool) (usedMaxWidth fixed.Int26_6, _ shaping.WrappedLine, _ bool) {
 	dir := di.DirectionLTR
 	if style.Direction == pr.Rtl {
@@ -1384,6 +1404,7 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	if !style.breakSpaces() {
 		breakText = unifyWhiteSpaceRuns(text, !spaceCollapse)
 	}
+	breakText = joinersAfterSpaces(breakText)
 	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
 		fc.lineWrapper.Prepare(config, breakText, shaping.NewSliceIterator(runs))
 		line, done := fc.lineWrapper.WrapNextLineF(limit)

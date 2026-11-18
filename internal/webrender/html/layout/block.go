@@ -878,9 +878,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// gopdfgo: w Pythonie children[skip:] poza zakresem daje pustą listę; w Go to panika. Zdarza się,
 	// gdy komórka tabeli jest układana ponownie bez dzieci, ale z pozycją wznowienia (tables.go).
 	skip = min(skip, len(box.Children))
+	// gopdfgo: czy za dzieckiem w kontenerze line-clamp jest jeszcze treść: za nim w tym pudełku albo,
+	// poza samym kontenerem, za tym pudełkiem (balanceClamped)
+	savedClampAfter := context.clampContentAfter
+	defer func() { context.clampContentAfter = savedClampAfter }()
+	parentClampAfter := savedClampAfter && box.Style.GetMaxLines().Tag == pr.None
 	for i, child_ = range box.Children[skip:] {
 		index := i + skip
 		child := child_.Box()
+		context.clampContentAfter = parentClampAfter || slices.ContainsFunc(box.Children[index+1:], func(b Box) bool { return b.Box().IsInNormalFlow() })
 		child.PositionX = positionX
 		child.PositionY = positionY // does not count margins in adjoiningMargins
 		var newFootnotes []Box
@@ -971,13 +977,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 					stop = true
 					lastChild := (child_ == box.Children[len(box.Children)-1])
 					if !lastChild {
-						children := newChildren
+						children, parent := newChildren, box
 						for len(children) != 0 {
 							lastChild := children[len(children)-1]
 							if lastChildF, ok := lastChild.(*bo.LineBox); ok {
-								lastChildF.BlockEllipsis = box.Style.GetBlockEllipsis()
+								// gopdfgo: wielokropek wstawia układ (insertBlockEllipsis)
+								insertBlockEllipsis(context, lastChildF, box.Style.GetBlockEllipsis(), parent.ContentBoxX()+parent.Width.V())
 							} else if bo.ParentT.IsInstance(lastChild) {
-								children = lastChild.Box().Children
+								children, parent = lastChild.Box().Children, lastChild.Box()
 								continue
 							}
 							break
@@ -1512,7 +1519,8 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 
 	linesIterator := iterLineBoxes(context, child_, positionY, bottomSpace, skipStack,
 		box_, absoluteBoxes, fixedBoxes, firstLetterStyle)
-	linesIterator.maxLines = maxLines // gopdfgo: text-wrap-style: balance nie wyrównuje bloku obcinanego przez line-clamp
+	linesIterator.maxLines = maxLines // gopdfgo: zob. lineBoxeIterator.balanceClamped
+	linesIterator.clampContentAfter = context.clampContentAfter
 	for i := 0; linesIterator.Has(); i++ {
 		tmp := linesIterator.Next()
 		resumeAt = tmp.resumeAt
@@ -1539,7 +1547,9 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		// Break box if we reached max-lines
 		if maxLines != -1 {
 			if maxLines == 0 {
-				newChildren[len(newChildren)-1].(*bo.LineBox).BlockEllipsis = box.Style.GetBlockEllipsis()
+				// gopdfgo: wielokropek wstawia układ (insertBlockEllipsis)
+				insertBlockEllipsis(context, newChildren[len(newChildren)-1].(*bo.LineBox), box.Style.GetBlockEllipsis(),
+					box.ContentBoxX()+box.Width.V())
 
 				if traceMode {
 					traceLogger.Dump("lineBoxLayout -> maxLines == 0")
