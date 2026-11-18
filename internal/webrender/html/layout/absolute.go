@@ -275,9 +275,16 @@ func absoluteBlock(context *layoutContext, box_ Box, containingBlock block, fixe
 	box := box_.Box()
 	cbWidth, cbHeight := containingBlock.Width, containingBlock.Height
 
-	translateBoxWidth, translateX := absoluteWidth(box_, context, containingBlock)
+	// gopdfgo: w kontenerze flex wysokość wyznaczona przez top i bottom jest znana przed szerokością
+	// i wpływa na nią (rozciągnięty element z proporcjami, CSS Flexbox 1 § 9.9.1, test WPT
+	// flex-abspos-inset-cross-size-001), więc liczymy ją najpierw; nie zależy od szerokości.
+	heightFirst := bo.FlexContainerT.IsInstance(box_) && len(skipStack) == 0
 	translateBoxHeight, translateY := false, pr.Float(0)
-	if len(skipStack) == 0 {
+	if heightFirst {
+		translateBoxHeight, translateY = absoluteHeightMinMax(box_, containingBlock)
+	}
+	translateBoxWidth, translateX := absoluteWidth(box_, context, containingBlock)
+	if len(skipStack) == 0 && !heightFirst {
 		translateBoxHeight, translateY = absoluteHeightMinMax(box_, containingBlock)
 	}
 

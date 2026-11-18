@@ -288,6 +288,15 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			table.Height = laidOutTable.Height.V() + deficit
 			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
+		} else if deficit < -0.5 && laidOutTable != nil {
+			// gopdfgo: tabela nie schodzi poniżej wysokości treści (CSS Tables 3 § 3.10), więc pudełko
+			// opakowujące rośnie razem z nią, zamiast zostawać przy wysokości z układu flex; inaczej
+			// potomkowie pozycjonowani względem niego dostawali za niski blok zawierający (test WPT
+			// table-as-item-large-intrinsic-size).
+			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
+			box.Height = used
+			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
 		}
 	}
 	newBox, _ := newBox__.(bo.BlockBoxITF) // blockContainerLayout is type stable

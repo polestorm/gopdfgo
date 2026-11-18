@@ -1350,11 +1350,12 @@ func tableWrapperWidthForced(context *layoutContext, wrapper_ Box, containingBlo
 	table := wrapper.GetWrappedTable()
 	resolvePercentages(table, containingBlock)
 	if forced >= 0 {
-		// rozmiar z układu flex dotyczy pudełka wskazanego przez box-sizing tabeli
+		// gopdfgo: rozmiar z układu flex to szerokość pudełka opakowującego, czyli pudełka obramowania
+		// tabeli; podstawa flex-basis tabeli z box-sizing: content-box jest do niego przeliczana w układzie
+		// flex (zob. tableFrame). Wcześniej odejmowaliśmy tu obramowanie tylko przy border-box, więc tabela
+		// w kolumnie flex rosła przy każdym układzie o swoje obramowanie.
 		tb := table.Box()
-		if tb.Style.GetBoxSizing() == "border-box" {
-			forced -= tb.PaddingLeft.V() + tb.PaddingRight.V() + tb.BorderLeftWidth.V() + tb.BorderRightWidth.V()
-		}
+		forced -= tb.PaddingLeft.V() + tb.PaddingRight.V() + tb.BorderLeftWidth.V() + tb.BorderRightWidth.V()
 		tb.Width = max(forced, 0)
 	}
 
