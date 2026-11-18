@@ -155,10 +155,7 @@ func layoutFixedBoxes(context *layoutContext, pages []*bo.PageBox, containingPag
 			// Absolute boxes in fixed boxes are rendered as fixed boxes'
 			// children, even when they are fixed themselves.
 			var absoluteBoxes []*AbsolutePlaceholder
-			// gopdfgo: pudełko fixed powtarzane na innej stronie ma położenie i rozmiar z bloku zawierającego
-			// strony, na której je ułożono (w Chromium: z okna pierwszej strony), a nie z bieżącej; inaczej
-			// na stronie o innym rozmiarze (nazwane strony) przesuwało się (test WPT css-page/fixedpos-010).
-			b, _ := absoluteBoxLayout(context, box, page, &absoluteBoxes, -pr.Inf, nil)
+			b, _ := absoluteBoxLayout(context, box, containingPage, &absoluteBoxes, -pr.Inf, nil)
 			out = append(out, b)
 			for len(absoluteBoxes) != 0 {
 				var newAbsoluteBoxes []*AbsolutePlaceholder

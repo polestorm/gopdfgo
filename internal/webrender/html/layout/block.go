@@ -1609,7 +1609,7 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		line_, line := tmp.line, tmp.line.Box()
 
 		// wysokość nieskończona (błąd układu pudełka w wierszu) dawałaby nieskończenie wiele wycinków
-		if fullHeight := line.Height.V(); canSlice && i == 0 && fullHeight < maxSliceableHeight && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight)) {
+		if fullHeight := line.Height.V(); canSlice && i == 0 && fullHeight < maxSliceableHeight && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight && hasTallAtomicInline(line_, context.pageHeight))) {
 			available := context.pageBottom - bottomSpace - line.PositionY
 			if remaining := fullHeight - pr.Float(sliceConsumed); available > 0 && remaining > 0 {
 				visible := min(remaining, available)
@@ -1658,7 +1658,15 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 
 		// Allow overflow if the first line of the page is higher than the page itself so
 		// that we put *something* on this page and can advance in the context.
-		overflow := (len(newChildren) != 0 || !pageIsEmpty) && context.overflowsPage(bottomSpace, newPositionY+offsetY)
+		// gopdfgo: wiersz, który w całości leży poniżej pierwszej strony (np. za ogromnym marginesem
+		// elementu głównego), nie zostaje na niej, choć strona jest pusta: byłby niewidoczny. Na następnej
+		// stronie margines przylegający do podziału jest obcinany, więc układ posuwa się naprzód; dalej
+		// (atBreak) zostaje zachowanie źródła, żeby nie przenosić wiersza w nieskończoność (test WPT
+		// css-break/root-margin-001).
+		atBreak, _ := context.breakAtFragmentTop()
+		belowPage := i == 0 && !atBreak && !context.inColumn && bottomSpace > -pr.Inf && context.pageBottom != pr.Inf &&
+			line.PositionY >= context.pageBottom-bottomSpace
+		overflow := (len(newChildren) != 0 || !pageIsEmpty || belowPage) && context.overflowsPage(bottomSpace, newPositionY+offsetY)
 		if overflow {
 			// If we couldn’t break the line before but can break now, first try to
 			// report footnotes and see if we don’t overflow.
