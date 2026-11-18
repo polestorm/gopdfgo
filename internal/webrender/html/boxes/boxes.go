@@ -247,9 +247,11 @@ type BoxFields struct {
 	RelativeInlineAncestors []Box
 
 	// gopdfgo: ramka fieldset z legendą. LegendPrepared: style ramki i legendy zostały już dostosowane;
-	// BorderGapX i BorderGapWidth: odcinek górnego obramowania przerwany pod legendą.
+	// BorderGapX i BorderGapWidth: odcinek górnego obramowania przerwany pod legendą; LegendShift: o ile
+	// obramowanie ramki leży niżej niż górna krawędź legendy (dodawane po zwinięciu marginesów).
 	LegendPrepared             bool
 	BorderGapX, BorderGapWidth pr.Float
+	LegendShift                pr.Float
 
 	properTableChild       bool
 	internalTableOrCaption bool
@@ -726,7 +728,10 @@ func EstablishesFormattingContext(box_ Box) bool {
 		// gopdfgo: element flex i element siatki zakładają niezależny kontekst formatowania (CSS Flexbox 1
 		// § 4, CSS Grid 1 § 6.1); w źródle elementy pływające w środku dzieliły listę wykluczeń z otoczeniem
 		// i nie liczyły się do wysokości elementu
-		(BlockT.IsInstance(box_) && (box.IsFlexItem || box.IsGridItem)))
+		(BlockT.IsInstance(box_) && (box.IsFlexItem || box.IsGridItem)) ||
+		// gopdfgo: ramka fieldset zakłada nowy kontekst formatowania blokowego (HTML § 15.3.13), więc
+		// marginesy jej dzieci nie wychodzą poza nią; w źródle ramka była zwykłym blokiem.
+		(BlockT.IsInstance(box_) && strings.EqualFold(box.ElementTag(), "fieldset")))
 }
 
 // ClipsOverflow (gopdfgo): czy pudełko przycina treść według overflow. Właściwość dotyczy kontenerów

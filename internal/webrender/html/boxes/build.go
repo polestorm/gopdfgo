@@ -513,7 +513,8 @@ func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageSta
 	}
 
 	children := &box.Box().Children
-	symbolMarker := false // znacznik domyślny z list-style-type: disc, circle albo square
+	symbolMarker := false // znacznik domyślny z list-style-type: disc, circle, square albo disclosure-*
+	symbolWidth := 1.36   // szerokość znacznika-symbolu wewnątrz elementu, w em
 
 	if style.GetDisplay() == (pr.Display{Outside: pr.None}) || style.GetContent().String == "none" {
 		return nil
@@ -549,6 +550,9 @@ func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageSta
 			switch style.GetListStyleType().Name {
 			case "disc", "circle", "square":
 				symbolMarker = true
+			case "disclosure-open", "disclosure-closed":
+				symbolMarker = true
+				symbolWidth = 1.06
 			}
 			if markerText := cs.RenderMarker(style.GetListStyleType(), counterValue); markerText != "" {
 				markerBox := TextBoxAnonymousFrom(box, markerText)
@@ -588,7 +592,10 @@ func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageSta
 		// 20 i 40 px, czyli ok. 1,36 em). W źródle szerokością był glif z odstępem (ok. 0,6 em), więc
 		// tekst elementu łamał się w innych miejscach niż w przeglądarce.
 		inlineBlock := InlineBlockBoxAnonymousFrom(box, *children)
-		inlineBlock.Box().Style.SetWidth(pr.FToPx(1.36 * style.GetFontSize().Value))
+		// Trójkąt disclosure-open i disclosure-closed (znacznik summary) zajmuje w Chromium 1,06 em
+		// (pomiar z 2026-11-18: tekst summary 106 px od krawędzi przy piśmie 100 px, 10,6 px przy 10 px);
+		// wcześniej szerokością był glif z fontu awaryjnego ze spacją (ok. 0,57 em).
+		inlineBlock.Box().Style.SetWidth(pr.FToPx(pr.Float(symbolWidth) * style.GetFontSize().Value))
 		markerBox = inlineBlock
 	} else {
 		markerBox = InlineBoxAnonymousFrom(box, *children)
@@ -2237,6 +2244,15 @@ func capitalizeLang(text string, lang language.Tag, letterFound *bool) string {
 			out.WriteString(title.String(string(letter)))
 			continue
 		} else if isWordSeparator(letter) {
+			*letterFound = false
+		} else if *letterFound && !isLN && !unicode.Is(unicode.M, letter) && !unicode.Is(unicode.Pc, letter) &&
+			letter != '\'' && letter != '\u2019' && letter != '\u00B7' {
+			// gopdfgo: słowo kończy też interpunkcja i symbol wewnątrz ciągu liter, np. „text-transform”
+			// -> „Text-Transform”, „one/two” -> „One/Two”. Granice słów zostawia UA (CSS Text 3 § 2.1.1);
+			// przyjmujemy pomiar z Chromium 157 z 2026-11-18: słowa nie dzielą tylko cyfry, znaki łączące,
+			// podkreślenie, apostrof („Don’t”, „A1b”, „A_b”) i kropka środkowa (katalońskie „l·l”, test WPT
+			// text-transform-capitalize-035), a dzielą kropka, dwukropek i łącznik
+			// („E.G.”, „A:B”, „X‑Y”). Wcześniej słowo kończył tylko znak biały.
 			*letterFound = false
 		}
 		out.WriteRune(letter)

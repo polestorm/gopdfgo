@@ -196,6 +196,10 @@ input[type=radio i], input[type=radio][checked]:before { border-radius: 50% }
 input[value]:not([type=checkbox i], [type=radio i])::before { content: attr(value); display: block; overflow: hidden }
 /* gopdfgo: w przejętym arkuszu reguła niżej nie miała ::before, więc każde pole input było blokiem na całą szerokość */
 :is(input, input[value=""], input[type=checkbox i], input[type=radio i])::before { content: ""; display: block }
+/* gopdfgo: puste pole tekstowe ma linię bazową tekstu, tak jak pole z wartością (w Chromium oba są
+   jednej wysokości w wierszu); z pustym ::before linią bazową była dolna krawędź pola, więc pole wystawało
+   ponad wiersz i podwyższało go */
+input:is(:not([value]), [value=""]):not([type=checkbox i], [type=radio i], [type=button i], [type=reset i], [type=submit i])::before { content: " " }
 /* gopdfgo: tekst zastępczy pustego pola, hasło zasłonięte (stała liczba znaków, nie zdradza długości) */
 input[placeholder]:not([value], [type=checkbox i], [type=radio i])::before, input[placeholder][value=""]:not([type=checkbox i], [type=radio i])::before { content: attr(placeholder); color: darkgray; overflow: hidden }
 textarea[placeholder]:empty::before { content: attr(placeholder); color: darkgray }

@@ -746,6 +746,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	} else {
 		box.PositionY += collapseMargin(*adjoiningMargins) - box.MarginTop.V()
 		adjoiningMargins = new([]pr.Float)
+		// gopdfgo: przesunięcie obramowania ramki z legendą (zob. prepareFieldsetLegend) nie zwija się
+		if isStart && box.LegendShift > 0 {
+			box.MarginTop = box.MarginTop.V() + box.LegendShift
+		}
 		positionY = box.ContentBoxY()
 	}
 
@@ -2491,9 +2495,11 @@ func prepareFieldsetLegend(context *layoutContext, box_ Box) {
 	legendStyle.SetPaddingBottom(pr.FToPx(px(legendStyle.GetPaddingBottom()) + paddingTop))
 	legend.Box().Style = legendStyle
 
-	fieldsetStyle := box.Style.Copy()
-	fieldsetStyle.SetMarginTop(pr.FToPx(px(fieldsetStyle.GetMarginTop()) + max(legendHeight/2-borderTop/2, 0)))
-	box.Style = fieldsetStyle
+	// gopdfgo: górna krawędź ramki (jej marginesu) to górna krawędź legendy, a obramowanie leży niżej,
+	// na środku legendy (HTML § 15.3.13); margines ramki zwija się więc z sąsiednimi bez tego przesunięcia.
+	// Wcześniej przesunięcie było doliczane do marginesu górnego i znikało w zwinięciu z marginesem
+	// poprzednika, przez co ramka i jej treść stały o nie wyżej niż w Chromium (korpus, dokument 13).
+	box.LegendShift = max(legendHeight/2-borderTop/2, 0)
 }
 
 // markLegendGap zapisuje w ułożonej ramce odcinek górnego obramowania zasłonięty przez legendę.
