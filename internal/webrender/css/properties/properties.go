@@ -165,26 +165,30 @@ var InitialValues = Properties{
 	PMarks:       Marks{}, // computed value for 'none'
 
 	// Text 3/4 (WD/WD): https://www.w3.org/TR/css-text-4/
-	PHyphenateCharacter:  String("‐"), // computed value chosen by the user agent
-	PHyphenateLimitChars: Limits{5, 2, 2},
-	PHyphenateLimitZone:  ZeroPixels.Tagged(),
-	PHyphens:             String("manual"),
-	PLetterSpacing:       TagToV(Normal),
-	PTabSize:             Dimension{Value: 8}.Tagged(),
-	PTextAlignAll:        String("start"),
-	PTextAlignLast:       String("auto"),
-	PTextIndent:          TextIndent{TaggedDim: ZeroPixels.Tagged()},
-	PTextTransform:       String("none"),
-	PWhiteSpace:          Normal,
-	PWordBreak:           String("normal"),
-	PLineBreak:           String("auto"),       // gopdfgo
-	PFontSizeAdjust:      SBoolFloat{},         // gopdfgo: none
-	PTextJustify:         String("auto"),       // gopdfgo
-	PHyphenateLimitLines: TaggedInt{Tag: None}, // gopdfgo: no-limit
-	PWordSpaceTransform:  String("none"),       // gopdfgo
-	PTextWrapMode:        String("wrap"),       // gopdfgo
-	PTextWrapStyle:       String("auto"),       // gopdfgo
-	PWordSpacing:         TaggedDim{},          // computed value for "normal"
+	PHyphenateCharacter:     String("‐"), // computed value chosen by the user agent
+	PHyphenateLimitChars:    Limits{5, 2, 2},
+	PHyphenateLimitZone:     ZeroPixels.Tagged(),
+	PHyphens:                String("manual"),
+	PLetterSpacing:          TagToV(Normal),
+	PTabSize:                Dimension{Value: 8}.Tagged(),
+	PTextAlignAll:           String("start"),
+	PTextAlignLast:          String("auto"),
+	PTextIndent:             TextIndent{TaggedDim: ZeroPixels.Tagged()},
+	PTextTransform:          String("none"),
+	PWhiteSpace:             Normal,
+	PWordBreak:              String("normal"),
+	PLineBreak:              String("auto"),       // gopdfgo
+	PFontSizeAdjust:         SBoolFloat{},         // gopdfgo: none
+	PTextJustify:            String("auto"),       // gopdfgo
+	PHyphenateLimitLines:    TaggedInt{Tag: None}, // gopdfgo: no-limit
+	PWordSpaceTransform:     String("none"),       // gopdfgo
+	PTextWrapMode:           String("wrap"),       // gopdfgo
+	PTextWrapStyle:          String("auto"),       // gopdfgo
+	PFontSynthesisWeight:    String("auto"),       // gopdfgo
+	PFontSynthesisStyle:     String("auto"),       // gopdfgo
+	PFontSynthesisSmallCaps: String("auto"),       // gopdfgo
+	PFontSynthesisPosition:  String("auto"),       // gopdfgo
+	PWordSpacing:            TaggedDim{},          // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
 	PTransformOrigin: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}},
@@ -318,8 +322,9 @@ const (
 	SGridTemplate
 	SGrid
 	SGap
-	SWhiteSpace // gopdfgo: white-space ustawia też text-wrap-mode (CSS Text 4 § 3)
-	STextWrap   // gopdfgo: text-wrap ustawia text-wrap-mode i text-wrap-style (CSS Text 4 § 5.4)
+	SWhiteSpace    // gopdfgo: white-space ustawia też text-wrap-mode (CSS Text 4 § 3)
+	STextWrap      // gopdfgo: text-wrap ustawia text-wrap-mode i text-wrap-style (CSS Text 4 § 5.4)
+	SFontSynthesis // gopdfgo: font-synthesis ustawia cztery właściwości font-synthesis-* (CSS Fonts 4 § 7.1)
 )
 
 // NewShortand return the tag for 's' or 0 if not supported
@@ -399,6 +404,8 @@ func NewShortand(s string) Shortand {
 		return SWhiteSpace
 	case "text-wrap":
 		return STextWrap
+	case "font-synthesis":
+		return SFontSynthesis
 	default:
 		return 0
 	}
@@ -481,6 +488,8 @@ func (sh Shortand) String() string {
 		return "white-space"
 	case STextWrap:
 		return "text-wrap"
+	case SFontSynthesis:
+		return "font-synthesis"
 	default:
 		return ""
 	}

@@ -267,6 +267,10 @@ var (
 		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextWrapMode:            textWrapMode,
 		pr.PTextWrapStyle:           textWrapStyle,
+		pr.PFontSynthesisWeight:     fontSynthesisAutoNone,
+		pr.PFontSynthesisStyle:      fontSynthesisStyle,
+		pr.PFontSynthesisSmallCaps:  fontSynthesisAutoNone,
+		pr.PFontSynthesisPosition:   fontSynthesisAutoNone,
 		pr.PGridAutoColumns:         gridAuto,
 		pr.PGridAutoRows:            gridAuto,
 		pr.PGridAutoFlow:            gridAutoFlow,
@@ -2807,6 +2811,28 @@ func textWrapStyle(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "auto", "balance", "stable", "pretty":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “font-synthesis-weight“, “font-synthesis-small-caps“ i “font-synthesis-position“
+// (CSS Fonts 4 § 7.2, 7.4, 7.5): auto | none. Źródło tych właściwości nie znało.
+func fontSynthesisAutoNone(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(tokens); keyword {
+	case "auto", "none":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
+// gopdfgo: “font-synthesis-style“ (CSS Fonts 4 § 7.3, wartość oblique-only z CSS Fonts 5):
+// auto | none | oblique-only. Źródło właściwości nie znało.
+func fontSynthesisStyle(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(tokens); keyword {
+	case "auto", "none", "oblique-only":
 		return pr.String(keyword)
 	default:
 		return nil

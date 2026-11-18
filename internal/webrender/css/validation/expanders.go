@@ -55,6 +55,8 @@ var expanders = [...]expander{
 	pr.SGap:            genericExpander(pr.PColumnGap, pr.PRowGap)(_expandGap),
 	pr.SWhiteSpace:     genericExpander(pr.PWhiteSpace, pr.PTextWrapMode)(_expandWhiteSpace),
 	pr.STextWrap:       genericExpander(pr.PTextWrapMode, pr.PTextWrapStyle)(_expandTextWrap),
+	pr.SFontSynthesis: genericExpander(pr.PFontSynthesisWeight, pr.PFontSynthesisStyle,
+		pr.PFontSynthesisSmallCaps, pr.PFontSynthesisPosition)(_expandFontSynthesis),
 }
 
 var borderExpanders = [...]expander{
@@ -1091,6 +1093,49 @@ func _expandTextWrap(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, er
 	}
 	if len(out) == 0 {
 		return nil, ErrInvalidValue
+	}
+	return out, nil
+}
+
+// gopdfgo: skrót font-synthesis (CSS Fonts 4 § 7.1): none | [ weight || style || small-caps ||
+// position ]. Wymienione części dostają auto, pominięte none. W źródle skrótu nie było.
+func _expandFontSynthesis(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, error) {
+	if len(tokens) == 0 {
+		return nil, ErrInvalidValue
+	}
+	parts := [4]struct {
+		keyword string
+		name    pr.KnownProp
+		seen    bool
+	}{
+		{"weight", pr.PFontSynthesisWeight, false},
+		{"style", pr.PFontSynthesisStyle, false},
+		{"small-caps", pr.PFontSynthesisSmallCaps, false},
+		{"position", pr.PFontSynthesisPosition, false},
+	}
+	if len(tokens) == 1 && getKeyword(tokens[0]) == "none" {
+		// wszystkie części dostają none
+	} else {
+		for _, token := range tokens {
+			keyword, found := getKeyword(token), false
+			for i := range parts {
+				if parts[i].keyword == keyword && !parts[i].seen {
+					parts[i].seen, found = true, true
+					break
+				}
+			}
+			if !found {
+				return nil, ErrInvalidValue
+			}
+		}
+	}
+	out := make([]namedTokens, 0, len(parts))
+	for _, part := range parts {
+		value := "none"
+		if part.seen {
+			value = "auto"
+		}
+		out = append(out, namedTokens{name: part.name, tokens: []Token{pa.NewIdent(value, tokens[0].Pos())}})
 	}
 	return out, nil
 }

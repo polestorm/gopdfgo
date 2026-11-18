@@ -188,6 +188,10 @@ var (
 		PWordSpaceTransform,
 		PTextWrapMode,
 		PTextWrapStyle,
+		PFontSynthesisWeight,
+		PFontSynthesisStyle,
+		PFontSynthesisSmallCaps,
+		PFontSynthesisPosition,
 	)
 
 	// http://www.w3.org/TR/CSS21/tables.html#model

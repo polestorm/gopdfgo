@@ -253,13 +253,17 @@ const (
 	PObjectFit
 	PObjectPosition
 
-	PWrapInside          // gopdfgo: CSS Text 4, #wrap-inside; niedziedziczona
-	PHyphenateLimitLines // gopdfgo: CSS Text 4, #hyphenate-limit-lines; dziedziczona
-	PWordSpaceTransform  // gopdfgo: CSS Text 4, #word-space-transform; dziedziczona
-	PFontSizeAdjust      // gopdfgo: CSS Fonts 5 § 2.7; dziedziczona
-	PTextJustify         // gopdfgo: CSS Text 3 § 6.4; dziedziczona
-	PTextWrapMode        // gopdfgo: CSS Text 4 § 5.1; dziedziczona
-	PTextWrapStyle       // gopdfgo: CSS Text 4 § 5.2; dziedziczona
+	PWrapInside             // gopdfgo: CSS Text 4, #wrap-inside; niedziedziczona
+	PHyphenateLimitLines    // gopdfgo: CSS Text 4, #hyphenate-limit-lines; dziedziczona
+	PWordSpaceTransform     // gopdfgo: CSS Text 4, #word-space-transform; dziedziczona
+	PFontSizeAdjust         // gopdfgo: CSS Fonts 5 § 2.7; dziedziczona
+	PTextJustify            // gopdfgo: CSS Text 3 § 6.4; dziedziczona
+	PTextWrapMode           // gopdfgo: CSS Text 4 § 5.1; dziedziczona
+	PTextWrapStyle          // gopdfgo: CSS Text 4 § 5.2; dziedziczona
+	PFontSynthesisWeight    // gopdfgo: CSS Fonts 4 § 7.2; dziedziczona
+	PFontSynthesisStyle     // gopdfgo: CSS Fonts 4 § 7.3; dziedziczona
+	PFontSynthesisSmallCaps // gopdfgo: CSS Fonts 4 § 7.4; dziedziczona
+	PFontSynthesisPosition  // gopdfgo: CSS Fonts 4 § 7.5; dziedziczona
 
 	nbProperties
 )

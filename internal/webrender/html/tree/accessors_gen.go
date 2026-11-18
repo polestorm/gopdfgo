@@ -1991,3 +1991,59 @@ func (s *AnonymousStyle) GetTextWrapStyle() pr.String {
 	return s.Get(pr.PTextWrapStyle.Key()).(pr.String)
 }
 func (s *AnonymousStyle) SetTextWrapStyle(v pr.String) { s.propsCache.setKnown(pr.PTextWrapStyle, v) }
+
+func (s *ComputedStyle) GetFontSynthesisWeight() pr.String {
+	return s.Get(pr.PFontSynthesisWeight.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetFontSynthesisWeight(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisWeight, v)
+}
+
+func (s *AnonymousStyle) GetFontSynthesisWeight() pr.String {
+	return s.Get(pr.PFontSynthesisWeight.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetFontSynthesisWeight(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisWeight, v)
+}
+
+func (s *ComputedStyle) GetFontSynthesisStyle() pr.String {
+	return s.Get(pr.PFontSynthesisStyle.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetFontSynthesisStyle(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisStyle, v)
+}
+
+func (s *AnonymousStyle) GetFontSynthesisStyle() pr.String {
+	return s.Get(pr.PFontSynthesisStyle.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetFontSynthesisStyle(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisStyle, v)
+}
+
+func (s *ComputedStyle) GetFontSynthesisSmallCaps() pr.String {
+	return s.Get(pr.PFontSynthesisSmallCaps.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetFontSynthesisSmallCaps(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisSmallCaps, v)
+}
+
+func (s *AnonymousStyle) GetFontSynthesisSmallCaps() pr.String {
+	return s.Get(pr.PFontSynthesisSmallCaps.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetFontSynthesisSmallCaps(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisSmallCaps, v)
+}
+
+func (s *ComputedStyle) GetFontSynthesisPosition() pr.String {
+	return s.Get(pr.PFontSynthesisPosition.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetFontSynthesisPosition(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisPosition, v)
+}
+
+func (s *AnonymousStyle) GetFontSynthesisPosition() pr.String {
+	return s.Get(pr.PFontSynthesisPosition.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetFontSynthesisPosition(v pr.String) {
+	s.propsCache.setKnown(pr.PFontSynthesisPosition, v)
+}

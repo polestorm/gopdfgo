@@ -608,6 +608,18 @@ func (s Properties) SetTextWrapMode(v String) { s[PTextWrapMode] = v }
 func (s Properties) GetTextWrapStyle() String  { return s[PTextWrapStyle].(String) }
 func (s Properties) SetTextWrapStyle(v String) { s[PTextWrapStyle] = v }
 
+func (s Properties) GetFontSynthesisWeight() String  { return s[PFontSynthesisWeight].(String) }
+func (s Properties) SetFontSynthesisWeight(v String) { s[PFontSynthesisWeight] = v }
+
+func (s Properties) GetFontSynthesisStyle() String  { return s[PFontSynthesisStyle].(String) }
+func (s Properties) SetFontSynthesisStyle(v String) { s[PFontSynthesisStyle] = v }
+
+func (s Properties) GetFontSynthesisSmallCaps() String  { return s[PFontSynthesisSmallCaps].(String) }
+func (s Properties) SetFontSynthesisSmallCaps(v String) { s[PFontSynthesisSmallCaps] = v }
+
+func (s Properties) GetFontSynthesisPosition() String  { return s[PFontSynthesisPosition].(String) }
+func (s Properties) SetFontSynthesisPosition(v String) { s[PFontSynthesisPosition] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1202,6 +1214,18 @@ type StyleAccessor interface {
 
 	GetTextWrapStyle() String
 	SetTextWrapStyle(v String)
+
+	GetFontSynthesisWeight() String
+	SetFontSynthesisWeight(v String)
+
+	GetFontSynthesisStyle() String
+	SetFontSynthesisStyle(v String)
+
+	GetFontSynthesisSmallCaps() String
+	SetFontSynthesisSmallCaps(v String)
+
+	GetFontSynthesisPosition() String
+	SetFontSynthesisPosition(v String)
 }
 
 var propsNames = [...]string{
@@ -1403,6 +1427,10 @@ var propsNames = [...]string{
 	PTextJustify:             "text-justify",
 	PTextWrapMode:            "text-wrap-mode",
 	PTextWrapStyle:           "text-wrap-style",
+	PFontSynthesisWeight:     "font-synthesis-weight",
+	PFontSynthesisStyle:      "font-synthesis-style",
+	PFontSynthesisSmallCaps:  "font-synthesis-small-caps",
+	PFontSynthesisPosition:   "font-synthesis-position",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1605,4 +1633,8 @@ var PropsFromNames = map[string]KnownProp{
 	"text-justify":               PTextJustify,
 	"text-wrap-mode":             PTextWrapMode,
 	"text-wrap-style":            PTextWrapStyle,
+	"font-synthesis-weight":      PFontSynthesisWeight,
+	"font-synthesis-style":       PFontSynthesisStyle,
+	"font-synthesis-small-caps":  PFontSynthesisSmallCaps,
+	"font-synthesis-position":    PFontSynthesisPosition,
 }

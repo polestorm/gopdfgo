@@ -138,6 +138,10 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 	}
 	// add the face with a "unique" ID
 	key := fmt.Sprintf("%s+%v", url.S, desc)
+	if len(ruleDescriptors.UnicodeRange) != 0 {
+		// gopdfgo: twarze z różnymi unicode-range to różne twarze (zob. rangeCmap)
+		key += fmt.Sprintf("+%v", ruleDescriptors.UnicodeRange)
+	}
 
 	// gopdfgo: ta sama reguła @font-face czytana drugi raz (arkusze są przetwarzane dwukrotnie, zob.
 	// ADR 0012) nie pobiera ani nie parsuje fontu ponownie. W źródle każde przetworzenie arkusza
@@ -171,6 +175,9 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		return "", fmt.Errorf("failed to parse font at %s : %s", url.S, err)
 	}
 
+	if len(ruleDescriptors.UnicodeRange) != 0 {
+		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
+	}
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
 
 	if url.Tag == pr.External {
