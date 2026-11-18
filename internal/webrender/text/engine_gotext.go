@@ -1101,8 +1101,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		residuals = make([]int32, len(text))
 	}
 	// TODO: lazy iterator
-	outputs := make(shaping.Line, len(inputs))
-	for i, input := range inputs {
+	outputs := make(shaping.Line, 0, len(inputs))
+	var expandedCaps []int // gopdfgo: zob. synthesizeSmallCaps
+	for _, input := range inputs {
 		// the features are comming either from the style,
 		// or registred via CSS @font-face rule
 		defaults := newFeatureSet(fc.fontsFeatures[input.Face.Font])
@@ -1116,11 +1117,15 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		// shape !
 		if style.SynthesizedPosition != "" {
 			if out, ok := fc.synthesizePosition(input, style.SynthesizedPosition, residuals); ok {
-				outputs[i] = out
+				outputs = append(outputs, out)
 				continue
 			}
 		}
-		outputs[i] = shapeWithResiduals(&fc.shaper, input, residuals)
+		if outs, ok := fc.synthesizeSmallCaps(input, style, residuals, &expandedCaps); ok {
+			outputs = append(outputs, outs...)
+			continue
+		}
+		outputs = append(outputs, shapeWithResiduals(&fc.shaper, input, residuals))
 	}
 	fc.residuals = residuals
 
@@ -1128,6 +1133,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		ws, ls := floatToFixed(wordSpacing), floatToFixed(style.LetterSpacing)
 		shaping.AddSpacing(outputs, text, ws, ls)
 		oddLetterSpacingRemainder(outputs, ls)
+		spaceExpandedClusters(outputs, expandedCaps, ls)
 		if ls != 0 {
 			joinersWithoutSpacing(outputs, text, ls)
 			if dir.Progression() == di.FromTopLeft {

@@ -56,12 +56,16 @@ const (
 	SynthesisWeight      FontSynthesis = 1 << iota // font-synthesis-weight: auto
 	SynthesisStyle                                 // font-synthesis-style: auto
 	SynthesisObliqueOnly                           // font-synthesis-style: oblique-only
+	SynthesisSmallCaps                             // font-synthesis-small-caps: auto
 )
 
 func newFontSynthesis(style pr.StyleAccessor) FontSynthesis {
 	var out FontSynthesis
 	if style.GetFontSynthesisWeight() != "none" {
 		out |= SynthesisWeight
+	}
+	if style.GetFontSynthesisSmallCaps() != "none" {
+		out |= SynthesisSmallCaps
 	}
 	switch style.GetFontSynthesisStyle() {
 	case "none":
