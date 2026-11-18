@@ -104,4 +104,11 @@ func TestMulticolTablesTail(t *testing.T) {
 	same("abspos-table-auto-margins", `<div style="position:relative;width:160px;height:160px">`+
 		`<div style="display:table;position:absolute;inset:0;margin:auto;width:100px;height:100px;background:green"></div></div>`,
 		block(30, 30, 100, 100, "green"))
+
+	// Kolumna z visibility: collapse nie zajmuje miejsca, a komórka rozpięta także na niej jest przycinana.
+	cell := func(color string) string { return `<td style="padding:0;width:50px;height:20px;background:` + color + `"></td>` }
+	same("collapsed-column", `<table style="border-spacing:0"><col><col style="visibility:collapse"><col>`+
+		`<tr>`+cell("navy")+cell("red")+cell("green")+`</tr>`+
+		`<tr><td colspan="3" style="padding:0;height:20px"><div style="width:150px;height:20px;background:blue"></div></td></tr></table>`,
+		block(0, 0, 50, 20, "navy")+block(50, 0, 50, 20, "green")+block(0, 20, 100, 20, "blue"))
 }

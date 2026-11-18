@@ -47,6 +47,29 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 	// Define column positions.
 	columnWidths := table.ColumnWidths
+	// gopdfgo: kolumny z visibility: collapse znikają po wyznaczeniu szerokości kolumn: nie zajmują
+	// miejsca ani odstępu między komórkami, tabela zwęża się o nie, a komórki rozpięte także na nich są
+	// przycinane (CSS Tables 3 § 9.2 i 9.3, CSS 2.1 § 17.5.5; test WPT visibility-collapse-colspan-003).
+	// W źródle visibility: collapse na kolumnach nie działało. Tylko dla kierunku ltr.
+	var collapsedColumns map[int]bool
+	var collapsedWidth pr.Float
+	if table.Style.GetDirection() == pr.Ltr {
+		for _, group := range table.ColumnGroups {
+			for _, column := range group.Children {
+				if x := column.Box().GridX; column.Box().Style.GetVisibility() == "collapse" && x < len(columnWidths) {
+					if collapsedColumns == nil {
+						collapsedColumns = map[int]bool{}
+						columnWidths = slices.Clone(columnWidths)
+					}
+					if !collapsedColumns[x] {
+						collapsedColumns[x] = true
+						collapsedWidth += columnWidths[x] + borderSpacingX
+						columnWidths[x] = 0
+					}
+				}
+			}
+		}
+	}
 	table.ColumnPositions = nil
 	positionX := table.ContentBoxX()
 	rowsLeftX := positionX + borderSpacingX
@@ -54,8 +77,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	if table.Style.GetDirection() == pr.Ltr {
 		positionX := table.ContentBoxX()
 		rowsX := positionX + borderSpacingX
-		for _, width := range columnWidths {
-			positionX += borderSpacingX
+		for x, width := range columnWidths {
+			if !collapsedColumns[x] {
+				positionX += borderSpacingX
+			}
 			table.ColumnPositions = append(table.ColumnPositions, positionX)
 			positionX += width
 		}
@@ -184,10 +209,27 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				bordersPlusPadding := cell.BorderWidth() // with width==0
 				// TODO: we should remove the number of columns with no
 				// originating cells to cell.colspan, see test_layout_table_auto_49.
-				width := borderSpacingX*pr.Float(cell.Colspan-1) - bordersPlusPadding
+				spanned := cell.Colspan
+				if collapsedColumns != nil {
+					spanned = 0
+					for x := cell.GridX; x < cell.GridX+cell.Colspan; x++ {
+						if !collapsedColumns[x] {
+							spanned++
+						}
+					}
+					if spanned != cell.Colspan && cell.Style.GetOverflow() == "visible" {
+						cell.Style = cell.Style.Copy()
+						cell.Style.SetOverflow("hidden")
+						if spanned == 0 {
+							cell.Style.SetVisibility("hidden")
+						}
+					}
+				}
+				width := borderSpacingX*pr.Float(max(spanned, 1)-1) - bordersPlusPadding
 				for _, sw := range spannedWidths {
 					width += sw
 				}
+				width = max(width, 0)
 				cell.Width = width
 				var cellSkipStack tree.ResumeStack
 				if len(skipStack) != 0 {
@@ -959,6 +1001,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 	table_ = bo.CopyWithChildren(table_, newChildren).(bo.TableBoxITF) // CopyWithChildren is type stable
 	table = table_.Table()
+	if collapsedWidth > 0 {
+		table.Width = max(table.Width.V()-collapsedWidth, 0)
+	}
 	for i, v := range table.ColumnGroups {
 		table.ColumnGroups[i] = v.Copy().(*bo.TableColumnGroupBox)
 	}
