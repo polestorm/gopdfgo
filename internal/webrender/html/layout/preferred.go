@@ -83,6 +83,22 @@ func ratioContentWidth(box Box) (pr.Float, bool) {
 	if definite, ok := box.Box().DefiniteHeight.(pr.Float); ok {
 		return definite * ratio, true
 	}
+	if height.Tag == pr.Auto && len(box.Box().Children) == 0 {
+		// gopdfgo: pusty blok z aspect-ratio i min-height: szerokość wewnętrzna to min-height przeniesione
+		// przez proporcje (CSS Sizing 4 § 5.1; dla box-sizing: border-box proporcja dotyczy pudełka
+		// obramowania). Testy WPT flex-item-transferred-sizes-padding-*.
+		if minHeight := style.GetMinHeight(); minHeight.Tag == 0 && minHeight.Unit == pr.Px && minHeight.Calc == nil && minHeight.Value > 0 {
+			width := minHeight.Value * ratio
+			if style.GetBoxSizing() == "border-box" {
+				for _, d := range [...]pr.TaggedDim{style.GetPaddingLeft(), style.GetPaddingRight(), style.GetBorderLeftWidth(), style.GetBorderRightWidth()} {
+					if d.Tag == 0 && d.Unit == pr.Px && d.Calc == nil {
+						width -= d.Value
+					}
+				}
+			}
+			return max(width, 0), true
+		}
+	}
 	if height.Tag != 0 || height.Unit != pr.Px || height.Calc != nil {
 		return 0, false
 	}
@@ -98,6 +114,13 @@ func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	}
 	rep, isReplaced := box.(bo.ReplacedBoxITF)
 	if box.Box().IsTableWrapper {
+		// gopdfgo: tabela o układzie stałym i szerokości procentowej nie ma skończonej szerokości
+		// max-content: zajmuje tyle, ile da jej blok zawierający (tak Gecko i Blink; CSS Tables 3 § 3.9.3
+		// tej sytuacji nie rozstrzyga, test WPT fixed-table-layout-with-percentage-width-in-flex-item).
+		// „Nieskończoność” zastępujemy dużą skończoną liczbą, żeby rachunek flex się nie rozjechał.
+		if style := box.Box().GetWrappedTable().Box().Style; style.GetTableLayout() == "fixed" && style.GetWidth().Unit == pr.Perc && style.GetWidth().Tag == 0 {
+			return fixedPercentTableMaxContent
+		}
 		return tableAndColumnsPreferredWidths(context, box, outer).tableMaxContentWidth
 	} else if bo.TableCellT.IsInstance(box) {
 		return tableCellMaxContentWidth(context, box, outer)
@@ -118,6 +141,10 @@ func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		return 0
 	}
 }
+
+// fixedPercentTableMaxContent (gopdfgo): umowna szerokość max-content tabeli o układzie stałym
+// i szerokości procentowej (zob. maxContentWidth).
+const fixedPercentTableMaxContent pr.Float = 1e5
 
 type fnBlock = func(*layoutContext, Box, bool) pr.Float
 
@@ -365,6 +392,12 @@ func adjust(box Box, outer bool, width pr.Float, left, right bool) pr.Float {
 func blockMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	// gopdfgo: width: max-content daje tę samą szerokość w obu pomiarach
 	if box.Box().Style.GetWidth().Intrinsic == pr.IntrinsicMaxContent {
+		return blockContentWidth(context, box, maxContentWidth, outer, true)
+	}
+	// gopdfgo: min-width: max-content podnosi udział min-content do max-content (CSS Sizing 3 § 5.2:
+	// udział to rozmiar ograniczony przez min-width); minMax niżej zna tylko długości (test WPT
+	// flex-item-content-is-min-width-max-content)
+	if style := box.Box().Style; style.GetMinWidth().Intrinsic == pr.IntrinsicMaxContent && style.GetWidth().Tag == pr.Auto {
 		return blockContentWidth(context, box, maxContentWidth, outer, true)
 	}
 	v := blockContentWidth(context, box, minContentWidth, outer, false)
@@ -1335,6 +1368,9 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	}
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
+		if collapsedInRow(box, child) {
+			continue
+		}
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
 			if content, ok := flexibleItemContentWidth(context, box, child); ok && content > v {
@@ -1434,6 +1470,13 @@ func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bo
 	return width, true
 }
 
+// collapsedInRow (gopdfgo): element z visibility: collapse w kontenerze wierszowym staje się rozpórką
+// o zerowym rozmiarze głównym (CSS Flexbox 1 § 4.4), więc nie wnosi nic do szerokości wewnętrznej.
+func collapsedInRow(container, child Box) bool {
+	return child.Box().IsFlexItem && child.Box().Style.GetVisibility() == "collapse" && !child.Box().IsTableWrapper &&
+		strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row")
+}
+
 // flexMainGaps (gopdfgo): suma odstępów column-gap między elementami kontenera flex w wierszu; liczy
 // się do jego szerokości wewnętrznej (CSS Align 3 § 8). Odstęp w procentach daje tu zero.
 func flexMainGaps(box Box) pr.Float {
@@ -1443,7 +1486,7 @@ func flexMainGaps(box Box) pr.Float {
 	}
 	items := 0
 	for _, child := range box.Box().Children {
-		if child.Box().IsFlexItem {
+		if child.Box().IsFlexItem && !collapsedInRow(box, child) { // gopdfgo: przy rozpórce odstęp znika (CSS Align 3 § 8.1)
 			items++
 		}
 	}
@@ -1562,6 +1605,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	}
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
+		if collapsedInRow(box, child) {
+			continue
+		}
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
 			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {

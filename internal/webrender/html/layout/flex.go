@@ -112,6 +112,57 @@ func tableWithAutoSize(wrapper Box, axis pr.KnownProp) Box {
 	return bo.CopyWithChildren(wrapper, children)
 }
 
+// tableWithoutMinMaxHeight (gopdfgo): kopia pudełka opakowującego, w której tabela nie ma min-height
+// ani max-height (do pomiaru rozmiaru bazowego elementu flex w kolumnie).
+func tableWithoutMinMaxHeight(wrapper Box) Box {
+	children := make([]Box, len(wrapper.Box().Children))
+	for i, child := range wrapper.Box().Children {
+		if bo.TableT.IsInstance(child) {
+			table := bo.CopyWithChildren(child, child.Box().Children)
+			table.Box().Style = child.Box().Style.Copy()
+			table.Box().Style.SetMinHeight(pr.ZeroPixels.Tagged())
+			table.Box().Style.SetMaxHeight(pr.FToPx(pr.Inf))
+			child = table
+		}
+		children[i] = child
+	}
+	return bo.CopyWithChildren(wrapper, children)
+}
+
+// isStretchedInColumn (gopdfgo): czy element kontenera kolumnowego jest rozciągany na szerokość linii:
+// align-self (albo align-items) stretch lub normal i żaden poziomy margines nie jest auto.
+func isStretchedInColumn(child, container *bo.BoxFields) bool {
+	alignSelf := child.Style.GetAlignSelf()
+	if alignSelf.Has(pr.Auto) {
+		alignSelf = container.Style.GetAlignItems()
+	}
+	return alignSelf.Intersects(pr.Normal, pr.Stretch) &&
+		child.Style.GetMarginLeft().Tag != pr.Auto && child.Style.GetMarginRight().Tag != pr.Auto
+}
+
+// isLastBaseline (gopdfgo): czy element jest wyrównany do ostatniej linii bazowej (align-self albo
+// align-items kontenera: last baseline).
+func isLastBaseline(child, container *bo.BoxFields) bool {
+	alignSelf := child.Style.GetAlignSelf()
+	if alignSelf.Has(pr.Auto) {
+		alignSelf = container.Style.GetAlignItems()
+	}
+	return alignSelf.Has(pr.Baseline) && alignSelf.Has(pr.Last)
+}
+
+// tableFrame (gopdfgo): obramowanie i odstępy tabeli opakowanej przez wrapper w podanej osi, gdy tabela
+// ma box-sizing: content-box (przy border-box podane rozmiary już je obejmują).
+func tableFrame(wrapper *bo.BoxFields, axis pr.KnownProp) pr.Float {
+	table := wrapper.GetWrappedTable().Box()
+	if table.Style.GetBoxSizing() == "border-box" {
+		return 0
+	}
+	if axis == pr.PWidth {
+		return table.PaddingLeft.V() + table.PaddingRight.V() + table.BorderLeftWidth.V() + table.BorderRightWidth.V()
+	}
+	return table.PaddingTop.V() + table.PaddingBottom.V() + table.BorderTopWidth.V() + table.BorderBottomWidth.V()
+}
+
 // marginIsAuto (gopdfgo): czy margines elementu jest auto według stylu.
 func marginIsAuto(child *bo.BoxFields, side pr.KnownProp) bool {
 	return getDimOrS(child, side).Tag == pr.Auto
@@ -240,6 +291,31 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		parentBox.Height = height
 	}
 	blockLevelWidth(parentBox_, nil, containingBlock)
+	// gopdfgo: kontener o wysokości auto z aspect-ratio i znaną szerokością ma określoną wysokość
+	// z proporcji (CSS Sizing 4 § 5.1), ograniczoną min- i max-height; elementy rozciągają się do niej
+	// (test WPT flex-aspect-ratio-cross-size-001). Źródło pomijało aspect-ratio kontenera flex.
+	if ratio := pr.Float(math.Abs(float64(box.Style.GetAspectRatio()))); ratio > 0 && box.Height == pr.AutoF && parentBox.Height == pr.AutoF {
+		if width, ok := parentBox.Width.(pr.Float); ok && width != pr.Inf {
+			height := width / ratio
+			if box.Style.GetBoxSizing() == "border-box" {
+				outer := width + parentBox.PaddingLeft.V() + parentBox.PaddingRight.V() + parentBox.BorderLeftWidth.V() + parentBox.BorderRightWidth.V()
+				height = outer/ratio - parentBox.PaddingTop.V() - parentBox.PaddingBottom.V() - parentBox.BorderTopWidth.V() - parentBox.BorderBottomWidth.V()
+			}
+			if maxHeight, ok := parentBox.MaxHeight.(pr.Float); ok {
+				height = min(height, maxHeight)
+			}
+			if minHeight, ok := parentBox.MinHeight.(pr.Float); ok {
+				height = max(height, minHeight)
+			}
+			height = max(height, 0)
+			box.Height, parentBox.Height = height, height
+			if cross == pr.PHeight {
+				availableCrossSpace = height
+			} else {
+				availableMainSpace, mainIsIndefinite = height, false
+			}
+		}
+	}
 	children := append([]Box{}, box.Children...)
 	// gopdfgo: sortowanie stabilne; w źródle sort.Slice, które przy równych wartościach order nie gwarantuje
 	// zachowania kolejności dokumentu (dla więcej niż 12 elementów).
@@ -343,6 +419,28 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		mainGap, crossGap = rowGap.Value, columnGap.Value
 	}
 
+	// gopdfgo: elementy z visibility: collapse zamieniamy po pierwszym przebiegu na rozpórki i układ
+	// zaczyna się od nowa od kroku 3 (CSS Flexbox 1 § 9.4 krok 10); w źródle krok 10 był pominięty
+	// („TODO”), więc zwinięty element zajmował miejsce jak visibility: hidden.
+	collapsedPass := false
+	struts := map[*bo.BoxFields]bool{}
+	// lineGap: odstęp osi głównej przed i-tym elementem linii. Odstępy przylegające do rozpórki
+	// znikają (CSS Align 3 § 8.1, test WPT gap-collapse): odstęp stoi tylko między dwoma elementami,
+	// które nie są rozpórkami.
+	lineGap := func(items []indexedBox, i int) pr.Float {
+		if struts[items[i].box.Box()] {
+			return 0
+		}
+		for j := i - 1; j >= 0; j-- {
+			if !struts[items[j].box.Box()] {
+				return mainGap
+			}
+		}
+		return 0
+	}
+	var boxBeforeLines bo.BoxFields
+	var absoluteBefore, fixedBefore int
+restartCollapsed:
 	positionX := (parentBox.PositionX + parentBox.BorderLeftWidth + parentBox.PaddingLeft.V())
 	if parentBox.MarginLeft != pr.AutoF {
 		positionX += parentBox.MarginLeft.V()
@@ -354,6 +452,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	for index, child_ := range children {
 		child := child_.Box()
+		if !child.IsFlexItem && collapsedPass {
+			continue // pozostałe dzieci obsłużył już pierwszy przebieg
+		}
 		if !child.IsFlexItem {
 			// Absolute child layout: create placeholder.
 			if child.IsAbsolutelyPositioned() {
@@ -450,6 +551,18 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// Minimum automatyczne dotyczy tylko elementów, które nie są kontenerami przewijania.
 			if _, isReplaced := child_.(bo.ReplacedBoxITF); !isReplaced && isScrollContainer(child.Style) {
 				child.MinWidth = pr.Float(0)
+			}
+		}
+		// gopdfgo: min-width tabeli zostaje na pudełku tabeli, ale ogranicza rozmiar główny elementu flex,
+		// którym jest pudełko opakowujące (CSS Tables 3 § 3.9.1); procent liczy się od kontenera flex.
+		// Źródło je pomijało (test WPT table-item-flex-percentage-min-width).
+		if main == pr.PWidth && child.IsTableWrapper {
+			if tableMin, ok := child.GetWrappedTable().Box().MinWidth.(pr.Float); ok && tableMin > 0 {
+				if child.GetWrappedTable().Box().Style.GetBoxSizing() != "border-box" {
+					tableMin += tableFrame(child, pr.PWidth)
+				}
+				minWidth, _ := child.MinWidth.(pr.Float)
+				child.MinWidth = max(minWidth, tableMin)
 			}
 		}
 		// gopdfgo: automatyczna wysokość minimalna wymaga pełnego układu dziecka. W osi poprzecznej
@@ -578,6 +691,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					}
 					flexBasis = max(basis, 0)
 				}
+				// gopdfgo: flex-basis tabeli opisuje pudełko wskazane przez box-sizing tabeli (CSS Tables 3
+				// § 3.9.1), a rozmiar elementu flex to pudełko opakowujące, czyli pudełko obramowania tabeli;
+				// przy content-box dodajemy obramowanie i odstępy tabeli. Źródło brało flex-basis wprost,
+				// więc tabela z obramowaniem w kolumnie była o nie niższa (test WPT table-as-item-inflexible-in-column-1).
+				if basis, ok := flexBasis.(pr.Float); ok && child.IsTableWrapper {
+					flexBasis = basis + tableFrame(child, main)
+				}
 			}
 		}
 
@@ -672,8 +792,36 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				// … the item’s min and max main sizes are ignored.
 				newChild.Style.SetMinHeight(pr.ZeroPixels.Tagged())
 				newChild.Style.SetMaxHeight(pr.FToPx(pr.Inf))
+				if child.IsTableWrapper {
+					// gopdfgo: min-height i max-height tabeli zostają na pudełku tabeli, nie na opakowującym;
+					// też są pomijane przy rozmiarze bazowym (test WPT table-as-item-min-height-1). Źródło
+					// mierzyło tabelę z jej min-height, więc rozmiar bazowy był za duży.
+					newChild_ = tableWithoutMinMaxHeight(newChild_)
+					newChild = newChild_.Box()
+				}
 
 				newChild.Width = pr.Inf
+				// gopdfgo: element nierozciągany w osi poprzecznej ma szerokość fit-content (CSS Flexbox 1
+				// § 9.4 krok 7) i z nią mierzymy jego wysokość; źródło mierzyło przy szerokości kontenera,
+				// więc procentowe odstępy liczone od szerokości elementu były za duże (test WPT
+				// fit-content-item-001)
+				if !child.IsTableWrapper && newChild.Style.GetWidth().Tag == pr.Auto && newChild.Style.GetWidth().Intrinsic == pr.IntrinsicNone &&
+					!isStretchedInColumn(child, box) {
+					if available, ok := parentBox.Width.(pr.Float); ok {
+						fit := min(maxContentWidth(context, newChild_, true), max(minContentWidth(context, newChild_, true), available))
+						fit -= newChild.PaddingLeft.V() + newChild.PaddingRight.V() + newChild.BorderLeftWidth.V() + newChild.BorderRightWidth.V()
+						if newChild.MarginLeft != pr.AutoF {
+							fit -= newChild.MarginLeft.V()
+						}
+						if newChild.MarginRight != pr.AutoF {
+							fit -= newChild.MarginRight.V()
+						}
+						if newChild.Style.GetBoxSizing() == "border-box" {
+							fit += newChild.PaddingLeft.V() + newChild.PaddingRight.V() + newChild.BorderLeftWidth.V() + newChild.BorderRightWidth.V()
+						}
+						newChild.Style.SetWidth(pr.FToPx(max(fit, 0)))
+					}
+				}
 				var tmp blockLayout
 				context.flexMeasuring++
 				newChild_, tmp, _ = blockLevelLayout(
@@ -708,20 +856,28 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	// 4 Determine the main size of the flex container using the rules of the formatting
 	// context in which it participates.
+	if !collapsedPass {
+		boxBeforeLines = *box
+		absoluteBefore, fixedBefore = len(*absoluteBoxes), len(*fixedBoxes)
+	}
 
 	if main == pr.PWidth {
 		blockLevelWidth(box_, nil, containingBlock)
 	} else {
 		if box.Height == pr.AutoF {
 			box.Height = pr.Float(0)
-			for i, child_ := range children {
+			seen := false // gopdfgo: odstęp tylko między elementami (źródło liczyło od indeksu, także przed pierwszym elementem po dziecku pozycjonowanym)
+			for _, child_ := range children {
 				child := child_.Box()
 				if !child.IsFlexItem {
 					continue
 				}
 				box.Height = box.Height.V() + child.HypotheticalMainSize + child.MainOuterExtra
-				if i != 0 {
-					box.Height = box.Height.V() + mainGap
+				if !struts[child] {
+					if seen {
+						box.Height = box.Height.V() + mainGap
+					}
+					seen = true
 				}
 			}
 		}
@@ -742,7 +898,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			continue
 		}
 		lineSize += child.HypotheticalMainSize + child.MainOuterExtra
-		if i > skip {
+		// gopdfgo: odstęp przed elementem tylko wtedy, gdy linia ma już element (zob. lineGap)
+		if probe := append(line.line, indexedBox{index: i, box: child_}); lineGap(probe, len(probe)-1) != 0 {
 			lineSize += mainGap
 		}
 		if box.Style.GetFlexWrap() != "nowrap" && lineSize > mainSize.V() {
@@ -762,6 +919,21 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 	if len(line.line) != 0 {
 		flexLines = append(flexLines, line)
+	}
+	// gopdfgo: kontener kolumnowy z zawijaniem i wysokością auto, łamany przez max-height, ma wysokość
+	// najdłuższej linii (rozmiar max-content przy danym ograniczeniu, CSS Flexbox 1 § 9.9.1; tak Blink).
+	// Źródło zostawiało sumę wszystkich elementów przyciętą do max-height, więc przy column-reverse
+	// krótsza linia stała za nisko (test WPT flex-column-reverse-multiline-item-position).
+	if main == pr.PHeight && len(flexLines) > 1 && boxBeforeLines.Height == pr.AutoF && !box.IndefiniteHeight {
+		var longest pr.Float
+		for _, line := range flexLines {
+			var size pr.Float
+			for i, v := range line.line {
+				size += v.box.Box().HypotheticalMainSize + v.box.Box().MainOuterExtra + lineGap(line.line, i)
+			}
+			longest = max(longest, size)
+		}
+		box.Height = max(box.MinHeight.V(), min(longest, box.Height.V()))
 	}
 
 	// TODO: handle *-reverse using the terminology from the specification
@@ -812,9 +984,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			} else {
 				initialFreeSpace -= child.FlexBaseSize + child.MainOuterExtra
 			}
-			if i != 0 {
-				initialFreeSpace -= mainGap
-			}
+			initialFreeSpace -= lineGap(line.line, i)
 		}
 
 		// 9.7.5.a Check for flexible items.
@@ -831,9 +1001,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					remainingFreeSpace -= child.FlexBaseSize + child.MainOuterExtra
 					unfrozenFactorSum += child.FlexFactor
 				}
-				if i != 0 {
-					remainingFreeSpace -= mainGap
-				}
+				remainingFreeSpace -= lineGap(line.line, i)
 			}
 
 			if initialFreeSpace == pr.Inf {
@@ -976,12 +1144,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				parentBox, pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
 			adjoiningMargins := tmp.adjoiningMargins
 			child.Baseline = pr.Float(0)
-			// przy „last baseline” zostaje dotychczasowe szukanie w głębi (bez linii bazowej zagnieżdżonego kontenera flex)
+			// przy „last baseline” zostaje dotychczasowe szukanie w głębi (bez linii bazowej zagnieżdżonego kontenera flex);
+			// gopdfgo: szukamy wtedy ostatniej linii bazowej (CSS Align 3 § 9.1), źródło brało zawsze pierwszą
 			itemAlign := child.Style.GetAlignSelf()
 			if itemAlign.Has(pr.Auto) {
 				itemAlign = box.Style.GetAlignItems()
 			}
-			if bl := findBaseline(newChild_, false, !itemAlign.Has(pr.Last)); bl != nil {
+			if bl := findBaseline(newChild_, itemAlign.Has(pr.Last), !itemAlign.Has(pr.Last)); bl != nil {
 				child.Baseline = bl.V()
 			} else {
 				noBaseline[child] = true
@@ -1015,12 +1184,16 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	// 8 Calculate the cross size of each flex line.
 	crossSize := getAttr(box, cross, "")
+	// gopdfgo: „jednowierszowy” to flex-wrap: nowrap (CSS Flexbox 1 § 6); kontener z zawijaniem, który
+	// ma tylko jedną linię, nadal jest wielowierszowy: linia ma rozmiar elementów, a rozmiar kontenera
+	// rozdziela align-content (test WPT flex-wrap-005). Źródło sprawdzało tylko liczbę linii.
+	singleLine := box.Style.GetFlexWrap() == "nowrap"
 	if height, ok := parentBox.Height.(pr.Float); ok && cross == pr.PHeight && crossSize != pr.AutoF {
 		// gopdfgo: wysokość treści po uwzględnieniu box-sizing; źródło brało tu wysokość pudełka
 		// obramowania, więc elementy kontenera z box-sizing: border-box były rozciągane za wysoko
 		crossSize = height
 	}
-	if len(flexLines) == 1 && crossSize != pr.AutoF {
+	if len(flexLines) == 1 && crossSize != pr.AutoF && singleLine {
 		// If the flex container is single-line…
 		flexLines[0].crossSize = crossSize.V()
 	} else {
@@ -1031,6 +1204,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			for _, v := range line.line {
 				child := v.box.Box()
 				alignSelf := child.Style.GetAlignSelf()
+				// gopdfgo: align-self: auto przyjmuje wartość align-items kontenera (CSS Align 3 § 6.1);
+				// źródło sprawdzało tu samo align-self, więc elementy wyrównane do linii bazowej przez
+				// align-items nie poszerzały linii o różnicę swoich linii bazowych
+				if alignSelf.Has(pr.Auto) {
+					alignSelf = box.Style.GetAlignItems()
+				}
 				collect := strings.HasPrefix(string(box.Style.GetFlexDirection()), "row") && alignSelf.Has(pr.Baseline) &&
 					child.MarginTop != pr.AutoF && child.MarginBottom != pr.AutoF
 				if collect {
@@ -1039,13 +1218,26 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					notCollectedItems = append(notCollectedItems, child)
 				}
 			}
-			var crossStartDistance, crossEndDistance pr.Float
-			for _, child := range collectedItems {
-				baseline := child.Baseline.V() - child.PositionY
-				crossStartDistance = max(crossStartDistance, baseline)
-				crossEndDistance = max(crossEndDistance, child.MarginHeight()-baseline)
+			// gopdfgo: odległości mogą być ujemne (linia bazowa poza elementem); ich suma to nadal rozmiar
+			// linii (CSS Flexbox 1 § 9.4 krok 8.1, test WPT baseline-outside-flex-item). Źródło zaczynało od
+			// zera, co przy jednym elemencie z linią bazową poza nim dawało za wysoką linię.
+			// gopdfgo: elementy z „last baseline” tworzą osobną grupę wyrównania (CSS Align 3 § 9.3), która
+			// też wyznacza rozmiar linii; źródło łączyło obie grupy w jedną.
+			var collectedCrossSize pr.Float
+			for _, last := range [2]bool{false, true} {
+				crossStartDistance, crossEndDistance := -pr.Inf, -pr.Inf
+				for _, child := range collectedItems {
+					if isLastBaseline(child, box) != last {
+						continue
+					}
+					baseline := child.Baseline.V() - child.PositionY
+					crossStartDistance = max(crossStartDistance, baseline)
+					crossEndDistance = max(crossEndDistance, child.MarginHeight()-baseline)
+				}
+				if crossStartDistance > -pr.Inf {
+					collectedCrossSize = max(collectedCrossSize, crossStartDistance+crossEndDistance)
+				}
 			}
-			collectedCrossSize := crossStartDistance + crossEndDistance
 			var nonCollectedCrossSize pr.Float
 			// 8.2 Find the largest outer hypothetical cross size.
 			if len(notCollectedItems) != 0 {
@@ -1078,7 +1270,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	}
 
 	// 8.3 If the flex container is single-line…
-	if len(flexLines) == 1 {
+	if len(flexLines) == 1 && singleLine {
 		line := &flexLines[0]
 		minCrossSize := getAttr(box, cross, "min")
 		if minCrossSize == pr.AutoF {
@@ -1105,10 +1297,24 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			if height, ok := parentBox.Height.(pr.Float); ok {
 				definiteCrossSize = height
 			}
+		} else if height, ok := parentBox.Height.(pr.Float); ok && cross == pr.PHeight {
+			// gopdfgo: wysokość nadana z zewnątrz (rozciągnięcie w kontenerze nadrzędnym, aspect-ratio) też jest
+			// określona (CSS Flexbox 1 § 9.8; test WPT stretched-child-in-nested-flexbox-002)
+			definiteCrossSize = height
 		} else if cross == pr.PWidth {
 			if bo.FlexT.IsInstance(box_) {
 				if box.Style.GetWidth().Tag == pr.Auto {
-					definiteCrossSize = availableCrossSpace
+					// gopdfgo: szerokość auto kontenera blokowego ograniczają jego min-width i max-width
+					// (CSS 2 § 10.4); źródło rozciągało linię do całej dostępnej szerokości (test WPT
+					// flexbox-single-line-clamp-2)
+					available := availableCrossSpace
+					if maxWidth, ok := parentBox.MaxWidth.(pr.Float); ok {
+						available = min(available, maxWidth)
+					}
+					if minWidth, ok := parentBox.MinWidth.(pr.Float); ok {
+						available = max(available, minWidth)
+					}
+					definiteCrossSize = available
 				} else {
 					definiteCrossSize = box.Style.GetWidth().Value
 				}
@@ -1121,7 +1327,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			}
 			extraCrossSize -= pr.Float(max(len(flexLines)-1, 0)) * crossGap
 
-			if extraCrossSize != 0 {
+			// gopdfgo: w kontenerze wielowierszowym align-content: stretch tylko powiększa linie, gdy zostaje
+			// wolne miejsce (CSS Flexbox 1 § 9.4 krok 9); przy przepełnieniu źródło je zmniejszało i linie
+			// wychodziły ponad kontener (test WPT flexbox-overflow-horiz-004). W jednowierszowym linia ma
+			// po prostu rozmiar kontenera (krok 8), także mniejszy od elementów.
+			if extraCrossSize > 0 || (extraCrossSize != 0 && singleLine) {
 				for i, line := range flexLines {
 					line.crossSize += extraCrossSize / pr.Float(len(flexLines))
 					flexLines[i] = line
@@ -1130,7 +1340,29 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
-	// TODO: 10 Collapse 'visibility: collapse' items.
+	// 10 Collapse 'visibility: collapse' items.
+	if !collapsedPass {
+		collapsed := map[Box]pr.Float{}
+		for _, line := range flexLines {
+			for _, v := range line.line {
+				if child := v.box.Box(); child.Style.GetVisibility() == "collapse" && !child.IsTableWrapper {
+					collapsed[v.box] = line.crossSize
+				}
+			}
+		}
+		if len(collapsed) != 0 {
+			for k, child := range children {
+				if size, ok := collapsed[child]; ok {
+					children[k] = collapsedStrut(child, size, main)
+					struts[children[k].Box()] = true
+				}
+			}
+			*box = boxBeforeLines
+			*absoluteBoxes, *fixedBoxes = (*absoluteBoxes)[:absoluteBefore], (*fixedBoxes)[:fixedBefore]
+			collapsedPass = true
+			goto restartCollapsed
+		}
+	}
 
 	// 11 Determine the used cross size of each flex item.
 
@@ -1151,6 +1383,14 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			if child.IsTableWrapper {
 				// gopdfgo: o tym, czy tabela ma rozmiar auto, decyduje styl tabeli, nie pudełka opakowującego
 				crossStyle = child.GetWrappedTable().Box()
+			}
+			if crossMargins := getCrossMargins(child, cross); cross == pr.PHeight && getDimOrS(crossStyle, cross).Tag == pr.Auto &&
+				(!alignSelf.Has(pr.Stretch) || crossMargins[0] == pr.AutoF || crossMargins[1] == pr.AutoF) {
+				// gopdfgo: wysokość elementu nierozciąganego wynika z treści i nie jest określona, więc nie
+				// jest podstawą procentów jego dzieci (CSS Flexbox 1 § 9.8; określony jest tylko rozmiar
+				// elementu rozciągniętego, § 9.4 krok 11). Źródło liczyło procent od wysokości z kroku 7
+				// (test WPT flexbox_align-items-stretch-4).
+				child.IndefiniteHeight = true
 			}
 			if alignSelf.Has(pr.Stretch) && getDimOrS(crossStyle, cross).Tag == pr.Auto {
 				crossMargins := getCrossMargins(child, cross)
@@ -1227,7 +1467,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 			}
 		}
-		freeSpace -= pr.Float(len(line.line)-1) * mainGap
+		for i := range line.line {
+			freeSpace -= lineGap(line.line, i)
+		}
 
 		// 12.1 If the remaining free space is positive…
 		var margins pr.Float
@@ -1328,9 +1570,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 		for i, v := range line.line {
 			child := v.box.Box()
-			if i != 0 {
-				positionMain += mainGap
-			}
+			positionMain += lineGap(line.line, i)
 			if main == pr.PWidth {
 				child.PositionX = positionMain
 				if justifyContent.Has(pr.Stretch) && growths != 0 {
@@ -1375,6 +1615,13 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	if cross == pr.PHeight {
 		positionCross = box.ContentBoxY()
 	}
+	// gopdfgo: grupa „last baseline” każdej linii: największe odległości linii bazowej od krawędzi
+	// początkowej i końcowej; grupa stoi przy końcu linii (CSS Align 3 § 9.3, wyrównanie zastępcze
+	// safe end)
+	lastBelow, lastAbove := make([]pr.Float, len(flexLines)), make([]pr.Float, len(flexLines))
+	for i := range flexLines {
+		lastBelow[i], lastAbove[i] = -pr.Inf, -pr.Inf
+	}
 	for index, line := range flexLines {
 		line.lowerBaseline = -pr.Inf
 		// TODO: Don't duplicate this loop
@@ -1387,8 +1634,16 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			if alignSelf.Has(pr.Baseline) && main == pr.PWidth {
 				// TODO: handle vertical text
 				child.Baseline = child.Baseline.V() - positionCross
+				if alignSelf.Has(pr.Last) {
+					lastBelow[index] = max(lastBelow[index], child.MarginHeight()-child.Baseline.V())
+					lastAbove[index] = max(lastAbove[index], child.Baseline.V())
+					continue
+				}
 				line.lowerBaseline = max(line.lowerBaseline, child.Baseline.V())
 			}
+		}
+		if line.lowerBaseline == -pr.Inf && lastAbove[index] > -pr.Inf {
+			line.lowerBaseline = lastAbove[index] // tylko grupa „last baseline”: jak dotąd
 		}
 		if line.lowerBaseline == -pr.Inf {
 			if len(line.line) != 0 {
@@ -1485,6 +1740,15 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				} else {
 					child.PositionX = positionCross
 				}
+				// gopdfgo: „safe”: element większy niż linia stoi przy jej początku (CSS Align 3 § 4.4);
+				// źródło ignorowało to słowo w align-self i align-items
+				outerCross := child.MarginWidth()
+				if cross == pr.PHeight {
+					outerCross = child.MarginHeight()
+				}
+				if alignSelf.Has(pr.Safe) && outerCross > line.crossSize {
+					alignSelf = pr.JustifyOrAlign{pr.FlexStart}
+				}
 				if alignSelf.Intersects(pr.End, pr.SelfEnd, pr.FlexEnd) {
 					if cross == pr.PHeight {
 						child.PositionY += line.crossSize - child.MarginHeight()
@@ -1498,7 +1762,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 						child.PositionX += (line.crossSize - child.MarginWidth()) / 2
 					}
 				} else if alignSelf.Has(pr.Baseline) {
-					if cross == pr.PHeight {
+					if cross == pr.PHeight && alignSelf.Has(pr.Last) && main == pr.PWidth && lastBelow[index] > -pr.Inf {
+						child.PositionY += line.crossSize - lastBelow[index] - child.Baseline.V()
+					} else if cross == pr.PHeight {
 						child.PositionY += line.lowerBaseline - child.Baseline.V()
 					}
 					// TODO: Handle vertical text.
@@ -1559,6 +1825,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		extraCrossSize := getAttr(box, cross, "").V()
 		extraCrossSize -= sumCross(flexLines)
 		extraCrossSize -= pr.Float(max(len(flexLines)-1, 0)) * crossGap
+		// gopdfgo: „safe” w align-content: przy przepełnieniu linie zaczynają się na początku (CSS Align 3
+		// § 4.4); źródło przesuwało je przed kontener
+		if extraCrossSize < 0 && alignContent.Has(pr.Safe) {
+			extraCrossSize = 0
+		}
 		// 16 Align all flex lines per align-content.
 		var crossTranslate pr.Float
 		direction := directionX
@@ -2138,6 +2409,14 @@ func stretchedRatioContribution(container, item Box) (pr.Float, bool) {
 		return d.Value, true
 	}
 	height, ok := pixels(style.GetHeight())
+	if cb := container.Box(); !ok && style.GetHeight().Tag == pr.Auto && cb.IsAbsolutelyPositioned() &&
+		style.GetTop().Tag != pr.Auto && style.GetBottom().Tag != pr.Auto {
+		// gopdfgo: wysokość kontenera pozycjonowanego bezwzględnie wynika z top i bottom; jest już
+		// wyliczona (zob. absoluteBlock) i jest wysokością treści
+		if h, known := cb.Height.(pr.Float); known {
+			return stretchedRatioWidth(style, item, h)
+		}
+	}
 	if !ok {
 		return 0, false
 	}
@@ -2146,6 +2425,17 @@ func stretchedRatioContribution(container, item Box) (pr.Float, bool) {
 			v, _ := pixels(d)
 			height -= v
 		}
+	}
+	return stretchedRatioWidth(style, item, height)
+}
+
+// stretchedRatioWidth: dalsza część stretchedRatioContribution przy znanej wysokości treści kontenera.
+func stretchedRatioWidth(style pr.ElementStyle, item Box, height pr.Float) (pr.Float, bool) {
+	pixels := func(d pr.TaggedDim) (pr.Float, bool) {
+		if d.Tag != 0 || d.Unit != pr.Px || d.Calc != nil {
+			return 0, false
+		}
+		return d.Value, true
 	}
 	cs := item.Box().Style
 	if cs.GetHeight().Tag != pr.Auto || cs.GetWidth().Tag != pr.Auto || cs.GetMarginTop().Tag == pr.Auto || cs.GetMarginBottom().Tag == pr.Auto {
@@ -2298,4 +2588,38 @@ func isStretchedFlexItem(item Box, container *bo.BoxFields) bool {
 // nie jest widoczne, więc nie przechodzi na następną stronę.
 func clipsBlockOverflow(box *bo.BoxFields) bool {
 	return box.Style.GetOverflow() != "visible" && box.Style.GetHeight().Tag != pr.Auto
+}
+
+// collapsedStrut zamienia element flex z visibility: collapse na rozpórkę (CSS Flexbox 1 § 4.4): pudełko
+// bez treści, o zerowym rozmiarze głównym i rozmiarze poprzecznym równym rozmiarowi poprzecznemu linii,
+// w której element stał przy pierwszym przebiegu. Rozpórka nie ma marginesów, obramowań ani odstępów
+// i nie jest elastyczna.
+func collapsedStrut(item Box, crossSize pr.Float, main pr.KnownProp) Box {
+	strut := bo.CopyWithChildren(item, nil)
+	style := item.Box().Style.Copy()
+	zero := pr.ZeroPixels.Tagged()
+	for _, set := range []func(pr.TaggedDim){
+		style.SetMarginTop, style.SetMarginRight, style.SetMarginBottom, style.SetMarginLeft,
+		style.SetPaddingTop, style.SetPaddingRight, style.SetPaddingBottom, style.SetPaddingLeft,
+		style.SetBorderTopWidth, style.SetBorderRightWidth, style.SetBorderBottomWidth, style.SetBorderLeftWidth,
+		style.SetMinWidth, style.SetMinHeight,
+	} {
+		set(zero)
+	}
+	style.SetMaxWidth(pr.FToPx(pr.Inf))
+	style.SetMaxHeight(pr.FToPx(pr.Inf))
+	style.SetBoxSizing("content-box")
+	style.SetFlexGrow(0)
+	style.SetFlexShrink(0)
+	style.SetFlexBasis(pr.TagToV(pr.Auto))
+	style.SetAlignSelf(pr.JustifyOrAlign{pr.FlexStart})
+	if main == pr.PWidth {
+		style.SetWidth(zero)
+		style.SetHeight(pr.FToPx(crossSize))
+	} else {
+		style.SetHeight(zero)
+		style.SetWidth(pr.FToPx(crossSize))
+	}
+	strut.Box().Style = style
+	return strut
 }
