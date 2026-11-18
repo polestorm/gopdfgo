@@ -1577,7 +1577,7 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 		line_, line := tmp.line, tmp.line.Box()
 
 		// wysokość nieskończona (błąd układu pudełka w wierszu) dawałaby nieskończenie wiele wycinków
-		if fullHeight := line.Height.V(); canSlice && i == 0 && fullHeight < maxSliceableHeight && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight && hasTallAtomicInline(line_, context.pageHeight))) {
+		if fullHeight := line.Height.V(); canSlice && i == 0 && fullHeight < maxSliceableHeight && (sliced || (pageIsEmpty && len(newChildren) == 0 && fullHeight > context.pageHeight)) {
 			available := context.pageBottom - bottomSpace - line.PositionY
 			if remaining := fullHeight - pr.Float(sliceConsumed); available > 0 && remaining > 0 {
 				visible := min(remaining, available)
@@ -1591,6 +1591,10 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 					stop = true
 					break
 				}
+				// gopdfgo: ostatni wycinek wiersza kończy się po visible; iterator policzył pozycję
+				// następnego wiersza od pełnej wysokości, przez co trafiał on na kolejną stronę
+				// (test WPT css-page/monolithic-overflow-015).
+				linesIterator.positionY = line.PositionY + visible
 			}
 		}
 
@@ -2303,7 +2307,10 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 		return false
 	}
 	// Elementy flex i grid mają własne algorytmy podziału; tam bloków nie tniemy.
-	if box.IsFlexItem || box.IsGridItem {
+	// gopdfgo: wyjątkiem jest element niepodzielny przez zawieranie rozmiaru (contain: size) wyższy niż
+	// strona: wystawałby poza nią i jego dalsza część ginęła; w Chromium przechodzi na następne strony
+	// (CSS Break 3 § 4.4, testy WPT css-page/monolithic-overflow-005, -007).
+	if (box.IsFlexItem || box.IsGridItem) && !(bo.IsMonolithic(box_) && bo.HasContainment(box_, "size") && box.BorderHeight() > context.pageHeight) {
 		return false
 	}
 	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.clipDepth > 0 {

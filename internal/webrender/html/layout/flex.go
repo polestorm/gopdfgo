@@ -1995,6 +1995,12 @@ restartCollapsed:
 	linePushed := map[int]tree.ResumeStack{}
 	var lineOverflow []Box               // elementy bieżącej linii wystające poza stronę, które same się nie dzielą
 	flexItemsBefore := len(box.Children) // dzieci dodane wcześniej (pozycjonowane bezwzględnie)
+	// gopdfgo: w kontenerze kolumnowym element wznowiony z resztą podanej wysokości (podzielony blok
+	// niepodzielny, zob. canSplitFixedHeight) został ułożony przez algorytm flex w pełnej wysokości;
+	// o różnicę przesuwamy w górę następne elementy i skracamy kontener o wysokości auto. W przeciwnym
+	// razie następny element zaczynał się za pełną wysokością i przechodził na kolejną stronę (testy WPT
+	// css-page/monolithic-overflow-005, -007).
+	var columnShift pr.Float
 	for lineIndex, line := range flexLines {
 		// gopdfgo: wymuszony podział strony między liniami kontenera wierszowego: break-before na elemencie
 		// tej linii albo break-after na elemencie poprzedniej (CSS Flexbox 1 § 12, CSS Break 3 § 3.1).
@@ -2015,9 +2021,20 @@ restartCollapsed:
 				break
 			}
 			if child.IsFlexItem {
+				if columnShift != 0 {
+					v.box.Translate(0, -columnShift, false)
+				}
+				itemSkip := pickSkip(i, childSkipStack)
+				_, resumedRemainder := itemSkip.Remainder()
+				plannedHeight := child.MarginHeight()
 				// TODO: Don't use block_level_layout_switch.
-				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, pickSkip(i, childSkipStack), box,
+				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, itemSkip, box,
 					pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
+				if resumedRemainder && main == pr.PHeight && newChild != nil && lineSkip == nil {
+					if shift := plannedHeight - newChild.Box().MarginHeight(); shift > 0 {
+						columnShift += shift
+					}
+				}
 				childResumeAt := tmp.resumeAt
 				if clipsBlockOverflow(box) {
 					childResumeAt = nil // dalszy ciąg byłby przycięty przez kontener
@@ -2170,6 +2187,9 @@ restartCollapsed:
 		}
 	}
 
+	if columnShift > 0 && box.Style.GetHeight().Tag == pr.Auto {
+		box.Height = max(box.Height.V()-columnShift, box.MinHeight.V())
+	}
 	// gopdfgo: fragment kontenera podzielonego między strony sięga dolnej krawędzi strony, jak fragment
 	// zwykłego bloku (CSS Fragmentation 3 § 5.1); inaczej zachowałby wysokość całej treści i sam wystawał
 	// poza stronę.
