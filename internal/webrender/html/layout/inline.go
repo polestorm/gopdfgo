@@ -1203,6 +1203,24 @@ func inlineBlockBoxLayout(context *layoutContext, box_ Box, positionX pr.Float, 
 
 	box.PositionX = positionX
 	box.PositionY = 0
+	// gopdfgo: pudełko liniowo-blokowe może być kontenerem kolumn (CSS Multicol 1 § 2); w źródle jego
+	// treść była układana jak w zwykłym bloku, bez kolumn (test WPT multicol-rule-color-inherit-002).
+	// columnsLayout przyjmuje blok, więc układamy przejściowy BlockBox o tych samych polach i wynik
+	// przenosimy z powrotem do pudełka liniowo-blokowego.
+	if _, ok := box_.(*bo.InlineBlockBox); ok &&
+		(box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto") {
+		block := &bo.BlockBox{BoxFields: *box}
+		context.createBlockFormattingContext()
+		laidOut, _ := columnsLayout(context, block, pr.Inf, skipStack, containingBlock,
+			true, absoluteBoxes, fixedBoxes, nil)
+		if laidOut != nil {
+			context.finishBlockFormattingContext(laidOut)
+			result := &bo.InlineBlockBox{BoxFields: *laidOut.Box()}
+			result.Baseline = inlineBlockBaseline(result)
+			return result
+		}
+		context.finishBlockFormattingContext(box_)
+	}
 	box_, _, _ = blockContainerLayout(context, box_, -pr.Inf, skipStack,
 		true, absoluteBoxes, fixedBoxes, new([]pr.Float), false, -1)
 	box_.Box().Baseline = inlineBlockBaseline(box_)
