@@ -95,6 +95,8 @@ func keepPreLeadingNewline(document []byte) []byte {
 	return preStartWithNewline.ReplaceAll(document, []byte("$1\n$2"))
 }
 
+var xmlComment = regexp.MustCompile(`(?s)<!--.*?-->`)
+
 var styleElement = regexp.MustCompile(`(?is)(<style\b[^>]*>)(.*?)(</style\s*>)`)
 
 // decodeStyleEntities rozwija odwołania znakowe w treści <style> dokumentu XHTML. W XML treść tego
@@ -103,10 +105,20 @@ var styleElement = regexp.MustCompile(`(?is)(<style\b[^>]*>)(.*?)(</style\s*>)`)
 func decodeStyleEntities(document []byte) []byte {
 	return styleElement.ReplaceAllFunc(document, func(element []byte) []byte {
 		parts := styleElement.FindSubmatch(element)
-		if !bytes.Contains(parts[2], []byte("&")) || bytes.Contains(parts[2], []byte("<![CDATA[")) {
+		if bytes.Contains(parts[2], []byte("<![CDATA[")) {
 			return element
 		}
-		decoded := html.UnescapeString(string(parts[2]))
+		// Komentarz XML w <style> nie należy do danych znakowych elementu; parser HTML5 zostawia go w
+		// arkuszu, gdzie tekst między <!-- a --> psuje następną regułę (wzorzec WPT
+		// flexbox-margin-auto-horiz-001-ref).
+		content := xmlComment.ReplaceAll(parts[2], nil)
+		if !bytes.Contains(content, []byte("&")) {
+			if len(content) == len(parts[2]) {
+				return element
+			}
+			return append(append(append([]byte{}, parts[1]...), content...), parts[3]...)
+		}
+		decoded := html.UnescapeString(string(content))
 		if bytes.Contains(bytes.ToLower([]byte(decoded)), []byte("</style")) {
 			return element
 		}

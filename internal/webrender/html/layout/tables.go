@@ -275,6 +275,14 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// test_table_break_children_margin.
 				// Pretend that height is not set, keeping computed height as a minimum.
 				cell.ComputedHeight = cell.Height
+				// gopdfgo: procentowa wysokość komórki nie jest minimum wiersza; wiersz z taką komórką
+				// dostaje swój procent wysokości tabeli dopiero przy rozdziale nadmiaru wysokości (CSS Tables 3
+				// § 3.10.3, jak Chromium; zob. distributeExtraTableHeight). Źródło liczyło procent od wysokości
+				// tabeli jako minimum, więc wiersze rosły ponad podaną wysokość tabeli (testy WPT
+				// table-as-item-cell-percentage-002, percent-height-replaced-in-percent-cell).
+				if cell.Style.GetHeight().Unit == pr.Perc {
+					cell.ComputedHeight = pr.AutoF
+				}
 				if remaining, ok := context.cellHeightRemaining[resumeKey(cellSkipStack)]; ok && cellSkipStack != nil {
 					cell.ComputedHeight = remaining // dalszy ciąg komórki: zob. niżej
 				}
@@ -1131,16 +1139,45 @@ func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
 	if len(candidates) == 0 {
 		candidates = rows
 	}
+	// gopdfgo: najpierw wiersze z wysokością procentową (własną albo komórki o rowspan 1) rosną do
+	// swojego procentu wysokości tabeli, w granicach nadmiaru (CSS Tables 3 § 3.10.3, jak Chromium)
+	shares := make(map[Box]pr.Float, len(rows))
+	if tableHeight := extra; true {
+		for _, row := range rows {
+			tableHeight += row.Box().Height.V()
+		}
+		for _, row := range rows {
+			if extra <= 0 {
+				break
+			}
+			if percent := rowHeightPercentage(row); percent > 0 {
+				grow := min(max(percent/100*tableHeight-row.Box().Height.V(), 0), extra)
+				shares[row] += grow
+				extra -= grow
+			}
+		}
+	}
+	var auto []Box
+	for _, row := range candidates {
+		if rowHeightPercentage(row) == 0 {
+			auto = append(auto, row)
+		}
+	}
+	if len(auto) > 0 {
+		candidates = auto
+	}
 	var totalHeight pr.Float
 	for _, row := range candidates {
 		totalHeight += row.Box().Height.V()
 	}
-	shares := make(map[Box]pr.Float, len(candidates))
 	for _, row := range candidates {
+		if extra <= 0 {
+			break
+		}
 		if totalHeight > 0 {
-			shares[row] = extra * row.Box().Height.V() / totalHeight
+			shares[row] += extra * row.Box().Height.V() / totalHeight
 		} else {
-			shares[row] = extra / pr.Float(len(candidates))
+			shares[row] += extra / pr.Float(len(candidates))
 		}
 	}
 
@@ -1180,6 +1217,21 @@ func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
 		}
 	}
 	return offset
+}
+
+// rowHeightPercentage (gopdfgo) podaje procentową wysokość wiersza: większą z jego własnej i jego
+// komórek o rowspan 1 (0, gdy żadnej nie ma).
+func rowHeightPercentage(row Box) pr.Float {
+	var percent pr.Float
+	if h := row.Box().Style.GetHeight(); h.Unit == pr.Perc {
+		percent = h.Value
+	}
+	for _, cell := range row.Box().Children {
+		if h := cell.Box().Style.GetHeight(); h.Unit == pr.Perc && cell.Box().Rowspan == 1 {
+			percent = max(percent, h.Value)
+		}
+	}
+	return percent
 }
 
 func addTopPadding(box *bo.BoxFields, extraPadding pr.Float) {
@@ -1338,13 +1390,26 @@ func autoTableLayout(context *layoutContext, box_ Box, containingBlock bo.Point)
 	cbWidth := containingBlock[0]
 	availableWidth := cbWidth - margins - paddings - borders
 
-	if table.Width == pr.AutoF {
+	if intrinsic := table.Style.GetWidth().Intrinsic; table.Width == pr.AutoF && intrinsic != pr.IntrinsicNone {
+		// gopdfgo: width: min-content, max-content i fit-content tabeli (CSS Sizing 3 § 3.1); źródło
+		// traktowało je jak auto, więc tabela z komórkami width: 100% wypełniała blok zawierający.
+		// Przy max-content wkład kolumn procentowych się nie liczy (zob. tableAndColumnsPreferredWidths).
+		switch intrinsic {
+		case pr.IntrinsicMinContent:
+			table.Width = tmp.tableMinContentWidth
+		case pr.IntrinsicMaxContent:
+			table.Width = tmp.tableMaxContentWidth
+		default:
+			table.Width = max(tmp.tableMinContentWidth, min(availableWidth, tmp.layoutMaxContentWidth))
+		}
+	} else if table.Width == pr.AutoF {
 		if availableWidth <= tmp.tableMinContentWidth {
 			table.Width = tmp.tableMinContentWidth
-		} else if availableWidth < tmp.tableMaxContentWidth {
+		} else if availableWidth < tmp.layoutMaxContentWidth {
 			table.Width = availableWidth
 		} else {
-			table.Width = tmp.tableMaxContentWidth
+			// gopdfgo: przy układzie wkład kolumn procentowych liczy się zawsze (zob. layoutMaxContentWidth)
+			table.Width = tmp.layoutMaxContentWidth
 		}
 	} else {
 		// gopdfgo: dolną granicą jest szerokość minimalna treści (i min-width), a nie podana szerokość
@@ -1725,5 +1790,30 @@ func distributeExcessWidth(grid [][]bo.Box, excessWidth pr.Float, columnWidths [
 	}
 	for _, i := range columns {
 		columnWidths[i] += excessWidth / pr.Float(len(columns))
+	}
+}
+
+// markTablesWithoutColumnPercentages (gopdfgo) ustawia TableBox.NoColumnPercentages tabelom, których
+// przodkiem (w łańcuchu bloków zawierających, uproszczonym do rodziców, z position: fixed jako
+// początkiem łańcucha) jest komórka tabeli, kontener flex albo siatki; tak działa
+// TableNode::AllowColumnPercentages w Chromium.
+func markTablesWithoutColumnPercentages(box Box, inside bool) {
+	if box.Box().Style != nil && box.Box().Style.GetPosition().String == "fixed" {
+		inside = false
+	}
+	if table, ok := box.(bo.TableBoxITF); ok {
+		table.Table().NoColumnPercentages = inside
+	}
+	switch box.(type) {
+	case bo.FlexContainerBoxITF, bo.GridContainerBoxITF:
+		inside = true
+	}
+	if bo.TableCellT.IsInstance(box) {
+		inside = true
+	}
+	if parent, ok := box.(bo.ParentBoxITF); ok {
+		for _, child := range parent.Box().Children {
+			markTablesWithoutColumnPercentages(child, inside)
+		}
 	}
 }

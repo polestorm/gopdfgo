@@ -817,6 +817,15 @@ func display(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.
 			}
 		}
 	}
+	// gopdfgo: dziecko kontenera flex albo siatki z wewnętrzną wartością tabelową (table-row, table-cell…)
+	// jest blokowane do bloku (CSS Display 3 § 2.7: wnętrze „layout-internal” zmienia się na flow), a nie
+	// opakowywane w anonimową tabelę; źródło tworzyło tabelę, więc order i align-self pudełka nie działały
+	// (test WPT flexbox-with-pseudo-elements-003).
+	if parent := computer.parentStyle; parent != nil && value.Inside == 0 && value.ListItem == 0 && value.Outside.HasTablePrefix() {
+		if inside := parent.GetDisplay().Inside; inside == pr.Flex || inside == pr.Grid {
+			return pr.Display{Outside: pr.Block, Inside: pr.Flow}
+		}
+	}
 	return value
 }
 

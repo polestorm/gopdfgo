@@ -44,8 +44,25 @@ func shrinkToFit(context *layoutContext, box Box, availableContentWidth pr.Float
 // [outer] defaults to true
 func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if width, ok := ratioContentWidth(box); ok {
-		return adjust(box, outer, width, true, true)
+		return adjust(box, outer, ratioFloor(context, box, width), true, true)
 	}
+	return contentMinContentWidth(context, box, outer)
+}
+
+// ratioFloor (gopdfgo): szerokość wynikająca z proporcji nie schodzi poniżej szerokości min-content
+// treści, o ile pudełko nie przewija (minimum automatyczne, CSS Sizing 4 § 5.1 „aspect-ratio-minimum”;
+// test WPT aspect-ratio-nonreplaced-max-content-contribution-001). Źródło brało samą proporcję.
+func ratioFloor(context *layoutContext, box Box, width pr.Float) pr.Float {
+	style := box.Box().Style
+	// Uproszczenie: min-width nie jest sprawdzane, bo kopie pomiarowe (flex, intrinsic.go) mają min-width: 0.
+	if style.GetOverflow() != "visible" {
+		return width
+	}
+	return max(width, contentMinContentWidth(context, box, false))
+}
+
+// contentMinContentWidth to minContentWidth bez szerokości wynikającej z aspect-ratio.
+func contentMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if box.Box().IsTableWrapper {
 		return tableAndColumnsPreferredWidths(context, box, outer).tableMinContentWidth
 	} else if bo.TableCellT.IsInstance(box) {
@@ -71,7 +88,10 @@ func minContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 // i wysokością podaną długością wynika z proporcji (CSS Sizing 4 § 5.1); dotyczy pudełek dopasowujących się
 // do treści: elementów flex i grid, pływających, pozycjonowanych, inline-block.
 func ratioContentWidth(box Box) (pr.Float, bool) {
-	if _, isReplaced := box.(bo.ReplacedBoxITF); isReplaced || !bo.BlockContainerT.IsInstance(box) || box.Box().IsTableWrapper {
+	// gopdfgo: także kontenery flex i siatki (CSS Sizing 4 § 5.1 dotyczy wszystkich pudełek
+	// niezastępowanych; test WPT aspect-ratio-nonreplaced-max-content-contribution-001)
+	container := bo.BlockContainerT.IsInstance(box) || bo.FlexContainerT.IsInstance(box) || bo.GridContainerT.IsInstance(box)
+	if _, isReplaced := box.(bo.ReplacedBoxITF); isReplaced || !container || box.Box().IsTableWrapper {
 		return 0, false
 	}
 	style := box.Box().Style
@@ -110,7 +130,7 @@ func ratioContentWidth(box Box) (pr.Float, bool) {
 // outer=true
 func maxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if width, ok := ratioContentWidth(box); ok {
-		return adjust(box, outer, width, true, true)
+		return adjust(box, outer, ratioFloor(context, box, width), true, true)
 	}
 	rep, isReplaced := box.(bo.ReplacedBoxITF)
 	if box.Box().IsTableWrapper {
@@ -868,7 +888,15 @@ type tableContentWidths struct {
 	gridMinWidth                 pr.Float
 	totalHorizontalBorderSpacing pr.Float
 	tableMaxContentWidth         pr.Float
+	// layoutMaxContentWidth (gopdfgo): szerokość maksymalna treści używana przy układzie samej tabeli,
+	// zawsze z wkładem kolumn procentowych (zob. intrinsicMaxContentWidth niżej)
+	layoutMaxContentWidth pr.Float
 }
+
+// tableMaxInlineSize (gopdfgo) to „nieskończenie duża liczba” z dbaron.org/css/intrinsic dla wkładu
+// kolumn procentowych sumujących się do 100 %; 1e6 jak kTableMaxInlineSize w Chromium. Źródło
+// używało math.MaxInt32, który w float32 traci precyzję przy odejmowaniu (kurczenie elementów flex).
+const tableMaxInlineSize = 1e6
 
 // Return content widths for the auto layout table and its columns.
 // https://dbaron.org/css/intrinsic/
@@ -970,6 +998,7 @@ func tableAndColumnsPreferredWidths(context *layoutContext, box_ Box, outer bool
 			false: {
 				tableMinContentWidth:         minWidth,
 				tableMaxContentWidth:         maxWidth,
+				layoutMaxContentWidth:        maxWidth,
 				totalHorizontalBorderSpacing: totalHorizontalBorderSpacing,
 			},
 			true: {
@@ -1203,7 +1232,7 @@ outerLoop:
 			// Please note that "an infinitely large number" is not "infinite",
 			// and that"s probably not a coincindence: putting "inf" here breaks
 			// some cases (see #305).
-			largepercentageContribution = math.MaxInt32
+			largepercentageContribution = tableMaxInlineSize
 		}
 	} else {
 		largepercentageContribution = largepercentageContributionNumerator / largepercentageContributionDenominator
@@ -1222,7 +1251,9 @@ outerLoop:
 	gridMinWidth := tableMinContentWidth
 	tableMinWidth := tableMinContentWidth
 	tableMaxWidth := tableMaxContentWidth
+	fixedWidth := false
 	if wid := table.Style.GetWidth(); wid.Tag != pr.Auto && wid.Unit == pr.Px {
+		fixedWidth = true
 		// "percentages on the following properties are treated instead as
 		// though they were the following: width: auto"
 		// https://dbaron.org/css/intrinsic/#outer-intrinsic
@@ -1234,7 +1265,11 @@ outerLoop:
 		if table.Style.GetBoxSizing() != "content-box" {
 			delta := table.Style.GetBorderLeftWidth().Value + table.Style.GetBorderRightWidth().Value
 			if table.Style.GetBoxSizing() == "border-box" && table.Style.GetBorderCollapse() == "collapse" {
-				delta = 0
+				// gopdfgo: w modelu zwiniętym obramowaniem tabeli jest połowa obramowań skrajnych komórek
+				// (CSS 2.1 § 17.6.2), już wpisana w BorderLeftWidth i BorderRightWidth; źródło przyjmowało
+				// tu zero, więc tabela z width: 100px była o tę połowę z każdej strony za szeroka (test WPT
+				// table-cell-width-0)
+				delta = table.BorderLeftWidth.V() + table.BorderRightWidth.V()
 			}
 			for _, padding := range [...]pr.TaggedDim{table.Style.GetPaddingLeft(), table.Style.GetPaddingRight()} {
 				if padding.Unit == pr.Px && table.Style.GetBorderCollapse() != "collapse" {
@@ -1261,8 +1296,30 @@ outerLoop:
 	if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
 		tableMaxContentWidth = max(tableMinContentWidth, min(tableMaxContentWidth, maxWidth.Value))
 	}
+	// gopdfgo: wkład procentowych kolumn („large/small percentage contribution”) liczymy do szerokości
+	// preferowanej tabeli tylko wtedy, gdy żaden przodek nie jest komórką tabeli, kontenerem flex ani
+	// siatki i tabela nie ma width: max-content; przy samym układzie tabeli wkład liczy się zawsze (jak
+	// TableNode::AllowColumnPercentages w Chromium; CSS Tables 3 § 3.9.1 tego nie rozstrzyga). Źródło
+	// liczyło wkład zawsze, więc tabela z komórką width: 100% obok innej komórki rozpychała element flex
+	// i ścieżkę siatki do „nieskończenie dużej” szerokości (testy WPT
+	// item-with-table-with-infinite-max-intrinsic-width, table-as-item-percent-width-cell-001).
+	intrinsicMaxContentWidth := tableMaxContentWidth
+	if noPercentages := totalHorizontalBorderSpacing + sumMax; (table.NoColumnPercentages ||
+		table.Style.GetWidth().Intrinsic == pr.IntrinsicMaxContent) && noPercentages < tableMaxContentWidth {
+		limit := noPercentages
+		if fixedWidth {
+			limit = tableMaxWidth
+		}
+		intrinsicMaxContentWidth = max(noPercentages, adjust(table, false, limit, true, true))
+		if hasCaption {
+			intrinsicMaxContentWidth = max(intrinsicMaxContentWidth, captionContentWidth)
+		}
+		if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
+			intrinsicMaxContentWidth = max(tableMinContentWidth, min(intrinsicMaxContentWidth, maxWidth.Value))
+		}
+	}
 	tableOuterMinContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMinContentWidth, true, true), true, true)
-	tableOuterMaxContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMaxContentWidth, true, true), true, true)
+	tableOuterMaxContentWidth := marginWidth(&table.BoxFields, marginWidth(box, intrinsicMaxContentWidth, true, true), true, true)
 
 	result := tableContentWidths{
 		columnMinContentWidths:       minContentWidths,
@@ -1275,7 +1332,8 @@ outerLoop:
 	}
 	resultFalse := result
 	resultFalse.tableMinContentWidth = tableMinContentWidth
-	resultFalse.tableMaxContentWidth = tableMaxContentWidth
+	resultFalse.tableMaxContentWidth = intrinsicMaxContentWidth
+	resultFalse.layoutMaxContentWidth = tableMaxContentWidth
 	resultTrue := result
 	resultTrue.tableMinContentWidth = tableOuterMinContentWidth
 	resultTrue.tableMaxContentWidth = tableOuterMaxContentWidth
@@ -1451,9 +1509,10 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if strings.HasPrefix(string(box.Box().Style.GetFlexDirection()), "row") && box.Box().Style.GetFlexWrap() == "nowrap" {
 		return adjust(box, outer, sum+flexMainGaps(box), true, true)
 	} else {
-		if wrapped, ok := columnWrapContentWidth(context, box, minContentWidth); ok {
-			return adjust(box, outer, wrapped, true, true)
-		}
+		// gopdfgo: szerokość min-content wieloliniowego kontenera w kolumnie to największy wkład min-content
+		// elementu, a nie suma kolumn (CSS Flexbox 1 § 9.9.2; suma dotyczy tylko max-content). Wcześniej
+		// liczyliśmy tu columnWrapContentWidth, więc kontener nie zwężał się do dostępnego miejsca (test WPT
+		// multiline-shrink-to-fit).
 		return adjust(box, outer, max, true, true)
 	}
 }
