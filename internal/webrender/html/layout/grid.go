@@ -2448,7 +2448,26 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				}
 				return index, true
 			}
-			if index, ok := resolve(start, "start"); ok {
+			startIndex, startOk := resolve(start, "start")
+			endIndex, endOk := resolve(end, "end")
+			// gopdfgo: liczbowe span po drugiej stronie linii określonej liczy się od niej (CSS Grid 1
+			// § 8.3.1, § 9.1); źródło traktowało span jak auto. Linia poza siatką to auto
+			if startOk && !endOk && end.Tag == pr.Span && end.Ident == "" && end.Val > 0 {
+				endIndex, endOk = startIndex+end.Val, startIndex+end.Val <= len(positions)
+			} else if endOk && !startOk && start.Tag == pr.Span && start.Ident == "" && start.Val > 0 {
+				startIndex, startOk = endIndex-start.Val, endIndex-start.Val >= 0
+			}
+			// gopdfgo: linia początkowa za końcową zamienia się z nią miejscami, a równa końcowej
+			// usuwa linię końcową, która staje się auto, czyli krawędzią odstępu wewnętrznego
+			// (CSS Grid 1 § 8.3.1, § 9.1); źródło dawało wtedy obszar o szerokości zero
+			if startOk && endOk {
+				if endIndex < startIndex {
+					startIndex, endIndex = endIndex, startIndex
+				} else if endIndex == startIndex {
+					endOk = false
+				}
+			}
+			if index, ok := startIndex, startOk; ok {
 				placed = true
 				if index < len(positions) {
 					from = positions[index]
@@ -2456,7 +2475,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 					from = positions[index-1] + sizes[index-1][0]
 				}
 			}
-			if index, ok := resolve(end, "end"); ok {
+			if index, ok := endIndex, endOk; ok {
 				placed = true
 				if index > 0 {
 					to = positions[index-1] + sizes[index-1][0]
