@@ -2932,6 +2932,8 @@ func quotes(tokens []Token, _ string) pr.CssProperty {
 			return pr.Quotes{Tag: pr.Auto}
 		case "none":
 			return pr.Quotes{Tag: pr.None}
+		case "match-parent": // gopdfgo: CSS Content 3 § 4.1; źródło odrzucało tę wartość
+			return pr.Quotes{Tag: pr.MatchParent}
 		}
 	}
 	if len(tokens) > 0 && len(tokens)%2 == 0 {

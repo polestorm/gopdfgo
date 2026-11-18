@@ -113,8 +113,8 @@ func (s Quote) isInnerContent()     {}
 type ContentImage struct{ Image Image }
 
 func (s ContentImage) isInnerContent() {}
-func (s AttrData) isInnerContent()  {}
-func (s VarData) isInnerContent()   {}
+func (s AttrData) isInnerContent()     {}
+func (s VarData) isInnerContent()      {}
 
 func (c ContentProperty) AsString() (value string) {
 	return string(c.Content.(String))

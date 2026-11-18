@@ -172,6 +172,8 @@ func NewKeyword(s string) Keyword {
 		return String_
 	case "url":
 		return Url
+	case "match-parent":
+		return MatchParent
 	default:
 		return 0
 	}
@@ -345,6 +347,8 @@ func (t Keyword) String() string {
 		return "string"
 	case Url:
 		return "url"
+	case MatchParent:
+		return "match-parent"
 	default:
 		return fmt.Sprintf("unknown keyword %d", t)
 	}

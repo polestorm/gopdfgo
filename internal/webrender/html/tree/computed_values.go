@@ -14,6 +14,7 @@ import (
 	"github.com/polestorm/gopdfgo/internal/webrender/css/parser"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
+	"golang.org/x/net/html"
 )
 
 // Convert *specified* property values (the result of the cascade and
@@ -118,6 +119,7 @@ var (
 		pr.PLineHeight:    lineHeight,
 		pr.PAnchor:        anchor,
 		pr.PLang:          lang,
+		pr.PQuotes:        quotes,
 		pr.PTabSize:       tabSize,
 		pr.PTransform:     transforms,
 		pr.PBoxShadow:     boxShadows,
@@ -1091,6 +1093,52 @@ func lang(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.Css
 		return pr.TaggedString{S: s}
 	}
 	return pr.TaggedString{S: value.S}
+}
+
+// quotes (gopdfgo) oblicza quotes: match-parent (CSS Content 3 § 4.1) jako cudzysłowy rodzica.
+// Gdy rodzic ma auto, jego cudzysłowy dobiera się według jego języka tak jak przy
+// generowaniu treści (boxes.quoteLanguage): element z własnym atrybutem lang bierze
+// cudzysłowy języka swojego rodzica.
+func quotes(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.Quotes)
+	if value.Tag != pr.MatchParent {
+		return value
+	}
+	if computer.parentStyle == nil {
+		return pr.Quotes{Tag: pr.Auto}
+	}
+	parentQuotes := computer.parentStyle.GetQuotes()
+	if parentQuotes.Tag != pr.Auto {
+		return parentQuotes
+	}
+	language := computer.parentStyle.GetLang().S
+	if node, ok := computer.ownElement().(*utils.HTMLNode); ok && node != nil {
+		parent := node.Parent
+		if computer.pseudoType != "" {
+			parent = (*html.Node)(node)
+		}
+		langOf := func(n *html.Node) (string, bool) {
+			for _, attr := range n.Attr {
+				if attr.Key == "lang" {
+					return attr.Val, true
+				}
+			}
+			return "", false
+		}
+		if parent != nil {
+			if _, has := langOf(parent); has {
+				language = ""
+				for n := parent.Parent; n != nil; n = n.Parent {
+					if lang, has := langOf(n); has {
+						language = lang
+						break
+					}
+				}
+			}
+		}
+	}
+	open, close := text.GetLangQuotes(language)
+	return pr.Quotes{Open: open, Close: close}
 }
 
 // Compute the “tab-size“ property.
