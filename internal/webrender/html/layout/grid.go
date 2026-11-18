@@ -262,30 +262,31 @@ func getLine(line pr.GridLine, lines []pr.GridNames, side string) (isSpan bool, 
 				coord.i = len(lines) + number
 			}
 		} else {
-			step := -1
-			if number > 0 {
-				step = 1
-			}
-			L := len(lines) / step
-			hasBroken := false
-			for coord.i = 0; coord.i < L; coord.i++ {
-				line := lines[coord.i*step]
-				if utils.IsIn(line, ident) {
-					number -= step
-					hasBroken = true
-					break
+			// gopdfgo: N-ta linia o tej nazwie, od początku (N > 0) albo od końca siatki jawnej (N < 0);
+			// gdy takich linii brakuje, nazwę mają wszystkie linie niejawne za siatką jawną albo przed nią
+			// (CSS Grid 1 § 8.3). Źródło kończyło szukanie na pierwszej pasującej linii, a przy braku
+			// pasujących wychodziło o jedną linię za daleko.
+			remaining := utils.Abs(number)
+			found := false
+			for k := range lines {
+				i := k
+				if number < 0 {
+					i = len(lines) - 1 - k
 				}
-				if number == 0 {
-					hasBroken = true
-					break
+				if utils.IsIn(lines[i], ident) {
+					remaining--
+					if remaining == 0 {
+						coord.i, found = i, true
+						break
+					}
 				}
 			}
-			if !hasBroken {
-				coord.i += utils.Abs(number)
-			}
-
-			if step == -1 {
-				coord.i = len(lines) - 1 - coord.i
+			if !found {
+				if number > 0 {
+					coord.i = len(lines) - 1 + remaining
+				} else {
+					coord.i = -remaining
+				}
 			}
 		}
 	}
@@ -525,13 +526,7 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 			if direction == 'x' {
 				// gopdfgo: wkład minimalny elementu z podanym min-width to ten min-width z obramowaniem,
 				// odstępem i marginesami, a nie szerokość min-content (CSS Grid 1 § 6.6, § 11.5)
-				minimum := func() pr.Float {
-					if minWidth := item.Box().Style.GetMinWidth(); minWidth.Tag != pr.Auto && minWidth.Unit == pr.Px &&
-						item.Box().Style.GetWidth().Tag == pr.Auto {
-						return marginWidth(item.Box(), minWidth.Value, true, true)
-					}
-					return minContentWidth(context, item, true)
-				}
+				minimum := func() pr.Float { return gridItemMinimumWidth(context, item, sizingFunctions, i, span) }
 				switch sizeContribution {
 				case 'm':
 					space = minimum()
@@ -563,6 +558,9 @@ func distributeExtraSpace(context *layoutContext, affectedSizes, affectedTracksT
 				item, _, _ = blockLevelLayout(context, item.(bo.BlockLevelBoxITF), -pr.Inf, nil,
 					containingBlock, true, nil, nil, nil, false, -1)
 				space = item.Box().MarginHeight() + shim
+				if sizeContribution == 'm' {
+					space = gridItemMinimumHeight(item, sizingFunctions, i, span, space)
+				}
 			}
 			for _, sizes := range tracksSizes[min(i, len(tracksSizes)):min(i+span, len(tracksSizes))] {
 				space -= sizes[affectedSizes].V()
@@ -734,7 +732,7 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 		}
 		if direction == 'y' {
 			// TODO: Find a better way to get height.
-			height := pr.Float(0)
+			height, minimumHeight := pr.Float(0), pr.Float(0)
 			for _, child := range children {
 				pos := childrenPositions[child]
 				x, _, width, _ := pos.unpack()
@@ -758,12 +756,15 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 				child, _, _ = blockLevelLayout(context, child.(bo.BlockLevelBoxITF), bottomSpace, nil,
 					parent.Box(), true, nil, nil, nil, false, -1)
 				height = max(height, child.Box().MarginHeight()+shim)
+				minimumHeight = max(minimumHeight, gridItemMinimumHeight(child, sizingFunctions, i, 1, child.Box().MarginHeight()+shim))
 			}
 			if isFr(maxFunction) {
 				frContent[i] = height
 			}
-			if minFunction.Tag == pr.MinContent || minFunction.Tag == pr.MaxContent || minFunction.Tag == pr.Auto {
+			if minFunction.Tag == pr.MinContent || minFunction.Tag == pr.MaxContent {
 				sizes[0] = height
+			} else if minFunction.Tag == pr.Auto {
+				sizes[0] = minimumHeight
 			}
 			if maxFunction.Tag == pr.MinContent || maxFunction.Tag == pr.MaxContent {
 				sizes[1] = height
@@ -791,10 +792,11 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			sizes[0] = ma
 		} else if minFunction.Tag == pr.Auto {
 			// TODO: Handle min-/max-content constrained parents.
-			// TODO: Use real "minimum contributions".
+			// gopdfgo: wkład minimalny elementu (CSS Grid 1 § 11.5 krok 2, § 6.6); źródło brało
+			// szerokość min-content
 			ma := pr.Float(0)
 			for _, child := range children {
-				if v := minContentWidth(context, child, true); v > ma {
+				if v := gridItemMinimumWidth(context, child, sizingFunctions, i, 1); v > ma {
 					ma = v
 				}
 			}
@@ -983,11 +985,11 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			flexFactorSum := pr.Float(0)
 			for i, sizes := range tracksSizes {
 				maxFunction := sizingFunctions[i][1]
-				if isFr(maxFunction) {
+				// gopdfgo: ścieżka uznana za nieelastyczną zachowuje swój rozmiar bazowy, więc nie oddaje go
+				// do pozostałego miejsca (CSS Grid 1 § 11.7.1); źródło doliczało rozmiar każdej ścieżki fr
+				if isFr(maxFunction) && !inflexibleTracks[i] {
 					leftoverSpace += sizes[0].V()
-					if !inflexibleTracks[i] {
-						flexFactorSum += maxFunction.Value
-					}
+					flexFactorSum += maxFunction.Value
 				}
 			}
 			flexFactorSum = max(1, flexFactorSum)
@@ -1011,7 +1013,8 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			maxFunction := sizingFunctions[i][1]
 			if isFr(maxFunction) {
 				if maxFunction.Value > 1 {
-					flexFraction = max(flexFraction, maxFunction.Value*sizes[0].V())
+					// gopdfgo: rozmiar bazowy dzielony przez współczynnik (CSS Grid 1 § 11.7); źródło mnożyło
+					flexFraction = max(flexFraction, sizes[0].V()/maxFunction.Value)
 				} else {
 					flexFraction = max(flexFraction, sizes[0].V())
 				}
@@ -1156,6 +1159,11 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// zawierającym, tym pudełkiem jest obszar wskazany przez grid-row i grid-column (linie auto to krawędzie
 	// odstępu wewnętrznego kontenera). W źródle były układane jak zwykłe elementy siatki.
 	var positionedChildren []Box
+	// gopdfgo: kolejność w dokumencie, zob. niżej przy zastępnikach
+	domOrder := make(map[Box]int, len(box_.Box().Children))
+	for i, child := range box_.Box().Children {
+		domOrder[child] = i
+	}
 	for _, child := range box_.Box().Children {
 		if child.Box().IsAbsolutelyPositioned() {
 			positionedChildren = append(positionedChildren, child)
@@ -1226,20 +1234,26 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		}
 	}
 
-	if gridAreas.IsNone() {
-		gridAreas = pr.GridTemplateAreas{{""}}
-	}
-
 	rows := getTemplateTracks(style.GetGridTemplateRows(), box.Height, rowGap)
 	columns := getTemplateTracks(style.GetGridTemplateColumns(), box.Width, columnGap)
 	rowsFitFirst, rowsFitCount := autoFitRange(style.GetGridTemplateRows(), box.Height, rowGap)
 	columnsFitFirst, columnsFitCount := autoFitRange(style.GetGridTemplateColumns(), box.Width, columnGap)
 
-	// Adjust rows number
+	// gopdfgo: bez grid-template-areas siatka jawna ma tyle ścieżek, ile podają grid-template-rows
+	// i grid-template-columns, także zero (CSS Grid 1 § 7.1); źródło dawało wtedy siatkę 1×1 z jedną
+	// ścieżką auto, przez co linie niejawne były numerowane o jedną dalej
 	gridAreasColumns := 0
-	if len(gridAreas) != 0 {
+	if gridAreas.IsNone() {
+		gridAreasColumns = (len(columns) - 1) / 2
+		gridAreas = make(pr.GridTemplateAreas, (len(rows)-1)/2)
+		for i := range gridAreas {
+			gridAreas[i] = make([]string, gridAreasColumns)
+		}
+	} else if len(gridAreas) != 0 {
 		gridAreasColumns = len(gridAreas[0])
 	}
+
+	// Adjust rows number
 	rowsDiff := (len(rows)-1)/2 - len(gridAreas)
 	if rowsDiff > 0 {
 		for c := 0; c < rowsDiff; c++ {
@@ -1262,6 +1276,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			columns = append(columns, autoColumns.Next(), pr.GridNames{})
 		}
 	}
+	explicitColumns, explicitRows := (len(columns)-1)/2, len(gridAreas)
 
 	// Add implicit line names
 	// gopdfgo: każdy obszar nazwany daje liniom na swoich krawędziach nazwy <obszar>-start i <obszar>-end
@@ -1344,6 +1359,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		autoRows, autoColumns = autoColumns, autoRows
 		autoRowsBack, autoColumnsBack = autoColumnsBack, autoRowsBack
 		gridAreas = transposeAreas(gridAreas)
+		explicitColumns, explicitRows = explicitRows, explicitColumns
 	}
 
 	// 1. Run the grid placement algorithm.
@@ -1390,10 +1406,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// 1.3 Determine the columns in range the implicit grid.
 	// 1.3.1 Start with the columns from the explicit grid.
 	implicitX1 := 0
-	implicitX2 := 0
-	if len(gridAreas) != 0 {
-		implicitX2 = len(gridAreas[0])
-	}
+	implicitX2 := explicitColumns
 	// 1.3.2 Add columns to the beginning and end of the implicit grid.
 	var remainingGridItems []Box
 	for _, child := range children {
@@ -1432,7 +1445,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 
 	// 1.4 Position the remaining grid items.
 	implicitY1 := 0
-	implicitY2 := len(gridAreas)
+	implicitY2 := explicitRows
 	for _, position := range childrenPositions {
 		_, y, _, height := position.unpack()
 		implicitY1 = min(y, implicitY1)
@@ -1442,7 +1455,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// wierszy za jawnym początkiem. Źródło dopisywało je w kilku miejscach i myliło się o jeden przy
 	// przejściu kursora do nowego wiersza, więc siatka o n ≥ 3 wierszach dostawała 3n − 4 ścieżki;
 	// puste nie miały wysokości, ale każda dokładała row-gap.
-	rowsEnd := len(gridAreas)
+	rowsEnd := explicitRows
 	growRows := func(end int) {
 		for ; rowsEnd < end; rowsEnd++ {
 			rows = append(rows, autoRows.Next(), pr.GridNames{})
@@ -1651,11 +1664,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	for c := 0; c < -implicitX1; c++ {
 		columns = append([]pr.GridSpec{pr.GridNames{}, autoColumnsBack.Next()}, columns...)
 	}
-	start := 0
-	if len(gridAreas) != 0 {
-		start = len(gridAreas[0])
-	}
-	for c := start; c < implicitX2; c++ {
+	for c := explicitColumns; c < implicitX2; c++ {
 		columns = append(columns, autoColumns.Next(), pr.GridNames{})
 	}
 	for c := 0; c < -implicitY1; c++ {
@@ -2084,9 +2093,12 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		childB.PositionX = columnsPositions[xi]
 		childB.PositionY = rowsPositions[yi] - skipHeight
 		cbW, cbH := box.ContainingBlock()
-		resolveSizes(context, child, bo.MaybePoint{cbW, cbH})
 		widthF := (sum0(pySlice(columnsSizes, xi, xi+width)) + pr.Float(width-1)*columnGap)
 		heightF := (sum0(pySlice(rowsSizes, yi, yi+height)) + pr.Float(height-1)*rowGap)
+		// gopdfgo: procentowe marginesy i odstępy wewnętrzne elementu siatki odnoszą się do szerokości
+		// jego obszaru siatki, który jest jego blokiem zawierającym (CSS Grid 1 § 6.2, § 6.5); źródło
+		// brało szerokość kontenera
+		resolveSizes(context, child, bo.MaybePoint{widthF, cbH})
 		childWidth := widthF - (childB.MarginLeft.V() + childB.BorderLeftWidth + childB.PaddingLeft.V() +
 			childB.MarginRight.V() + childB.BorderRightWidth + childB.PaddingRight.V())
 		childHeight := heightF - (childB.MarginTop.V() + childB.BorderTopWidth + childB.PaddingTop.V() +
@@ -2282,6 +2294,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 
 		// TODO: Take care of page fragmentation.
 		newChildren = append(newChildren, newChild)
+		if index, ok := domOrder[thisPageChildren[childIndex]]; ok {
+			domOrder[newChild] = index
+		}
 		lastRow := min(yi+height-1, len(rowsPositions)-1)
 		placedItems = append(placedItems, placedItem{newChild, yi, lastRow, xi, len(placedItems)})
 		// gopdfgo: uczestnicy wyrównania do linii bazowej. Element rozpięty na kilka wierszy uczestniczy
@@ -2569,6 +2584,10 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		}
 	}
 
+	// gopdfgo: pudełka pozycjonowane bez z-index maluje się w kolejności dokumentu (CSS 2.1 dodatek E,
+	// krok 8), więc zastępnik dziecka pozycjonowanego trafia przed elementy siatki, które w dokumencie są
+	// po nim; źródło dopisywało zastępniki na koniec, więc zasłaniały późniejsze elementy pozycjonowane
+	newChildren = interleaveByDocumentOrder(newChildren, domOrder)
 	box_ = bo.CopyWithChildren(box_, newChildren)
 	if ownsPositioned {
 		for _, absoluteBox := range *absoluteBoxes {
@@ -2610,6 +2629,108 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	}
 
 	return box_, blockLayout{resumeAt, nil, tree.PageBreak{Break: "any"}, false}, newShims
+}
+
+// gridItemMinimumWidth (gopdfgo) zwraca wkład minimalny elementu siatki w szerokość ścieżek od first
+// do first+span-1 (CSS Grid 1 § 11.5): zewnętrzną szerokość przy min-width jako szerokości. Minimum
+// automatyczne (§ 6.6) to szerokość min-content, dla kontenera przewijania zero, a gdy wszystkie ścieżki
+// mają stałą funkcję maksimum, nie więcej niż suma tych maksimów.
+func gridItemMinimumWidth(context *layoutContext, item Box, sizingFunctions [][2]pr.TaggedDim, first, span int) pr.Float {
+	box := item.Box()
+	minWidth := box.Style.GetMinWidth()
+	if minWidth.Tag != pr.Auto && minWidth.Unit == pr.Px && box.Style.GetWidth().Tag == pr.Auto {
+		return marginWidth(box, minWidth.Value, true, true)
+	}
+	content := minContentWidth(context, item, true)
+	if minWidth.Tag != pr.Auto {
+		return content
+	}
+	if isGridScrollContainer(item) && box.Style.GetWidth().Tag == pr.Auto {
+		return marginWidth(box, 0, true, true)
+	}
+	// gopdfgo: element zastępowany z procentową szerokością albo max-width jest ściśliwy: jego wkład
+	// min-content liczy się z procentem odniesionym do zera (CSS Sizing 3 § 5.2.2)
+	if bo.ReplacedT.IsInstance(item) && (box.Style.GetWidth().Unit == pr.Perc || box.Style.GetMaxWidth().Unit == pr.Perc) {
+		return marginWidth(box, 0, true, true)
+	}
+	if limit, fixed := fixedMaxLimit(sizingFunctions, first, span); fixed {
+		content = min(content, max(limit, marginWidth(box, 0, true, true)))
+	}
+	return content
+}
+
+// gridItemMinimumHeight (gopdfgo) to samo w osi wierszy; outer to zewnętrzna wysokość ułożonego elementu.
+func gridItemMinimumHeight(item Box, sizingFunctions [][2]pr.TaggedDim, first, span int, outer pr.Float) pr.Float {
+	box := item.Box()
+	style := box.Style
+	if style.GetMinHeight().Tag != pr.Auto || style.GetHeight().Tag != pr.Auto {
+		return outer
+	}
+	height, ok := box.Height.(pr.Float)
+	if !ok {
+		return outer
+	}
+	extra := outer - height
+	if isGridScrollContainer(item) {
+		return extra
+	}
+	if limit, fixed := fixedMaxLimit(sizingFunctions, first, span); fixed {
+		return min(outer, max(limit, extra))
+	}
+	return outer
+}
+
+// interleaveByDocumentOrder (gopdfgo) wstawia zastępniki dzieci pozycjonowanych między elementy siatki
+// według kolejności w dokumencie, nie zmieniając kolejności samych elementów.
+func interleaveByDocumentOrder(children []Box, domOrder map[Box]int) []Box {
+	var items, placeholders []Box
+	for _, child := range children {
+		if placeholder, ok := child.(*AbsolutePlaceholder); ok {
+			if _, known := domOrder[placeholder.AliasBox]; known {
+				placeholders = append(placeholders, child)
+				continue
+			}
+		}
+		items = append(items, child)
+	}
+	if len(placeholders) == 0 {
+		return children
+	}
+	result := make([]Box, 0, len(children))
+	next := 0
+	for _, item := range items {
+		if index, ok := domOrder[item]; ok {
+			for next < len(placeholders) && domOrder[placeholders[next].(*AbsolutePlaceholder).AliasBox] < index {
+				result = append(result, placeholders[next])
+				next++
+			}
+		}
+		result = append(result, item)
+	}
+	return append(result, placeholders[next:]...)
+}
+
+// isGridScrollContainer (gopdfgo): kontener przewijania (zob. isScrollContainer) niebędący elementem
+// zastępowanym; obraz z overflow: hidden z arkusza domyślnego zachowuje minimum z treści (CSS Grid 1 § 6.6).
+func isGridScrollContainer(item Box) bool {
+	return isScrollContainer(item.Box().Style) && !bo.ReplacedT.IsInstance(item)
+}
+
+// fixedMaxLimit (gopdfgo) zwraca sumę funkcji maksimum ścieżek od first do first+span-1, gdy wszystkie
+// są stałymi długościami w pikselach.
+func fixedMaxLimit(sizingFunctions [][2]pr.TaggedDim, first, span int) (pr.Float, bool) {
+	limit := pr.Float(0)
+	if first < 0 || first+span > len(sizingFunctions) {
+		return 0, false
+	}
+	for j := first; j < first+span; j++ {
+		f := sizingFunctions[j][1]
+		if !isLength(f) || f.Unit != pr.Px {
+			return 0, false
+		}
+		limit += f.Value
+	}
+	return limit, true
 }
 
 // pySlice zwraca s[start:end] według reguł wycinków Pythona: indeks ujemny liczy się od końca,
