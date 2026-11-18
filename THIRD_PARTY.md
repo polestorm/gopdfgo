@@ -919,6 +919,54 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- ósma paczka tekstu, 2026-11-18 (praca pomocnika):
+  - nowa właściwość `text-autospace` (CSS Text 4 § 6.4; `css/properties`, `css/validation`, `text/autospace.go`,
+    `text/engine_gotext.go`): wartość początkowa `normal` dodaje 1/8 ic między ideogramem a literą lub cyfrą
+    innego pisma, wewnątrz jednego pudełka tekstu; na granicy, na której łamie się wiersz, odstęp znika; przy
+    niezerowym `letter-spacing` odstępu nie dodajemy (test WPT `letter-spacing-200`; norma tego nie
+    rozstrzyga). Arkusz domyślny: `code, kbd, listing, plaintext, pre, samp, tt, xmp { text-autospace:
+    no-autospace }` jak w Chromium. Granic między elementami nie uwzględniamy. Źródło właściwości nie znało;
+  - synteza kapitalików (CSS Fonts 4 § 7.4; `text/small_caps.go`): gdy font nie ma cechy `smcp` (`c2sc`,
+    `pcap`, `c2pc`) i `font-synthesis-small-caps` nie jest `none`, małe litery są zamieniane na wielkie
+    z pełnym odwzorowaniem Unicode (ß → SS) i składane w rozmiarze 0,7 jak w Chromium; znak rozwinięty to
+    jeden klaster, a jego litery dostają odstęp między literami; `/ToUnicode` (`text/draw`) mapuje glif na
+    wielką literę. Źródło zostawiało małe litery;
+  - `text/engine_gotext.go` (`nonBreakingHyphenFallback`): przebieg z samych U+2011 dostaje font sąsiedniego
+    przebiegu, jeśli ten ma U+2010 (HarfBuzz rysuje wtedy U+2011 glifem U+2010); źródło dawało font zastępczy;
+  - `text/engine_gotext.go` (`oddLetterSpacingRemainder`): go-text dzieli odstęp na połowy obcięte do 1/64 px,
+    więc przy nieparzystej liczbie jednostek każdy odstęp był o 1/64 px za krótki; brakująca jednostka trafia
+    za klaster; `joinersWithoutSpacing`, `clusterIgnorableForSpacing`: odstęp między literami pomija także
+    klaster złożony z kilku znaków Cf;
+  - `text/engine_gotext.go` (`splitFirstLineRaw`): tekst do 128 znaków kształtowany w całości zamiast
+    początku z `shortTextHint`; ligatura obejmująca spację rozpadała się i wiersz łamał się przy spacji
+    (testy WPT `font-features-across-space-*`);
+- ósma paczka CSS 2 i kolumn, 2026-11-18 (praca pomocnika):
+  - `html/layout/block.go`: dalsze ciągi elementów pływających na górze kolumny są układane w układzie bloku
+    zawierającego z poprzedniej kolumny i przesuwane razem; w źródle każdy był przesuwany od razu, więc
+    następny omijał go i spadał pod kolumnę (CSS 2.1 § 9.5.1);
+  - `html/layout/column.go` (`floatsBottom`): równoważenie liczy elementy pływające także w potomkach, które
+    nie zakładają kontekstu formatowania; w źródle tylko dzieci kolumny;
+  - `html/layout/float.go` (`clearBeforeResume`, `clearedPosition`), `block.go` (`lineBoxLayout`),
+    `html/boxes/boxes_tree.go` (`LineBox.Cleared`): `<br>` z `clear`, gdy oczyszczany element pływający
+    ciągnie się w następnym fragmentatorze, przenosi tam resztę pudełka liniowego, a wiersz wznowiony po nim
+    stoi poniżej elementów pływających (HTML § 15.3.3, CSS 2.1 § 9.5.2);
+  - `html/layout/block.go` (`outOfFlowLayout`): element pływający z treścią zaczynający się na samym dole
+    kolumny albo strony przechodzi dalej, a przeniesiony w całości nie zgłasza dalszego ciągu (w źródle stał
+    w następnej kolumnie dwa razy); w pustej kolumnie bez miejsca nawet na obramowania blok w przepływie
+    zużywa 1px treści (CSS Break 3 § 4.4, jak Chromium);
+  - `html/layout/layout.go` (`brokenBox.owner`, `columnOwner`), `column.go` (`takeOwnedFloats`,
+    `placeOwnedFloats`, `restoreOwnedFloats`, `hasOwnedFloats`): dalsze ciągi pudełek poza przepływem należą
+    do kontenera kolumn, w którym je podzielono; zagnieżdżony kontener ciągnie się w następnej kolumnie
+    zewnętrznej i umieszcza je w swojej pierwszej kolumnie (CSS Fragmentation 3 § 4.4); w źródle przejmował je
+    kontener zewnętrzny;
+  - `css/selector/parser.go`: pseudoelement `::column` (CSS Multicol 2) jest poprawny; nie stosuje się do niego
+    żadna właściwość;
+  - `xhtml.go` (nasz, `unwrapCDATA`): sekcje CDATA w treści dokumentu XHTML są tekstem (XML 1.0 § 2.7);
+    parser HTML5 czytał je jako komentarz;
+  - `html/layout/inline.go` (`inlineBlockBoxLayout`, poprawka spoza pomocnika): pudełko liniowo-blokowe może
+    być kontenerem kolumn (CSS Multicol 1 § 2); układamy przejściowy `BlockBox` o tych samych polach
+    i przenosimy wynik z powrotem; w źródle treść szła jak w zwykłym bloku. Linie między kolumnami takiego
+    pudełka jeszcze nie są widoczne (`drawColumnRules` jest wołane, przyczyna nieustalona);
 - reszta CSS 2, 2026-11-18 (praca pomocnika):
   - `text/engine_gotext.go` (`familyAvailable`, `needsDefaultFamily`): gdy lista rodzin nie zawiera rodziny
     generycznej ani żadnej rodziny dostępnej (wprost lub przez podstawienie go-text), na końcu zapytania

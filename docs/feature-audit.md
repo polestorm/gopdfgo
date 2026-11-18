@@ -1935,3 +1935,32 @@ Przy scaleniu: konflikty w plikach generowanych właściwości (rozwiązane w ź
 nowa); `list-style-image` zrobione niezależnie przez dwóch pomocników (została jedna implementacja);
 przejęty `TestListStyleImage` oczekiwał odstępu 0.5em obrazu znacznika, teraz 7 px jak w Chromium.
 Czas pakietu `html/layout` na wolnej maszynie: 54 s (podczas pracy pomocników ponad 10 min, z obciążenia).
+
+## Ósma paczka: tekst; CSS 2 i kolumny (2026-11-18)
+
+Od tej paczki najwyżej dwóch pomocników naraz, z rozłącznymi plikami (decyzja użytkownika po zdublowanej pracy
+w siódmej paczce): tekst (`inline.go`, `text/`) oraz CSS 2 i kolumny (`block.go`, `column.go`, `float.go`,
+`absolute.go`, parser, selektory). Listy testów rozłączne (67 i 103).
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7817 | 7830 (85,8%; ściśle 7425, krawędziowo 405) |
+| bez funkcji eksperymentalnych (8140) | 7681 | 7694 (94,5%) |
+| tekst, tła, fonty (1839) | 1657 | 1668 (90,7%; `css-text` 811, `css-fonts` 285) |
+| reftesty druku (340) | 245 | 245 |
+| zyski według obszaru | | CSS 2: 8, tekst 6, fonty 5, kolumny 5 |
+
+24 zyski, 0 strat; korpus bez zmian (poza znanymi `11-edge-cases` i `17-tables` wobec binarki z 5ef9e30).
+
+- **Tekst:** `text-autospace` (CSS Text 4 § 6.4), synteza kapitalików z ß → SS, ligatury obejmujące spację
+  przy łamaniu wierszy, U+2011 w foncie sąsiedniego tekstu, reszta 1/64 px w `letter-spacing`.
+- **CSS 2 i kolumny:** dalsze ciągi elementów pływających w kolumnach przesuwane razem, równoważenie licząc
+  elementy pływające w potomkach, `<br clear>` przez granicę kolumny (klasyczne zamykanie elementów
+  pływających nie działało w kolumnach wcale), element pływający na dole kolumny, własność dalszych ciągów
+  w zagnieżdżonych kolumnach, `::column`, CDATA w XHTML.
+- **Moja poprawka spoza plików pomocników:** `inline-block` jako kontener kolumn; linie między takimi
+  kolumnami jeszcze nie są widoczne (otwarte).
+
+Zgłoszone przez pomocników do zrobienia w cudzych plikach: szerokość min-content z ZWSP i `text-indent`
+(`preferred.go`), kolor obrysu `-webkit-text-stroke` (`draw_text.go`), `float-nowrap-4` i `::first-line`
+w elementach pływających (`inline.go`).
