@@ -1100,10 +1100,14 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// wystawałby poza stronę (przed nim są tylko obramowania i odstępy przodków).
 	// W kolumnach blok dzielimy zawsze: równoważenie kolumn tego wymaga, a wysokość kolumny (nie strony)
 	// jest tam miarą tego, co się mieści.
-	splittable := resumedRemainder || (isStart && (box.BorderHeight() > context.pageHeight || (pageIsEmpty && box.IsInNormalFlow()) || context.inColumn))
+	// gopdfgo: dalszy ciąg bloku o podanej wysokości, którego dzieci podzieliły się między strony
+	// (resumedFixed), też dzielimy, gdy jego reszta wysokości nie mieści się na tej stronie; wcześniej
+	// reszta wystawała poza stronę i ginęła (utrata treści). Element pozycjonowany bezwzględnie też dzielimy
+	// na początku strony: nie da się go przenieść na następną (CSS Fragmentation 3 § 5.1).
+	splittable := resumedRemainder || resumedFixed || (isStart && (box.BorderHeight() > context.pageHeight || (pageIsEmpty && (box.IsInNormalFlow() || box.IsAbsolutelyPositioned())) || context.inColumn))
 	// break-inside: avoid nie da się spełnić dla bloku wyższego niż strona; taki blok przenosimy najpierw
 	// na początek strony i dopiero tam dzielimy.
-	if splittable && !resumedRemainder && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
+	if splittable && !resumedRemainder && !resumedFixed && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
 		splittable = false
 	}
 	// gopdfgo: blok o podanej wysokości, który w kolumnach jest blokiem zawierającym elementy

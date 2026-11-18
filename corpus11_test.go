@@ -65,4 +65,35 @@ func TestCorpus11(t *testing.T) {
 	// lang="en" dzieli wyrazy według słownika en-US (responsi-bilities), nie en-GB (respons-ibilities)
 	same("hyphenation-en-us", `<p lang="en" style="hyphens:auto;width:190px;margin:0;color:green;hyphenate-character:'-'">responsibilities</p>`,
 		`<p style="margin:0;color:green">responsi-<br>bilities</p>`)
+
+	// dalszy ciąg bloku o podanej wysokości (225 px), którego dziecko przeszło na następną stronę, dzieli
+	// się dalej: strony 100 px, 100 px i 25 px (wcześniej dwie strony, a ostatnie 25 px ginęło)
+	pages := func(name, body string) [][]byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(`<style>@page { size: 100px 100px; margin: 0 } body { margin: 0 }
+			div { background: green } .b { background: blue } .r { background: red } .p { break-after: page }</style>`+body), Options{Fonts: fonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rasterize(t, result.PDF, dir, name)
+	}
+	samePages := func(name, test, reference string) {
+		t.Helper()
+		got, want := pages(name, test), pages(name+"-ref", reference)
+		if len(got) != len(want) {
+			t.Errorf("%s: %d stron, oczekiwane %d", name, len(got), len(want))
+			return
+		}
+		for i := range got {
+			if n := differentPixels(got[i], want[i]); n != 0 {
+				t.Errorf("%s: strona %d, %d pikseli różni się od wzorca", name, i+1, n)
+			}
+		}
+	}
+	samePages("fixed-height-continuation", `<div style="height:225px"><div class=b style="height:50px"></div><div class=r style="width:50px;height:100px"></div></div>`,
+		`<div class=p style="height:100px"><div class=b style="height:50px"></div></div><div class=p style="height:100px"><div class=r style="width:50px;height:100px"></div></div><div style="height:25px"></div>`)
+	// element pozycjonowany bezwzględnie nie wyższy niż strona, który na nią nie wchodzi, dzieli się
+	// (nie da się go przenieść): top 50 px, wysokość 100 px -> 50 px na każdej stronie
+	samePages("abspos-split", `<div style="position:absolute;top:50px;width:100px;height:100px"></div><div class=p style="background:none"></div>`,
+		`<div class=p style="margin-top:50px;height:50px"></div><div style="height:50px"></div>`)
 }
