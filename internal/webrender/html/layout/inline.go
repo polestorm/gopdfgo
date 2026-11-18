@@ -605,15 +605,18 @@ func skipFirstWhitespace(box Box, skipStack tree.ResumeStack) (tree.ResumeStack,
 	if IsLine(box) {
 		children := box.Box().Children
 		if index == 0 && len(children) == 0 {
-			return nil, false
+			// gopdfgo: puste pudełko liniowe bez marginesów, dopełnienia i obramowań w poziomie nie
+			// zatrzymuje usuwania spacji z początku wiersza (CSS Text 3 § 4.1.2); tak wygląda np.
+			// reszta pudełka po wydzieleniu z niego bloku. Źródło kończyło tu usuwanie spacji.
+			return nil, isBareEmptyInline(box)
 		}
 		result, cont := skipFirstWhitespace(children[index], nextSkipStack)
-		if cont {
+		for cont {
 			index += 1
 			if index >= len(children) {
 				return nil, true
 			}
-			result, _ = skipFirstWhitespace(children[index], nil)
+			result, cont = skipFirstWhitespace(children[index], nil)
 		}
 		if index != 0 || result != nil {
 			return tree.ResumeStack{index: result}, false

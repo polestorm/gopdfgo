@@ -850,6 +850,17 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		if laidOut, ok := placeholder.AliasBox.(bo.BlockLevelBoxITF); ok {
 			rootBox = laidOut
 		}
+	} else if rootBox.Box().IsFloated() && resumeAt == nil {
+		// gopdfgo: element główny pływający jest układany jak element pływający w bloku początkowym:
+		// szerokość dopasowana do treści i dosunięcie do wskazanej krawędzi (CSS 2.1 § 9.5, § 10.3.5;
+		// test WPT float-root). Źródło rozciągało go na całą szerokość strony. Na kolejnych stronach
+		// (wznowienie) zostaje układ blokowy.
+		tmp.nextPage = tree.PageBreak{Break: "any"}
+		var laidOut Box
+		laidOut, tmp.resumeAt = floatLayout(context, rootBox, &initialContainingBlock.BoxFields, &positionedBoxes, &positionedBoxes, 0, nil)
+		if laidOut, ok := laidOut.(bo.BlockLevelBoxITF); ok {
+			rootBox = laidOut
+		}
 	} else {
 		rootBox, tmp, _ = blockLevelLayout(context, rootBox, 0, resumeAt,
 			&initialContainingBlock.BoxFields, true, &positionedBoxes, &positionedBoxes, &adjoiningMargins, false, -1)

@@ -610,6 +610,21 @@ func absoluteBlockAlignment(box_ Box) (pr.Float, bool) {
 	return 0, true
 }
 
+// isBareEmptyInline (gopdfgo) podaje, czy pudełko jest liniowym pudełkiem bez dzieci,
+// bez marginesów, dopełnienia i obramowań po bokach, czyli bez żadnego śladu w wierszu.
+func isBareEmptyInline(box Box) bool {
+	if !bo.InlineT.IsInstance(box) || len(box.Box().Children) != 0 {
+		return false
+	}
+	style := box.Box().Style
+	for _, v := range []pr.TaggedDim{style.GetMarginLeft(), style.GetMarginRight(), style.GetPaddingLeft(), style.GetPaddingRight()} {
+		if v.Value != 0 {
+			return false
+		}
+	}
+	return style.GetBorderLeftWidth().Value == 0 && style.GetBorderRightWidth().Value == 0
+}
+
 // contentBeforeInLine (gopdfgo) podaje, czy w wierszu przed zastępnikiem pudełka
 // pozycjonowanego stoi treść, która nadałaby wierszowi wysokość: tekst inny niż
 // spacje, element atomowy albo pudełko liniowe z niezerowym marginesem, dopełnieniem
