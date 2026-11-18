@@ -1913,19 +1913,13 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 // podziału, a przy podziale w nim widać znak z hyphenate-character (CSS Text 3 § 5.4). Źródło
 // dodawało znak tylko przy podziale wewnątrz jednego pudełka tekstu.
 func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
-	var chain []Box
-	box := line
-	for IsLine(box) {
-		chain = append(chain, box)
-		children := box.Box().Children
-		box = nil
-		for i := len(children) - 1; i >= 0; i-- {
-			if children[i].Box().IsInNormalFlow() && !isNilTextBox(children[i]) {
-				box = children[i]
-				break
-			}
-		}
+	// gopdfgo: puste pudełka liniowe za miękkim łącznikiem nie zmieniają tego, że wiersz złamał się
+	// w nim (test WPT hyphens-span-002, „high&shy;<span></span>way”); przesuwamy je o znak dzielenia
+	path, following, found := lastTextBefore(line, nil)
+	if !found || len(path) < 2 {
+		return
 	}
+	chain, box := path[:len(path)-1], path[len(path)-1]
 	textBox, ok := box.(*bo.TextBox)
 	if !ok || textBox.Hyphenated || textBox.SplitInside || len(textBox.Text) == 0 || textBox.Text[len(textBox.Text)-1] != '\u00ad' ||
 		textBox.Style.GetHyphens() == "none" || textBox.TextLayout == nil {
@@ -1941,6 +1935,9 @@ func addSoftHyphenAtBoxEnd(context *layoutContext, line Box) {
 	textBox.Width = v.Width
 	for _, parent := range chain {
 		parent.Box().Width = parent.Box().Width.V() + delta
+	}
+	for _, box := range following {
+		box.Translate(delta, 0, true)
 	}
 }
 
