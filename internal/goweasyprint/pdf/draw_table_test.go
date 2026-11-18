@@ -734,36 +734,32 @@ func TestTables_8Rtl(t *testing.T) {
 func TestTables_9(t *testing.T) {
 	defer testutils.CaptureLogs().AssertNoLogs(t)
 
+	// gopdfgo: nagłówek tabeli wyższy niż ćwierć wysokości strony nie jest powtarzany na następnej
+	// stronie (CSS Tables 3 § 6.2, jak Chrome 157); źródło powtarzało go bez względu na wysokość.
 	assertPixelsEqual(t, `
 		______________________
 		_BBBBBBBBBBBBBBBBBBBB_
 		_BBBBBBBBBBBBBBBBBBBB_
 		_BBBBBBBBBBBBBBBBBBBB_
-		_BBB____R____R____BBB_
-		_BBB____R____R____BBB_
+		_BBB____r____r____BBB_
+		_BBB____r____r____BBB_
 		_BBBBBBBBBBBBBBBBBBBB_
 		_BBBBBBBBBBBBBBBBBBBB_
 		_BBBBBBBBBBBBBBBBBBBB_
-		__R_____R____R_____R__
-		__R_____R____R_____R__
-		__RRRRRRRRRRRRRRRRRR__
-		__R_____R____R_____R__
-		__R_____R____R_____R__
-		__RRRRRRRRRRRRRRRRRR__
+		__R_____r____r_____r__
+		__r_____r____r_____r__
+		__RrrrrrrrrrrrrRrrRr__
+		__r_____r____r_____r__
+		__R_____r____r_____r__
+		__rrrrrrrRrRRrrRrrrR__
 		______________________
 		______________________
 		______________________
 		______________________
-		_BBBBBBBBBBBBBBBBBBBB_
-		_BBBBBBBBBBBBBBBBBBBB_
-		_BBBBBBBBBBBBBBBBBBBB_
-		_BBB____R____R____BBB_
-		_BBB____R____R____BBB_
-		_BBBBBBBBBBBBBBBBBBBB_
-		_BBBBBBBBBBBBBBBBBBBB_
-		_BBBBBBBBBBBBBBBBBBBB_
-		__R_____R____R_____R__
-		__RRRRRRRRRRRRRRRRRR__
+		__rrRrrrrrrrRRrrrrRR__
+		__r_____r____r_____R__
+		__r_____r____r_____r__
+		__RrrrrrrrrrrrrrrrRr__
 		______________________
 		______________________
 		______________________
@@ -771,7 +767,13 @@ func TestTables_9(t *testing.T) {
 		______________________
 		______________________
 		______________________
-    `, `
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+	`, `
       <style>
         @page { size: 22px 18px; margin: 1px; }
         td { border: 1px red solid; width: 4px; height: 2px; }
@@ -787,42 +789,44 @@ func TestTables_9(t *testing.T) {
 func TestTables_10(t *testing.T) {
 	defer testutils.CaptureLogs().AssertNoLogs(t)
 
+	// gopdfgo: nagłówek tabeli wyższy niż ćwierć wysokości strony nie jest powtarzany na następnej
+	// stronie (CSS Tables 3 § 6.2, jak Chrome 157); źródło powtarzało go bez względu na wysokość.
 	assertPixelsEqual(t, `
-        ______________________
-        __RRRRRRRRRRRRRRRRRR__
-        __R_____R____R_____R__
-        __R_____R____R_____R__
-        __RRRRRRRRRRRRRRRRRR__
-        __R_____R____R_____R__
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBB____R____R____BBB_
-        _BBB____R____R____BBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        ______________________
-        ______________________
-        ______________________
-        ______________________
-        __RRRRRRRRRRRRRRRRRR__
-        __R_____R____R_____R__
-        __R_____R____R_____R__
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBB____R____R____BBB_
-        _BBB____R____R____BBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        ______________________
-        ______________________
-        ______________________
-        ______________________
-        ______________________
-    `, `
+		______________________
+		__RrrrrrrRrrrrRRrrRR__
+		__r_____R____R_____R__
+		__r_____R____r_____r__
+		__rrRrrrrRrrrrRrRrrR__
+		__R_____r____R_____R__
+		__r_____R____r_____r__
+		__RrrrrrrrRrrrRRrrrR__
+		__R_____R____R_____r__
+		__r_____R____R_____r__
+		__BBBBBBBBBBBBBBBBBB__
+		__BBBBBBBBBBBBBBBBBB__
+		__BBBBBBBBBBBBBBBBBB__
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBB____r____R____BBB_
+		_BBB____r____R____BBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+	`, `
       <style>
         @page { size: 22px 17px; margin: 1px }
         td { border: 1px red solid; width: 4px; height: 2px; }
@@ -1041,44 +1045,46 @@ func TestTables_15(t *testing.T) {
 
 	// Regression test for colspan in last body line with footer
 	// https://github.com/Kozea/WeasyPrint/issues/1250
+	// gopdfgo: nagłówek tabeli wyższy niż ćwierć wysokości strony nie jest powtarzany na następnej
+	// stronie (CSS Tables 3 § 6.2, jak Chrome 157); źródło powtarzało go bez względu na wysokość.
 	assertPixelsEqual(t, `
-        ______________________
-        __RRRRRRRRRRRRRRRRRR__
-        __R_____R____R_____R__
-        __R_____R____R_____R__
-        __R_____R____R_____R__
-        __RRRRRRRRRRRRRRRRRR__
-        __R_____R____R_____R__
-        __R_____R____R_____R__
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBB____R____R____BBB_
-        _BBB____R____R____BBB_
-        _BBB____R____R____BBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        ______________________
-        ______________________
-        __RRRRRRRRRRRRRRRRRR__
-        __R________________R__
-        __R________________R__
-        __R________________R__
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBB____R____R____BBB_
-        _BBB____R____R____BBB_
-        _BBB____R____R____BBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        _BBBBBBBBBBBBBBBBBBBB_
-        ______________________
-        ______________________
-        ______________________
-        ______________________
-    `, `
+		______________________
+		__rrrRrRrrRrrrrrrrrr__
+		__R_____r____r_____r__
+		__r_____r____r_____r__
+		__r_____r____r_____r__
+		__rrrrrrrrrrrrrrRrrr__
+		__r_____r____r_____R__
+		__r_____r____r_____r__
+		__r_____r____R_____r__
+		__rrrrRrrrrRrrrrrrrr__
+		__r________________R__
+		__R________________r__
+		__R________________r__
+		__BBBBBBBBBBBBBBBBBB__
+		__BBBBBBBBBBBBBBBBBB__
+		__BBBBBBBBBBBBBBBBBB__
+		______________________
+		______________________
+		______________________
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBB____r____r____BBB_
+		_BBB____R____r____BBB_
+		_BBB____r____r____BBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		_BBBBBBBBBBBBBBBBBBBB_
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+		______________________
+	`, `
       <style>
         @page { size: 22px 18px; margin: 1px }
         td { border: 1px red solid; width: 4px; height: 3px; }
@@ -1280,26 +1286,28 @@ func TestTables_21(t *testing.T) {
 func TestTables_22(t *testing.T) {
 	defer testutils.CaptureLogs().AssertNoLogs(t)
 
+	// gopdfgo: nagłówek tabeli wyższy niż ćwierć wysokości strony nie jest powtarzany na następnej
+	// stronie (CSS Tables 3 § 6.2, jak Chrome 157); źródło powtarzało go bez względu na wysokość.
 	assertPixelsEqual(t, `
-      _________________________
-      _rrrrrrrrrrrrrrrrrrrrrrr_
-      _rKKKKKKKKKKrKKKKKKKKKKr_
-      _rKKKKKKKKKKrKKKKKKKKKKr_
-      _rrrrrrrrrrrrrrrrrrrrrrr_
-      _rKKKKKKBBBBrBBBBBBBBBBr_
-      _rKKKKKKBBBBrBBBBBBBBBBr_
-      _rBBBBBBBBBBrBBBBBBBBBBr_
-      _________________________
-      _________________________
-      _rrrrrrrrrrrrrrrrrrrrrrr_
-      _rKKKKKKKKKKrKKKKKKKKKKr_
-      _rKKKKKKKKKKrKKKKKKKKKKr_
-      _rrrrrrrrrrrrrrrrrrrrrrr_
-      _rKKKKKKBBBBrBBBBBBBBBBr_
-      _rKKKKKKBBBBrBBBBBBBBBBr_
-      _rrrrrrrrrrrrrrrrrrrrrrr_
-      _________________________
-    `, `
+		_________________________
+		_RRrRrrrrRrrrrrRRRrRRrRR_
+		_RKKKKKKKKKKrKKKKKKKKKKr_
+		_rKKKKKKKKKKrKKKKKKKKKKR_
+		_rrRrrrRRrrRrRrrrRRrRRRR_
+		_rKKKKKKBBBBrBBBBBBBBBBr_
+		_RKKKKKKBBBBRBBBBBBBBBBR_
+		_rBBBBBBBBBBRBBBBBBBBBBR_
+		_________________________
+		_________________________
+		_RKKKKKKBBBBRBBBBBBBBBBR_
+		_RKKKKKKBBBBrBBBBBBBBBBR_
+		_RrrrRrRrrRrrRrRRRrrrrrR_
+		_________________________
+		_________________________
+		_________________________
+		_________________________
+		_________________________
+	`, `
       <style>
         @font-face { src: url(../resources_test/weasyprint.otf); font-family: weasyprint }
         @page { size: 25px 9px; margin: 1px }

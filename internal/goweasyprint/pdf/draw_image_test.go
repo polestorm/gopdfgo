@@ -429,7 +429,26 @@ func TestImageRepeatInline(t *testing.T) {
 	capt := tu.CaptureLogs()
 	defer capt.AssertNoLogs(t)
 	// Test regression: https://github.com/Kozea/WeasyPrint/issues/808
-	assertPixelsEqual(t, table, `
+	// gopdfgo: nagłówek tabeli wyższy niż ćwierć wysokości strony nie jest powtarzany na następnej
+	// stronie (CSS Tables 3 § 6.2, jak Chrome 157); źródło powtarzało go bez względu na wysokość.
+	assertPixelsEqual(t, `
+		________
+		________
+		__RBBB__
+		__BBBB__
+		__BBBB__
+		__BBBB__
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+	`, `
       <style>
         @page { size: 8px; margin: 0; background: #fff }
         table { border-collapse: collapse; margin: 2px }
@@ -453,7 +472,26 @@ func TestImageRepeatBlock(t *testing.T) {
 	capt := tu.CaptureLogs()
 	defer capt.AssertNoLogs(t)
 	// Test regression: https://github.com/Kozea/WeasyPrint/issues/808
-	assertPixelsEqual(t, table, `
+	// gopdfgo: nagłówek tabeli wyższy niż ćwierć wysokości strony nie jest powtarzany na następnej
+	// stronie (CSS Tables 3 § 6.2, jak Chrome 157); źródło powtarzało go bez względu na wysokość.
+	assertPixelsEqual(t, `
+		________
+		________
+		__RBBB__
+		__BBBB__
+		__BBBB__
+		__BBBB__
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+		________
+	`, `
       <style>
         @page { size: 8px; margin: 0; background: #fff }
         table { border-collapse: collapse; margin: 2px }
