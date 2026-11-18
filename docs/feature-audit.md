@@ -1751,3 +1751,34 @@ widać faktyczne braki w części przypadków. Korpus bez zmian (dokument 19 bli
   z samych białych znaków; `order` a dzieci pozycjonowane; `flow-start`/`flow-end`; wkład min-content
   elementu elastycznego. Siatka: tabela rozciągana dostaje wysokość tylko wtedy, gdy jest niższa niż obszar.
 
+## Czwarta paczka równoległa: ogon CSS 2 i tekst (2026-11-18)
+
+Trzech pomocników (układ CSS 2, `white-space`, reszta CSS Text) i parser CSS 2 u mnie; jeden pełny sondaż
+po scaleniu wszystkiego.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7517 | 7569 (ściśle 7170, krawędziowo 399) |
+| bez funkcji eksperymentalnych (8140) | 7384 | 7436 (91,4%) |
+| tekst, tła, fonty (1839) | 1403 | 1484 (`css-text` 765 z 909) |
+| zyski według obszaru | | tekst 82, CSS 2: 47, tabele 3, kolumny 2, flex 1, content 1 |
+
+Stracone 3, wszystkie wyjaśnione: `content-attr-case-002.xht` (XHTML, wymaga parsera XML, pytanie 25; przechodził,
+bo `attr()` szukało nazwy dosłownie), `flexbox_align-items-stretch-3` (pismo pionowe, przechodził przypadkiem),
+`word-break-break-all-inline-007.tentative` (sprzeczny z nietentatywnym `-009`, który teraz przechodzi). Korpus:
+jedyna zmiana to 8 pikseli narożników zwiniętych obramowań w `17-tables`.
+
+- **Pomocnik, układ CSS 2:** 31 testów i 1 dodatkowy; marginesy pustych dzieci w łańcuchu marginesu rodzica,
+  szerokość podpisu tabeli (CAPMIN), kolejność rysowania bloków z `overflow`, blok wydzielony z pudełka
+  liniowego z `position: relative`, `vertical-align: top/bottom`, linie bazowe tabel. Do tego wdrożone
+  przeze mnie: pusta komórka poza linią bazową wiersza, jak Chromium (ADR 0006; przejęty test
+  `TestTableRowHeight1` poprawiony), co dało 10 testów `*-applies-to-006`.
+- **Pomocnik, `white-space`:** 31 testów; wiszące ciągi białych znaków na końcu wiersza, `break-spaces`
+  z tabulatorami, szerokości wewnętrzne, CR jako spacja, `display: contents`.
+- **Pomocnik, reszta CSS Text:** 44 testy; `wrap-inside: avoid`, `text-transform` (capitalize przez granice,
+  greckie wielkie litery, `math-auto`), `word-space-transform`, `hyphenate-limit-lines`, łamanie na granicach
+  elementów atomowych i z `break-all`, justowanie po tabulatorze.
+- **Parser i selektory (ja):** koniec arkusza w łańcuchu i `url(`, wartości atrybutów HTML bez wielkości liter
+  w selektorach (z flagą `s` w arkuszu wskazówek list), `attr()` małymi literami dla elementów HTML.
+- Narzędzie `chk.sh` uwzględnia teraz odnośniki `rel='match'` w pojedynczych cudzysłowach.
+

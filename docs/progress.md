@@ -30,8 +30,8 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7517 z 9123 (82,4%)** | ściśle 7121, krawędziowo 396; tryb ciągły; od 17.11 zestaw większy o 13 testów |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1403 z 1839 (76,3%)** | ściśle 1362, krawędziowo 41; `css-text` 684 z 909, `css-backgrounds` 504 z 603, `css-fonts` 215 z 327; od 17.11 zestaw większy o 71 testów |
+| Sondaż ekranowy W3C | **7569 z 9123 (83,0%)** | ściśle 7170, krawędziowo 399; tryb ciągły; od 17.11 zestaw większy o 13 testów |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1484 z 1839 (80,7%)** | ściśle 1440, krawędziowo 44; `css-text` 765 z 909, `css-backgrounds` 504 z 603, `css-fonts` 215 z 327; od 17.11 zestaw większy o 71 testów |
 | Reftesty druku W3C | **243 z 340 (71,5%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
@@ -86,6 +86,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 17.11  balance, alternates, flex     7415 ████████████████████████████████████████▋ 81,3%
 17.11  kolumny zagnieżdżone         7427 ████████████████████████████████████████▋ 81,4%
 17.11  elementy pływające, tabele    7517 █████████████████████████████████████████▏ 82,4%
+18.11  ogon CSS 2 i tekst            7569 █████████████████████████████████████████▌ 83,0%
 ```
 
 (*) Skoki z 13.11 i przejście na tryb ciągły 16.11 to poprawki metody pomiaru, nie silnika; przy trybie
@@ -138,14 +139,14 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5846)                    ███████████████████▏ 95,7%    254
+CSS 2 (5846)                    ███████████████████▎ 96,4%    208
 css-backgrounds (603)           ████████████████▋    83,3%    101
-css-tables (141)                ████████████████▍    82,3%     25
+css-tables (141)                ████████████████▉    84,4%     22
 css-lists (151)                 ███████████████▌     77,5%     34
 css-flexbox (952)               ████████████████▏    81,2%    179
 css-grid bez lanes i subgrid    ███████████████▏     75,8%    155
-css-multicol (370)              ███████████████▏     75,7%     90
-css-text (909)                  ███████████████      75,2%    225
+css-multicol (370)              ███████████████▏     76,2%     88
+css-text (909)                  ████████████████▊    84,2%    144
 css-fonts (327)                 █████████████▏       65,7%    112
 css-content (40)                ██████████▌          52,5%     19
 css-grid: subgrid (88)          ████▊                23,9%     67
@@ -155,7 +156,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7384 z 8140 (90,7%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7436 z 8140 (91,4%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 
