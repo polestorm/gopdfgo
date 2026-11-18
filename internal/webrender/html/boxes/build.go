@@ -391,6 +391,9 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 			box.Box().Children = append(box.Box().Children, TextBoxAnonymousFrom(box, "\u200b"))
 		}
 	}
+	if len(markerBoxes) > 0 && markerBoxes[0].Box().IsOutsideMarker {
+		addOutsideImageMarkerStrut(box)
+	}
 
 	if style.GetFloat() == "footnote" {
 		state.CounterValues["footnote"][len(state.CounterValues["footnote"])-1] += 1
@@ -526,13 +529,17 @@ func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageSta
 		*children = append(*children, ContentToBoxes(style, box, state.QuoteDepth, state.CounterValues,
 			resolver, targetCollector, cs, nil, nil)...)
 	} else {
-		if imageUrl, ok := image.(pr.UrlImage); ok {
+		// gopdfgo: także gradienty (CSS Lists 3 § 3.2); źródło obsługiwało tylko url()
+		var image_ images.Image
+		switch image.(type) {
+		case pr.UrlImage, pr.LinearGradient, pr.RadialGradient:
 			// image may be None here too, in case the image is not available.
-			image_ := resolver.FetchImage(string(imageUrl), "", style.GetImageOrientation())
-			if image_ != nil {
-				markerBox := InlineReplacedBoxAnonymousFrom(box, image_)
-				*children = append(*children, markerBox)
-			}
+			image_ = contentImage(pr.ContentProperty{Type: "image", Content: pr.ContentImage{Image: image}}, style, resolver)
+		}
+		if image_ != nil {
+			markerBox := InlineReplacedBoxAnonymousFrom(box, image_)
+			markerImageDefaultSize(markerBox, image_)
+			*children = append(*children, markerBox)
 		}
 		if len(*children) == 0 && style.GetListStyleType().Name != "none" {
 			counterValue_, has := state.CounterValues["list-item"]
@@ -556,12 +563,19 @@ func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageSta
 		return nil
 	}
 	var markerBox Box
-	if parentStyle.GetListStylePosition() == "outside" {
+	// gopdfgo: dla elementu listy będącego pudełkiem liniowym (display: inline list-item) outside
+	// działa jak inside (CSS Lists 3 § 3.3); źródło stawiało znacznik zewnętrzny
+	if parentStyle.GetListStylePosition() == "outside" && !(parentStyle.GetDisplay().Has(pr.Inline) && !parentStyle.GetDisplay().Has(pr.FlowRoot)) {
 		markerBox = BlockBoxAnonymousFrom(box, *children)
 		// We can safely edit everything that can't be changed by user style
 		// See https://drafts.csswg.org/css-pseudo-4/#marker-pseudo
 		markerBox.Box().Style.SetPosition(pr.BoolString{String: "absolute"})
 		markerBox.Box().IsOutsideMarker = true
+		// gopdfgo: obraz znacznika zewnętrznego stoi 7 px przed treścią, jak w Chromium (stała
+		// kCMarkerPaddingPx); tekst znacznika ma własną spację, więc go to nie dotyczy
+		if len(*children) == 1 && InlineReplacedT.IsInstance((*children)[0]) && parentStyle.GetDirection() == pr.Ltr {
+			markerBox.Box().Style.SetMarginLeft(pr.FToPx(-7))
+		}
 		// translateX := pr.Dimension{Value: 100, Unit: pr.Perc}
 		// if parentStyle.GetDirection() == "ltr" {
 		// 	translateX = pr.Dimension{Value: -100, Unit: pr.Perc}
@@ -2744,4 +2758,63 @@ func visibleControls(text string) string {
 
 func isRenderedControl(r rune) bool {
 	return unicode.Is(unicode.Cc, r) && r != '\t' && r != '\n'
+}
+
+// addOutsideImageMarkerStrut (gopdfgo): zewnętrzny znacznik z obrazem (list-style-image, url() w
+// content ::marker) wpływa na wysokość pierwszego wiersza elementu listy, tak jakby stał w nim
+// jako treść liniowa (CSS Lists 3 § 3.3 zostawia to implementacji; tak robi Chromium, test WPT
+// outside-marker-taller-than-content). Na początek wiersza wstawiamy niewidoczny blok liniowy
+// zerowej szerokości z kopią treści znacznika. Tylko gdy pozostałe dzieci są liniowe: przy dziecku
+// blokowym wstawka utworzyłaby osobny wiersz. Znaczniki tekstowe zostają jak w źródle.
+func addOutsideImageMarkerStrut(box Box) {
+	children := box.Box().Children
+	if len(children) == 0 {
+		return
+	}
+	marker := children[0]
+	var images []*InlineReplacedBox
+	for _, child := range marker.Box().Children {
+		if image, ok := child.(*InlineReplacedBox); ok {
+			images = append(images, image)
+		}
+	}
+	if len(images) == 0 {
+		return
+	}
+	for _, child := range children[1:] {
+		if !InlineLevelT.IsInstance(child) && !TextT.IsInstance(child) {
+			return
+		}
+	}
+	strut := InlineBlockBoxAnonymousFrom(box, nil)
+	strut.Box().Style.SetWidth(pr.FToPx(0))
+	strut.Box().Style.SetVisibility("hidden")
+	strut.Box().Style.SetWhiteSpace(pr.Nowrap)
+	for _, image := range images {
+		replica := InlineReplacedBoxAnonymousFrom(strut, image.Replacement)
+		markerImageDefaultSize(replica, image.Replacement)
+		strut.Box().Children = append(strut.Box().Children, replica)
+	}
+	box.Box().Children = append([]Box{marker, strut}, children[1:]...)
+}
+
+// markerImageDefaultSize (gopdfgo): obraz znacznika bez własnych wymiarów (gradient, SVG bez width
+// i height) dostaje domyślny rozmiar obiektu 1em × 1em (CSS Lists 3 § 3.2), wpisany z zachowaniem
+// proporcji, gdy obraz je ma (CSS Images 3 § 5.2). Źródło przyjmowało 300 × 150 px jak dla <img>.
+func markerImageDefaultSize(box *InlineReplacedBox, image images.Image) {
+	fontSize := box.Style.GetFontSize().Value
+	width, height, ratio := image.GetIntrinsicSize(1, fontSize)
+	if width != nil || height != nil {
+		return
+	}
+	w, h := fontSize, fontSize
+	if ratio != nil && ratio.V() > 0 {
+		if r := ratio.V(); r > 1 {
+			h = fontSize / r
+		} else {
+			w = fontSize * r
+		}
+	}
+	box.Style.SetWidth(pr.FToPx(w))
+	box.Style.SetHeight(pr.FToPx(h))
 }

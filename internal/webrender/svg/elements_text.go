@@ -250,6 +250,10 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 		doFill, doStroke := svg.applyPainters(dst, &svgNode{graphicContent: t, attributes: *attrs}, dims)
 		dst.State().SetTextPaint(newPaintOp(doFill, doStroke, false))
 		text := drawer.CreateFirstLine(layout, "none", pr.TaggedString{Tag: pr.None}, scaleX, xPosition, yPosition, angle)
+		// gopdfgo: syntetyczne pogrubienie obrysem nie łączy się z wypełnieniem i obrysem z SVG
+		for i := range text.Runs {
+			text.Runs[i].BoldStroke = 0
+		}
 		if len(text.Runs) != 0 { // do not draw empty content
 			texts = append(texts, text)
 		}

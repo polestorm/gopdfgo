@@ -36,20 +36,22 @@ func TestTextTail(t *testing.T) {
 		style="display:inline-block;vertical-align:top;width:20px;height:20px;background:green"></span>b</div>`,
 		box(0, 0, 20)+box(40, 0, 40)+box(100, 0, 20))
 
+	// (font-weight: normal w <b>: Ahem nie ma kroju pogrubionego, a syntetyczne pogrubienie zmieniłoby
+	// rysunek względem wzorca bez <b>)
 	// white-space-trim: discard-before i discard-after usuwają zwijane białe znaki poza elementem,
 	// także przez granice przodka; discard-inner usuwa je wewnątrz elementu
-	same("white-space-trim-before-after", `<div>a <b style="white-space-trim:discard-before">b</b>c</div>
+	same("white-space-trim-before-after", `<div>a <b style="font-weight:normal;white-space-trim:discard-before">b</b>c</div>
 		<div><span><b style="white-space-trim:discard-after">a</b></span> b</div>
 		<div>a<span style="white-space-trim:discard-inner"> b </span>c</div>`,
 		`<div>abc</div><div>ab</div><div>abc</div>`)
 	// zachowane białe znaki (pre) zostają
-	same("white-space-trim-pre", `<div style="white-space:pre">a <b style="white-space-trim:discard-before">b</b></div>`,
+	same("white-space-trim-pre", `<div style="white-space:pre">a <b style="font-weight:normal;white-space-trim:discard-before">b</b></div>`,
 		`<div style="white-space:pre">a b</div>`)
 	// white-space jako skrót ustawia white-space-trim na none
-	same("white-space-trim-shorthand", `<div>a <b style="white-space-trim:discard-before;white-space:normal">b</b></div>`,
+	same("white-space-trim-shorthand", `<div>a <b style="font-weight:normal;white-space-trim:discard-before;white-space:normal">b</b></div>`,
 		`<div>a b</div>`)
 	// white-space-collapse: break-spaces zachowuje spacje, więc white-space-trim ich nie usuwa
-	same("white-space-collapse", `<div style="white-space-collapse:break-spaces">a <b style="white-space-trim:discard-before">b</b></div>
+	same("white-space-collapse", `<div style="white-space-collapse:break-spaces">a <b style="font-weight:normal;white-space-trim:discard-before">b</b></div>
 		<div style="white-space-collapse:preserve-breaks">a   b&#10;c</div>`,
 		`<div>a b</div><div>a b<br>c</div>`)
 

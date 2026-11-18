@@ -59,25 +59,25 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 		blur := pr.Fl(shadow.Blur.Value)
 		if blur <= 0 {
 			ctx.dst.State().SetColorRgba(shadowColor, false)
-			ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, sx, sy)
+			ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, sx, sy, shadowColor)
 			continue
 		}
 		const copies = 8
 		faint := shadowColor
 		faint.A = shadowColor.A / 6
 		ctx.dst.State().SetColorRgba(faint, false)
-		ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, sx, sy)
+		ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, sx, sy, faint)
 		for _, radius := range [2]pr.Fl{blur * 0.25, blur * 0.5} {
 			for k := 0; k < copies; k++ {
 				angle := 2 * math.Pi * float64(k) / copies
 				ctx.drawFirstLine(textbox, textOverflow, blockEllipsis,
-					sx+radius*pr.Fl(math.Cos(angle)), sy+radius*pr.Fl(math.Sin(angle)))
+					sx+radius*pr.Fl(math.Cos(angle)), sy+radius*pr.Fl(math.Sin(angle)), faint)
 			}
 		}
 	}
 
 	ctx.dst.State().SetColorRgba(textbox.Style.GetColor().RGBA, false)
-	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y)
+	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y, textbox.Style.GetColor().RGBA)
 
 	if decoration&pr.LineThrough != 0 {
 		thickness := metrics.StrikethroughThickness
@@ -112,7 +112,9 @@ func (ctx drawContext) drawTextDecorationsInColor(textbox *bo.TextBox, color Col
 	}
 }
 
-func (ctx drawContext) drawFirstLine(textbox *bo.TextBox, textOverflow string, blockEllipsis pr.TaggedString, x, y pr.Fl) {
+// gopdfgo: color to kolor wypełnienia ustawiony przed wywołaniem; syntetyczne pogrubienie
+// (backend.TextRun.BoldStroke) obrysowuje glify tym samym kolorem.
+func (ctx drawContext) drawFirstLine(textbox *bo.TextBox, textOverflow string, blockEllipsis pr.TaggedString, x, y pr.Fl, color parser.RGBA) {
 	// Don’t draw lines with only invisible characters
 	if strings.TrimSpace(textbox.TextS()) == "" {
 		return
@@ -125,6 +127,13 @@ func (ctx drawContext) drawFirstLine(textbox *bo.TextBox, textOverflow string, b
 
 	textContext := draw.Context{Output: ctx.dst, Fonts: ctx.fonts}
 	text := textContext.CreateFirstLine(textbox.TextLayout, textOverflow, blockEllipsis, 1, x, y, 0)
+	if text.HasSyntheticBold() {
+		ctx.dst.OnNewStack(func() {
+			ctx.dst.State().SetColorRgba(color, true)
+			ctx.dst.DrawText([]backend.TextDrawing{text})
+		})
+		return
+	}
 	ctx.dst.DrawText([]backend.TextDrawing{text})
 }
 

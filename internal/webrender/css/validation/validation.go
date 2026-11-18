@@ -992,6 +992,19 @@ func listStyleImage(tokens []Token, baseUrl string) (pr.CssProperty, error) {
 	}
 	token := tokens[0]
 
+	// gopdfgo: każdy <image> (CSS Lists 3 § 3.2): także url("...") z adresem w cudzysłowie, który
+	// parser zwraca jako funkcję, i gradienty; źródło przyjmowało tylko token URL bez cudzysłowu
+	if token.Kind() == pa.KFunctionBlock {
+		image, err := getImage(token, baseUrl)
+		if err != nil || image == nil {
+			return nil, err
+		}
+		switch image.(type) {
+		case pr.UrlImage, pr.LinearGradient, pr.RadialGradient:
+			return image, nil
+		}
+		return nil, nil
+	}
 	if token.Kind() != pa.KFunctionBlock {
 		if getKeyword(token) == "none" {
 			return pr.NoneImage{}, nil
@@ -2305,6 +2318,16 @@ func fontSize(tokens []Token, _ string) (pr.CssProperty, error) {
 // @singleKeyword
 // “font-style“ property validation.
 func fontStyle(tokens []Token, _ string) pr.CssProperty {
+	// gopdfgo: oblique z kątem od -90deg do 90deg (CSS Fonts 4 § 3.3); wartość zapisana jako
+	// "oblique <stopnie>", zob. text.newFontStyle. Źródło przyjmowało tylko słowa kluczowe.
+	if len(tokens) == 2 && getKeyword(tokens[0]) == "oblique" {
+		radians, ok := getAngle(tokens[1])
+		degrees := radians * 180 / math.Pi
+		if !ok || degrees < -90-1e-6 || degrees > 90+1e-6 {
+			return nil
+		}
+		return pr.String(fmt.Sprintf("oblique %g", math.Round(float64(degrees)*1000)/1000))
+	}
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
 	case "normal", "italic", "oblique":

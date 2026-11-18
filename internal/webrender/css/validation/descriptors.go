@@ -55,10 +55,13 @@ type NamedProp struct {
 }
 
 type FontFaceDescriptors struct {
-	Src                 []pr.TaggedString
-	FontFamily          pr.String
-	FontStyle           pr.String
-	FontWeight          pr.IntString
+	Src        []pr.TaggedString
+	FontFamily pr.String
+	FontStyle  pr.String
+	FontWeight pr.IntString
+	// FontWeightRange (gopdfgo): zakres grubości z deskryptora font-weight o dwóch wartościach
+	// (CSS Fonts 4 § 4.4); zero, gdy deskryptor ma jedną wartość
+	FontWeightRange     [2]int
 	FontStretch         pr.String
 	FontFeatureSettings pr.FontFeatures
 	FontVariant         []NamedProp
@@ -163,11 +166,32 @@ func fontStyleDescriptor(tokens []Token, _ string, out *FontFaceDescriptors) err
 
 // “font-weight“ descriptor validation.
 func fontWeightDescriptor(tokens []Token, _ string, out *FontFaceDescriptors) error {
+	// gopdfgo: zakres dwóch grubości od 1 do 1000 i słowo auto (CSS Fonts 4 § 4.4); źródło przyjmowało
+	// tylko jedną wartość z setek
+	if len(tokens) == 2 {
+		var bounds [2]int
+		for i, token := range tokens {
+			number, ok := token.(pa.Number)
+			if !ok || number.ValueF < 1 || number.ValueF > 1000 {
+				return ErrInvalidValue
+			}
+			bounds[i] = int(number.ValueF + 0.5)
+		}
+		if bounds[0] > bounds[1] {
+			bounds[0], bounds[1] = bounds[1], bounds[0]
+		}
+		out.FontWeightRange = bounds
+		return nil
+	}
 	if len(tokens) != 1 {
 		return ErrInvalidValue
 	}
 	token := tokens[0]
 	keyword := getKeyword(token)
+	if keyword == "auto" {
+		out.FontWeight = pr.IntString{String: keyword}
+		return nil
+	}
 	if keyword == "normal" || keyword == "bold" {
 		out.FontWeight = pr.IntString{String: keyword}
 		return nil

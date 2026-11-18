@@ -40,6 +40,7 @@ var (
 	// to avoid declaration cycle
 	tmp = [pr.NbProperties]computerFunc{
 		pr.PBackgroundImage:    backgroundImage,
+		pr.PListStyleImage:     listStyleImage, // gopdfgo
 		pr.PBackgroundPosition: backgroundPosition,
 		pr.PObjectPosition:     objectPosition,
 		pr.PTransformOrigin:    transformOrigin,
@@ -183,6 +184,20 @@ func backgroundImage(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssPrope
 			image = gradient
 		}
 		value[i] = image
+	}
+	return value
+}
+
+// listStyleImage (gopdfgo): długości w gradiencie list-style-image liczone jak w background-image
+// (CSS Lists 3 § 3.2 dopuszcza każdy <image>).
+func listStyleImage(computer *ComputedStyle, name pr.KnownProp, value pr.CssProperty) pr.CssProperty {
+	image, ok := value.(pr.Image)
+	if !ok {
+		return value
+	}
+	switch image.(type) {
+	case pr.LinearGradient, pr.RadialGradient, pr.ConicGradient:
+		return backgroundImage(computer, name, pr.Images{image}).(pr.Images)[0]
 	}
 	return value
 }

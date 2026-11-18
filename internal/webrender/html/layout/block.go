@@ -1261,6 +1261,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			adjoiningMargins = new([]pr.Float)
 		}
 		newBox.Height = clamped
+		alignBlockContent(newBox_, positionY)
 	} else if bottomSpace > -pr.Inf && !newBox.IsColumn {
 		// gopdfgo: blok o podanej wysokości, którego dzieci dzielą się między strony, zajmuje na tej
 		// stronie miejsce do jej dolnej krawędzi, a resztę wysokości przenosi na następną (CSS
@@ -2450,4 +2451,36 @@ func shiftOutsideMarkerBesideFloat(box *bo.BoxFields, children []Box) {
 		return // text-indent przesuwa treść wiersza, nie znacznik
 	}
 	marker.Box().PositionX += line.PositionX - box.ContentBoxX()
+}
+
+// alignBlockContent (gopdfgo) wyrównuje treść kontenera blokowego w pionie według align-content
+// (CSS Box Alignment 3 § 5.4: kontenery blokowe). contentBottom to dolna krawędź treści w przepływie.
+// normal, start i wartości rozkładu sprowadzone do flex-start nie przesuwają treści; space-around
+// i space-evenly działają jak safe center. Przy przepełnieniu treść zostaje na początku, chyba że
+// podano unsafe. Komórek tabeli to nie dotyczy (wyrównuje je vertical-align). Źródło właściwości
+// w blokach nie znało.
+func alignBlockContent(box_ Box, contentBottom pr.Float) {
+	box := box_.Box()
+	align := box.Style.GetAlignContent()
+	if len(align) == 0 || align.Has(pr.Normal) || contentBottom == pr.Inf || box.Height == pr.AutoF ||
+		bo.TableCellT.IsInstance(box_) || len(box.Children) == 0 {
+		return
+	}
+	free := box.ContentBoxY() + box.Height.V() - contentBottom
+	var offset pr.Float
+	switch {
+	case align.Has(pr.Center), align.Has(pr.SpaceAround), align.Has(pr.SpaceEvenly):
+		offset = free / 2
+	case align.Has(pr.End), align.Has(pr.FlexEnd):
+		offset = free
+	}
+	if offset < 0 && (!align.Has(pr.Unsafe) || align.Has(pr.SpaceAround) || align.Has(pr.SpaceEvenly)) {
+		offset = 0
+	}
+	if offset == 0 {
+		return
+	}
+	for _, child := range box.Children {
+		child.Translate(0, offset, false)
+	}
 }

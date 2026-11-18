@@ -500,7 +500,7 @@ func (ctx *drawContext) setTextMask(box_ Box, withBorder bool) {
 			if textbox.Style.GetVisibility() == "visible" {
 				textbox.TextLayout.ApplyJustification()
 				ctx.drawFirstLine(textbox, textOverflow, blockEllipsis,
-					pr.Fl(textbox.PositionX), pr.Fl(textbox.PositionY+textbox.Baseline.V()))
+					pr.Fl(textbox.PositionX), pr.Fl(textbox.PositionY+textbox.Baseline.V()), Color{R: 1, G: 1, B: 1, A: 1})
 				// gopdfgo: maska obejmuje też dekoracje tekstu (drawTextDecorationsInColor)
 				ctx.drawTextDecorationsInColor(textbox, Color{R: 1, G: 1, B: 1, A: 1})
 				ctx.dst.State().SetColorRgba(Color{R: 1, G: 1, B: 1, A: 1}, false)

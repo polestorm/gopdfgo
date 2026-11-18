@@ -204,6 +204,15 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			if sizeScale != 1 {
 				outRun.SizeScale = sizeScale
 			}
+			// gopdfgo: syntetyczne pochylenie i pogrubienie, gdy wybrany krój nie ma żądanego stylu albo
+			// grubości (CSS Fonts 4 § 7.2, 7.3). Pochylenie o kąt z font-style (14° dla italic),
+			// obrys jak w Chromium (Skia), o szerokości od 1/24 rozmiaru pisma przy 9 px do 1/32 przy 36 px i więcej.
+			if skew, bold := fts.Synthesis(face, style.FontDescription); skew != 0 || bold {
+				outRun.Skew = skew
+				if bold {
+					outRun.BoldStroke = syntheticBoldWidth(fontSize * sizeScale)
+				}
+			}
 			output.Runs = append(output.Runs, outRun)
 		} // else use the last one
 
@@ -319,6 +328,20 @@ func drawEmojiGotext(font_ *gotextFont, glyph backend.GID, extents backend.Glyph
 			})
 		}
 	}
+}
+
+// syntheticBoldWidth (gopdfgo): szerokość obrysu syntetycznego pogrubienia, interpolowana liniowo
+// jak SkScalerContext w Skia (kStdFakeBoldInterpKeys 9 i 36, wartości 1/24 i 1/32 rozmiaru).
+func syntheticBoldWidth(size pr.Fl) pr.Fl {
+	ratio := pr.Fl(1.0 / 24)
+	switch {
+	case size >= 36:
+		ratio = 1.0 / 32
+	case size > 9:
+		t := (size - 9) / 27
+		ratio = 1.0/24 + t*(1.0/32-1.0/24)
+	}
+	return size * ratio
 }
 
 func floatToFixed(v pr.Fl) fixed.Int26_6 { return fixed.Int26_6(v * 64) }

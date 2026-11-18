@@ -188,7 +188,21 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
-	f.familyIndex.addFace(desc.Family) // gopdfgo: zob. family_names.go
+	// gopdfgo: style i grubości twarzy dla dopasowania i syntezy, zob. family_names.go
+	synthesisWeight := uint16(desc.Aspect.Weight)
+	if r := ruleDescriptors.FontWeightRange; r[1] != 0 {
+		synthesisWeight = uint16(r[1])
+	} else if synthesisWeight == 0 {
+		synthesisWeight = uint16(ft.Describe().Aspect.Weight)
+	}
+	var fixed uint8
+	if ruleDescriptors.FontStyle != "" {
+		fixed |= axisSlant
+	}
+	if desc.Aspect.Weight != 0 {
+		fixed |= axisWeight
+	}
+	f.familyIndex.addFace(desc.Family, newFontStyle(ruleDescriptors.FontStyle), synthesisWeight, fixed, ft)
 	if metrics != (faceMetrics{sizeAdjust: 1}) {
 		if f.fontsMetrics == nil {
 			f.fontsMetrics = map[*font.Font]faceMetrics{}
@@ -469,7 +483,8 @@ func (fc *FontConfigurationGotext) newQuery(fd FontDescription) fontscan.Query {
 	}
 	return fontscan.Query{
 		Families: families,
-		Aspect:   newAspect(fd.Style, fd.Weight, fd.Stretch),
+		// gopdfgo: styl według kolejności CSS dla italic i oblique, zob. matchingStyle
+		Aspect: newAspect(fc.matchingStyle(fd), fd.Weight, fd.Stretch),
 	}
 }
 
@@ -2092,20 +2107,33 @@ func roundMetric(v pr.Float) pr.Float {
 // każdego znaku osobno, zaczynając od początku listy rodzin, czyli spacja
 // należy do pierwszego fontu, który ją ma.
 func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []shaping.Input {
-	var spaceFace *font.Face
-	needsSplit := false
-	for _, input := range inputs {
-		for _, r := range input.Text[input.RunStart:input.RunEnd] {
-			if r != ' ' && r != '\u00a0' {
-				continue
-			}
+	// gopdfgo: spacja niełamiąca dostaje własny font (pierwszy, który ją ma), a nie font spacji:
+	// różnią się, gdy unicode-range reguły @font-face obejmuje tylko jedną z nich (test WPT
+	// font-face-unicode-range-nbsp)
+	var spaceFace, nbspFace *font.Face
+	faceOf := func(r rune) *font.Face {
+		if r == ' ' {
 			if spaceFace == nil {
 				spaceFace = fc.fm.ResolveFace(' ')
 			}
-			if spaceFace != nil && input.Face != spaceFace {
-				needsSplit = true
+			return spaceFace
+		}
+		if nbspFace == nil {
+			nbspFace = fc.fm.ResolveFace('\u00a0')
+		}
+		return nbspFace
+	}
+	isSpaceRune := func(r rune) bool { return r == ' ' || r == '\u00a0' }
+	needsSplit := false
+	for _, input := range inputs {
+		for _, r := range input.Text[input.RunStart:input.RunEnd] {
+			if !isSpaceRune(r) {
+				continue
 			}
-			break
+			if face := faceOf(r); face != nil && input.Face != face {
+				needsSplit = true
+				break
+			}
 		}
 	}
 	if !needsSplit {
@@ -2113,22 +2141,34 @@ func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []sha
 	}
 	out := make([]shaping.Input, 0, len(inputs)+2)
 	for _, input := range inputs {
-		if input.Face == spaceFace {
-			out = append(out, input)
-			continue
+		start, first := input.RunStart, len(out)
+		// klasa znaku: 0 zwykły, 1 spacja, 2 spacja niełamiąca
+		class := func(i int) int {
+			switch input.Text[i] {
+			case ' ':
+				return 1
+			case '\u00a0':
+				return 2
+			}
+			return 0
 		}
-		start := input.RunStart
-		isSpace := func(i int) bool { r := input.Text[i]; return r == ' ' || r == '\u00a0' }
 		for i := input.RunStart + 1; i <= input.RunEnd; i++ {
-			if i < input.RunEnd && isSpace(i) == isSpace(start) {
+			if i < input.RunEnd && class(i) == class(start) {
 				continue
 			}
 			piece := input
 			piece.RunStart, piece.RunEnd = start, i
-			if isSpace(start) {
-				piece.Face = spaceFace
+			if class(start) != 0 {
+				if face := faceOf(input.Text[start]); face != nil {
+					piece.Face = face
+				}
 			}
-			out = append(out, piece)
+			// sąsiednie kawałki tego samego przebiegu z tym samym fontem łączymy z powrotem
+			if n := len(out); n > first && out[n-1].Face == piece.Face {
+				out[n-1].RunEnd = piece.RunEnd
+			} else {
+				out = append(out, piece)
+			}
 			start = i
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	pdfFonts "github.com/polestorm/gopdfgo/internal/pdflib/fonts"
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
+	"github.com/polestorm/gopdfgo/internal/webrender/matrix"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 	drawText "github.com/polestorm/gopdfgo/internal/webrender/text/draw"
 )
@@ -52,6 +53,14 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 		mat := text.Matrix()
 		g.stream.SetTextMatrix(mat.A, mat.B, mat.C, mat.D, mat.E, mat.F)
 		var rise fl // gopdfgo: bieżące wzniesienie tekstu, w tysięcznych firetu
+		// gopdfgo: syntetyczne pochylenie i pogrubienie (zob. backend.TextRun.Skew): pochylenie to macierz
+		// tekstu ze ścięciem ustawiana na początku przebiegu, więc pozycję pióra w przestrzeni tekstu
+		// liczymy tak, jak przesuwa je operator TJ; pogrubienie to tryb wypełnienia z obrysem (Tr 2,
+		// ISO 32000-1 § 9.3.6)
+		var (
+			pen            fl
+			skewed, bolded bool
+		)
 
 		for _, run := range text.Runs {
 			pf := g.fonts[run.Font]
@@ -61,6 +70,19 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 			size := text.FontSize
 			if run.SizeScale != 0 { // gopdfgo: zob. backend.TextRun.SizeScale
 				size *= run.SizeScale
+			}
+			if run.Skew != 0 || skewed {
+				m := text.Matrix()
+				m.RightMultBy(matrix.New(1, 0, run.Skew, 1, pen, 0))
+				g.stream.SetTextMatrix(m.A, m.B, m.C, m.D, m.E, m.F)
+				skewed = run.Skew != 0
+			}
+			if run.BoldStroke != 0 {
+				g.stream.Ops(contentstream.OpSetLineWidth{W: run.BoldStroke}, contentstream.OpSetTextRender{Render: 2})
+				bolded = true
+			} else if bolded {
+				g.stream.Ops(contentstream.OpSetTextRender{Render: 0})
+				bolded = false
 			}
 			if useFont {
 				g.stream.SetFontAndSize(pdfFonts.BuiltFont{Meta: pf.FontDict}, size)
@@ -87,6 +109,11 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 					GID:                   posGlyph.Glyph,
 					SpaceSubtractedAfter:  posGlyph.Kerning,
 				})
+				width, has := pf.Extents[posGlyph.Glyph]
+				if !has {
+					width.Width = 1000 // szerokość domyślna DW (ISO 32000-1 § 9.7.4.3)
+				}
+				pen += (fl(int(posGlyph.Offset)) + fl(width.Width) - fl(posGlyph.Kerning)) * size / 1000
 
 				// PDF readers don't support colored bitmap glyphs
 				// so we have to add them as an image
@@ -100,6 +127,9 @@ func (g *group) DrawText(texts []backend.TextDrawing) {
 		}
 		if rise != 0 {
 			g.stream.Ops(contentstream.OpSetTextRise{Rise: 0})
+		}
+		if bolded {
+			g.stream.Ops(contentstream.OpSetTextRender{Render: 0})
 		}
 	}
 }

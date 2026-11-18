@@ -35,6 +35,21 @@ type TextRun struct {
 	// SizeScale (gopdfgo) mnoży FontSize dla tego przebiegu (deskryptor size-adjust w @font-face);
 	// 0 oznacza 1. Kerning, Offset i Rise glifów są wtedy względne do rozmiaru przebiegu.
 	SizeScale Fl
+	// Skew i BoldStroke (gopdfgo): syntetyczne pochylenie i pogrubienie kroju (CSS Fonts 4 § 7.2, 7.3).
+	// Skew to przesunięcie poziome glifu na jednostkę wysokości (0 bez pochylenia), BoldStroke to
+	// szerokość obrysu dodawanego do wypełnienia, w jednostkach strony (0 bez pogrubienia).
+	Skew, BoldStroke Fl
+}
+
+// HasSyntheticBold (gopdfgo) mówi, czy któryś przebieg jest pogrubiany obrysem: rysujący musi wtedy
+// ustawić kolor obrysu równy kolorowi wypełnienia.
+func (td TextDrawing) HasSyntheticBold() bool {
+	for _, run := range td.Runs {
+		if run.BoldStroke != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 type GID = uint32

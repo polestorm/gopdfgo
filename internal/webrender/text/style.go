@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -41,13 +42,43 @@ type FontDescription struct {
 	Size              pr.Fl
 	VariationSettings []Variation // empty for 'normal'
 	VariantCaps       FontVariantCaps
+	// Synthesis (gopdfgo): font-synthesis-weight i font-synthesis-style (CSS Fonts 4 § 7.2, 7.3),
+	// zob. FontSynthesis
+	Synthesis FontSynthesis
+	// ObliqueAngle (gopdfgo): kąt pochylenia syntetycznego w stopniach, zob. obliqueAngle
+	ObliqueAngle pr.Fl
+}
+
+// FontSynthesis (gopdfgo) to zbiór dozwolonych syntez kroju: pogrubienia i pochylenia.
+type FontSynthesis uint8
+
+const (
+	SynthesisWeight      FontSynthesis = 1 << iota // font-synthesis-weight: auto
+	SynthesisStyle                                 // font-synthesis-style: auto
+	SynthesisObliqueOnly                           // font-synthesis-style: oblique-only
+)
+
+func newFontSynthesis(style pr.StyleAccessor) FontSynthesis {
+	var out FontSynthesis
+	if style.GetFontSynthesisWeight() != "none" {
+		out |= SynthesisWeight
+	}
+	switch style.GetFontSynthesisStyle() {
+	case "none":
+	case "oblique-only":
+		out |= SynthesisObliqueOnly
+	default:
+		out |= SynthesisStyle
+	}
+	return out
 }
 
 func (fd FontDescription) binary(dst []byte, includeSize bool) []byte {
 	for _, f := range fd.Family {
 		dst = append(dst, f...)
 	}
-	dst = append(dst, byte(fd.Style), byte(fd.Stretch), byte(fd.VariantCaps))
+	dst = append(dst, byte(fd.Style), byte(fd.Stretch), byte(fd.VariantCaps), byte(fd.Synthesis))
+	dst = binary.BigEndian.AppendUint32(dst, math.Float32bits(float32(fd.ObliqueAngle)))
 	dst = binary.BigEndian.AppendUint16(dst, fd.Weight)
 	if includeSize {
 		dst = binary.BigEndian.AppendUint32(dst, math.Float32bits(float32(fd.Size)))
@@ -152,6 +183,8 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.SizeAdjust = style.GetFontSizeAdjust() // gopdfgo: zob. adjustedTextStyle
 	out.FontDescription.VariationSettings = newFontVariationSettings(style.GetFontVariationSettings())
 	out.FontDescription.VariantCaps = newFontVariantCaps(style.GetFontVariantCaps())
+	out.FontDescription.Synthesis = newFontSynthesis(style) // gopdfgo
+	out.FontDescription.ObliqueAngle = obliqueAngle(style.GetFontStyle())
 
 	out.FontLanguageOverride = newFontLanguageOverrride(style.GetFontLanguageOverride())
 	out.Lang = style.GetLang().S
@@ -626,7 +659,25 @@ const (
 	FSty_Italic
 )
 
+// obliqueAngle (gopdfgo) zwraca kąt pochylenia w stopniach dla wartości font-style: 14 dla italic
+// i oblique bez kąta (CSS Fonts 4 § 3.3), kąt podany przy oblique, 0 dla normal.
+func obliqueAngle(style pr.String) pr.Fl {
+	value := strings.ToLower(string(style))
+	if angle, ok := strings.CutPrefix(value, "oblique "); ok {
+		if v, err := strconv.ParseFloat(angle, 32); err == nil {
+			return pr.Fl(v)
+		}
+	}
+	if value == "oblique" || value == "italic" {
+		return 14
+	}
+	return 0
+}
+
 func newFontStyle(style pr.String) FontStyle {
+	if strings.HasPrefix(strings.ToLower(string(style)), "oblique ") {
+		return FSty_Oblique // gopdfgo: oblique z kątem
+	}
 	switch strings.ToLower(string(style)) {
 	case "", "roman", "normal":
 		return FSty_Normal
