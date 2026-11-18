@@ -405,6 +405,50 @@ func flexFitPair(available, minA, maxA, minB, maxB, fallbackA, fallbackB pr.Floa
 	return baseA + flexSpace*factorA/sum, baseB + flexSpace*factorB/sum
 }
 
+// updatePageCounters stosuje counter-reset, counter-set i counter-increment z kontekstu strony.
+//
+// gopdfgo: counter-reset strony nadający wartość licznikowi dokumentu (założonemu na elemencie
+// głównym) obowiązuje tylko na tej stronie i w jej polach marginesowych: zasłania licznik dokumentu
+// (counters() daje jedną wartość), a na następnej stronie znów widać licznik dokumentu z jego wartością
+// (CSS Page 3 § 4.3; test WPT margin-boxes/content-012, zgodnie z Chromium). Liczniki założone
+// w samym kontekście strony (np. page) trwają na kolejnych stronach. W źródle counter-reset strony
+// podmieniał licznik dokumentu na stałe.
+//
+// Stos zakresów stanu strony: 0 to liczniki elementu głównego (i pages), 1 to liczniki kontekstu strony,
+// 2 (tylko po takim counter-reset) to nazwy liczników zasłoniętych na bieżącej stronie. Zasłonięte
+// wartości czekają w CounterValues pod kluczem z przedrostkiem hiddenPageCounter, którego żadna nazwa
+// licznika z arkusza nie może mieć.
+func updatePageCounters(pageState *tree.PageState, style pr.ElementStyle) {
+	if len(pageState.CounterScopes) > 2 {
+		for name := range pageState.CounterScopes[2] {
+			pageState.CounterValues[name] = pageState.CounterValues[hiddenPageCounter+name]
+			delete(pageState.CounterValues, hiddenPageCounter+name)
+		}
+		pageState.CounterScopes = pageState.CounterScopes[:2]
+	}
+	if len(pageState.CounterScopes) == 1 {
+		pageState.CounterScopes = append(pageState.CounterScopes, utils.NewSet())
+	}
+	nested := bo.UpdateCounters(pageState, style)
+	if len(nested) == 0 {
+		return
+	}
+	hidden := utils.NewSet()
+	for _, name := range nested {
+		values := pageState.CounterValues[name]
+		if hidden.Has(name) || len(values) < 2 {
+			continue
+		}
+		hidden.Add(name)
+		pageState.CounterValues[hiddenPageCounter+name] = append([]int{}, values[:len(values)-1]...)
+		pageState.CounterValues[name] = values[len(values)-1:]
+	}
+	pageState.CounterScopes = append(pageState.CounterScopes, hidden)
+}
+
+// hiddenPageCounter poprzedza w stanie strony nazwy liczników dokumentu zasłoniętych na bieżącej stronie.
+const hiddenPageCounter = "\x00page-hidden:"
+
 // Drop "pages" counter from style in @page and @margin context.
 // Ensure `counter-increment: page` for @page context if not otherwise
 // manipulated by the style.
@@ -955,7 +999,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 
 	// Update page counter values
 	standardizePageBasedCounters(style, "")
-	bo.UpdateCounters(pageState, style)
+	updatePageCounters(pageState, style)
 	pageCounterValues := pageState.CounterValues
 	// pageCounterValues will be cached in the pageMaker
 
