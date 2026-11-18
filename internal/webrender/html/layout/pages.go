@@ -1395,7 +1395,7 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		pageGroups        []pageGroup
 	)
 
-	stalledPages := 0 // kolejne strony bez postępu
+	stalledPages := 0   // kolejne strony bez postępu
 	outOfFlowPages := 0 // kolejne strony z samą treścią poza przepływem
 	for {
 		remakeState := context.pageMaker[i].RemakeState
