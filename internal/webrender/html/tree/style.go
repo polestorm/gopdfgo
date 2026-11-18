@@ -95,7 +95,14 @@ func (v *viewport) size() (pr.Float, pr.Float) {
 	v.running = true
 	defer func() { v.running = false }()
 
-	pageType := utils.NewPageElement("right", "", 0, false, nil)
+	// gopdfgo: jednostki vw i vh odnoszą się do obszaru pierwszej strony, także nazwanej
+	// (test WPT css-page/page-size-009); wcześniej zawsze do strony bez nazwy
+	var groups []utils.PageGroup
+	name := v.firstPageName()
+	if name != "" {
+		groups = []utils.PageGroup{{Name: name, Index: 0}}
+	}
+	pageType := utils.NewPageElement("right", name, 0, false, groups)
 	v.styleFor.SetPageComputedStylesT(pageType, v.html)
 	style := v.styleFor.Get(pageType, "")
 	if style == nil {
@@ -135,6 +142,47 @@ func (v *viewport) size() (pr.Float, pr.Float) {
 	}
 	v.done = true
 	return v.width, v.height
+}
+
+// firstPageName (gopdfgo) przybliża nazwę pierwszej strony, czyli wartość początkową page (CSS Page 3
+// § 6.1), ze stylów już obliczonych, przed budową pudełek. Idzie w dół po pierwszych dzieciach, pomijając
+// komentarze, białe znaki i elementy z display: none; ostatnia wartość różna od auto wygrywa, a tekst
+// albo element bez obliczonego jeszcze stylu (style liczą się w kolejności drzewa) kończy zejście.
+func (v *viewport) firstPageName() string {
+	name := ""
+	node := (*html.Node)(v.html.Root)
+	for node != nil {
+		style := v.styleFor.computedStyles[utils.ElementKey{Element: (*utils.HTMLNode)(node), PseudoType: ""}]
+		if style == nil {
+			return name
+		}
+		if page := style.GetPage(); page != "auto" && page != "" {
+			name = string(page)
+		}
+		var next *html.Node
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			if child.Type == html.TextNode {
+				if strings.TrimSpace(child.Data) == "" {
+					continue
+				}
+				return name
+			}
+			if child.Type != html.ElementNode {
+				continue
+			}
+			childStyle := v.styleFor.computedStyles[utils.ElementKey{Element: (*utils.HTMLNode)(child), PseudoType: ""}]
+			if childStyle == nil {
+				return name
+			}
+			if childStyle.GetDisplay().Outside == pr.None {
+				continue
+			}
+			next = child
+			break
+		}
+		node = next
+	}
+	return name
 }
 
 // PageArea (gopdfgo) podaje rozmiar obszaru strony (bez marginesów, obramowania i odstępu) wynikający
@@ -490,6 +538,29 @@ func (s StyleFor) Get(element Element, pseudoType string) pr.ElementStyle {
 }
 
 func (s StyleFor) addPageDeclarations(page_T utils.PageElement) {
+	// gopdfgo: najlepszy rozmiar arkusza spoza arkuszy autora, do którego odnoszą się size: auto,
+	// portrait i landscape (pr.PageOrientation)
+	sizeKey := pr.PSize.Key()
+	var defaultSize weigthedValue
+	defer func() {
+		style, in := s.cascadedStyles[page_T.ToKey("")]
+		if !in {
+			return
+		}
+		orientation, ok := style[sizeKey].value.(pr.PageOrientation)
+		if !ok {
+			return
+		}
+		base := pr.A4
+		if point, ok := defaultSize.value.(pr.Point); ok {
+			base = point
+		} else if other, ok := defaultSize.value.(pr.PageOrientation); ok {
+			base = other.Orient(pr.A4)
+		}
+		resolved := style[sizeKey]
+		resolved.value = orientation.Orient(base)
+		style[sizeKey] = resolved
+	}()
 	for _, sh := range s.sheets {
 		// Add declarations for page elements
 		for _, pageR := range sh.sheet.pageRules {
@@ -511,6 +582,10 @@ func (s StyleFor) addPageDeclarations(page_T utils.PageElement) {
 						// name, values, importance
 						precedence := declarationPrecedence(sh.origin, decl.Important)
 						we := weight{precedence: precedence, specificity: specificity, layer: s.layers[pageR.layer]}
+						if decl.Name == sizeKey && sh.origin != "author" && sel.pseudoType == "" &&
+							(defaultSize.weight.isNone() || defaultSize.weight.Less(we)) {
+							defaultSize = weigthedValue{weight: we, value: decl.Value}
+						}
 						oldWeight := style[decl.Name].weight
 						if oldWeight.isNone() || oldWeight.Less(we) {
 							style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}

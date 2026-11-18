@@ -211,6 +211,7 @@ var InitialValues = Properties{
 	PBackgroundBlendMode: Strings{"normal"},                         // gopdfgo: CSS Compositing 1 § 3.2
 	PClipPath:            ClipPath{},                                // gopdfgo: none
 	PBoxOrient:           String("horizontal"),                      // gopdfgo: -webkit-box-orient
+	PPageOrientation:     String("upright"),                         // gopdfgo: CSS Page 3 § 7.2
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),

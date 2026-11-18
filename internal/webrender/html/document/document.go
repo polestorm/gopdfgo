@@ -514,6 +514,16 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 		d.addHyperlinks(pagedLinks[i], outputPage, matrix)
 		d.scaleAnchors(pagedAnchors[i], matrix)
 		setMediaBoxes(page.Bleed, [4]fl{left, top, right, bottom}, outputPage)
+		// gopdfgo: page-orientation obraca stronę po ułożeniu, przy prezentacji (CSS Page 3 § 7.2);
+		// w PDF to wpis /Rotate strony, w stopniach zgodnie z ruchem wskazówek zegara
+		if rotatable, ok := outputPage.(backend.RotatablePage); ok {
+			switch page.pageBox.Style.GetPageOrientation() {
+			case "rotate-right":
+				rotatable.SetRotation(90)
+			case "rotate-left":
+				rotatable.SetRotation(270)
+			}
+		}
 	}
 
 	target.CreateAnchors(pagedAnchors)

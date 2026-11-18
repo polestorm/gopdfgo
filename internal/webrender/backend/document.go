@@ -24,6 +24,13 @@ type BookmarkNode struct {
 	X, Y      Fl   // position in the page
 }
 
+// RotatablePage (gopdfgo) to strona, którą można obrócić przy prezentacji (deskryptor
+// page-orientation, CSS Page 3 § 7.2). Kąt w stopniach zgodnie z ruchem wskazówek zegara,
+// wielokrotność 90.
+type RotatablePage interface {
+	SetRotation(degrees int)
+}
+
 // Document is the main target to whole the laid out document,
 // consisting in pages, metadata and embedded files.
 type Document interface {

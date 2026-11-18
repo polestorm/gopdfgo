@@ -306,7 +306,8 @@ func firstLine(err error) string {
 	return line
 }
 
-var reftestPagesMeta = regexp.MustCompile(`<meta\s+name=["']reftest-pages["']\s+content=["']([^"']*)["']`)
+// Wartości atrybutów mogą być bez cudzysłowów (HTML § 13.1.2.3), np. <meta name=reftest-pages content="2">.
+var reftestPagesMeta = regexp.MustCompile(`<meta\s+name=["']?reftest-pages["']?\s+content=["']?([^"'>\s]*)["']?`)
 
 // selectReftestPages zwraca strony wskazane przez znacznik reftest-pages (zakresy jak "1,3-5,7-",
 // numeracja od 1). Drugi wynik mówi, czy dokument ma ten znacznik.

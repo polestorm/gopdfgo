@@ -233,6 +233,20 @@ func (cp *outputPage) SetMediaBox(left fl, top fl, right fl, bottom fl) {
 	cp.customMediaBox = &model.Rectangle{Llx: left, Lly: top, Urx: right, Ury: bottom}
 }
 
+// SetRotation (gopdfgo) ustawia wpis /Rotate strony (backend.RotatablePage).
+func (cp *outputPage) SetRotation(degrees int) {
+	switch (degrees%360 + 360) % 360 {
+	case 90:
+		cp.page.Rotate = model.Quarter
+	case 180:
+		cp.page.Rotate = model.Half
+	case 270:
+		cp.page.Rotate = model.ThreeQuarter
+	default:
+		cp.page.Rotate = model.Zero
+	}
+}
+
 func (cp *outputPage) SetTrimBox(left fl, top fl, right fl, bottom fl) {
 	cp.page.TrimBox = &model.Rectangle{Llx: left, Lly: top, Urx: right, Ury: bottom}
 }

@@ -119,6 +119,7 @@ func BuildFormattingStructure(elementTree *utils.HTMLNode, styleFor *tree.StyleF
 	} else { //  No root element
 		rsf := rootStyleFor{elementTree: elementTree, StyleFor: *styleFor}
 		box = elementToBox(elementTree, rsf, resolver, baseUrl, targetCollector, cs, nil, footnotes)[0]
+		box.Box().RootDisplayNone = true
 	}
 
 	targetCollector.CheckPendingTargets()

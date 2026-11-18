@@ -85,6 +85,12 @@ func newVerticalBox(context *layoutContext, box Box) *verticalBox {
 	self.paddingPlusBorder = box_.PaddingTop.V() + box_.PaddingBottom.V() +
 		box_.BorderTopWidth.V() + box_.BorderBottomWidth.V()
 	self.orientedBox.contentSizer = self
+	// gopdfgo: height: min-content, max-content i fit-content pola marginesowego to wysokość jego treści
+	// (CSS Sizing 3 § 2.1); źródło czytało je jak auto, więc pole rozciągało się na cały margines strony.
+	if marginBox, ok := box.(*bo.MarginBox); ok && marginBox.IsGenerated && box_.Width != pr.AutoF &&
+		box_.Style.GetHeight().Intrinsic != pr.IntrinsicNone {
+		self.inner = self.contentSize()
+	}
 	return self
 }
 
@@ -318,42 +324,11 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 		}
 		if boxA.inner == pr.AutoF && boxC.inner == pr.AutoF {
 			// A and C both have 'width: auto'
-			if availableSize > (boxA.outerMaxContentSize() + boxC.outerMaxContentSize()) {
-				// sum of the outer max-content widths
-				// is less than the available width
-				flexSpace := availableSize - boxA.outerMaxContentSize() - boxC.outerMaxContentSize()
-				flexFactorA := boxA.outerMaxContentSize()
-				flexFactorC := boxC.outerMaxContentSize()
-				flexFactorSum := flexFactorA + flexFactorC
-				if flexFactorSum == 0 {
-					flexFactorSum = 1
-				}
-				boxA.setOuter(boxA.outerMaxContentSize() + (flexSpace * flexFactorA / flexFactorSum))
-				boxC.setOuter(boxC.outerMaxContentSize() + (flexSpace * flexFactorC / flexFactorSum))
-			} else if availableSize > (boxA.outerMinContentSize() + boxC.outerMinContentSize()) {
-				// sum of the outer min-content widths
-				// is less than the available width
-				flexSpace := availableSize - boxA.outerMinContentSize() - boxC.outerMinContentSize()
-				flexFactorA := boxA.maxContentSize() - boxA.minContentSize()
-				flexFactorC := boxC.maxContentSize() - boxC.minContentSize()
-				flexFactorSum := flexFactorA + flexFactorC
-				if flexFactorSum == 0 {
-					flexFactorSum = 1
-				}
-				boxA.setOuter(boxA.outerMinContentSize() + (flexSpace * flexFactorA / flexFactorSum))
-				boxC.setOuter(boxC.outerMinContentSize() + (flexSpace * flexFactorC / flexFactorSum))
-			} else {
-				// otherwise
-				flexSpace := availableSize - boxA.outerMinContentSize() - boxC.outerMinContentSize()
-				flexFactorA := boxA.outerMinContentSize()
-				flexFactorC := boxC.outerMinContentSize()
-				flexFactorSum := flexFactorA + flexFactorC
-				if flexFactorSum == 0 {
-					flexFactorSum = 1
-				}
-				boxA.setOuter(boxA.outerMinContentSize() + (flexSpace * flexFactorA / flexFactorSum))
-				boxC.setOuter(boxC.outerMinContentSize() + (flexSpace * flexFactorC / flexFactorSum))
-			}
+			outerA, outerC := flexFitPair(availableSize,
+				boxA.outerMinContentSize(), boxA.outerMaxContentSize(),
+				boxC.outerMinContentSize(), boxC.outerMaxContentSize(), 1, 1)
+			boxA.setOuter(outerA)
+			boxC.setOuter(outerC)
 		} else {
 			// only one box has 'width: auto'
 			if boxA.inner == pr.AutoF {
@@ -364,39 +339,26 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 		}
 	} else {
 		if boxB.inner == pr.AutoF {
-			// resolve any auto width of the middle box (B)
-			acMaxContentSize := 2 * max(boxA.outerMaxContentSize(), boxC.outerMaxContentSize())
-			if availableSize > (boxB.outerMaxContentSize() + acMaxContentSize) {
-				flexSpace := availableSize - boxB.outerMaxContentSize() - acMaxContentSize
-				flexFactorB := boxB.outerMaxContentSize()
-				flexFactorAc := acMaxContentSize
-				flexFactorSum := flexFactorB + flexFactorAc
-				if flexFactorSum == 0 {
-					flexFactorSum = 1
-				}
-				boxB.setOuter(boxB.outerMaxContentSize() + (flexSpace * flexFactorB / flexFactorSum))
-			} else {
-				acMinContentSize := 2 * max(boxA.outerMinContentSize(), boxC.outerMinContentSize())
-				if availableSize > (boxB.outerMinContentSize() + acMinContentSize) {
-					flexSpace := availableSize - boxB.outerMinContentSize() - acMinContentSize
-					flexFactorB := boxB.maxContentSize() - boxB.minContentSize()
-					flexFactorAc := acMaxContentSize - acMinContentSize
-					flexFactorSum := flexFactorB + flexFactorAc
-					if flexFactorSum == 0 {
-						flexFactorSum = 1
-					}
-					boxB.setOuter(boxB.outerMinContentSize() + (flexSpace * flexFactorB / flexFactorSum))
+			// gopdfgo: szerokość B rozwiązujemy osobno względem podwojonego A i podwojonego C i bierzemy
+			// mniejszą, czyli tę, przy której podwojone pole boczne wychodzi większe (CSS Page 3 § 5.3.2.2:
+			// „AC is double the maximum of A and C”; tak samo Chromium i testy WPT margin-boxes/dimensions-*).
+			// Źródło składało AC z największego min-content i największego max-content obu pól osobno,
+			// a pole boczne o ustalonej szerokości liczyło jak pole auto, więc B wychodziło za wąskie albo
+			// za szerokie. Gdy wszystkie współczynniki są zerowe, AC (podwojone pole) dostaje współczynnik 2,
+			// a B współczynnik 1: trzy puste pola dzielą krawędź po równo (dimensions-010).
+			outerB := pr.Inf
+			for _, side := range [2]*orientedBox{boxA, boxC} {
+				var candidate pr.Float
+				if side.inner == pr.AutoF {
+					candidate, _ = flexFitPair(availableSize,
+						boxB.outerMinContentSize(), boxB.outerMaxContentSize(),
+						2*side.outerMinContentSize(), 2*side.outerMaxContentSize(), 1, 2)
 				} else {
-					flexSpace := availableSize - boxB.outerMinContentSize() - acMinContentSize
-					flexFactorB := boxB.outerMinContentSize()
-					flexFactorAc := acMinContentSize
-					flexFactorSum := flexFactorB + flexFactorAc
-					if flexFactorSum == 0 {
-						flexFactorSum = 1
-					}
-					boxB.setOuter(boxB.outerMinContentSize() + (flexSpace * flexFactorB / flexFactorSum))
+					candidate = availableSize - 2*side.outer()
 				}
+				outerB = min(outerB, candidate)
 			}
+			boxB.setOuter(outerB)
 		}
 		if boxA.inner == pr.AutoF {
 			boxA.setOuter((availableSize - boxB.outer()) / 2)
@@ -416,6 +378,76 @@ func computeVariableDimension(context *layoutContext, sideBoxes_ [3]*bo.MarginBo
 		box.restoreBoxAttributes()
 	}
 }
+
+// flexFitPair dzieli dostępne miejsce między dwa pola o szerokości auto według CSS Page 3 § 5.3.2.2
+// i zwraca ich rozmiary zewnętrzne. fallbackA i fallbackB to współczynniki używane, gdy suma
+// współczynników wynosi zero (norma: „both flex factors are assumed to be 1”).
+//
+// gopdfgo: źródło przy zerowej sumie dzieliło przez 1 i zostawiało współczynniki zerowe, więc puste
+// pola nie dostawały wolnego miejsca i krawędź strony zostawała niewypełniona.
+func flexFitPair(available, minA, maxA, minB, maxB, fallbackA, fallbackB pr.Float) (pr.Float, pr.Float) {
+	baseA, baseB := minA, minB
+	var factorA, factorB pr.Float
+	switch {
+	case available > maxA+maxB:
+		baseA, baseB = maxA, maxB
+		factorA, factorB = maxA, maxB
+	case available > minA+minB:
+		factorA, factorB = maxA-minA, maxB-minB
+	default:
+		factorA, factorB = minA, minB
+	}
+	if factorA+factorB == 0 {
+		factorA, factorB = fallbackA, fallbackB
+	}
+	flexSpace := available - baseA - baseB
+	sum := factorA + factorB
+	return baseA + flexSpace*factorA/sum, baseB + flexSpace*factorB/sum
+}
+
+// updatePageCounters stosuje counter-reset, counter-set i counter-increment z kontekstu strony.
+//
+// gopdfgo: counter-reset strony nadający wartość licznikowi dokumentu (założonemu na elemencie
+// głównym) obowiązuje tylko na tej stronie i w jej polach marginesowych: zasłania licznik dokumentu
+// (counters() daje jedną wartość), a na następnej stronie znów widać licznik dokumentu z jego wartością
+// (CSS Page 3 § 4.3; test WPT margin-boxes/content-012, zgodnie z Chromium). Liczniki założone
+// w samym kontekście strony (np. page) trwają na kolejnych stronach. W źródle counter-reset strony
+// podmieniał licznik dokumentu na stałe.
+//
+// Stos zakresów stanu strony: 0 to liczniki elementu głównego (i pages), 1 to liczniki kontekstu strony,
+// 2 (tylko po takim counter-reset) to nazwy liczników zasłoniętych na bieżącej stronie. Zasłonięte
+// wartości czekają w CounterValues pod kluczem z przedrostkiem hiddenPageCounter, którego żadna nazwa
+// licznika z arkusza nie może mieć.
+func updatePageCounters(pageState *tree.PageState, style pr.ElementStyle) {
+	if len(pageState.CounterScopes) > 2 {
+		for name := range pageState.CounterScopes[2] {
+			pageState.CounterValues[name] = pageState.CounterValues[hiddenPageCounter+name]
+			delete(pageState.CounterValues, hiddenPageCounter+name)
+		}
+		pageState.CounterScopes = pageState.CounterScopes[:2]
+	}
+	if len(pageState.CounterScopes) == 1 {
+		pageState.CounterScopes = append(pageState.CounterScopes, utils.NewSet())
+	}
+	nested := bo.UpdateCounters(pageState, style)
+	if len(nested) == 0 {
+		return
+	}
+	hidden := utils.NewSet()
+	for _, name := range nested {
+		values := pageState.CounterValues[name]
+		if hidden.Has(name) || len(values) < 2 {
+			continue
+		}
+		hidden.Add(name)
+		pageState.CounterValues[hiddenPageCounter+name] = append([]int{}, values[:len(values)-1]...)
+		pageState.CounterValues[name] = values[len(values)-1:]
+	}
+	pageState.CounterScopes = append(pageState.CounterScopes, hidden)
+}
+
+// hiddenPageCounter poprzedza w stanie strony nazwy liczników dokumentu zasłoniętych na bieżącej stronie.
+const hiddenPageCounter = "\x00page-hidden:"
 
 // Drop "pages" counter from style in @page and @margin context.
 // Ensure `counter-increment: page` for @page context if not otherwise
@@ -446,6 +478,14 @@ func standardizePageBasedCounters(style pr.ElementStyle, pseudoType string) {
 		newInc := append(pr.IntStrings{{String: "page", Int: 1}}, current.Values...)
 		style.SetCounterIncrement(pr.SIntStrings{Values: newInc})
 	}
+}
+
+// marginBoxPaintOrder to domyślna kolejność rysowania pól marginesowych (CSS Page 3 § 3.1).
+var marginBoxPaintOrder = [16]string{
+	"@top-left-corner", "@top-left", "@top-center", "@top-right",
+	"@top-right-corner", "@right-top", "@right-middle", "@right-bottom",
+	"@bottom-right-corner", "@bottom-right", "@bottom-center", "@bottom-left",
+	"@bottom-left-corner", "@left-bottom", "@left-middle", "@left-top",
 }
 
 // Yield laid-out margin boxes for this page.
@@ -498,6 +538,20 @@ func makeMarginBoxes(context *layoutContext, page *bo.PageBox, state tree.PageSt
 		}
 		resolvePercentages(box, containingBlock)
 		boxF := box.Box()
+		// gopdfgo: procenty w marginesach i odstępach górnych i dolnych pola marginesowego odnoszą się
+		// do wysokości bloku zawierającego (CSS Page 3 § 6: „for top and bottom values, percentages
+		// are relative to the height of the containing block”). Źródło liczyło je jak w CSS 2 od szerokości.
+		if cbHeight, ok := containingBlock[1].(pr.Float); ok {
+			boxF.MarginTop = resolveOnePercentage(style.GetMarginTop(), pr.PMarginTop, cbHeight)
+			boxF.MarginBottom = resolveOnePercentage(style.GetMarginBottom(), pr.PMarginBottom, cbHeight)
+			boxF.PaddingTop = resolveOnePercentage(style.GetPaddingTop(), pr.PPaddingTop, cbHeight)
+			boxF.PaddingBottom = resolveOnePercentage(style.GetPaddingBottom(), pr.PPaddingBottom, cbHeight)
+		}
+		// gopdfgo: width: min-content, max-content i fit-content dają szerokość treści (CSS Sizing 3 § 2.1;
+		// CSS Page 3 § 5.3 opiera rozmiary pól na min-content i max-content); źródło czytało je jak auto.
+		if box.IsGenerated {
+			resolveIntrinsicSizes(context, box, containingBlock[0])
+		}
 		if !box.IsGenerated {
 			boxF.Width = pr.Float(0)
 			boxF.Height = pr.Float(0)
@@ -599,11 +653,18 @@ func makeMarginBoxes(context *layoutContext, page *bo.PageBox, state tree.PageSt
 		}
 		box.PositionX = positionX
 		box.PositionY = positionY
-		computeFixedDimension(context, box, cbHeight.V(), true, strings.Contains(atKeyword, "top"))
+		// gopdfgo: najpierw szerokość, bo wysokość treści (height: fit-content itp.) zależy od szerokości
 		computeFixedDimension(context, box, cbWidth.V(), false, strings.Contains(atKeyword, "left"))
+		computeFixedDimension(context, box, cbHeight.V(), true, strings.Contains(atKeyword, "top"))
 		generatedBoxes = append(generatedBoxes, box)
 	}
 
+	// gopdfgo: domyślna kolejność rysowania pól zaczyna się od @top-left-corner i idzie zgodnie z ruchem
+	// wskazówek zegara (CSS Page 3 § 3.1); źródło dawało kolejno krawędzie górną, dolną, lewą, prawą
+	// i na końcu narożniki.
+	slices.SortStableFunc(generatedBoxes, func(a, b *bo.MarginBox) int {
+		return slices.Index(marginBoxPaintOrder[:], a.AtKeyword) - slices.Index(marginBoxPaintOrder[:], b.AtKeyword)
+	})
 	out := make([]Box, len(generatedBoxes))
 	for i, box := range generatedBoxes {
 		out[i] = marginBoxContentLayout(context, box)
@@ -938,7 +999,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 
 	// Update page counter values
 	standardizePageBasedCounters(style, "")
-	bo.UpdateCounters(pageState, style)
+	updatePageCounters(pageState, style)
 	pageCounterValues := pageState.CounterValues
 	// pageCounterValues will be cached in the pageMaker
 

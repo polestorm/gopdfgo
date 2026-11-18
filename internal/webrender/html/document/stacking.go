@@ -102,6 +102,11 @@ func NewStackingContextFromPage(page *bo.PageBox) StackingContext {
 	childContexts := make([]StackingContext, len(page.Children))
 	for i, child := range page.Children {
 		childContexts[i] = NewStackingContextFromBox(child, page, nil)
+		// gopdfgo: płótno, obramowanie strony i treść dokumentu tworzą razem jeden kontekst o z-index 0
+		// (CSS Page 3 § 3.1); z-index elementu głównego nie przenosi treści przed ani za pola marginesowe.
+		if _, isMargin := child.(*bo.MarginBox); !isMargin {
+			childContexts[i].zIndex = 0
+		}
 	}
 	// Children are sub-contexts, remove them from the "normal" tree.
 	page = bo.CopyWithChildren(page, nil).(*bo.PageBox)

@@ -270,6 +270,7 @@ const (
 	PClipPath               // gopdfgo: CSS Masking 1 § 5.1; niedziedziczona
 	PBoxOrient              // gopdfgo: -webkit-box-orient (CSS Overflow 4 § 4.3, starszy line-clamp); niedziedziczona
 	PTextAutospace          // gopdfgo: CSS Text 4 § 6.4; dziedziczona
+	PPageOrientation        // gopdfgo: CSS Page 3 § 7.2 (deskryptor @page); niedziedziczona
 
 	nbProperties
 )
