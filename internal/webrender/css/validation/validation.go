@@ -265,6 +265,7 @@ var (
 		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PTextJustify:             textJustify,
 		pr.PWrapInside:              wrapInside,
+		pr.PBoxOrient:               boxOrient,
 		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PWordSpaceTransform:      wordSpaceTransform,
@@ -673,6 +674,8 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 			name = "row-gap"
 		case "grid-column-gap":
 			name = "column-gap"
+		case "-webkit-box-orient": // gopdfgo: zob. boxOrient
+			name = "box-orient"
 		}
 
 		if strings.HasPrefix(name, proprietaryPrefix) {
@@ -690,7 +693,8 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 			}
 		}
 
-		if strings.HasPrefix(name, "-") && !strings.HasPrefix(name, "--") {
+		// gopdfgo: -webkit-line-clamp jest skrótem z normy (CSS Overflow 4 § 4.3), mimo przedrostka
+		if strings.HasPrefix(name, "-") && !strings.HasPrefix(name, "--") && name != "-webkit-line-clamp" {
 			validationError("prefixed selectors are ignored")
 			continue
 		}
@@ -1925,6 +1929,16 @@ func display(tokens []Token, _ string) pr.CssProperty {
 	case pr.InlineBlock:
 		return pr.Display{Outside: pr.Inline, Inside: pr.FlowRoot}
 	}
+	// gopdfgo: starsze display: -webkit-box i -webkit-inline-box (CSS Overflow 4 § 4.3); wartość
+	// obliczona zależy od -webkit-box-orient (tree.display). Źródło odrzucało te wartości.
+	if len(tokens) == 1 {
+		switch getKeyword(tokens[0]) {
+		case "-webkit-box":
+			return pr.Display{Outside: pr.Block, Inside: pr.Flex, WebkitBox: true}
+		case "-webkit-inline-box":
+			return pr.Display{Outside: pr.Inline, Inside: pr.Flex, WebkitBox: true}
+		}
+	}
 	// gopdfgo: display: contents; źródło odrzucało tę wartość jako nieznaną
 	if len(tokens) == 1 && getKeyword(tokens[0]) == "contents" {
 		return pr.Display{Outside: pr.Inline, Inside: pr.Flow, Contents: true}
@@ -2766,6 +2780,18 @@ func textJustify(tokens []Token, _ string) pr.CssProperty {
 
 // gopdfgo: “wrap-inside“ (CSS Text 4, #wrap-inside): avoid odsuwa łamanie wewnątrz pudełka liniowego na
 // ostateczność. Źródło właściwości nie znało.
+// gopdfgo: “-webkit-box-orient“ (CSS Overflow 4 § 4.3, starszy line-clamp; Compat Standard):
+// horizontal | vertical | inline-axis | block-axis. Liczy się tylko przy display: -webkit-box.
+// Źródło właściwości nie znało.
+func boxOrient(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(tokens); keyword {
+	case "horizontal", "vertical", "inline-axis", "block-axis":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
 func wrapInside(tokens []Token, _ string) pr.CssProperty {
 	switch keyword := getSingleKeyword(tokens); keyword {
 	case "auto", "avoid":
@@ -4679,7 +4705,7 @@ func maxLines(tokens []Token, _ string) pr.CssProperty {
 func continue_(tokens []Token, _ string) pr.CssProperty {
 	keyword := getSingleKeyword(tokens)
 	switch keyword {
-	case "auto", "discard":
+	case "auto", "discard", "-webkit-legacy": // gopdfgo: -webkit-legacy (CSS Overflow 4 § 4.2)
 		return pr.String(keyword)
 	default:
 		return nil

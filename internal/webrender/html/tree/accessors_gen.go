@@ -2057,3 +2057,9 @@ func (s *AnonymousStyle) GetWhiteSpaceTrim() pr.String {
 	return s.Get(pr.PWhiteSpaceTrim.Key()).(pr.String)
 }
 func (s *AnonymousStyle) SetWhiteSpaceTrim(v pr.String) { s.propsCache.setKnown(pr.PWhiteSpaceTrim, v) }
+
+func (s *ComputedStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
+func (s *ComputedStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }
+
+func (s *AnonymousStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
+func (s *AnonymousStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }

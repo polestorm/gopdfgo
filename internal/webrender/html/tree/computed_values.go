@@ -113,6 +113,7 @@ var (
 		pr.PRowGap:        gap,
 		pr.PContent:       content,
 		pr.PDisplay:       display,
+		pr.PContinue:      continueValue,
 		pr.PFloat:         floating,
 		pr.PFontSize:      fontSize,
 		pr.PFontWeight:    fontWeight,
@@ -777,6 +778,14 @@ func content(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.
 // See http://www.w3.org/TR/CSS21/visuren.html#dis-pos-flo
 func display(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
 	value := _value.(pr.Display)
+	// gopdfgo: pudełko -webkit-box ułożone pionowo jest kontenerem blokowym z własnym kontekstem
+	// formatowania (flow-root), w którym działa -webkit-line-clamp (CSS Overflow 4 § 4.3: kontener
+	// line-clamp); ułożone poziomo układamy jak flex w wierszu (Compat Standard).
+	if value.WebkitBox {
+		if orient := computer.GetBoxOrient(); orient == "vertical" || orient == "block-axis" {
+			value.Inside = pr.FlowRoot
+		}
+	}
 	float_ := computer.specified.Float
 	position := computer.specified.Position
 	if (!position.Bool && (position.String == "absolute" || position.String == "fixed")) || float_ != "none" || computer.isRootElement() {
@@ -793,6 +802,20 @@ func display(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.
 		}
 	}
 	return value
+}
+
+// continueValue (gopdfgo): continue: -webkit-legacy działa jak discard w pudełku display:
+// -webkit-box (albo -webkit-inline-box) z -webkit-box-orient: vertical, a gdzie indziej jak auto
+// (CSS Overflow 4 § 4.2, § 4.3).
+func continueValue(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.String)
+	if value != "-webkit-legacy" {
+		return value
+	}
+	if display := computer.GetDisplay(); display.WebkitBox && display.Inside == pr.FlowRoot {
+		return pr.String("discard")
+	}
+	return pr.String("auto")
 }
 
 // Compute the “float“ property.

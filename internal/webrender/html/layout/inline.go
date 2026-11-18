@@ -1300,6 +1300,8 @@ func breakWaitingChildren(context *layoutContext, box Box, bottomSpace pr.Float,
 			}
 
 			*children = append(*children, waitingChildrenCopy...)
+			// gopdfgo: dzieci za złamanym przechodzą do następnego wiersza (zob. niżej)
+			dropPlaceholders(waitingChildren[len(waitingChildrenCopy)+1:], absoluteBoxes, fixedBoxes, linePlaceholders)
 			if newChild == nil {
 				// May be nil where we have an empty TextBox.
 				if !bo.TextT.IsInstance(child) {
@@ -1315,10 +1317,34 @@ func breakWaitingChildren(context *layoutContext, box Box, bottomSpace pr.Float,
 	if l := len(*children); l != 0 {
 		// Too wide, can't break waiting children and the inline is
 		// non-empty: put child entirely on the next line.
+		// gopdfgo: pudełka pozycjonowane z odrzuconych oczekujących dzieci przechodzą do następnego
+		// wiersza, więc znikają z list pudełek do ułożenia w tym wierszu
+		dropPlaceholders(waitingChildren, absoluteBoxes, fixedBoxes, linePlaceholders)
 		return tree.ResumeStack{(*children)[l-1].index + 1: nil}
 	}
 
 	return nil
+}
+
+// isAbsolutePlaceholderEntry (gopdfgo): dziecko wiersza jest miejscem pudełka pozycjonowanego
+// absolutnie albo ustalonego.
+func isAbsolutePlaceholderEntry(child indexedBoxC) bool {
+	_, ok := child.box.(*AbsolutePlaceholder)
+	return ok
+}
+
+// dropPlaceholders (gopdfgo) usuwa miejsca pudełek pozycjonowanych spośród dropped z list pudełek
+// do ułożenia.
+func dropPlaceholders(dropped []indexedBoxC, lists ...*[]*AbsolutePlaceholder) {
+	for _, child := range dropped {
+		placeholder, ok := child.box.(*AbsolutePlaceholder)
+		if !ok {
+			continue
+		}
+		for _, list := range lists {
+			*list = slices.DeleteFunc(*list, func(p *AbsolutePlaceholder) bool { return p == placeholder })
+		}
+	}
 }
 
 // Same behavior as splitInlineLevel.
@@ -1526,8 +1552,16 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		}
 
 		if canBreak == pr.True {
-			children = append(children, waitingChildren...)
-			waitingChildren = nil
+			// gopdfgo: pudełka pozycjonowane absolutnie tuż przed miejscem podziału idą z następującą
+			// treścią: gdy wiersz złamie się w tym miejscu, ich położenie statyczne jest na początku
+			// następnego wiersza (CSS Text 3 § 5.1: elementy spoza przepływu nie tworzą miejsc podziału;
+			// test WPT line-breaking-019). W źródle zostawały na końcu poprzedniego wiersza.
+			k := len(waitingChildren)
+			for k > 0 && isAbsolutePlaceholderEntry(waitingChildren[k-1]) {
+				k--
+			}
+			children = append(children, waitingChildren[:k]...)
+			waitingChildren = slices.Clone(waitingChildren[k:])
 		}
 
 		// gopdfgo: pudełko z wrap-inside: avoid, które musiało się złamać w środku, przechodzi w całości
@@ -2273,6 +2307,17 @@ func justifyLine(context *layoutContext, line *bo.LineBox, extraWidth pr.Float, 
 	} else if lineHasTab(line) {
 		return
 	}
+	if line.Style.GetTextJustify() == "inter-character" && line.Style.GetDirection() != pr.Rtl {
+		if hanging {
+			if count, _, last := trailingPreservedSpaces(line); last != nil && last.TextLayout != nil {
+				last.TextLayout.SetHangingSpaces(count)
+			}
+		}
+		if count := addCharSpacing(line, 0, &charSpacingState{}); count > 0 {
+			addCharSpacing(line, extraWidth/pr.Float(count), &charSpacingState{})
+		}
+		return
+	}
 	nbSpaces := countExpandableSpaces(line)
 	if hanging {
 		if count, _, last := trailingPreservedSpaces(line); last != nil && last.TextLayout != nil {
@@ -2563,6 +2608,62 @@ func isWordSeparator(r rune) bool {
 		return true
 	}
 	return false
+}
+
+// charSpacingState (gopdfgo): stan przejścia addCharSpacing przez wiersz
+type charSpacingState struct {
+	started     bool     // była już jednostka typograficzna
+	afterAtomic bool     // ostatnia jednostka to ciąg elementów atomowych
+	xAdvance    pr.Float // dotychczasowe przesunięcie
+	count       int      // liczba miejsc justowania
+}
+
+// addCharSpacing (gopdfgo) justuje wiersz przy text-justify: inter-character (CSS Text 3 § 6.4):
+// odstęp trafia między każde dwie sąsiednie jednostki typograficzne wiersza, także na granicy
+// pudełek, a ciąg sąsiednich elementów atomowych liczy się jak jedna jednostka (CSS Text 4,
+// #valdef-text-justify-inter-character; test WPT text-justify-inter-character-atomic-inline).
+// Ze spacing równym zero tylko liczy miejsca justowania. Zwraca ich liczbę. Źródło justowało
+// wyłącznie na spacjach.
+func addCharSpacing(box_ Box, spacing pr.Float, s *charSpacingState) int {
+	if textBox, ok := box_.(*bo.TextBox); ok {
+		n := 0
+		if textBox.TextLayout != nil && textBox.Style.GetTextJustify() != "none" {
+			n = textBox.TextLayout.JustifiableClusters()
+		}
+		if n > 0 && s.started {
+			s.count++
+			s.xAdvance += spacing
+		}
+		textBox.PositionX += s.xAdvance
+		if n > 0 {
+			s.count += n - 1
+			if spacing != 0 && n > 1 {
+				textBox.TextLayout.SetCharJustification(spacing)
+				extra := spacing * pr.Float(n-1)
+				textBox.Width = textBox.Width.V() + extra
+				s.xAdvance += extra
+			}
+			s.started, s.afterAtomic = true, false
+		}
+	} else if IsLine(box_) {
+		box := box_.Box()
+		box.PositionX += s.xAdvance
+		before := s.xAdvance
+		for _, child := range box.Children {
+			if child.Box().IsInNormalFlow() {
+				addCharSpacing(child, spacing, s)
+			}
+		}
+		box.Width = box.Width.V() + s.xAdvance - before
+	} else {
+		if s.started && !s.afterAtomic {
+			s.count++
+			s.xAdvance += spacing
+		}
+		box_.Translate(s.xAdvance, 0, false)
+		s.started, s.afterAtomic = true, true
+	}
+	return s.count
 }
 
 func addWordSpacing(context *layoutContext, box_ Box, justificationSpacing, xAdvance pr.Float) pr.Float {

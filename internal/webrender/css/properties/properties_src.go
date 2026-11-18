@@ -265,6 +265,7 @@ const (
 	PFontSynthesisSmallCaps // gopdfgo: CSS Fonts 4 § 7.4; dziedziczona
 	PFontSynthesisPosition  // gopdfgo: CSS Fonts 4 § 7.5; dziedziczona
 	PWhiteSpaceTrim         // gopdfgo: CSS Text 4 § 4.2; niedziedziczona
+	PBoxOrient              // gopdfgo: -webkit-box-orient (CSS Overflow 4 § 4.3, starszy line-clamp); niedziedziczona
 
 	nbProperties
 )

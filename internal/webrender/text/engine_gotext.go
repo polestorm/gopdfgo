@@ -249,6 +249,8 @@ type TextLayoutGotext struct {
 	justification pr.Float
 	justified     bool // gopdfgo: odstęp justowania został już dodany do glifów
 	justifyStart  int  // gopdfgo: spacje przed tym znakiem nie dostają odstępu justowania
+	// gopdfgo: odstęp justowania między jednostkami typograficznymi (text-justify: inter-character)
+	charJustification pr.Float
 
 	// gopdfgo: odstęp między literami za ostatnim znakiem tekstu, który znika, gdy wiersz kończy się
 	// na tym pudełku (CSS Text 3 § 7.2), zob. TrimTrailingLetterSpacing
@@ -304,7 +306,7 @@ func isIgnorableForSpacing(r rune) bool { return unicode.Is(unicode.Cf, r) }
 func privateLayout(line FirstLine) FirstLine {
 	if shared, ok := line.Layout.(*TextLayoutGotext); ok && shared != nil {
 		own := *shared
-		own.justification, own.justified, own.justifyStart = 0, false, 0
+		own.justification, own.justified, own.justifyStart, own.charJustification = 0, false, 0, 0
 		line.Layout = &own
 	}
 	return line
@@ -368,9 +370,74 @@ runs:
 	return fixedToFloat(width)
 }
 
+// SetCharJustification (gopdfgo), zob. [EngineLayout.SetCharJustification].
+func (l *TextLayoutGotext) SetCharJustification(spacing pr.Float) { l.charJustification = spacing }
+
+// justifiableClusterEnds (gopdfgo) zwraca dla każdej jednostki typograficznej liczonej przez
+// JustifiableClusters położenie jej ostatniego glifu (przebieg, glif), w kolejności wizualnej.
+func (l *TextLayoutGotext) justifiableClusterEnds() [][2]int {
+	var ends [][2]int
+	lastCluster := -1
+	for r, run := range l.Line {
+		for i, glyph := range run.Glyphs {
+			index := glyph.ClusterIndex
+			if index < l.justifyStart || index < 0 {
+				continue
+			}
+			if index < len(l.text) && isIgnorableForSpacing(l.text[index]) && glyph.GlyphCount == 1 {
+				continue
+			}
+			if index == lastCluster && len(ends) != 0 {
+				ends[len(ends)-1] = [2]int{r, i}
+				continue
+			}
+			lastCluster = index
+			ends = append(ends, [2]int{r, i})
+		}
+	}
+	// wiszące spacje na końcu wiersza zachowują szerokość i nie są jednostkami justowania
+	if n := l.hangingSpaces; n > 0 {
+		ends = ends[:max(0, len(ends)-n)]
+	}
+	return ends
+}
+
+// JustifiableClusters (gopdfgo), zob. [EngineLayout.JustifiableClusters].
+func (l *TextLayoutGotext) JustifiableClusters() int {
+	if l.Style != nil && l.Style.Direction == pr.Rtl {
+		return 0 // pismo od prawej do lewej: bez rozsuwania znaków
+	}
+	return len(l.justifiableClusterEnds())
+}
+
 func (l *TextLayoutGotext) ApplyJustification() {
-	if l.justified || l.justification == 0 {
+	if l.justified || (l.justification == 0 && l.charJustification == 0) {
 		return // gopdfgo: pudełko rysowane ponownie nie dostaje odstępu drugi raz
+	}
+	if l.charJustification != 0 {
+		// gopdfgo: text-justify: inter-character (CSS Text 3 § 6.4): odstęp za każdą jednostką
+		// typograficzną oprócz ostatniej w pudełku (odstęp przed następnym pudełkiem dodaje układ wiersza)
+		ends := l.justifiableClusterEnds()
+		line := make(shaping.Line, len(l.Line))
+		for i, run := range l.Line {
+			run.Glyphs = append([]shaping.Glyph(nil), run.Glyphs...)
+			line[i] = run
+		}
+		l.Line = line
+		// odstęp zaokrąglony do 1/64 z przeniesieniem reszty, żeby suma zgadzała się z szerokością z układu
+		var given fixed.Int26_6
+		for j, end := range ends[:max(0, len(ends)-1)] {
+			spacing := fixed.Int26_6(math.Round(float64(l.charJustification)*64*float64(j+1))) - given
+			given += spacing
+			glyph := &l.Line[end[0]].Glyphs[end[1]]
+			glyph.Advance += spacing
+			glyph.XAdvance += spacing
+		}
+		for i := range l.Line {
+			l.Line[i].RecomputeAdvance()
+		}
+		l.justified = true
+		return
 	}
 	// gopdfgo: glify są wspólne z pamięcią podręczną układów, więc zmieniamy ich kopię
 	line := make(shaping.Line, len(l.Line))

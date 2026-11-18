@@ -163,9 +163,8 @@ func blockLevelLayoutSwitch(context *layoutContext, box_ bo.BlockLevelBoxITF, bo
 		out1, out2 := tableLayout(context, table, bottomSpace, skipStack, pageIsEmpty, absoluteBoxes, fixedBoxes)
 		return out1, out2, -1
 	} else if isBlockBox {
-		out1, out2 := blockBoxLayout(context, blockBox, bottomSpace, skipStack, containingBlock,
+		return blockBoxLayoutLines(context, blockBox, bottomSpace, skipStack, containingBlock,
 			pageIsEmpty, absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
-		return out1, out2, -1
 	} else if isReplacedBox && bo.BlockReplacedT.IsInstance(box_) {
 		b, v := blockReplacedBoxLayout(context, replacedBox, containingBlock)
 		v = sliceTallReplaced(context, b, v, bottomSpace, skipStack)
@@ -204,6 +203,19 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	containingBlock *bo.BoxFields, pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, adjoiningMargins *[]pr.Float,
 	discard bool, maxLines int,
 ) (bo.BlockLevelBoxITF, blockLayout) {
+	out, layout, _ := blockBoxLayoutLines(context, box_, bottomSpace, skipStack, containingBlock, pageIsEmpty,
+		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+	return out, layout
+}
+
+// blockBoxLayoutLines (gopdfgo) układa pudełko jak blockBoxLayout i zwraca dodatkowo liczbę wierszy,
+// które zostały do obcięcia przez line-clamp (-1 bez ograniczenia), żeby wiersze bloków zagnieżdżonych
+// liczyły się do ograniczenia kontenera (CSS Overflow 4 § 4.1). W źródle ta liczba ginęła, więc
+// kontener line-clamp z blokami w środku nie obcinał niczego.
+func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.Float, skipStack tree.ResumeStack,
+	containingBlock *bo.BoxFields, pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, adjoiningMargins *[]pr.Float,
+	discard bool, maxLines int,
+) (bo.BlockLevelBoxITF, blockLayout, int) {
 	box := box_.Box()
 	if box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto" {
 		newBox_, result := columnsLayout(context, box_, bottomSpace, skipStack, containingBlock,
@@ -220,7 +232,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 					containingBlock, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins)
 			}
 		}
-		return newBox_, result
+		return newBox_, result, -1
 	} else if box.IsTableWrapper {
 		// gopdfgo: tabela będąca elementem flex dostaje szerokość wyznaczoną przez układ flex (rozmiar
 		// docelowy w wierszu, rozciągnięcie w kolumnie); źródło liczyło ją od nowa z samej tabeli, więc
@@ -242,7 +254,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	narrowBesideFloats(context, box_, containingBlock, *adjoiningMargins)
 
 	savedPositionY, savedMargins := box.PositionY, append([]pr.Float(nil), *adjoiningMargins...)
-	newBox__, result, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+	newBox__, result, linesLeft := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 		absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
 	// gopdfgo: pudełko z własnym kontekstem i tabela o szerokości auto, które obok elementów pływających
 	// zajęłyby pas węższy niż ich szerokość na całej wysokości, są układane ponownie w węższym pasie
@@ -259,9 +271,9 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			} else {
 				box.Width = width - (box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V())
 			}
-			laidOut, layout, _ := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+			laidOut, layout, left := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
-			newBox__ = laidOut
+			newBox__, linesLeft = laidOut, left
 			return laidOut, layout
 		}
 		if relaid, layout, ok := relayoutBesideFloats(context, box_, newBox__, containingBlock, relayout); ok {
@@ -287,7 +299,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
 			table := box.GetWrappedTable().Box()
 			table.Height = laidOutTable.Height.V() + deficit
-			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+			newBox__, result, linesLeft = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
 		} else if deficit < -0.5 && laidOutTable != nil {
 			// gopdfgo: tabela nie schodzi poniżej wysokości treści (CSS Tables 3 § 3.10), więc pudełko
@@ -296,7 +308,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 			// table-as-item-large-intrinsic-size).
 			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
 			box.Height = used
-			newBox__, result, _ = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+			newBox__, result, linesLeft = blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
 				absoluteBoxes, fixedBoxes, new([]pr.Float), discard, maxLines)
 		}
 	}
@@ -304,7 +316,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 	// TODO: columns and flex items shouldn't be block boxes, this condition
 	// would then be useless when this is fixed.
 	if newBox == nil || newBox.Box().IsColumn || newBox.Box().IsFlexItem {
-		return newBox, result
+		return newBox, result, linesLeft
 	}
 	if newBox.Box().IsTableWrapper || bo.EstablishesFormattingContext(newBox) {
 		// Don't collide with floats
@@ -342,7 +354,7 @@ func blockBoxLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.
 		}
 	}
 
-	return newBox, result
+	return newBox, result, linesLeft
 }
 
 // narrowedBesideFloats (gopdfgo): kontener flex o szerokości auto, obok którego stoją elementy pływające,

@@ -48,6 +48,10 @@ type Display struct {
 	// jego dzieci i pseudoelementy trafiają do rodzica; Outside i Inside mają wtedy wartości pudełka
 	// liniowego, którego styl dziedziczą teksty.
 	Contents bool
+
+	// WebkitBox (gopdfgo): display: -webkit-box albo -webkit-inline-box (CSS Overflow 4 § 4.3,
+	// Compat Standard). Wartość obliczona zależy od -webkit-box-orient, zob. tree.display.
+	WebkitBox bool
 }
 
 // Decorations zero value means "none"

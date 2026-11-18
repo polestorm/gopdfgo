@@ -206,6 +206,7 @@ var InitialValues = Properties{
 	PContain:        String("none"),                            // gopdfgo
 	PWrapInside:     String("auto"),                            // gopdfgo
 	PWhiteSpaceTrim: String("none"),                            // gopdfgo: CSS Text 4 § 4.2
+	PBoxOrient:      String("horizontal"),                      // gopdfgo: -webkit-box-orient
 
 	// Sizing 3 (WD): https://www.w3.org/TR/css-sizing-3/
 	PBoxSizing: String("content-box"),
@@ -329,6 +330,7 @@ const (
 	// gopdfgo: white-space-collapse (CSS Text 4 § 4.1) ustawia część white-space opisującą
 	// zwijanie białych znaków; zawijanie nakłada text-wrap-mode (zob. tree.effectiveWhiteSpace)
 	SWhiteSpaceCollapse
+	SWebkitLineClamp // gopdfgo: -webkit-line-clamp (CSS Overflow 4 § 4.3)
 )
 
 // NewShortand return the tag for 's' or 0 if not supported
@@ -390,6 +392,8 @@ func NewShortand(s string) Shortand {
 		return SFlexFlow
 	case "line-clamp":
 		return SLineClamp
+	case "-webkit-line-clamp":
+		return SWebkitLineClamp
 	case "text-align":
 		return STextAlign
 	case "grid-column":
@@ -476,6 +480,8 @@ func (sh Shortand) String() string {
 		return "flex-flow"
 	case SLineClamp:
 		return "line-clamp"
+	case SWebkitLineClamp:
+		return "-webkit-line-clamp"
 	case STextAlign:
 		return "text-align"
 	case SGridColumn:
