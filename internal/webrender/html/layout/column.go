@@ -945,9 +945,6 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	// Calculate skip stack
-	if isFloatsOnlyResume(columnSkipStack, columnChildren) {
-		columnSkipStack = nil
-	}
 	if spannerResume != nil {
 		skipStack = tree.ResumeStack{index: spannerResume}
 	} else if columnSkipStack != nil {
