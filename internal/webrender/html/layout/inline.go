@@ -360,6 +360,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		}
 
 		removeLastWhitespace(context, line_)
+		removeLastLetterSpacing(line_)
 
 		// gopdfgo: miejsce do wyrównania liczy się na całej wysokości wiersza znanej z poprzedniego
 		// przebiegu (candidateHeight); wysokość z splitInlineBox bywa jeszcze wysokością rozpórki, więc
@@ -724,6 +725,50 @@ func removeLastWhitespace(context *layoutContext, line *bo.LineBox) {
 
 	// TODO: If spaces (U+0020) or tabs (U+0009) at the end of a line have
 	// "white-space" set to "pre-wrap", UAs may visually collapse them.
+}
+
+// removeLastLetterSpacing (gopdfgo) zdejmuje odstęp między literami za ostatnim znakiem wiersza:
+// na końcu wiersza odstępu nie ma (CSS Text 3 § 7.2; testy WPT letter-spacing-200, -201). Źródło
+// zostawiało go, więc wiersz był szerszy o odstęp, co psuło wyrównanie i łamanie. Zmniejsza też
+// szerokość przodków tekstu i przesuwa puste pudełka liniowe za nim.
+func removeLastLetterSpacing(line *bo.LineBox) {
+	if line.Style.GetDirection() != pr.Ltr {
+		return
+	}
+	path, following, found := lastTextBefore(line, nil)
+	if !found || len(path) < 2 {
+		return
+	}
+	textBox := path[len(path)-1].(*bo.TextBox)
+	if textBox.TextLayout == nil || len(textBox.Text) == 0 {
+		return
+	}
+	width := textBox.TextLayout.TrimTrailingLetterSpacing()
+	if width == 0 {
+		return
+	}
+	textBox.Width = textBox.Width.V() - width
+	for _, ancestor := range path[:len(path)-1] {
+		ancestor.Box().Width = ancestor.Box().Width.V() - width
+	}
+	for _, box := range following {
+		box.Translate(-width, 0, true)
+	}
+}
+
+// trailingLetterSpacing (gopdfgo) zwraca odstęp między literami za ostatnim znakiem treści box, który
+// zniknie, jeśli wiersz skończy się na box (zob. removeLastLetterSpacing); przy sprawdzaniu, czy treść
+// mieści się w wierszu, nie liczy się, jak wiszące odstępy.
+func trailingLetterSpacing(box Box) pr.Float {
+	path, _, found := lastTextBefore(box, nil)
+	if !found {
+		return 0
+	}
+	textBox := path[len(path)-1].(*bo.TextBox)
+	if textBox.TextLayout == nil || len(textBox.Text) == 0 {
+		return 0
+	}
+	return textBox.TextLayout.TrailingLetterSpacing()
 }
 
 // lastTextBefore (gopdfgo) szuka w box ostatniego niepustego pudełka tekstowego, pomijając puste
@@ -1460,7 +1505,9 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			// sprawdzało je jak każde inne i łamało wiersz przed tym tekstem.
 			// gopdfgo: pudełko złożone z samych wiszących odstępów przedłuża ciąg odstępów poprzedniego
 			// pudełka, więc treść wiersza kończy się tam, gdzie ten ciąg się zaczyna (CSS Text 3 § 4.1.3)
-			width, trailing := newChild.Box().MarginWidth(), trailingWhitespaceSize(context, newChild, true)+trailingPreservedWidth(newChild)
+			// gopdfgo: także odstęp między literami za ostatnim znakiem, którego na końcu wiersza nie ma
+			// (CSS Text 3 § 7.2), zob. removeLastLetterSpacing
+			width, trailing := newChild.Box().MarginWidth(), trailingWhitespaceSize(context, newChild, true)+trailingPreservedWidth(newChild)+trailingLetterSpacing(newChild)
 			contentEnd := newPositionX - trailing
 			if width != 0 && trailing >= width {
 				contentEnd = newChild.Box().PositionX
