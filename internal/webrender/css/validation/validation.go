@@ -998,19 +998,18 @@ func listStyleImage(tokens []Token, baseUrl string) (pr.CssProperty, error) {
 	}
 	token := tokens[0]
 
-	if token.Kind() != pa.KFunctionBlock {
-		if getKeyword(token) == "none" {
-			return pr.NoneImage{}, nil
-		}
-		parsedUrl, _, err := getUrl(token, baseUrl)
-		if err != nil {
-			return nil, err
-		}
-		if parsedUrl.Tag == pr.External {
-			return pr.UrlImage(parsedUrl.S), nil
-		}
+	if getKeyword(token) == "none" {
+		return pr.NoneImage{}, nil
 	}
-	return nil, nil
+	// gopdfgo: wartością jest dowolny <image> (CSS Lists 3 § 3.1), także url("…") z adresem
+	// w cudzysłowie, który tokenizer oddaje jako funkcję (CSS Syntax 3 § 4.3.6), i gradient. Źródło
+	// odrzucało każdą funkcję, więc list-style-image: url("x.png") było ignorowane (testy WPT
+	// list-style-image-005, list-style-image-gradients).
+	image, err := getImage(token, baseUrl)
+	if err != nil || image == nil {
+		return nil, err
+	}
+	return image, nil
 }
 
 var centerKeywordFakeToken = pa.NewIdent("center", pa.Pos{})
