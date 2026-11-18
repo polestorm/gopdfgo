@@ -833,6 +833,7 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 			// która może jeszcze zostać zwinięta) nie ma ::first-letter, jak w Chromium; spacje nie są
 			// typograficzną jednostką litery (CSS Pseudo 4 § 2.2, test WPT first-letter-space-not-selected).
 			// Źródło brało taką spację za pierwszą literę.
+			afterSkip := text
 			leadingSpace := len(text) != 0 && text[0] != ' ' && unicode.Is(unicode.Zs, text[0])
 			for len(text) != 0 && !leadingSpace {
 				nextLetter := text[0]
@@ -846,8 +847,12 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 				firstLetter += string(nextLetter)
 				text = text[1:]
 			}
-			textBox.Text = text
+			// gopdfgo: tekst skracamy tylko wtedy, gdy znaleziono literę; sam znak nowego wiersza z <br>
+			// nie jest pierwszą literą i zostaje w tekście (test WPT first-letter-selector-005). Źródło
+			// usuwało go zawsze, więc pierwsze złamanie wiersza znikało.
+			textBox.Text = afterSkip
 			if strings.TrimLeft(firstLetter, "\n") != "" {
+				textBox.Text = text
 				// "This type of initial letter is similar to an
 				// inline-level element if its "float" property is "none",
 				// otherwise it is similar to a floated element."
