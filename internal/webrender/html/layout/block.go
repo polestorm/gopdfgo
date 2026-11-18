@@ -2362,13 +2362,17 @@ func isEmptyLinebox(line *bo.LineBox) bool {
 	return true
 }
 
-// alignOutsideMarker (gopdfgo) ustawia znacznik zewnętrzny przy pierwszym wierszu elementu listy:
-// znacznik należy do pierwszego wiersza (CSS Lists 3 § 3.4), więc idzie za nim, gdy wiersz zaczyna
-// się dalej, niż zaczyna się treść elementu (obok elementu pływającego, pod wypełnieniem bloku
-// potomnego, po przesunięciu przez align-content). Wiersz szukamy w dzieciach w przepływie i w
-// zwykłych blokach potomnych. W źródle znacznik stał zawsze w górnym rogu treści elementu
-// (testy WPT list-style-applies-to-017, outside-marker-with-align-content).
+// alignOutsideMarker (gopdfgo) przesuwa znacznik zewnętrzny na początek pierwszego wiersza
+// elementu listy, gdy ten wiersz jest skrócony przez element pływający spoza elementu listy:
+// znacznik należy do pierwszego wiersza (CSS Lists 3 § 3.4), tak jak w Chromium. Bierzemy tylko
+// wiersz stojący bezpośrednio w elemencie listy; przy wierszu w bloku potomnym (element pływający
+// albo text-indent wewnątrz) i przy wierszu wyrównanym do środka albo do prawej Chromium zostawia
+// znacznik przy krawędzi treści. W źródle znacznik stał zawsze przy krawędzi treści elementu
+// (testy WPT list-style-applies-to-017).
 func alignOutsideMarker(box *bo.BoxFields, children []Box) {
+	if box.Style.GetDirection() != pr.Ltr {
+		return
+	}
 	var marker *AbsolutePlaceholder
 	for _, child := range children {
 		if placeholder, ok := child.(*AbsolutePlaceholder); ok && placeholder.Box().IsOutsideMarker {
@@ -2379,39 +2383,40 @@ func alignOutsideMarker(box *bo.BoxFields, children []Box) {
 	if marker == nil {
 		return
 	}
-	var firstLine func(children []Box) (*bo.LineBox, bool)
-	firstLine = func(children []Box) (*bo.LineBox, bool) {
+	// pierwszy wiersz w przepływie: bezpośrednio w elemencie listy albo w jego anonimowym bloku
+	// (treść liniowa obok znacznika-bloku trafia do takiego bloku)
+	var firstLine func(children []Box) *bo.LineBox
+	firstLine = func(children []Box) *bo.LineBox {
 		for _, child := range children {
-			if _, ok := child.(*AbsolutePlaceholder); ok || child.Box().IsFloated() {
+			if _, ok := child.(*AbsolutePlaceholder); ok {
 				continue
+			}
+			if child.Box().IsFloated() {
+				return nil // element pływający wewnątrz elementu listy: znacznik zostaje przy krawędzi treści
 			}
 			switch child := child.(type) {
 			case *bo.LineBox:
-				return child, true
+				return child
 			case *bo.BlockBox:
-				if line, stop := firstLine(child.Children); stop {
-					return line, true
+				if child.Element == box.Element && child.PseudoType == box.PseudoType {
+					return firstLine(child.Children)
 				}
-				if len(child.Children) != 0 {
-					return nil, true // blok z treścią bez wierszy: znacznik zostaje na miejscu
-				}
-			default:
-				return nil, true
 			}
+			return nil
 		}
-		return nil, false
+		return nil
 	}
-	line, _ := firstLine(children)
+	line := firstLine(children)
 	if line == nil {
 		return
 	}
-	// przesunięcie poziome tylko dla wiersza bez wyrównania: przy center i right położenie wiersza
-	// zawiera już przesunięcie z text-align, a znacznik stoi na początku wiersza, nie tekstu
 	switch line.Style.GetTextAlignAll() {
 	case "left", "start", "justify":
-		if box.Style.GetDirection() == pr.Ltr {
-			marker.Box().PositionX += line.PositionX - box.ContentBoxX()
-		}
+	default:
+		return
 	}
-	marker.Box().PositionY = line.PositionY
+	if indent := line.Style.GetTextIndent(); indent.Value != 0 {
+		return // text-indent przesuwa treść wiersza, nie znacznik
+	}
+	marker.Box().PositionX += line.PositionX - box.ContentBoxX()
 }
