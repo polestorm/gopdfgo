@@ -805,7 +805,12 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 					skipStack = nil
 				}
 			}
-			for len(text) != 0 {
+			// gopdfgo: tekst zaczynający się od nierozdzielającej spacji (separator Zs inny niż zwykła spacja,
+			// która może jeszcze zostać zwinięta) nie ma ::first-letter, jak w Chromium; spacje nie są
+			// typograficzną jednostką litery (CSS Pseudo 4 § 2.2, test WPT first-letter-space-not-selected).
+			// Źródło brało taką spację za pierwszą literę.
+			leadingSpace := len(text) != 0 && text[0] != ' ' && unicode.Is(unicode.Zs, text[0])
+			for len(text) != 0 && !leadingSpace {
 				nextLetter := text[0]
 				isPunc := unicode.In(nextLetter, bo.TableFirstLetter...)
 				if !isPunc {

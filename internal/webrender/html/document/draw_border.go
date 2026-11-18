@@ -81,6 +81,41 @@ func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 // przycięte do obszaru poza pudełkiem obramowania; wewnętrzne nad tłem, przycięte do pudełka odstępu
 // wewnętrznego. Pierwszy cień z listy leży na wierzchu. Rozmycie jest przybliżane kilkoma współśrodkowymi
 // warstwami o rosnącej przezroczystości (PDF nie ma rozmycia; bez rasteryzacji to najbliższy odpowiednik).
+// spreadShape (gopdfgo) powiększa kształt o s z każdej strony (ujemne s zmniejsza) i koryguje promienie
+// narożników według CSS Backgrounds 3 § 7.1.1: promień rośnie o s (maleje do zera), ale gdy promień r
+// jest mniejszy od |s|, przyrost jest mnożony przez 1 + (r/|s| − 1)³, żeby mały promień dawał prawie ostry
+// narożnik. Źródło dodawało (odejmowało) s wprost (testy WPT box-shadow-radius-000, -001).
+func spreadShape(shape bo.RoundedBox, s pr.Float) bo.RoundedBox {
+	shape.X -= s
+	shape.Y -= s
+	shape.Width += 2 * s
+	shape.Height += 2 * s
+	if s == 0 {
+		return shape
+	}
+	abs := s
+	if abs < 0 {
+		abs = -abs
+	}
+	radius := func(r pr.Float) pr.Float {
+		if r == 0 {
+			return 0
+		}
+		if s < 0 {
+			return max(0, r+s)
+		}
+		if r < abs {
+			ratio := r / abs
+			return r + s*(1+(ratio-1)*(ratio-1)*(ratio-1))
+		}
+		return r + s
+	}
+	for _, corner := range []*bo.Point{&shape.TopLeft, &shape.TopRight, &shape.BottomRight, &shape.BottomLeft} {
+		corner[0], corner[1] = radius(corner[0]), radius(corner[1])
+	}
+	return shape
+}
+
 func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 	shadows := box.Style.GetBoxShadow()
 	if len(shadows) == 0 || box.Style.GetVisibility() != "visible" {
@@ -154,7 +189,7 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 		ctx.dst.State().Clip(false)
 	}
 	translated := func(distance, dx, dy pr.Float) bo.RoundedBox {
-		shape := extend(sharpen(box.RoundedBoxInset(distance)))
+		shape := extend(sharpen(spreadShape(box.RoundedBorderBox(), -distance)))
 		shape.X += dx
 		shape.Y += dy
 		return shape
@@ -197,7 +232,7 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 				}
 				if inset {
 					// cień wewnętrzny: wszystko w pudełku odstępu poza kształtem zmniejszonym o spread
-					inner := extend(sharpen(box.RoundedPaddingBoxInset(spread + edge)))
+					inner := extend(sharpen(spreadShape(box.RoundedPaddingBox(), -(spread + edge))))
 					inner.X += dx
 					inner.Y += dy
 					ctx.dst.Rectangle(-1e5, -1e5, 2e5, 2e5)
@@ -383,7 +418,9 @@ func (ctx drawContext) drawBorderImage(box *bo.BoxFields, forMask bool) {
 		} else if dimension.Unit == pr.Scalar {
 			return fl(dimension.Value) * original
 		} else if dimension.Unit == pr.Perc {
-			return fl(dimension.Value) / 100 * areaDimension
+			// gopdfgo: także calc() z procentem (procent z dodatkiem w pikselach albo wyrażenie
+			// min/max/clamp); źródło brało tylko część procentową
+			return fl(pr.ResolvePercentage(dimension, pr.Float(areaDimension)).V())
 		} else {
 			// assert dimension.unit == "px"
 			return fl(dimension.Value)

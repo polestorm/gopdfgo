@@ -74,6 +74,13 @@ func TestBackgroundsMisc(t *testing.T) {
 	// tło body nie przechodzi na płótno, gdy element główny ma contain: paint
 	same("body-propagation-contain", `<style>html { contain: paint } body { background: green; margin: 0; height: 50px }</style>`,
 		`<div style="height:50px;background:green"></div>`)
+	// border-image-width w em i calc() jest sprowadzane do pikseli
+	same("border-image-width-units", `<div style="width:0;height:0;border:40px solid red;background:red;font-size:10px;
+		border-image:linear-gradient(green,green) 1 / 4em calc(20px + 20px) calc(50%) 40px"></div>`,
+		`<div style="width:80px;height:80px;background:green"></div>`)
+	// tekst zaczynający się od nierozdzielającej spacji nie ma ::first-letter
+	same("first-letter-nbsp", `<style>div::first-letter { background: red }</style><div>&nbsp;</div>`,
+		`<div>&nbsp;</div>`)
 	// element główny z display: none nie daje tła płótna
 	same("root-display-none", `<style>html { display: none; background: red }</style>`, ``)
 }
