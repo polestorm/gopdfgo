@@ -2004,3 +2004,21 @@ położenie x dalszych ciągów pudełek poza przepływem na stronach o innych m
 `page-margin-007`), pudełko `absolute` względem bloku początkowego liczone od strony, na której stanął jego
 zastępnik (5 stron zamiast 3; błąd także przed paczką), przesunięcie wierszy siatki po krojonej treści
 niepodzielnej (`grid.go`, `monolithic-overflow-007`).
+
+## Nagłówki tabel i `@media` w druku według norm, sprawdzone w Chrome (2026-11-18)
+
+Dwie sprawy z dziewiątej paczki rozstrzygnięte po sprawdzeniu norm i Chrome 157 (`--headless --print-to-pdf`;
+dokumenty próbne w scratchpadzie sesji, opis pomiaru w ADR 0019):
+
+- **Powtarzanie nagłówka i stopki tabeli:** CSS 2.1 § 17.2 tylko pozwala („may repeat”), CSS Tables 3 § 6.2
+  wymaga, gdy grupa ma `break-inside: avoid` i mieści się w ćwierci wysokości strony (osobno nagłówek i stopka).
+  Chrome: nagłówek 20% strony powtarzany na każdej stronie, 30% tylko na pierwszej, stopka 4% nadal na każdej.
+  Wdrożone tak samo; przy okazji stopka odrzucona przy za wysokim wierszu już nie ginie. Pozostała różnica:
+  Chrome dzieli wiersz tabeli między strony, my przenosimy go w całości (przypadek 30%: 4 strony zamiast 3).
+- **`@media` a `@page { size }`:** CSS Page 3 § 7.1: „Media queries do not honor size”. Chrome przy czterech
+  różnych `@page` widzi zawsze to samo (≈740 × 980 px: Letter minus 1 cm), gopdfgo widziało rozmiar z `@page`.
+  ADR 0019 zastępuje ADR 0012: obszar domyślnego arkusza (A4 albo `size` z arkusza użytkownika).
+
+Reftesty druku 279 → 282 z 340; sondaż ekranowy bez zmian (9498, 0 strat); korpus bez zmian. Poprawionych
+8 przejętych testów (lista w `THIRD_PARTY.md`). `TestTranslate` (macierze) naprawiony: dokładne porównanie
+`float32` zastąpione tolerancją.

@@ -190,7 +190,7 @@ fail	other	css/css-page/body-background-slr-print.html	strony 1 vs 2
 fail	other	css/css-page/body-background-srl-print.html	strony 1 vs 2
 fail	other	css/css-page/body-background-vlr-print.html	strony 1 vs 2
 fail	other	css/css-page/body-background-vrl-print.html	strony 1 vs 2
-fail	other	css/css-page/media-queries-001-print.html	strona 1: różne piksele 331494
+pass	other	css/css-page/media-queries-001-print.html	
 fail	other	css/css-page/media-queries-002-print.html	strona 1: różne piksele 10000
 fail	other	css/css-page/media-queries-003-print.html	strona 1: różne piksele 11605
 pass	other	css/css-page/page-visibility-hidden-001-print.html	
@@ -285,11 +285,11 @@ pass	positioned	css/css-page/fixedpos-with-abspos-with-link-print.html
 pass	positioned	css/css-page/fixedpos-with-iframe-print.html	
 pass	positioned	css/css-page/fixedpos-with-link-with-inline-child-print.html	
 pass	table-fragmentation	css/CSS2/pagination/row-page-break-inside-avoid-1-print.html	
-fail	table-fragmentation	css/CSS2/pagination/row-page-break-inside-avoid-2-print.html	strony 3 vs 4
+pass	table-fragmentation	css/CSS2/pagination/row-page-break-inside-avoid-2-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-1-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-2-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-3-print.html	
-fail	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-4-print.html	strony 2 vs 4
+pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-4-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-5-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-6-print.html	
 pass	table-fragmentation	css/CSS2/pagination/rowgroup-page-break-inside-avoid-7-print.html	

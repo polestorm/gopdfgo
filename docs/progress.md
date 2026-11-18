@@ -32,7 +32,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 |---|---|---|
 | Sondaż ekranowy W3C | **7830 z 9123 (85,8%)** | ściśle 7425, krawędziowo 405; tryb ciągły; od 17.11 zestaw większy o 13 testów |
 | Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1668 z 1839 (90,7%)** | ściśle 1614, krawędziowo 54; `css-text` 811 z 909, `css-backgrounds` 572 z 603, `css-fonts` 285 z 327 (od 18.11 z fontami CSSTest, ADR 0018); od 17.11 zestaw większy o 71 testów |
-| Reftesty druku W3C | **279 z 340 (82,1%)** | wszystkie ściśle |
+| Reftesty druku W3C | **282 z 340 (82,9%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
@@ -42,7 +42,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 | Rozmiar binarki | 23,35 MB (macOS arm64, `-s -w`) | 17 razy mniej niż Chromium z bibliotekami |
 | Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
 | Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 18 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
+| Decyzje (ADR) | 19 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
 
 ## Sondaż ekranowy w czasie
 
@@ -115,6 +115,7 @@ Reftesty druku (z 340):
 18.11  244  ███████████████████████████████████▉    71,8%
 18.11  245  ████████████████████████████████████    72,1%
 18.11  279  █████████████████████████████████████████82,1%
+18.11  282  █████████████████████████████████████████▍82,9%
 ```
 
 ## Poprawki według obszarów

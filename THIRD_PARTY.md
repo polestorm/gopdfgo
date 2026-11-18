@@ -919,6 +919,28 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- nagłówki i stopki tabel w druku, 2026-11-18 (CSS Tables 3 § 6.2; sprawdzone w Chrome 157; praca pomocnika):
+  `html/layout/tables.go`: nagłówek i stopka tabeli są powtarzane tylko wtedy, gdy każda z tych grup mieści się
+  w ćwierci wysokości fragmentatora (obszaru strony albo kolumny), oceniane osobno; wyższa grupa płynie jak zwykła
+  grupa wierszy (decyzja w każdym fragmencie na kopii tabeli, `repeatFragmentainerHeight`). Stopka, która nie
+  zmieściła się razem z treścią, pojawia się pod ostatnim wierszem albo w następnym fragmencie
+  (`placeDroppedFooter`). Źródło powtarzało każdą grupę mieszczącą się na stronie i gubiło stopkę odrzuconą przy
+  za wysokim wierszu. `block.go`, `layout.go`: `context.columnHeight`. `html5_ua.css`: `thead, tfoot {
+  break-inside: avoid }` (warunek (a) § 6.2). Testy przejęte poprawione: `TestTableEmptyBody` (przypadki 45/45,
+  85/5, 30/110, 30/60, 110/30 z treścią, 30/110 i 110/30 bez treści), `TestTablePageBreaksComplex1` (szósta
+  strona z nagłówkiem i stopką), w `goweasyprint/pdf` `TestTables_9`, `_10`, `_15`, `_22`, `TestImageRepeatInline`,
+  `TestImageRepeatBlock` (nagłówek zajmujący połowę strony 8–18 px nie jest powtarzany);
+- `@media` w druku, 2026-11-18 (ADR 0019, CSS Page 3 § 7.1; zastępuje ADR 0012; praca pomocnika):
+  `html/tree/media_query.go`, `style.go`, `render.go`, `html/layout/layout.go`: cechy `width`, `height`,
+  `aspect-ratio` i `orientation` oceniane względem obszaru strony arkusza domyślnego (A4 w pionie albo rozmiar
+  z `@page` arkusza użytkownika, pomniejszony o marginesy `@page` arkusza przeglądarki i użytkownika); `@page`
+  autora nie ma wpływu. Arkusze autora czytane raz; usunięte `MediaPageArea`, `preparedContext`,
+  `HTML.LayoutCache`, dodane `layout.PageArea`, `tree.MediaReference`. Deklaracja `size` w `@page` wewnątrz
+  `@media` (także zagnieżdżonego), `@import` albo arkusza z atrybutem `media`, których zapytanie zależy od
+  rozmiaru, jest pomijana (`withoutPageSize`); źródło ją stosowało;
+- `matrix/matrix_test.go` `TestTranslate`: porównanie z tolerancją względną 1e-5 zamiast dokładnego; Mul
+  i Translate liczą te same iloczyny w innej kolejności (na arm64 z FMA), więc test z losowymi macierzami
+  prawie zawsze padał (opis w „Stan testów” był nieaktualny: nie „czasem”, tylko prawie zawsze);
 - model strony w druku, 2026-11-18 (CSS Page 3; reftesty druku; praca pomocnika):
   - `html/layout/pages.go`, `html/document/draw.go`, `stacking.go`: szerokość pola marginesowego środkowego
     o szerokości auto liczona osobno względem podwojonego pola lewego i podwojonego prawego, wybierana mniejsza
@@ -1931,7 +1953,7 @@ testy własne w korzeniu modułu przechodzą wszystkie.
   o identycznych bajtach na amd64 i arm64.
 - `internal/webrender/css/selector`: `TestSelectors`, `TestMatchers`: inna kolejność atrybutów w wypisywanym HTML,
   prawdopodobnie przez nowszy `golang.org/x/net` (0.62 wobec 0.42 w źródle).
-- `internal/webrender/matrix`: `TestTranslate` używa losowych macierzy i czasem nie przechodzi.
+- `internal/webrender/matrix`: `TestTranslate` używał losowych macierzy z dokładnym porównaniem i prawie zawsze padał; od 2026-11-18 porównuje z tolerancją i przechodzi.
 - testy własne w korzeniu (`corpus_test.go`, `robustness_test.go`, `render_test.go`), wszystkie przez
   `gopdfgo.Render`: 18 dokumentów renderuje się, liczby stron zgodne (2 różnice opisane w teście), tekst daje się
   wyodrębnić, dwa przebiegi dają identyczne bajty; 726 plików WPT (testy druku i wzorce) renderuje się bez paniki
