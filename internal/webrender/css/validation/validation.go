@@ -2362,11 +2362,10 @@ func fontWeight(tokens []Token, _ string) pr.CssProperty {
 	if keyword == "normal" || keyword == "bold" || keyword == "bolder" || keyword == "lighter" {
 		return pr.IntString{String: keyword}
 	}
-	if number, ok := token.(pa.Number); ok {
-		intValue := number.Int()
-		if number.IsInt() && (intValue == 100 || intValue == 200 || intValue == 300 || intValue == 400 || intValue == 500 || intValue == 600 || intValue == 700 || intValue == 800 || intValue == 900) {
-			return pr.IntString{Int: intValue}
-		}
+	// gopdfgo: <number [1,1000]> (CSS Fonts 4 § 2.2); źródło przyjmowało tylko wielokrotności 100.
+	// Grubość ułamkowa jest zaokrąglana, bo wartość obliczona jest u nas liczbą całkowitą.
+	if number, ok := token.(pa.Number); ok && number.ValueF >= 1 && number.ValueF <= 1000 {
+		return pr.IntString{Int: int(math.Round(float64(number.ValueF)))}
 	}
 	return nil
 }

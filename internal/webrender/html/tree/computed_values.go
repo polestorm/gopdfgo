@@ -31,33 +31,7 @@ var (
 		pr.Thick:  5,
 	}
 
-	// http://www.w3.org/TR/CSS21/fonts.html#propdef-font-weight
-	fontWeightRelative = struct {
-		bolder, lighter map[int]int
-	}{
-		bolder: map[int]int{
-			100: 400,
-			200: 400,
-			300: 400,
-			400: 700,
-			500: 700,
-			600: 900,
-			700: 900,
-			800: 900,
-			900: 900,
-		},
-		lighter: map[int]int{
-			100: 100,
-			200: 100,
-			300: 100,
-			400: 100,
-			500: 100,
-			600: 400,
-			700: 400,
-			800: 700,
-			900: 700,
-		},
-	}
+	// gopdfgo: tablica bolder/lighter dla wielokrotności 100 zastąpiona przez relativeFontWeight
 
 	// Maps property names to functions returning the computed values
 	computerFunctions = [pr.NbProperties]computerFunc{}
@@ -855,16 +829,49 @@ func fontWeight(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) 
 		out = 400
 	case "bold":
 		out = 700
-	case "bolder":
-		parentValue := computer.parentStyle.GetFontWeight().Int
-		out = fontWeightRelative.bolder[parentValue]
-	case "lighter":
-		parentValue := computer.parentStyle.GetFontWeight().Int
-		out = fontWeightRelative.lighter[parentValue]
+	case "bolder", "lighter":
+		out = relativeFontWeight(computer.parentStyle.GetFontWeight().Int, value.String == "bolder")
 	default:
 		out = value.Int
 	}
 	return pr.IntString{Int: out}
+}
+
+// relativeFontWeight (gopdfgo) liczy bolder i lighter dla dowolnej grubości rodzica według tablicy
+// z CSS Fonts 4 § 2.2.1; źródło znało tylko wielokrotności 100.
+func relativeFontWeight(parent int, bolder bool) int {
+	switch {
+	case parent < 100:
+		if bolder {
+			return 400
+		}
+		return parent
+	case parent < 350:
+		if bolder {
+			return 400
+		}
+		return 100
+	case parent < 550:
+		if bolder {
+			return 700
+		}
+		return 100
+	case parent < 750:
+		if bolder {
+			return 900
+		}
+		return 400
+	case parent < 900:
+		if bolder {
+			return 900
+		}
+		return 700
+	default:
+		if bolder {
+			return parent
+		}
+		return 700
+	}
 }
 
 // Compute track breadth.
