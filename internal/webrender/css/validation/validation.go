@@ -266,6 +266,7 @@ var (
 		pr.PTextJustify:             textJustify,
 		pr.PWrapInside:              wrapInside,
 		pr.PBoxOrient:               boxOrient,
+		pr.PPageOrientation:         pageOrientation,
 		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
 		pr.PBackgroundBlendMode:     backgroundBlendMode,
 		pr.PClipPath:                clipPath,
@@ -2796,6 +2797,16 @@ func textJustify(tokens []Token, _ string) pr.CssProperty {
 // gopdfgo: “-webkit-box-orient“ (CSS Overflow 4 § 4.3, starszy line-clamp; Compat Standard):
 // horizontal | vertical | inline-axis | block-axis. Liczy się tylko przy display: -webkit-box.
 // Źródło właściwości nie znało.
+// pageOrientation (gopdfgo): deskryptor page-orientation reguły @page (CSS Page 3 § 7.2)
+func pageOrientation(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(tokens); keyword {
+	case "upright", "rotate-left", "rotate-right":
+		return pr.String(keyword)
+	default:
+		return nil
+	}
+}
+
 func boxOrient(tokens []Token, _ string) pr.CssProperty {
 	switch keyword := getSingleKeyword(tokens); keyword {
 	case "horizontal", "vertical", "inline-axis", "block-axis":

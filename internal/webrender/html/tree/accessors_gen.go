@@ -2107,3 +2107,17 @@ func (s *AnonymousStyle) GetTextAutospace() pr.String {
 	return s.Get(pr.PTextAutospace.Key()).(pr.String)
 }
 func (s *AnonymousStyle) SetTextAutospace(v pr.String) { s.propsCache.setKnown(pr.PTextAutospace, v) }
+
+func (s *ComputedStyle) GetPageOrientation() pr.String {
+	return s.Get(pr.PPageOrientation.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetPageOrientation(v pr.String) {
+	s.propsCache.setKnown(pr.PPageOrientation, v)
+}
+
+func (s *AnonymousStyle) GetPageOrientation() pr.String {
+	return s.Get(pr.PPageOrientation.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetPageOrientation(v pr.String) {
+	s.propsCache.setKnown(pr.PPageOrientation, v)
+}
