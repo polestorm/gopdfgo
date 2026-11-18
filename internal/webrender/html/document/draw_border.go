@@ -85,7 +85,20 @@ func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
 // narożników według CSS Backgrounds 3 § 7.1.1: promień rośnie o s (maleje do zera), ale gdy promień r
 // jest mniejszy od |s|, przyrost jest mnożony przez 1 + (r/|s| − 1)³, żeby mały promień dawał prawie ostry
 // narożnik. Źródło dodawało (odejmowało) s wprost (testy WPT box-shadow-radius-000, -001).
+//
+// Wyjątek: gdy łuki na boku stykają się (np. border-radius: 50%, koło albo pigułka), promień rośnie o s
+// wprost, żeby kształt pozostał w pełni zaokrąglony (csswg-drafts#7103, test WPT
+// box-shadow-border-radius-001).
 func spreadShape(shape bo.RoundedBox, s pr.Float) bo.RoundedBox {
+	const eps = 1e-6
+	fullX := [2]bool{ // górny i dolny bok w całości zaokrąglone
+		shape.TopLeft[0]+shape.TopRight[0] >= shape.Width-eps,
+		shape.BottomLeft[0]+shape.BottomRight[0] >= shape.Width-eps,
+	}
+	fullY := [2]bool{ // lewy i prawy bok
+		shape.TopLeft[1]+shape.BottomLeft[1] >= shape.Height-eps,
+		shape.TopRight[1]+shape.BottomRight[1] >= shape.Height-eps,
+	}
 	shape.X -= s
 	shape.Y -= s
 	shape.Width += 2 * s
@@ -97,22 +110,24 @@ func spreadShape(shape bo.RoundedBox, s pr.Float) bo.RoundedBox {
 	if abs < 0 {
 		abs = -abs
 	}
-	radius := func(r pr.Float) pr.Float {
+	radius := func(r pr.Float, full bool) pr.Float {
 		if r == 0 {
 			return 0
 		}
 		if s < 0 {
 			return max(0, r+s)
 		}
-		if r < abs {
+		if r < abs && !full {
 			ratio := r / abs
 			return r + s*(1+(ratio-1)*(ratio-1)*(ratio-1))
 		}
 		return r + s
 	}
-	for _, corner := range []*bo.Point{&shape.TopLeft, &shape.TopRight, &shape.BottomRight, &shape.BottomLeft} {
-		corner[0], corner[1] = radius(corner[0]), radius(corner[1])
-	}
+	tl, tr, br, bl := &shape.TopLeft, &shape.TopRight, &shape.BottomRight, &shape.BottomLeft
+	tl[0], tl[1] = radius(tl[0], fullX[0]), radius(tl[1], fullY[0])
+	tr[0], tr[1] = radius(tr[0], fullX[0]), radius(tr[1], fullY[1])
+	br[0], br[1] = radius(br[0], fullX[1]), radius(br[1], fullY[1])
+	bl[0], bl[1] = radius(bl[0], fullX[1]), radius(bl[1], fullY[0])
 	return shape
 }
 

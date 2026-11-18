@@ -173,11 +173,12 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 			if left.Tag == pr.Auto {
 				left.Value = 0
 			}
+			// prostokąt o ujemnej szerokości albo wysokości jest pusty (CSS Masking 1 § 9)
 			ctx.dst.Rectangle(
 				fl(box.BorderBoxX()+left.Value),
 				fl(box.BorderBoxY()+top.Value),
-				fl(right.Value-left.Value),
-				fl(bottom.Value-top.Value),
+				fl(max(0, right.Value-left.Value)),
+				fl(max(0, bottom.Value-top.Value)),
 			)
 			ctx.dst.State().Clip(false)
 		}
@@ -643,7 +644,11 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 
 func (ctx drawContext) drawTable(table *bo.TableBox) {
 	// Draw the background color and image of the table children.
+	// gopdfgo: cień samej tabeli (CSS Backgrounds 3 § 7.1); źródło go nie rysowało
+	// (test WPT box-shadow-table-border-collapse-001)
+	ctx.drawBoxShadows(&table.BoxFields, false)
 	ctx.drawBackgroundDefaut(table.Background)
+	ctx.drawBoxShadows(&table.BoxFields, true)
 	for _, columnGroup := range table.ColumnGroups {
 		ctx.drawBackgroundDefaut(columnGroup.Background)
 		for _, column := range columnGroup.Children {
@@ -882,6 +887,13 @@ func (ctx drawContext) drawReplacedbox(box_ bo.ReplacedBoxITF) {
 			ctx.dst.Rectangle(fl(box.ContentBoxX()), fl(box.ContentBoxY()), fl(box.Width.V()), fl(visibleHeight.V()))
 			ctx.dst.State().Clip(false)
 			drawY -= box.SliceOffset
+		}
+		// gopdfgo: treść elementu zastępowanego jest zawsze przycinana do zaokrąglonej krawędzi treści
+		// (CSS Backgrounds 3 § 5.3; test WPT border-radius-clip-001); źródło tego nie robiło
+		if box.BorderTopLeftRadius != (bo.Point{}) || box.BorderTopRightRadius != (bo.Point{}) ||
+			box.BorderBottomRightRadius != (bo.Point{}) || box.BorderBottomLeftRadius != (bo.Point{}) {
+			roundedBox(ctx.dst, box.RoundedContentBox())
+			ctx.dst.State().Clip(false)
 		}
 		ctx.dst.State().SetAlpha(1, false)
 		ctx.dst.State().Transform(matrix.Translation(fl(drawX), fl(drawY)))

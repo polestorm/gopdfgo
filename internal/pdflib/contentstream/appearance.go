@@ -109,6 +109,16 @@ func (ap *GraphicStream) Ops(op ...Operation) {
 	ap.ops = append(ap.ops, op...)
 }
 
+// ForgetColors (gopdfgo) oznacza kolory i stałe alfa jako nieznane, tak że następne ustawienie zawsze
+// trafia do strumienia. Potrzebne w formach XObject (grupach): dziedziczą stan graficzny z miejsca
+// użycia, więc domyślna czerń i alfa 1 nie są w nich pewne (PDF 32000-1 § 8.10.1, § 11.6.5.2).
+// Bez tego czarne tło maski miękkiej przejmowało kolor wypełnienia z miejsca jej ustawienia.
+func (app *GraphicStream) ForgetColors() {
+	app.State.fillColor = OpSetFillRGBColor{R: -1}
+	app.State.strokeColor = OpSetStrokeRGBColor{R: -1}
+	app.State.fillAlpha, app.State.strokeAlpha = -1, -1
+}
+
 func (app *GraphicStream) SetColorFill(c color.Color) {
 	r, g, b := colorRGB(c)
 	op := OpSetFillRGBColor{R: r, G: g, B: b}

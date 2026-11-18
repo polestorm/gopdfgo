@@ -272,6 +272,9 @@ func (g *group) OnNewStack(task func()) {
 // bounding box.
 func (g *group) NewGroup(x fl, y fl, width fl, height fl) backend.Canvas {
 	out := newGroup(g.cache, x, y, x+width, y+height)
+	// gopdfgo: grupa dziedziczy stan graficzny z miejsca użycia, więc jej kolory nie są znane
+	// (zob. ForgetColors; test WPT clip-text-descendants)
+	out.stream.ForgetColors()
 	return &out
 }
 

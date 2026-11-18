@@ -2,6 +2,7 @@ package gopdfgo
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
@@ -9,6 +10,9 @@ import (
 // i cienie (CSS Backgrounds 3) oraz właściwość clip (CSS 2.2 § 11.1.2).
 func TestBackgroundsMisc(t *testing.T) {
 	fonts := testFonts(t)
+	if ahem, err := os.ReadFile("testdata/wpt/fonts/Ahem.ttf"); err == nil {
+		fonts = append([]Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
+	}
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } .a { position: absolute }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
@@ -83,4 +87,34 @@ func TestBackgroundsMisc(t *testing.T) {
 		`<div>&nbsp;</div>`)
 	// element główny z display: none nie daje tła płótna
 	same("root-display-none", `<style>html { display: none; background: red }</style>`, ``)
+	// nadmiar wysokości tabeli dostaje wiersz bez wysokości, nie wiersze z komórkami o podanej wysokości
+	same("table-extra-height-auto-row", `<div style="display:table;height:100px;width:40px">
+		<div style="display:table-row"><div style="display:table-cell;height:20px;background:blue"></div></div>
+		<div style="display:table-row"><div style="display:table-cell;background:green"></div></div>
+		<div style="display:table-row"><div style="display:table-cell;height:20px;background:blue"></div></div></div>`,
+		`<div style="width:40px;height:20px;background:blue"></div><div style="width:40px;height:60px;background:green"></div>
+		<div style="width:40px;height:20px;background:blue"></div>`)
+	// cień samej tabeli
+	same("table-shadow", `<table style="border-spacing:0;box-shadow:10px 10px green;margin:10px"><tr>
+		<td style="padding:0;width:40px;height:30px;background:blue"></td></tr></table>`,
+		`<div style="margin:10px;width:40px;height:30px;background:blue;box-shadow:10px 10px green"></div>`)
+	// treść elementu zastępowanego jest przycinana do zaokrąglonej krawędzi treści
+	same("replaced-content-radius", `<img style="display:block;padding:10px;border-radius:30px;background:green"
+		src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><rect width='40' height='40' fill='blue'/></svg>">`,
+		`<div style="width:40px;height:40px;padding:10px;border-radius:30px;
+		background:linear-gradient(blue,blue) content-box,green"></div>`)
+	// round skaluje obraz, a background-position działa dalej
+	same("round-with-position", `<div style="width:60px;height:60px;background:linear-gradient(green,green) 5px 5px / 25px 25px round,blue"></div>`,
+		`<div style="width:60px;height:60px;background:linear-gradient(green,green) 5px 5px / 30px 30px repeat,blue"></div>`)
+	// background-attachment: local w pudełku przewijanym nie maluje tła pod obramowaniem
+	same("attachment-local-padding-box", `<div style="width:40px;height:40px;border:10px solid transparent;overflow:hidden;
+		background:green local"></div>`,
+		`<div style="width:40px;height:40px;border:10px solid transparent;background:green padding-box"></div>`)
+	// currentcolor w gradiencie to kolor pudełka, nie czerń
+	same("gradient-currentcolor", `<div style="color:green;height:20px;background:linear-gradient(currentcolor,currentcolor 50%,blue 50%)"></div>`,
+		`<div style="height:20px;background:linear-gradient(green,green 50%,blue 50%)"></div>`)
+	// czarne tło maski tekstu nie dziedziczy koloru wypełnienia z miejsca użycia maski
+	same("text-clip-mask-color", `<div style="font:10px/1 Ahem;color:white">X</div>
+		<div style="font:20px/1 Ahem;color:transparent;background:green;background-clip:text;transform:translateX(0)">X</div>`,
+		`<div style="height:10px"></div><div style="font:20px/1 Ahem;color:green">X</div>`)
 }

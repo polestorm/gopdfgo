@@ -1007,7 +1007,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 // Increase the top padding of a box. This also translates the children.
 // distributeExtraTableHeight powiększa wiersze tabeli o łącznie extra pikseli i zwraca rozdzieloną wysokość.
-// Nadmiar dostają wiersze bez podanej wysokości, proporcjonalnie do obecnej; gdy takich nie ma albo
+// Nadmiar dostają wiersze bez podanej wysokości (ani własnej, ani komórek), proporcjonalnie do obecnej; gdy takich nie ma albo
 // wszystkie mają zerową wysokość, wiersze dzielą go po równo. Komórki rosną razem ze swoim pierwszym
 // wierszem, z zachowaniem vertical-align.
 func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
@@ -1015,7 +1015,16 @@ func distributeExtraTableHeight(table *bo.TableBox, extra pr.Float) pr.Float {
 	for _, group := range table.Children {
 		for _, row := range group.Box().Children {
 			rows = append(rows, row)
-			if row.Box().Style.GetHeight().Tag == pr.Auto {
+			// gopdfgo: wiersz ma też podaną wysokość, gdy podaje ją któraś z jego komórek; taki wiersz nie
+			// dostaje nadmiaru, jeśli są wiersze auto (jak w Chromium; test WPT border-image-repeat-round-003,
+			// gdzie środkowy wiersz bez wysokości ma przejąć całą resztę)
+			fixed := row.Box().Style.GetHeight().Tag != pr.Auto
+			for _, cell := range row.Box().Children {
+				if cell.Box().ComputedHeight != pr.AutoF { // styl komórki ma tu już height: auto
+					fixed = true
+				}
+			}
+			if !fixed {
 				candidates = append(candidates, row)
 			}
 		}
