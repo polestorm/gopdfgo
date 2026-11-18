@@ -229,6 +229,8 @@ func TestCounters7(t *testing.T) {
       <p></p>`), expected)
 }
 
+// gopdfgo: znacznik ::before z display: list-item to ::before::marker (CSS Pseudo 4 § 4.2),
+// w źródle p::marker.
 func TestCounters8(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
@@ -240,13 +242,13 @@ func TestCounters8(t *testing.T) {
       <p></p>`), []SerBox{
 		{"p", BlockT, BC{C: []SerBox{
 			{"p::before", BlockT, BC{C: []SerBox{
-				{"p::marker", BlockT, BC{C: []SerBox{{"p::marker", LineT, BC{C: []SerBox{{"p::marker", TextT, BC{Text: "• "}}}}}}}},
+				{"p::before::marker", BlockT, BC{C: []SerBox{{"p::before::marker", LineT, BC{C: []SerBox{{"p::before::marker", TextT, BC{Text: "• "}}}}}}}},
 				{"p::before", BlockT, BC{C: []SerBox{{"p::before", LineT, BC{C: []SerBox{{"p::before", TextT, BC{Text: "a"}}}}}}}},
 			}}},
 		}}},
 		{"p", BlockT, BC{C: []SerBox{
 			{"p::before", BlockT, BC{C: []SerBox{
-				{"p::marker", BlockT, BC{C: []SerBox{{"p::marker", LineT, BC{C: []SerBox{{"p::marker", TextT, BC{Text: "• "}}}}}}}},
+				{"p::before::marker", BlockT, BC{C: []SerBox{{"p::before::marker", LineT, BC{C: []SerBox{{"p::before::marker", TextT, BC{Text: "• "}}}}}}}},
 				{"p::before", BlockT, BC{C: []SerBox{{"p::before", LineT, BC{C: []SerBox{{"p::before", TextT, BC{Text: "a"}}}}}}}},
 			}}},
 		}}},

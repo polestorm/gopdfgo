@@ -837,6 +837,12 @@ loop:
 		// it must appear after the sequence of simple selectors that
 		// represents the subjects of the selector.""
 		if ns == nil { // we found a pseudo-element
+			// gopdfgo: podpseudoelement ::before::marker i ::after::marker (CSS Pseudo 4 § 4.2,
+			// CSS Lists 3 § 3); źródło przyjmowało tylko jeden pseudoelement w selektorze.
+			if (pseudoElement == "before" || pseudoElement == "after") && newPseudoElement == "marker" {
+				pseudoElement += "::marker"
+				continue
+			}
 			if pseudoElement != "" {
 				return nil, fmt.Errorf("only one pseudo-element is accepted per selector, got %s and %s", pseudoElement, newPseudoElement)
 			}

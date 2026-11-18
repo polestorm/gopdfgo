@@ -42,7 +42,7 @@ import (
 )
 
 // Reject anything not in here
-var pseudoElements = utils.NewSet("", "before", "after", "marker", "first-line", "first-letter", "footnote-call", "footnote-marker")
+var pseudoElements = utils.NewSet("", "before", "after", "marker", "before::marker", "after::marker", "first-line", "first-letter", "footnote-call", "footnote-marker")
 
 type Token = pa.Token
 
@@ -292,6 +292,9 @@ func (sf *StyleFor) finishElement(element *utils.HTMLNode, cascades []sharedCasc
 // pseudoStyle oblicza na żądanie styl pseudoelementu, jeśli ma on kaskadę.
 // The pseudo-Element inherits from the Element.
 func (sf *StyleFor) pseudoStyle(element *utils.HTMLNode, pseudoType string) pr.ElementStyle {
+	if originating, ok := strings.CutSuffix(pseudoType, "::marker"); ok {
+		return sf.nestedMarkerStyle(element, originating, pseudoType)
+	}
 	for _, sc := range sf.pseudoCascades[element] {
 		if sc.pseudoType != pseudoType {
 			continue
@@ -303,6 +306,32 @@ func (sf *StyleFor) pseudoStyle(element *utils.HTMLNode, pseudoType string) pr.E
 		return sf.computedStyles[key]
 	}
 	return nil
+}
+
+// nestedMarkerStyle oblicza styl ::before::marker albo ::after::marker. Znacznik zagnieżdżony
+// dziedziczy po swoim pseudoelemencie, a pasują do niego tylko selektory z podpseudoelementem
+// (CSS Pseudo 4 § 4.2: ::marker samo nie wybiera znaczników ::before i ::after); bez reguł
+// dostaje kaskadę pustą. gopdfgo: w źródle znacznik pseudoelementu brał styl ::marker elementu.
+func (sf *StyleFor) nestedMarkerStyle(element *utils.HTMLNode, originating, pseudoType string) pr.ElementStyle {
+	parentStyle := sf.Get(element, originating)
+	if parentStyle == nil {
+		return nil
+	}
+	cascaded := sf.emptyCascade
+	for _, sc := range sf.pseudoCascades[element] {
+		if sc.pseudoType == pseudoType {
+			cascaded = sc.style
+		}
+	}
+	rootStyle := sf.computedStyles[utils.ElementKey{Element: sf.root, PseudoType: ""}]
+	style := computedFromCascaded(element, cascaded, parentStyle, rootStyle, pseudoType, sf.baseUrl,
+		sf.targetCollector, sf.textContext, sf.share)
+	if computed, ok := style.(*ComputedStyle); ok {
+		computed.viewport = sf.viewport
+		computed.monospaceScale = sf.monospaceScale
+	}
+	sf.computedStyles[element.ToKey(pseudoType)] = style
+	return style
 }
 
 // layerRanks ustala kolejność warstw kaskady ze wszystkich arkuszy: warstwy

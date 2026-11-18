@@ -250,7 +250,7 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 	if !generatesNoBox(element, display) {
 		nestedCounters = updateCounters(state, style, func(name string, withSiblings bool) int {
 			return reversedCounterStart(element, styleFor, name, withSiblings)
-		})
+		}, false)
 	}
 	// If this element’s direct children create new scopes, the counter
 	// names will be in this new list
@@ -261,7 +261,7 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 
 	var children, markerBoxes []Box
 	if display.Has(pr.ListItem) {
-		mb := markerToBox(element, state, style, styleFor, resolver, targetCollector, cs)
+		mb := markerToBox(element, "marker", state, style, styleFor, resolver, targetCollector, cs)
 		if mb != nil {
 			markerBoxes = []Box{mb}
 		}
@@ -433,7 +433,7 @@ func beforeAfterToBox(element *utils.HTMLNode, pseudoType string, state *tree.Pa
 
 	var children []Box
 	if display.Has(pr.ListItem) {
-		mb := markerToBox(element, state, style, styleFor, resolver, targetCollector, cs)
+		mb := markerToBox(element, pseudoType+"::marker", state, style, styleFor, resolver, targetCollector, cs)
 		if mb != nil {
 			children = append(children, mb)
 		}
@@ -453,12 +453,18 @@ func beforeAfterToBox(element *utils.HTMLNode, pseudoType string, state *tree.Pa
 
 // Yield the box for ::marker pseudo-element if there is one.
 // https://drafts.csswg.org/css-lists-3/#marker-pseudo
-func markerToBox(element *utils.HTMLNode, state *tree.PageState, parentStyle pr.ElementStyle, styleFor styleForI,
+//
+// gopdfgo: markerType to "marker" albo, dla ::before i ::after z display: list-item,
+// "before::marker" i "after::marker" (CSS Pseudo 4 § 4.2); źródło brało zawsze ::marker elementu.
+func markerToBox(element *utils.HTMLNode, markerType string, state *tree.PageState, parentStyle pr.ElementStyle, styleFor styleForI,
 	resolver URLResolver, targetCollector *tree.TargetCollector, cs counters.CounterStyle,
 ) Box {
-	style := styleFor.Get(element, "marker")
+	style := styleFor.Get(element, markerType)
+	if style == nil {
+		return nil
+	}
 
-	box, err := makeBox(style, nil, element, "marker")
+	box, err := makeBox(style, nil, element, markerType)
 	if err != nil {
 		logger.WarningLogger.Println(err)
 		return nil
@@ -470,6 +476,11 @@ func markerToBox(element *utils.HTMLNode, state *tree.PageState, parentStyle pr.
 	if style.GetDisplay() == (pr.Display{Outside: pr.None}) || style.GetContent().String == "none" {
 		return nil
 	}
+
+	// gopdfgo: counter-* w ::marker działają jak w ::before (CSS Lists 3 § 3, § 4: „all elements”);
+	// źródło je pomijało. Licznik założony przez znacznik obejmuje resztę elementu listy, także
+	// ::after (test WPT marker-counter), więc trafia do zasięgu rodzeństwa znacznika.
+	updateCounters(state, style, nil, true)
 
 	image := style.GetListStyleImage()
 
@@ -987,12 +998,15 @@ func setContentLists(element *utils.HTMLNode, box Box, style pr.ElementStyle, co
 // którego przodek ma już licznik o tej nazwie, był widoczny także dla następnego rodzeństwa. Według
 // CSS Lists 3 § 4.3 rodzeństwo dziedziczy od poprzednika tylko liczniki, których nie ma u rodzica.
 func UpdateCounters(state *tree.PageState, style pr.ElementStyle) (nested []string) {
-	return updateCounters(state, style, nil)
+	return updateCounters(state, style, nil, false)
 }
 
 // updateCounters: reversedStart podaje wartość początkową licznika odwróconego
-// bez podanej wartości (counter-reset: reversed(nazwa)); nil oznacza zero.
-func updateCounters(state *tree.PageState, style pr.ElementStyle, reversedStart func(name string, withSiblings bool) int) (nested []string) {
+// bez podanej wartości (counter-reset: reversed(nazwa)); nil oznacza zero. Przy siblingScoped
+// licznik zagnieżdżony w liczniku przodka jest widoczny dla następnego rodzeństwa (::marker).
+func updateCounters(state *tree.PageState, style pr.ElementStyle, reversedStart func(name string, withSiblings bool) int,
+	siblingScoped bool,
+) (nested []string) {
 	counterValues, counterScopes := state.CounterValues, state.CounterScopes
 	siblingScopes := counterScopes[len(counterScopes)-1]
 
@@ -1005,7 +1019,7 @@ func updateCounters(state *tree.PageState, style pr.ElementStyle, reversedStart 
 		switch {
 		case siblingScopes.Has(nv.String): // licznik utworzony przez rodzeństwo: zastępujemy go
 			slice = slice[:len(slice)-1]
-		case len(slice) == 0: // nowy licznik, widoczny dla następnego rodzeństwa
+		case len(slice) == 0 || siblingScoped: // nowy licznik, widoczny dla następnego rodzeństwa
 			siblingScopes.Add(nv.String)
 		default: // licznik przodka: nowy, zagnieżdżony, tylko dla tego elementu i jego potomków
 			nested = append(nested, nv.String)
@@ -2526,7 +2540,8 @@ func boxText(box Box) string {
 	if ParentT.IsInstance(box) {
 		for _, child := range Descendants(box) {
 			pt := child.Box().PseudoType
-			if child, ok := child.(*TextBox); ok && pt != "before" && pt != "after" && pt != "marker" {
+			if child, ok := child.(*TextBox); ok && pt != "before" && pt != "after" && pt != "marker" &&
+				!strings.HasSuffix(pt, "::marker") { // gopdfgo: także znaczniki ::before::marker
 				builder = append(builder, child.Text...)
 			}
 		}
