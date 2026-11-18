@@ -501,6 +501,7 @@ const (
 // direction : x, y
 func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, affectedTracksTypes, sizeContribution byte, tracksChildren [][]Box,
 	sizingFunctions [][2]pr.TaggedDim, tracksSizes [][2]pr.MaybeFloat, span int, direction byte, containingBlock *bo.BoxFields,
+	growable ...bool,
 ) {
 	// 1. Maintain separately for each affected track a planned increase.
 	plannedIncreases := make([]pr.Float, len(tracksSizes))
@@ -568,8 +569,15 @@ func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, a
 					space = gridItemMinimumHeight(item, sizingFunctions, i, span, space, limited)
 				}
 			}
+			// gopdfgo: nieskończoną granicę wzrostu liczymy jak rozmiar bazowy (CSS Grid 1 § 11.5.1 krok 1);
+			// źródło odejmowało nieskończoność, więc element rozpięty na ścieżki o maksimum min-content bez
+			// własnych elementów nie podnosił ich granic (test WPT grid-intrinsic-maximums)
 			for _, sizes := range tracksSizes[min(i, len(tracksSizes)):min(i+span, len(tracksSizes))] {
-				space -= sizes[affectedSizes].V()
+				if affectedSizes == sizeMax && sizes[1] == pr.Inf {
+					space -= sizes[0].V()
+				} else {
+					space -= sizes[affectedSizes].V()
+				}
 			}
 			space = max(0, space)
 			// 2.2 Distribute space up to limits.
@@ -596,6 +604,13 @@ func distributeExtraSpace(context *layoutContext, limited bool, affectedSizes, a
 					for _, trackNumber := range active {
 						room := tracksSizes[trackNumber][1].V() - tracksSizes[trackNumber][affectedSizes].V() -
 							itemIncurredIncreases[trackNumber]
+						if affectedSizes == sizeMax {
+							// granica wzrostu: bez ograniczenia, gdy jest nieskończona, inaczej bez wzrostu (§ 11.5.1 krok 2.2)
+							room = 0
+							if tracksSizes[trackNumber][1] == pr.Inf || (trackNumber < len(growable) && growable[trackNumber]) {
+								room = pr.Inf
+							}
+						}
 						if room <= share {
 							room = max(room, 0)
 							itemIncurredIncreases[trackNumber] += room
@@ -925,9 +940,18 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			}
 		}
 		// 1.2.3.5 For intrinsic maximums.
+		// gopdfgo: ścieżka, której granica wzrostu przestała tu być nieskończona, pozostaje „nieskończenie
+		// rosnąca” w kroku dla maksimów max-content (CSS Grid 1 § 11.5.1 krok 3)
+		growable := make([]bool, len(tracksSizes))
+		for i, sizes := range tracksSizes {
+			growable[i] = sizes[1] == pr.Inf
+		}
 		distributeExtraSpace(context, limited, sizeMax, 'i', 'c', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		for i, sizes := range tracksSizes {
+			growable[i] = growable[i] && sizes[1] != pr.Inf
+		}
 		// 1.2.3.6 For max-content maximums.
-		distributeExtraSpace(context, limited, sizeMax, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box())
+		distributeExtraSpace(context, limited, sizeMax, 'm', 'C', tracksChildren, sizingFunctions, tracksSizes, span, direction, containingBlock.Box(), growable...)
 	}
 	// 1.2.4 Increase sizes to accommodate items spanning flexible tracks.
 	// TODO: Support spans for flexible tracks.
@@ -981,6 +1005,15 @@ func resolveTracksSizes(context *layoutContext, sizingFunctions [][2]pr.TaggedDi
 			}
 		}
 		freeSpace = freeSpaceF
+	} else {
+		// gopdfgo: przy rozmiarze nieokreślonym (wysokość auto, pomiar max-content) wolne miejsce jest
+		// nieskończone, więc rozmiary bazowe rosną do granic wzrostu (CSS Grid 1 § 12.6); źródło pomijało
+		// ten krok i wiersz minmax(50px, max-content) zostawał przy 50px (test WPT grid-floats-no-intrude-002)
+		for i, sizes := range tracksSizes {
+			if growthLimit, ok := sizes[1].(pr.Float); ok && growthLimit < pr.Inf && growthLimit > sizes[0].V() {
+				tracksSizes[i][0] = growthLimit
+			}
+		}
 	}
 	// TODO: Respect max-width/-height.
 	// 1.4 Expand flexible tracks.
@@ -1271,6 +1304,17 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		repeatWidth = probe.Box().Width
 	} else if measure == nil || box.Width == pr.AutoF {
 		repeatWidth, columnsAtLeast = repeatSpace(box.Width, box.MinWidth, box.MaxWidth)
+	} else if style.GetWidth().Tag == pr.Auto {
+		// gopdfgo: przy pomiarze szerokości wewnętrznej rozmiar kontenera jest nieokreślony, więc liczba
+		// powtórzeń wynika z max-width albo min-width (CSS Grid 1 § 7.2.3.2), a nie z ograniczenia pomiaru
+		repeatWidth, columnsAtLeast = repeatSpace(pr.AutoF, box.MinWidth, box.MaxWidth)
+	}
+	if _, known := repeatWidth.(pr.Float); !known {
+		// gopdfgo: przy aspect-ratio min-height przenosi się na minimalną szerokość (CSS Sizing 4 § 5.2),
+		// więc i ona wyznacza liczbę powtórzeń (testy WPT grid-auto-repeat-aspect-ratio-001 i -002)
+		if minimum, ok := transferredMinWidth(box); ok {
+			repeatWidth, columnsAtLeast = minimum, true
+		}
 	}
 	rows := getTemplateTracks(style.GetGridTemplateRows(), repeatHeight, rowGap, rowsAtLeast)
 	columns := getTemplateTracks(style.GetGridTemplateColumns(), repeatWidth, columnGap, columnsAtLeast)
@@ -2342,6 +2386,11 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				newChild.Box().Width = fitContentItemWidth(context, newChild, childWidth)
 			}
 			diff := childWidth - newChild.Box().Width.V()
+			// gopdfgo: „safe”: element większy niż obszar stoi na jego początku (CSS Align 3 § 4.4);
+			// źródło ignorowało to słowo w justify-self i align-self elementów siatki
+			if justifySelf.Has(pr.Safe) && diff < 0 {
+				diff = 0
+			}
 			if justifySelf.Has(pr.Center) {
 				newChild.Translate(diff/2, 0, false)
 			} else if justifySelf.Intersects(pr.Right, pr.End, pr.FlexEnd, pr.SelfEnd) {
@@ -2371,6 +2420,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 			}
 		} else {
 			diff := childHeight - newChild.Box().Height.V()
+			if alignSelf.Has(pr.Safe) && diff < 0 {
+				diff = 0
+			}
 			if alignSelf.Has(pr.Center) {
 				newChild.Translate(0, diff/2, false)
 			} else if alignSelf.Intersects(pr.End, pr.FlexEnd, pr.SelfEnd) {
@@ -3018,6 +3070,7 @@ func stretchesInBlockAxis(item Box, container *bo.BoxFields) bool {
 func setDefiniteHeight(box_ Box, base pr.MaybeFloat, stretch bool) {
 	box := box_.Box()
 	box.DefiniteHeight = nil
+	box.HeightBase = base // gopdfgo: podstawa procentów dla min-height i max-height (zob. replacedHeightLimits)
 	pixels := func(d pr.TaggedDim) pr.Float {
 		if d.Tag == 0 && d.Calc == nil && d.Unit == pr.Px {
 			return d.Value
@@ -3066,4 +3119,41 @@ func setChildrenDefiniteHeight(children []Box, base pr.MaybeFloat) {
 			setDefiniteHeight(child, base, false)
 		}
 	}
+}
+
+// transferredMinWidth (gopdfgo): minimalna szerokość treści pudełka z aspect-ratio i szerokością auto
+// przeniesiona z min-height przez proporcje (CSS Sizing 4 § 5.2). min-height w procentach liczy się od
+// HeightBase, gdy jest znana. false, gdy nie ma proporcji albo minimum.
+func transferredMinWidth(box *bo.BoxFields) (pr.Float, bool) {
+	style := box.Style
+	ratio := pr.Float(math.Abs(float64(style.GetAspectRatio())))
+	if ratio <= 0 || style.GetWidth().Tag != pr.Auto || style.GetWidth().Intrinsic != pr.IntrinsicNone {
+		return 0, false
+	}
+	minHeight := style.GetMinHeight()
+	if minHeight.Tag != 0 || minHeight.Calc != nil {
+		return 0, false
+	}
+	var value pr.Float
+	switch minHeight.Unit {
+	case pr.Px:
+		value = minHeight.Value
+	case pr.Perc:
+		base, ok := box.HeightBase.(pr.Float)
+		if !ok {
+			return 0, false
+		}
+		value = base * minHeight.Value / 100
+	default:
+		return 0, false
+	}
+	if value <= 0 {
+		return 0, false
+	}
+	if style.GetBoxSizing() == "border-box" {
+		frameY := box.PaddingTop.V() + box.PaddingBottom.V() + box.BorderTopWidth.V() + box.BorderBottomWidth.V()
+		frameX := box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
+		return max(max(value, frameY)*ratio-frameX, 0), true
+	}
+	return value * ratio, true
 }

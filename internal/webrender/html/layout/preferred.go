@@ -1318,6 +1318,7 @@ func replacedMinContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 				w = 0
 			} else {
 				w, _ = DefaultImageSizing(iwidth, iheight, iratio, pr.AutoF, h, 300, 150)
+				w = clampByHeightLimits(box, w, iratio)
 			}
 		}
 	} else if width.Unit == pr.Perc {
@@ -1329,6 +1330,51 @@ func replacedMinContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		panic(fmt.Sprintf("expected Px got %d", width.Unit))
 	}
 	return adjust(box, outer, w, true, true)
+}
+
+// clampByHeightLimits (gopdfgo): szerokość z treści elementu zastępowanego z proporcjami i szerokością
+// auto uwzględnia min-height i max-height przeniesione przez proporcje (CSS 2.1 § 10.4, tabela ograniczeń;
+// CSS Sizing 4 § 5.2). Procenty liczą się od HeightBase, gdy jest znana; inaczej nie ograniczają. Źródło
+// pomijało oba ograniczenia (testy WPT image-nested-within-definite-column-flexbox, percentage-max-height-003).
+func clampByHeightLimits(box *bo.ReplacedBox, w pr.Float, ratio pr.MaybeFloat) pr.Float {
+	if !pr.Is(ratio) || ratio.V() <= 0 {
+		return w
+	}
+	resolve := func(d pr.TaggedDim) (pr.Float, bool) {
+		if d.Tag != 0 || d.Calc != nil {
+			return 0, false
+		}
+		switch d.Unit {
+		case pr.Px:
+			return d.Value, true
+		case pr.Perc:
+			if base, ok := box.HeightBase.(pr.Float); ok {
+				return base * d.Value / 100, true
+			}
+		}
+		return 0, false
+	}
+	frame := box.Style.GetBoxSizing() == "border-box"
+	limit := func(d pr.TaggedDim) (pr.Float, bool) {
+		v, ok := resolve(d)
+		if ok && frame {
+			for _, p := range [...]pr.TaggedDim{box.Style.GetPaddingTop(), box.Style.GetPaddingBottom(), box.Style.GetBorderTopWidth(), box.Style.GetBorderBottomWidth()} {
+				if p.Tag == 0 && p.Unit == pr.Px && p.Calc == nil {
+					v -= p.Value
+				}
+			}
+			v = max(v, 0)
+		}
+		return v, ok
+	}
+	h := w / ratio.V()
+	if maxHeight, ok := limit(box.Style.GetMaxHeight()); ok && h > maxHeight {
+		h = maxHeight
+	}
+	if minHeight, ok := limit(box.Style.GetMinHeight()); ok && h < minHeight {
+		h = minHeight
+	}
+	return h * ratio.V()
 }
 
 // Return the max-content width for an “InlineReplacedBox“.
@@ -1358,6 +1404,7 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		iwidth, iheight, ratio := image.GetIntrinsicSize(box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
 		iwidth, iheight, ratio = applyPreferredRatio(box.Style, iwidth, iheight, ratio) // gopdfgo: aspect-ratio
 		w, _ = DefaultImageSizing(iwidth, iheight, ratio, pr.AutoF, h, 300, 150)
+		w = clampByHeightLimits(box, w, ratio)
 
 	} else if width.Unit == pr.Perc {
 		// See https://drafts.csswg.org/css-sizing/#intrinsic-contribution
@@ -1380,6 +1427,7 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
 		return adjust(box, outer, width.Value, true, true)
 	}
+	primeFlexDefiniteHeights(box)
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
 		if collapsedInRow(box, child) {
@@ -1393,12 +1441,7 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {
 				v = ratioWidth
 			}
-			if basis, ok := inflexibleBasis(context, box, child); ok {
-				if child.Box().Style.GetFlexGrow() != 0 && v > basis {
-					basis = v
-				}
-				v = basis
-			}
+			v = clampByBasis(context, box, child, v)
 			sum += v
 			if v > max {
 				max = v
@@ -1421,6 +1464,13 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 // element węższy niż jego treść zwężał kontener. Zwraca szerokość zewnętrzną treści; false, gdy
 // element nie ma podanej szerokości albo nie może ani rosnąć, ani się kurczyć.
 func flexibleItemContentWidth(context *layoutContext, container, child Box) (pr.Float, bool) {
+	return flexibleItemContribution(context, container, child, minContentWidth)
+}
+
+// flexibleItemContribution: jak flexibleItemContentWidth, z rozmiarem treści liczonym przez measure
+// (min-content albo max-content). gopdfgo: dla max-content też obowiązuje większa z wartości: rozmiar
+// max-content treści i podana szerokość (CSS Flexbox 1 § 9.9.1); źródło brało samą podaną szerokość.
+func flexibleItemContribution(context *layoutContext, container, child Box, measure func(*layoutContext, Box, bool) pr.Float) (pr.Float, bool) {
 	style := child.Box().Style
 	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") || style.GetWidth().Tag == pr.Auto ||
 		(style.GetFlexGrow() == 0 && style.GetFlexShrink() == 0) {
@@ -1435,25 +1485,28 @@ func flexibleItemContentWidth(context *layoutContext, container, child Box) (pr.
 	}
 	probe.Box().Style = style.Copy()
 	probe.Box().Style.SetWidth(pr.TagToV(pr.Auto))
-	content := minContentWidth(context, probe, true)
+	content := measure(context, probe, true)
 	if maxWidth := style.GetMaxWidth(); maxWidth.Unit == pr.Px && maxWidth.Calc == nil && maxWidth.Tag == 0 {
 		content = min(content, adjust(probe, true, maxWidth.Value, true, true))
 	}
 	return content, true
 }
 
-// inflexibleBasis (gopdfgo): element flex, który ani nie rośnie, ani się nie kurczy, i ma flex-basis
-// podane długością, wnosi do szerokości wewnętrznej kontenera wierszowego właśnie tę długość
-// (CSS Flexbox 1 § 9.9.1), a nie szerokość swojej treści.
+// inflexibleBasis (gopdfgo): zewnętrzna szerokość z flex-basis podanego długością, którą clampByBasis
+// ogranicza wkład elementu do szerokości wewnętrznej kontenera wierszowego (CSS Flexbox 1 § 9.9.1).
 // Tylko w kontenerze wierszowym (w kolumnie flex-basis jest wysokością); automatyczne minimum
 // elementu (§ 4.5) nie pozwala zejść poniżej szerokości min-content jego treści.
-func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bool) {
+func inflexibleBasis(context *layoutContext, container, child Box, floor bool) (pr.Float, bool) {
 	style := child.Box().Style
 	basis := style.GetFlexBasis()
+	if basis.Tag == pr.Auto && style.GetWidth().Tag == 0 && style.GetWidth().Unit == pr.Px && style.GetWidth().Calc == nil {
+		// gopdfgo: flex-basis: auto bierze rozmiar główny elementu (CSS Flexbox 1 § 7.2.3)
+		basis = style.GetWidth()
+	}
 	// element, który nie może się kurczyć, nie zejdzie poniżej flex-basis; gdy może rosnąć, szerokość
 	// treści nadal może dać więcej
 	if !strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row") ||
-		style.GetFlexShrink() != 0 || basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
+		basis.Tag != 0 || basis.Unit != pr.Px || basis.Calc != nil {
 		return 0, false
 	}
 	pixels := func(d pr.TaggedDim) pr.Float {
@@ -1478,10 +1531,55 @@ func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bo
 	} else {
 		width = adjust(child, true, basis.Value, true, true)
 	}
-	if minWidth := style.GetMinWidth(); minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone && style.GetOverflow() == "visible" {
+	if minWidth := style.GetMinWidth(); floor && minWidth.Tag == pr.Auto && minWidth.Intrinsic == pr.IntrinsicNone && style.GetOverflow() == "visible" {
 		width = max(width, minContentWidth(context, child, true))
 	}
 	return width, true
+}
+
+// primeFlexDefiniteHeights (gopdfgo): kontener flex o znanej wysokości treści jest podstawą procentowych
+// wysokości swoich elementów, a w jednowierszowym kontenerze wierszowym element rozciągany ma wysokość
+// określoną (CSS Flexbox 1 § 9.8 p. 1); zapisujemy to przed liczeniem szerokości z treści, jak shrinkToFit
+// dla bloku. Źródło liczyło szerokości elementów tak, jakby wysokość kontenera była nieznana.
+func primeFlexDefiniteHeights(box Box) {
+	fields := box.Box()
+	height, ok := fields.Height.(pr.Float)
+	if !ok {
+		height, ok = fields.DefiniteHeight.(pr.Float)
+	}
+	if !ok || fields.IndefiniteHeight {
+		return
+	}
+	row := strings.HasPrefix(string(fields.Style.GetFlexDirection()), "row")
+	for _, child := range fields.Children {
+		if !child.Box().IsFlexItem {
+			continue
+		}
+		stretch := row && fields.Style.GetFlexWrap() == "nowrap" && isStretchedFlexItem(child, fields) &&
+			child.Box().Style.GetMarginTop().Tag != pr.Auto && child.Box().Style.GetMarginBottom().Tag != pr.Auto
+		setDefiniteHeight(child, height, stretch)
+	}
+}
+
+// clampByBasis (gopdfgo): wkład elementu flex do szerokości wewnętrznej kontenera wierszowego jest
+// ograniczony przez flex-basis podane długością: od góry, gdy element nie może rosnąć, i od dołu, gdy
+// nie może się kurczyć (CSS Flexbox 1 § 9.9.1). Wcześniej ograniczano tylko elementy bez kurczenia,
+// więc element z flex: 0 1 100px i szeroką treścią poszerzał kontener do szerokości treści.
+func clampByBasis(context *layoutContext, container, child Box, v pr.Float) pr.Float {
+	style := child.Box().Style
+	// element, który może się kurczyć, nie dostaje tu minimum automatycznego: Chromium go nie stosuje,
+	// a wzorzec testu WPT flex-container-max-content-001 (przypadki 13-15) oczekuje samego flex-basis
+	basis, ok := inflexibleBasis(context, container, child, style.GetFlexShrink() == 0)
+	if !ok {
+		return v
+	}
+	if style.GetFlexShrink() == 0 && v < basis {
+		v = basis
+	}
+	if style.GetFlexGrow() == 0 && v > basis {
+		v = basis
+	}
+	return v
 }
 
 // collapsedInRow (gopdfgo): element z visibility: collapse w kontenerze wierszowym staje się rozpórką
@@ -1617,6 +1715,7 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
 		return adjust(box, outer, width.Value, true, true)
 	}
+	primeFlexDefiniteHeights(box)
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
 		if collapsedInRow(box, child) {
@@ -1624,15 +1723,13 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 		}
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
+			if content, ok := flexibleItemContribution(context, box, child, maxContentWidth); ok && content > v {
+				v = content
+			}
 			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {
 				v = ratioWidth
 			}
-			if basis, ok := inflexibleBasis(context, box, child); ok {
-				if child.Box().Style.GetFlexGrow() != 0 && v > basis {
-					basis = v
-				}
-				v = basis
-			}
+			v = clampByBasis(context, box, child, v)
 			sum += v
 			if v > max {
 				max = v

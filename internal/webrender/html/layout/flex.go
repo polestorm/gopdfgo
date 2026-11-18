@@ -530,6 +530,12 @@ restartCollapsed:
 					height = max(child.MinHeight.V(), min(child.MaxHeight.V(), height))
 					transferredSize = height * intrinsicRatio.V()
 					contentSize = transferredSize.V()
+				} else if stretched, ok := ratioBaseSize(child_, box, parentBox, main, true); ok {
+					// gopdfgo: rozciągnięty rozmiar poprzeczny jest określony (CSS Flexbox 1 § 9.8), więc
+					// rozmiar min-content obrazu wynika z niego i z proporcji, a nie z rozmiaru własnego
+					// (§ 4.5, test WPT flex-minimum-width-flex-items-013)
+					transferredSize = stretched
+					contentSize = stretched
 				} else if pr.Is(intrinsicRatio) && pr.Is(intrinsicHeight) {
 					// ...a bez niego rozmiar treści ograniczają min-height i max-height przeliczone proporcją
 					ratio := intrinsicRatio.V()
@@ -615,7 +621,10 @@ restartCollapsed:
 					transferredSize = max(low, min(high, intrinsicWidth.V()/ratio))
 					contentSize = max(child.MinHeight.V(), min(child.MaxHeight.V(), contentSize))
 					contentSize = max(low, min(high, contentSize))
-				} else if !pr.Is(intrinsicWidth) {
+				} else if !pr.Is(intrinsicWidth) && pr.Is(intrinsicRatio) {
+					// gopdfgo: bez rozmiaru i bez proporcji obraz ma rozmiar domyślny 300×150 (CSS Images 3
+					// § 4.3) i wysokość z układu jest właściwa; zerujemy tylko przy samych proporcjach (test
+					// WPT flex-svg-no-intrinsic-column-001)
 					// TODO: wrongly set by block_level_layout, would be OK with
 					// min_content_height.
 					contentSize = 0
@@ -644,7 +653,16 @@ restartCollapsed:
 			probe.Box().Style.SetMinHeight(pr.ZeroPixels.Tagged())
 			probe.Box().Style.SetMaxHeight(pr.Dimension{Value: pr.Inf, Unit: pr.Px}.Tagged())
 			if cs := probe.Box().Style; cs.GetWidth().Tag == pr.Auto {
-				cs.SetWidth(pr.FToPx(maxContentWidth(context, probe, true)))
+				if _, isReplaced := child_.(bo.ReplacedBoxITF); isReplaced && box.Style.GetFlexWrap() == "nowrap" && isStretchedInColumn(child, box) {
+					// gopdfgo: rozciągnięta szerokość elementu jednowierszowego kontenera o określonej
+					// szerokości jest określona (CSS Flexbox 1 § 9.8 p. 1), więc wysokość min-content obrazu
+					// wynika z niej przez proporcje (test WPT flex-minimum-height-flex-items-023)
+					inner := box.Width.V() - child.MarginLeft.V() - child.MarginRight.V() - child.PaddingLeft.V() -
+						child.PaddingRight.V() - child.BorderLeftWidth.V() - child.BorderRightWidth.V()
+					cs.SetWidth(pr.FToPx(max(child.MinWidth.V(), min(child.MaxWidth.V(), max(inner, 0)))))
+				} else {
+					cs.SetWidth(pr.FToPx(maxContentWidth(context, probe, true)))
+				}
 			}
 			context.flexMeasuring++
 			measured, _, _ := blockLevelLayout(context, probe.(bo.BlockLevelBoxITF),
@@ -697,6 +715,12 @@ restartCollapsed:
 				// więc tabela z obramowaniem w kolumnie była o nie niższa (test WPT table-as-item-inflexible-in-column-1).
 				if basis, ok := flexBasis.(pr.Float); ok && child.IsTableWrapper {
 					flexBasis = basis + tableFrame(child, main)
+					// gopdfgo: w kolumnie rozmiar pudełka opakowującego obejmuje też podpisy tabeli (CSS Tables 3
+					// § 3.9.1: flex-basis dotyczy tabeli, a elementem flex jest pudełko opakowujące; test WPT
+					// table-as-item-inflexible-in-column-2)
+					if main == pr.PHeight {
+						flexBasis = flexBasis.V() + captionsHeight(context, child_, bottomSpace, parentBox, pageIsEmpty)
+					}
 				}
 			}
 		}
@@ -777,6 +801,9 @@ restartCollapsed:
 				newChild.Style.SetMaxWidth(pr.FToPx(pr.Inf))
 
 				child.FlexBaseSize = maxContentWidth(context, newChild_, false)
+				if fill, ok := ratioOnlyFillWidth(child_, availableMainSpace); ok {
+					child.FlexBaseSize = fill
+				}
 				// gopdfgo: marginesy, obramowania i odstępy bierzemy z wartości rozwiązanych względem kontenera;
 				// źródło liczyło je jako różnicę szerokości zewnętrznej i wewnętrznej pudełka z max-width, więc
 				// przy treści szerszej niż max-width wychodziła wartość ujemna, a marginesy procentowe
@@ -866,13 +893,21 @@ restartCollapsed:
 	} else {
 		if box.Height == pr.AutoF {
 			box.Height = pr.Float(0)
+			// gopdfgo: przy height: min-content, max-content i fit-content wysokość kontenera kolumnowego
+			// to suma wkładów elementów (CSS Flexbox 1 § 9.9.1), a nie ich rozmiarów hipotetycznych
+			// (test WPT flex-container-max-content-001)
+			intrinsicHeight := box.Style.GetHeight().Intrinsic != pr.IntrinsicNone && box.Style.GetFlexWrap() == "nowrap"
 			seen := false // gopdfgo: odstęp tylko między elementami (źródło liczyło od indeksu, także przed pierwszym elementem po dziecku pozycjonowanym)
 			for _, child_ := range children {
 				child := child_.Box()
 				if !child.IsFlexItem {
 					continue
 				}
-				box.Height = box.Height.V() + child.HypotheticalMainSize + child.MainOuterExtra
+				if intrinsicHeight && !struts[child] {
+					box.Height = box.Height.V() + columnItemContribution(context, child_, parentBox, pageIsEmpty) + child.MainOuterExtra
+				} else {
+					box.Height = box.Height.V() + child.HypotheticalMainSize + child.MainOuterExtra
+				}
 				if !struts[child] {
 					if seen {
 						box.Height = box.Height.V() + mainGap
@@ -1166,6 +1201,13 @@ restartCollapsed:
 					minWidth := minContentWidth(context, child_, false)
 					maxWidth := maxContentWidth(context, child_, false)
 					child.Width = min(max(minWidth, newChild_.Box().Width.V()), maxWidth)
+					// gopdfgo: rozmiar hipotetyczny respektuje min-width i max-width elementu (CSS Flexbox 1
+					// § 9.4 krok 7: rozmiar z układu); szerokości wewnętrzne liczą procentowe min-width jako
+					// zero, więc obraz z min-width: 20% dostawał szerokość własną (test WPT
+					// flex-aspect-ratio-img-column-007)
+					if minimum, ok := child.MinWidth.(pr.Float); ok && child.Width.V() < minimum {
+						child.Width = minimum
+					}
 				} else {
 					child.Width = newChild_.Box().Width
 				}
@@ -1290,7 +1332,9 @@ restartCollapsed:
 	}
 	if alignContent.Has(pr.Stretch) {
 		var definiteCrossSize pr.MaybeFloat
-		if he := box.Style.GetHeight(); cross == pr.PHeight && he.Tag != pr.Auto {
+		if he := box.Style.GetHeight(); cross == pr.PHeight && he.Tag != pr.Auto && (he.Unit != pr.Perc || box.Height != pr.AutoF) {
+			// gopdfgo: wysokość procentowa przy nieokreślonej wysokości bloku zawierającego (rozwiązana do auto)
+			// nie jest określona (CSS 2 § 10.5); źródło brało wtedy liczbę procentów jako piksele
 			definiteCrossSize = he.Value
 			// gopdfgo: wysokość treści po rozwiązaniu box-sizing i procentów; źródło brało surową wartość
 			// ze stylu, więc w kontenerze z box-sizing: border-box linia była wyższa o obramowanie i odstępy
@@ -1392,7 +1436,9 @@ restartCollapsed:
 				// (test WPT flexbox_align-items-stretch-4).
 				child.IndefiniteHeight = true
 			}
-			if alignSelf.Has(pr.Stretch) && getDimOrS(crossStyle, cross).Tag == pr.Auto {
+			// gopdfgo: width: max-content (i inne słowa rozmiaru wewnętrznego) ma w stylu znacznik auto, ale nie
+			// jest rozmiarem auto, więc element nie jest rozciągany (CSS Flexbox 1 § 9.4 krok 11)
+			if alignSelf.Has(pr.Stretch) && getDimOrS(crossStyle, cross).Tag == pr.Auto && getDimOrS(crossStyle, cross).Intrinsic == pr.IntrinsicNone {
 				crossMargins := getCrossMargins(child, cross)
 				if !(crossMargins[0] == pr.AutoF || crossMargins[1] == pr.AutoF) {
 					crossSize := line.crossSize
@@ -1795,7 +1841,10 @@ restartCollapsed:
 
 	// 15 Determine the flex container’s used cross size.
 	// TODO: Use the updated algorithm.
-	if getDimOrS(box, cross).Tag == pr.Auto {
+	// gopdfgo: wysokość procentowa rozwiązana do auto (nieokreślony blok zawierający, CSS 2 § 10.5) też
+	// wynika z linii; źródło zostawiało wtedy wysokość auto, czyli zero (test WPT
+	// grid-item-overflow-auto-max-height-percentage)
+	if getDimOrS(box, cross).Tag == pr.Auto || (cross == pr.PHeight && box.Height == pr.AutoF) {
 		// Otherwise, use the sum of the flex lines' cross sizes…
 		// TODO: Handle min-max.
 		// TODO: What about align-content here?
@@ -2622,4 +2671,119 @@ func collapsedStrut(item Box, crossSize pr.Float, main pr.KnownProp) Box {
 	}
 	strut.Box().Style = style
 	return strut
+}
+
+// ratioOnlyFillWidth (gopdfgo): element zastępowany z samymi proporcjami (bez rozmiaru własnego, np. SVG
+// z viewBox), z width i height auto, ma szerokość z równania dla bloku w normalnym przepływie, czyli
+// dostępną szerokość pomniejszoną o marginesy, obramowania i odstępy (CSS 2.1 § 10.3.2, zalecenie dla
+// takiego przypadku; tak robi Chromium). Źródło brało rozmiar domyślny 300×150 wpisany w proporcje
+// (test WPT svg-root-as-flex-item-003).
+func ratioOnlyFillWidth(item Box, available pr.Float) (pr.Float, bool) {
+	replaced, isReplaced := item.(bo.ReplacedBoxITF)
+	if !isReplaced || available == pr.Inf {
+		return 0, false
+	}
+	child := item.Box()
+	if child.Style.GetWidth().Tag != pr.Auto || child.Style.GetWidth().Intrinsic != pr.IntrinsicNone || child.Style.GetHeight().Tag != pr.Auto {
+		return 0, false
+	}
+	iwidth, iheight, ratio := replaced.Replaced().Replacement.GetIntrinsicSize(
+		child.Style.GetImageResolution().Value, child.Style.GetFontSize().Value)
+	iwidth, iheight, ratio = applyPreferredRatio(child.Style, iwidth, iheight, ratio)
+	if pr.Is(iwidth) || pr.Is(iheight) || !pr.Is(ratio) || ratio.V() <= 0 {
+		return 0, false
+	}
+	fill := available - child.PaddingLeft.V() - child.PaddingRight.V() - child.BorderLeftWidth.V() - child.BorderRightWidth.V()
+	if child.MarginLeft != pr.AutoF {
+		fill -= child.MarginLeft.V()
+	}
+	if child.MarginRight != pr.AutoF {
+		fill -= child.MarginRight.V()
+	}
+	return max(fill, 0), true
+}
+
+// captionsHeight (gopdfgo): łączna wysokość zewnętrzna podpisów tabeli w pudełku opakowującym; zero,
+// gdy podpisów nie ma. Mierzy kopię pudełka z tabelą o wysokości zero i bez min-height i max-height.
+func captionsHeight(context *layoutContext, wrapper Box, bottomSpace pr.Float, containingBlock *bo.BoxFields, pageIsEmpty bool) pr.Float {
+	hasCaption := false
+	for _, child := range wrapper.Box().Children {
+		if bo.TableCaptionT.IsInstance(child) {
+			hasCaption = true
+		}
+	}
+	if !hasCaption {
+		return 0
+	}
+	probe := tableWithoutMinMaxHeight(wrapper)
+	for _, child := range probe.Box().Children {
+		if bo.TableT.IsInstance(child) {
+			child.Box().Style.SetHeight(pr.FToPx(0))
+			child.Box().Height = pr.Float(0)
+		}
+	}
+	probe.Box().Style = probe.Box().Style.Copy()
+	probe.Box().Style.SetHeight(pr.TagToV(pr.Auto))
+	probe.Box().Height = pr.AutoF
+	context.flexMeasuring++
+	measured, _, _ := blockLevelLayout(context, probe.(bo.BlockLevelBoxITF), bottomSpace, nil, containingBlock,
+		pageIsEmpty, nil, nil, nil, false, -1)
+	context.flexMeasuring--
+	if measured == nil {
+		return 0
+	}
+	var total pr.Float
+	for _, child := range measured.Box().Children {
+		if bo.TableCaptionT.IsInstance(child) {
+			total += child.Box().MarginHeight()
+		}
+	}
+	return total
+}
+
+// columnItemContribution (gopdfgo): wkład elementu kontenera kolumnowego do jego wysokości wewnętrznej
+// (CSS Flexbox 1 § 9.9.1): większa z wartości: wysokość treści i podana wysokość, ograniczona przez
+// rozmiar bazowy od góry (element nie rośnie) i od dołu (element się nie kurczy), potem przez min-height
+// i max-height. Wysokość treści (bez obramowania i odstępów), jak FlexBaseSize.
+func columnItemContribution(context *layoutContext, item Box, parentBox *bo.BoxFields, pageIsEmpty bool) pr.Float {
+	child := item.Box()
+	probe := item.Copy()
+	if bo.ParentT.IsInstance(item) {
+		probe = bo.CopyWithChildren(item, child.Children)
+	}
+	probe.Box().Style = child.Style.Copy()
+	probe.Box().Style.SetHeight(pr.TagToV(pr.Auto))
+	probe.Box().Style.SetMinHeight(pr.ZeroPixels.Tagged())
+	probe.Box().Style.SetMaxHeight(pr.FToPx(pr.Inf))
+	if width, ok := child.Width.(pr.Float); ok {
+		probe.Box().Style.SetWidth(pr.FToPx(width))
+		if child.Style.GetBoxSizing() == "border-box" {
+			probe.Box().Style.SetBoxSizing("content-box")
+		}
+	}
+	context.flexMeasuring++
+	measured, layout, _ := blockLevelLayout(context, probe.(bo.BlockLevelBoxITF), -pr.Inf, nil, parentBox, pageIsEmpty, nil, nil, nil, false, -1)
+	context.flexMeasuring--
+	v := child.FlexBaseSize
+	if measured != nil {
+		v = measured.Box().Height.V() + collapseMargin(layout.adjoiningMargins)
+	}
+	if height := child.Style.GetHeight(); height.Tag == 0 && height.Unit == pr.Px && height.Calc == nil {
+		specified := height.Value
+		if child.Style.GetBoxSizing() == "border-box" {
+			specified = max(specified-child.PaddingTop.V()-child.PaddingBottom.V()-child.BorderTopWidth.V()-child.BorderBottomWidth.V(), 0)
+		}
+		v = max(v, specified)
+	}
+	if child.Style.GetFlexGrow() == 0 {
+		v = min(v, child.FlexBaseSize)
+	}
+	if child.Style.GetFlexShrink() == 0 {
+		v = max(v, child.FlexBaseSize)
+	}
+	// minimum automatyczne pomijamy, jak w wierszu (zob. clampByBasis)
+	if child.Style.GetMinHeight().Tag != pr.Auto {
+		v = max(child.MinHeight.V(), v)
+	}
+	return min(v, child.MaxHeight.V())
 }
