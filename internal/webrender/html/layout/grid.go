@@ -1731,6 +1731,21 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		// TODO: Calculate max-width.
 		box.Width, _ = containingBlock.ContainingBlock()
 	}
+	// gopdfgo: aspect-ratio kontenera siatki o wysokości auto i znanej szerokości daje wysokość z proporcji
+	// dla pudełka wskazanego przez box-sizing, ograniczoną przez min-height i max-height (CSS Sizing 4
+	// § 5.1), jak w układzie blokowym. Wyższe wiersze powiększają kontener z overflow: visible (minimum
+	// automatyczne, § 5.1.1), zob. niżej po rozwiązaniu wierszy.
+	heightFromRatio := false
+	if ratio := pr.Float(math.Abs(float64(style.GetAspectRatio()))); ratio > 0 && box.Height == pr.AutoF && measure == nil && skipStack == nil {
+		if width, ok := box.Width.(pr.Float); ok && width != pr.Inf {
+			height := width / ratio
+			if style.GetBoxSizing() == "border-box" {
+				borderWidth := width + box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V()
+				height = borderWidth/ratio - box.PaddingTop.V() - box.PaddingBottom.V() - box.BorderTopWidth.V() - box.BorderBottomWidth.V()
+			}
+			box.Height, heightFromRatio = clampSize(max(height, 0), box.MinHeight, box.MaxHeight), true
+		}
+	}
 
 	// 3. Run the grid sizing algorithm.
 
@@ -1772,6 +1787,10 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	context.gridShims = shims
 	rowsSizes := resolveTracksSizes(context, rowSizingFunctions, box.Height, childrenPositions, implicitY1,
 		'y', rowGap, box_, columnsSizes)
+	if total := sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap; heightFromRatio &&
+		style.GetOverflow() == "visible" && total > box.Height.V() {
+		box.Height = total
+	}
 
 	// gopdfgo: min-height kontenera o wysokości auto działa jak określona wysokość, gdy treść jest
 	// niższa: wiersze są rozwiązywane ponownie w tej wysokości, więc ścieżki auto się rozciągają

@@ -116,6 +116,12 @@ func TestGridMisc(t *testing.T) {
 		<div class="g" style="height:100%"><img src="`+square(10)+`" style="height:100%;display:block"></div>
 		<div><div style="height:100px"></div></div></div>`,
 		`<div class="g" style="width:100px;height:100px"></div>`)
+	// aspect-ratio kontenera: wysokość treści 100 / 2.5 = 40, plus odstępy i obramowanie do 100;
+	// treść wyższa niż proporcja powiększa kontener
+	same("aspect-ratio-container", `<div style="display:grid;width:100px;border-block:10px solid green;padding-block:20px;
+		background:green;aspect-ratio:5/2"><div></div></div>
+		<div class="g" style="display:grid;width:100px;aspect-ratio:2"><div style="height:60px"></div></div>`,
+		`<div class="g" style="width:100px;height:160px"></div>`)
 	// auto-fit przy szerokości max-content: powtórzenia z max-width, puste ścieżki zwinięte (50 + 10 + 50)
 	same("auto-fit-max-content", `<div class="b" style="display:grid;width:max-content;max-width:400px;column-gap:10px;
 		grid-template-columns:repeat(auto-fit, 50px);grid-auto-columns:50px">
