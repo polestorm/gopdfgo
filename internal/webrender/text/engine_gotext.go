@@ -62,6 +62,9 @@ type FontConfigurationGotext struct {
 	// rodziny fontów próbowane w podanej kolejności, zanim zadziała tablica podstawień biblioteki go-text.
 	// Klucze małymi literami. Ustawiane przed pierwszym użyciem konfiguracji.
 	GenericFamilies map[string][]string
+
+	// familyIndex (gopdfgo): nazwy rodzin fontów dopasowywane według CSS, zob. family_names.go
+	familyIndex familyIndex
 }
 
 func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
@@ -185,6 +188,7 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
+	f.familyIndex.addFace(desc.Family) // gopdfgo: zob. family_names.go
 	if metrics != (faceMetrics{sizeAdjust: 1}) {
 		if f.fontsMetrics == nil {
 			f.fontsMetrics = map[*font.Font]faceMetrics{}
@@ -219,6 +223,8 @@ func (f *FontConfigurationGotext) FontLocation(font *font.Font) fontscan.Locatio
 // gopdfgo: dodane; w źródle treść miały tylko fonty z @font-face, a pozostałe czytano z pliku.
 func (f *FontConfigurationGotext) RegisterFontContent(fileID string, content []byte) {
 	f.fontsContent[fileID] = content
+	f.familyIndex.fontIDs = append(f.familyIndex.fontIDs, fileID) // gopdfgo: zob. family_names.go
+	f.familyIndex.built = false
 }
 
 func (f *FontConfigurationGotext) FontContent(font FontOrigin) []byte {
@@ -450,14 +456,16 @@ func newAspect(style FontStyle, weight uint16, stretch FontStretch) font.Aspect 
 }
 
 func (fc *FontConfigurationGotext) newQuery(fd FontDescription) fontscan.Query {
-	families := fd.Family
+	// gopdfgo: nazwy rodzin porównywane według CSS Fonts 4 § 5.1, zob. family_names.go
+	families := fc.exactFamilies(fd.Family)
 	if len(fc.GenericFamilies) != 0 {
 		// gopdfgo: rodziny wskazane dla rodziny generycznej wchodzą na listę tuż przed nią
-		families = make([]string, 0, len(fd.Family)+2)
-		for _, family := range fd.Family {
-			families = append(families, fc.GenericFamilies[strings.ToLower(family)]...)
-			families = append(families, family)
+		expanded := make([]string, 0, len(families)+2)
+		for _, family := range families {
+			expanded = append(expanded, fc.GenericFamilies[strings.ToLower(family)]...)
+			expanded = append(expanded, family)
 		}
+		families = expanded
 	}
 	return fontscan.Query{
 		Families: families,
