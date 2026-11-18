@@ -919,6 +919,102 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- reszta CSS 2, 2026-11-18 (praca pomocnika):
+  - `text/engine_gotext.go` (`familyAvailable`, `needsDefaultFamily`): gdy lista rodzin nie zawiera rodziny
+    generycznej ani żadnej rodziny dostępnej (wprost lub przez podstawienie go-text), na końcu zapytania
+    dopisywana jest rodzina generyczna `serif` (z `GenericFamilies`), jak font domyślny Chromium; go-text
+    dopisywało `sans-serif` (reguła fontconfig 49-sansserif). Podstawienia typu Arial → Arimo działają
+    dalej. Osiem testów-mismatch `standard-font-family-*` (cudzysłowowe nazwy fontów systemowych Apple)
+    traci przypadkowe zaliczenia;
+  - `css/validation`, `html/tree/computed_values.go`, `html/boxes/build.go`, nowy `images/marker.go`:
+    `list-style-image` przyjmuje dowolny `<image>`: `url("…")` w cudzysłowie (źródło odrzucało każdą
+    funkcję) i gradienty; obraz znacznika bez własnego rozmiaru ma 1em × 1em (CSS Lists 3 § 3.1);
+  - `html/boxes/build.go`: `text-transform: capitalize` uznaje za granicę słowa także `\n`, `\t`, `\r`, `\f`;
+  - `html/tree/style.go`: jawne `inherit` szerokości obramowania, obrysu i `column-rule` bierze wartość
+    obliczoną rodzica bez zerowania przy stylu `none`/`hidden` (CSS Backgrounds 3: zero to wartość używana);
+    w stylu elementu ze stylem `none`/`hidden` szerokość zostaje zerem jako wartość używana. Źródło
+    dziedziczyło zero (testy W3C `border-width-011/012`, `outline-width-096`);
+  - `utils/io.go`, `html/tree/style.go`: atrybut `charset` elementu `<link>` jest kodowaniem środowiska arkusza
+    (CSS Syntax 3 § 3.2); kodowania dokumentu nadal nie uwzględniamy;
+  - `html/layout/inline.go`: `::first-letter` pomija elementy liniowe z samą zwijaną spacją, uwzględnia
+    miejsce wznowienia po pominiętych spacjach i łączy interpunkcję z `::before` z pierwszą literą (CSS
+    Pseudo 4 § 2.2); element pływający w nierozdzielnym ciągu `nowrap`/`pre` czeka na koniec wiersza, gdy
+    nie mieści się razem z tym ciągiem (`floatInUnbreakableRun`);
+- reszta CSS Text, 2026-11-18 (praca pomocnika):
+  - `html/layout/inline.go`, nowy `html/layout/ellipsis.go`, `block.go`, `layout.go`: `text-justify:
+    inter-character` rozsuwa znaki między jednostkami typograficznymi, także na granicy pudełek (CSS Text 3
+    § 6.4; źródło justowało tylko na spacjach); pudełko pozycjonowane absolutnie tuż przed miejscem podziału
+    przechodzi z następną treścią do nowego wiersza; liczba wierszy do obcięcia przez `line-clamp` przechodzi
+    przez bloki zagnieżdżone (`blockBoxLayoutLines`; w źródle ginęła i kontener z blokami w środku nie
+    obcinał niczego); wielokropek bloku wstawia układ jako anonimowe pudełko w stylu kontenera (CSS Overflow 4
+    § 4.4; w źródle dopisywało go rysowanie do każdego pudełka tekstu); `text-wrap-style: balance` w akapicie
+    obciętym wyrównuje pozostałą treść (`balanceClamped`);
+  - `text/`: ligatury opcjonalne wyłączone w tekście justowanym przez rozsuwanie znaków (CSS Text 3 § 8.3);
+    łącznik ZWJ/ZWNJ po spacji nie odbiera miejsca podziału za spacją (UAX 14 LB9, LB10); znaki kategorii Cf
+    nie trafiają do `/ToUnicode` (wyodrębniany tekst miał łączniki w miejscu spacji);
+  - `css/properties`, `css/validation`, `html/tree/computed_values.go`: skrót `-webkit-line-clamp`, właściwość
+    `box-orient` (z `-webkit-box-orient`), `continue: -webkit-legacy`, `display: -webkit-box`
+    i `-webkit-inline-box` (pionowo `flow-root`, poziomo `flex`) (CSS Overflow 4 § 4.2, § 4.3);
+    `block-ellipsis` dziedziczona (w źródle nie była);
+- reszta flex, siatki i tabel, 2026-11-18 (praca pomocnika):
+  - `layout/preferred.go`, `tables.go`, `layout.go`, `boxes/boxes_tree.go`: wkład kolumn procentowych liczy się
+    do szerokości preferowanej tabeli tylko bez przodka będącego komórką, kontenerem flex albo siatki i przy
+    `width` innym niż `max-content` (`TableBox.NoColumnPercentages`, jak `TableNode::AllowColumnPercentages`
+    w Chromium); „nieskończenie duża liczba” to 1e6 (`kTableMaxInlineSize`) zamiast `math.MaxInt32`; tabela
+    obsługuje `width: min-content/max-content/fit-content`; w tabeli zwiniętej z `box-sizing: border-box`
+    podana szerokość obejmuje połowy obramowań skrajnych komórek; procentowa wysokość komórki nie jest
+    minimum wiersza: wiersze procentowe dostają swój procent wysokości tabeli przy rozdziale nadmiaru
+    (CSS Tables 3 § 3.10.3). W korpusie `17-tables` prawa krawędź tabeli o układzie automatycznym przesuwa się
+    o 1 px, tak jak tabeli o układzie stałym;
+  - `layout/flex.go`: `flex-basis: auto` tabeli o szerokości auto oraz `flex-basis: min-/max-/fit-content` to
+    rozmiar z treści (§ 7.2.3); min-content wieloliniowego kontenera kolumnowego to największy element
+    (§ 9.9.2), a jego szerokość wyznaczona przed układem zostaje;
+  - `layout/preferred.go`, `grid.go`: `aspect-ratio` pudełek niezastępowanych dotyczy też kontenerów flex
+    i siatki, a szerokość z proporcji nie schodzi poniżej min-content treści (CSS Sizing 4 § 5.1);
+  - `layout/absolute.go`: dostępna szerokość tabeli pozycjonowanej bezwzględnie nie przekracza szerokości
+    bryły zawierającej (jak Chromium);
+  - `layout/inline.go`: pudełko atomowe przesuwane przy `vertical-align` przesuwa też swoje elementy pływające
+    (źródło je pomijało);
+  - `tree/computed_values.go`: dziecko kontenera flex/grid z wewnętrzną wartością tabelową `display` jest
+    blokowane (CSS Display 3 § 2.7);
+  - `document/stacking.go`: wiersz, grupa wierszy i komórka z `position: relative` bez własnego kontekstu
+    nakładania są rysowane z tabelą (tła i obramowania zwinięte); uproszczenie wobec CSS 2.1 dodatek E;
+  - `xhtml.go` (nasz): komentarze XML w `<style>` dokumentu XHTML usuwane przed parsowaniem HTML;
+- reszta kolumn i teł, 2026-11-18 (praca pomocnika): pudełko z `transform` (oraz z `contain: layout`/`paint`/
+  `strict`/`content`) jest blokiem zawierającym dla potomków `position: absolute` i `fixed` w układzie
+  blokowym, kolumn, flex, siatki i pudełek pozycjonowanych bezwzględnie (CSS Transforms 1 § 3, CSS
+  Containment 2 § 3.2–3.3; źródło układało potomków `fixed` zawsze względem strony; `absolute.go`:
+  `ownsFixedDescendants`, `establishesFixedContainingBlock`, `layoutOwnedPositioned`); blok o podanej
+  wysokości zawierający elementy pozycjonowane dzieli się między kolumny (wcześniej nasza reguła czyniła go
+  niepodzielnym); równoważenie kolumn nie dzieli elementu pływającego z `break-inside: avoid` (CSS Multicol 1
+  § 7.1); nowe właściwości `clip-path` z kształtami `inset()`, `circle()`, `ellipse()`, `polygon()`
+  i pudełkiem odniesienia (CSS Masking 1 § 5.1, CSS Shapes 1 § 3.1; tworzy kontekst nakładania; `url()`,
+  `path()`, `rect()`, `xywh()` odrzucane; nowe `css/validation/clip_path.go`,
+  `html/document/draw_clip_path.go`) oraz `background-blend-mode` (CSS Compositing 1 § 3.2; tło z mieszaniem
+  rysowane w izolowanej grupie przezroczystości). Test własny `TestRenderReportsWarnings` używa teraz
+  `clip-path: path(...)` jako wartości nieobsługiwanej;
+- fonty, listy i treść generowana, 2026-11-18 (praca pomocnika):
+  - nowy `text/family_names.go`, `newQuery` przez `exactFamilies`: dopasowanie nazw rodzin według CSS Fonts 4
+    § 5.1 (spacje w nazwie znaczące, nazwy zlokalizowane i wszystkie nazwy rodziny z tablicy `name`); go-text
+    usuwał spacje i znał jedną nazwę;
+  - syntetyczne pochylenie (macierz tekstu ze ścięciem, kąt z `font-style: oblique <kąt>`, 14° dla italic)
+    i pogrubienie (tryb `Tr 2` z obrysem jak w Skia) według CSS Fonts 4 § 7.2–7.3, bez syntezy dla fontów
+    zmiennych z osią `wght`/`slnt`, chyba że deskryptor przypina wartość (`backend.TextRun.Skew`,
+    `BoldStroke`, `pdf/text.go`); deskryptor `font-weight` przyjmuje `auto` i zakres; dopasowanie
+    italic/oblique według § 5.2 i `font-synthesis-style: oblique-only` (`matchingStyle`);
+  - `display: inline list-item`: znacznik `outside` działa jak `inside` (CSS Lists 3 § 3.3); zewnętrzny obraz
+    znacznika stoi 7 px przed treścią (Chromium `kCMarkerPaddingPx`; źródło 0.5em; test przejęty
+    `TestListStyleImage` poprawiony, strona poszerzona, żeby obraz był widoczny) i wyznacza wysokość pierwszego
+    wiersza;
+  - `html/layout/block.go` (`alignBlockContent`): `align-content` w kontenerach blokowych o określonej
+    wysokości (CSS Box Alignment 3 § 5.4), domyślnie `safe`, bez komórek tabeli;
+  - nowa właściwość `-webkit-text-fill-color` (Compatibility Standard § 5.2);
+  - `font-language-override` przekazywany jako znacznik OpenType i przywracany po segmentacji go-text, która
+    go gubiła; przy `line-height: normal` fonty zastępcze powiększają pudełko tekstu (CSS Inline 3 § 4.2,
+    `FallbackLineExtents`); spacja niełamiąca dostaje własny font; `font-size: xxx-large` = 3 × medium
+    (CSS Fonts 4 § 2.5); jednostka `ex` z `sxHeight` pierwszego dostępnego fontu, gdy `x` leży poza jego
+    `unicode-range`. Test własny `text_tail_test.go`: `<b>` z `font-weight: normal`, bo Ahem nie ma odmiany
+    pogrubionej, a synteza zmienia rysunek;
 - listy i treść generowana, 2026-11-18 (CSS Lists 3, CSS Content 3, CSS Pseudo 4; praca pomocnika):
   - `html/boxes/build.go`, `reversedCounterStart`: wartość początkowa licznika odwróconego dokładnie według
     CSS Lists 3 § 4.4.2 (liczone są też `::before` i `::after`; przy `counter-set` dolicza się ustawianą

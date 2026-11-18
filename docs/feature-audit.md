@@ -1893,3 +1893,45 @@ zainstalowane w systemie, widzą je jak każdy font z katalogu `-fonts`. `css-fo
 (zysk 15: `font-family-name-*` 12, `font-weight-bolder/lighter/normal-001`; strata 3 przypadkowych zaliczeń,
 opisanych w ADR 0018). Korpus identyczny co do piksela; pozostałe obszary (4789 testów) bez zmian.
 Liczby z `chk.sh` na binarce z 47b6ec0, wpisane do stanu bazowego bez pełnego sondażu.
+
+## Siódma paczka równoległa: reszta pięciu obszarów (2026-11-18)
+
+Pięciu pomocników z listami testów odfiltrowanymi z pisma pionowego, RTL, testów sprzecznych, `@media screen`
+i kontrolek formularzy (321 testów): CSS 2 (94), tekst (69), flex/siatka/tabele (44), kolumny/tła (69),
+fonty/listy/treść generowana (45). Jeden pełny sondaż po scaleniu.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7771 | 7817 (85,7%; ściśle 7416, krawędziowo 401) |
+| bez funkcji eksperymentalnych (8140) | 7633 | 7681 (94,4%) |
+| tekst, tła, fonty (1839) | 1627 | 1657 (90,1%; `css-text` 805, `css-backgrounds` 572, `css-fonts` 280) |
+| reftesty druku (340) | 245 | 245 |
+| zyski według obszaru (netto) | | CSS 2: 18, fonty 14, tekst 13, flex 11, tabele 7, listy 5, kolumny 4, siatka 3, tła 3 |
+
+87 zysków, 11 strat, wszystkie to przypadkowe zaliczenia: osiem testów-mismatch `standard-font-family-*`
+(nazwy fontów systemowych Apple w cudzysłowie; po zmianie ostatniego fontu zastępczego na `serif` dają to samo
+co strona „notref”), dwa testy `grid-lanes` (wzorce z `align-content`, które bloki teraz obsługują)
+i `clip-border-shape-table-part-background` (wzorzec z `clip-path`, który teraz rysujemy; test używa
+`border-shape`). Korpus: `17-tables` przesunięcie prawej krawędzi tabeli o 1 px (jak tabela o układzie
+stałym; Chromium ma obie 1 px dalej); poza tym bez zmian.
+
+- **CSS 2:** ostatni font zastępczy to `serif` jak w Chromium (podstawienia rodzin bez zmian); `inherit`
+  szerokości obramowania ze stylem `none` dziedziczy wartość niewyzerowaną (CSS Backgrounds 3); `charset`
+  w `<link>`; `::first-letter`; elementy pływające w ciągach `nowrap`; `list-style-image: url("…")`
+  w cudzysłowie (wcześniej odrzucane, dotyczy zwykłych dokumentów).
+- **Tekst:** `-webkit-line-clamp` z `display: -webkit-box` (wcześniej kontener z blokami w środku nie obcinał
+  niczego), wielokropek wstawiany przez układ, `text-justify: inter-character`, łączniki po spacji;
+  znaki Cf poza `/ToUnicode` (wyodrębniany tekst zawierał ZWJ w miejscu spacji).
+- **Flex, siatka, tabele:** wkład kolumn procentowych jak w Chromium (stała 1e6), wysokości procentowe
+  komórek, wiersze i komórki z `position: relative`, `aspect-ratio` kontenerów, elementy pływające w
+  `inline-block` przesuwane z `vertical-align`, komentarze XML w `<style>` XHTML.
+- **Kolumny i tła:** `transform` i `contain` jako blok zawierający dla `absolute`/`fixed` w całym silniku,
+  `clip-path` (kształty podstawowe), `background-blend-mode`.
+- **Fonty, listy, treść generowana:** dopasowanie nazw rodzin według CSS Fonts 4 § 5.1, syntetyczna kursywa
+  i pogrubienie w PDF, `align-content` w blokach, `display: inline list-item`, `-webkit-text-fill-color`,
+  `font-language-override`, metryki fontów zastępczych w `line-height: normal`, `xxx-large`.
+
+Przy scaleniu: konflikty w plikach generowanych właściwości (rozwiązane w źródle, reszta wygenerowana od
+nowa); `list-style-image` zrobione niezależnie przez dwóch pomocników (została jedna implementacja);
+przejęty `TestListStyleImage` oczekiwał odstępu 0.5em obrazu znacznika, teraz 7 px jak w Chromium.
+Czas pakietu `html/layout` na wolnej maszynie: 54 s (podczas pracy pomocników ponad 10 min, z obciążenia).
