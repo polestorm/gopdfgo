@@ -2213,7 +2213,11 @@ func InlineInBlock(box Box) Box {
 		if LineT.IsInstance(childBox) {
 			panic("childBox can't be a LineBox")
 		}
-		if len(newLineChildren) > 0 && childBox.Box().IsAbsolutelyPositioned() {
+		// gopdfgo: element pozycjonowany absolutnie, który przed przekształceniem w blok był liniowy, ma
+		// pozycję statyczną w wierszu, także na jego początku: za wcięciem text-indent (CSS 2 § 10.3.7,
+		// CSS Position 3 § 4.1; test WPT text-indent-with-absolute-pos-child). Źródło zaczynało wiersz
+		// dopiero od treści w przepływie, więc taki element stał na początku bloku.
+		if childBox.Box().IsAbsolutelyPositioned() && (len(newLineChildren) > 0 || childBox.Box().Style.Specified().Display.Has(pr.Inline)) {
 			newLineChildren = append(newLineChildren, childBox)
 		} else if InlineLevelT.IsInstance(childBox) || (len(newLineChildren) > 0 && !childBox.Box().IsInNormalFlow()) {
 			// Do not append white space at the start of a line :

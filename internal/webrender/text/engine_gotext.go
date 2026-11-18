@@ -932,6 +932,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 			joinersWithoutSpacing(outputs, text, ls)
 			if dir.Progression() == di.FromTopLeft {
 				forcedBreaksWithoutSpacing(outputs, text, ls)
+				afterTabsWithoutSpacing(outputs, text, ls)
 			}
 		}
 		// gopdfgo: odstęp za ostatnim znakiem tekstu (jak w przeglądarkach: odstęp należy do znaku
@@ -1168,7 +1169,11 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		if dir.Progression() != di.FromTopLeft {
 			// pismo od prawej do lewej: bez zmian względem źródła, zob. wyżej
 		} else if wLine.NextLine >= len(text) && !mandatoryBreak {
-			trailingSpacing = addToLastGlyph(line, text, ls, false)
+			// tabulator kończy się na pozycji tabulacji, odstęp za nim nie przysługuje (zob.
+			// afterTabsWithoutSpacing; test WPT tab-size-spacing-001)
+			if text[len(text)-1] != '\t' {
+				trailingSpacing = addToLastGlyph(line, text, ls, false)
+			}
 		} else if !mandatoryBreak { // przy wymuszonym złamaniu zob. forcedBreaksWithoutSpacing
 			addToLastGlyph(line, text, -ls/2, true)
 		}
@@ -1984,6 +1989,22 @@ func forcedBreaksWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6
 				addToGlyph(runs, pr_, pi, -half, false)
 				break
 			}
+		}
+	}
+}
+
+// afterTabsWithoutSpacing (gopdfgo): znak za tabulatorem zaczyna się dokładnie na pozycji tabulacji
+// (CSS Text 3 § 4.2), więc nie dostaje połowy odstępu między literami przed sobą; tabulator kończy się
+// na tej pozycji (zob. AlignTabs). Źródło przesuwało go o pół odstępu (test WPT tab-size-spacing-002).
+func afterTabsWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
+	afterTab := false
+	for r := range runs {
+		for i, g := range runs[r].Glyphs {
+			isTab := g.GlyphCount == 1 && g.ClusterIndex >= 0 && g.ClusterIndex < len(text) && text[g.ClusterIndex] == '\t'
+			if afterTab && !isTab {
+				addToGlyph(runs, r, i, -ls/2, true)
+			}
+			afterTab = isTab
 		}
 	}
 }

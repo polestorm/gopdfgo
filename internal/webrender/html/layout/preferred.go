@@ -635,7 +635,9 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 						line = line[:n-1]
 					}
 					trimmed := len(line)
-					for trimmed > 0 && (line[trimmed-1] == ' ' || line[trimmed-1] == '\t') {
+					// gopdfgo: także odstępy inne niż spacja (np. U+3000), które przy pre-wrap wiszą
+					// tak samo (CSS Text 3 § 4.1.3; test WPT text-transform-fullwidth-009)
+					for trimmed > 0 && (line[trimmed-1] == ' ' || line[trimmed-1] == '\t' || text.IsOtherSpaceSeparator(line[trimmed-1])) {
 						trimmed--
 					}
 					if trimmed == 0 {

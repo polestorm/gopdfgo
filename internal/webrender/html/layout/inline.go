@@ -382,6 +382,9 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 		if resumeAt == nil || preservedLineBreak {
 			hang = max(0, min(hang, line.Width.V()-alignmentAvailableWidth))
 		}
+		// gopdfgo: odstępy inne niż spacja (np. U+3000) na końcu wiersza przy zwijanych białych znakach
+		// wiszą bezwarunkowo (CSS Text 3 § 4.1.3; test WPT text-transform-fullwidth-008)
+		hang += trailingOtherSpacesWidth(line_)
 		offsetX := textAlign(context, line_, alignmentAvailableWidth, resumeAt == nil || preservedLineBreak, hang)
 
 		if traceMode {
@@ -2226,6 +2229,22 @@ func trailingPreservedWidth(box Box) pr.Float {
 		return 0
 	}
 	return last.TextLayout.TrailingSpacesWidth()
+}
+
+// trailingOtherSpacesWidth (gopdfgo) zwraca szerokość odstępów innych niż spacja (kategoria Zs, np.
+// U+3000) na końcu wiersza, gdy ostatni tekst ma zwijane białe znaki (normal, nowrap, pre-line).
+func trailingOtherSpacesWidth(box Box) pr.Float {
+	path, _, found := lastTextBefore(box, nil)
+	if !found {
+		return 0
+	}
+	textBox := path[len(path)-1].(*bo.TextBox)
+	n := len(textBox.Text)
+	if ws := textBox.Style.GetWhiteSpace(); n == 0 || textBox.TextLayout == nil || textBox.FirstLineIsRTL ||
+		!(ws == pr.Normal || ws == pr.Nowrap || ws == pr.PreLine) || !text.IsOtherSpaceSeparator(textBox.Text[n-1]) {
+		return 0
+	}
+	return textBox.TextLayout.TrailingSpacesWidth()
 }
 
 // trailingPreservedSpaces szuka ostatniego tekstu w wierszu i liczy jego końcowe zachowane spacje
