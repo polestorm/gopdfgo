@@ -1285,7 +1285,8 @@ func TestMarginBoxesFixedDimension1(t *testing.T) {
         }
       </style>
     `)
-	_, topLeft, topRight, bottomLeft, bottomRight := unpack5(page)
+	// gopdfgo: pola są w kolejności rysowania, zgodnie z ruchem wskazówek zegara (CSS Page 3 § 3.1)
+	_, topLeft, topRight, bottomRight, bottomLeft := unpack5(page)
 	for i, textExp := range []string{"topLeft", "topRight", "bottomLeft", "bottomRight"} {
 		marginBox := []Box{topLeft, topRight, bottomLeft, bottomRight}[i]
 		line := unpack1(marginBox)
@@ -1849,7 +1850,8 @@ func TestRunningElementsDisplay(t *testing.T) {
       <div>block</div>
       <span>inline</span>
     `)
-	_, left, center, right := unpack4(page)
+	// gopdfgo: pola są w kolejności rysowania, zgodnie z ruchem wskazówek zegara (CSS Page 3 § 3.1)
+	_, right, center, left := unpack4(page)
 	var leftT, centerT, rightT string
 	for _, node := range bo.Descendants(left) {
 		if node, ok := node.(*bo.TextBox); ok {
