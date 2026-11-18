@@ -189,7 +189,9 @@ func replacedBoxHeight_(box_ Box, _ *layoutContext, _ containingBlock) (bool, pr
 	_, intrinsicHeight, ratio = applyPreferredRatio(box.Style, nil, intrinsicHeight, ratio)
 
 	// Test pr.Auto on the computed width, not the used width
-	if box.Height == pr.AutoF && box.Width == pr.AutoF {
+	// gopdfgo: bez wysokości własnej (np. obraz, którego nie udało się wczytać) wysokość zostaje auto
+	// i rozstrzygają ją reguły niżej; źródło wpisywało nil, co kończyło się paniką w min/max-height
+	if box.Height == pr.AutoF && box.Width == pr.AutoF && intrinsicHeight != nil {
 		box.Height = intrinsicHeight
 	} else if box.Height == pr.AutoF && pr.Is(ratio) {
 		box.Height = box.Width.V() / ratio.V()
