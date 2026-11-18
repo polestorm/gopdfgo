@@ -229,7 +229,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				for _, sw := range spannedWidths {
 					width += sw
 				}
-				width = max(width, 0)
+				if collapsedColumns != nil {
+					width = max(width, 0)
+				}
 				cell.Width = width
 				var cellSkipStack tree.ResumeStack
 				if len(skipStack) != 0 {
