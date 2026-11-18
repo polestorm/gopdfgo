@@ -683,6 +683,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		context.clipDepth++
 		defer func() { context.clipDepth-- }()
 	}
+	// gopdfgo: wysokość kolumny jako fragmentatora (CSS Break 3 § 2), potrzebna regule powtarzania
+	// nagłówków i stopek tabel (CSS Tables 3 § 6.2, zob. tableLayout); źródło jej nie przechowywało.
+	if box.IsColumn {
+		outerColumnHeight := context.columnHeight
+		defer func() { context.columnHeight = outerColumnHeight }()
+		context.columnHeight = 0
+		if bottomSpace > -pr.Inf && bottomSpace < pr.Inf && context.pageBottom != pr.Inf {
+			context.columnHeight = max(context.pageBottom-bottomSpace-box.ContentBoxY(), 0)
+		}
+	}
 	// gopdfgo: w kolumnach kontener przewijania (overflow: hidden, scroll, auto; CSS Overflow 3 § 3) jest
 	// niepodzielny (CSS Break 3 § 4.1), także przy wysokości auto: jego treść układamy bez ograniczenia,
 	// a o przeniesieniu całości do następnej kolumny decyduje rodzic. W źródle treść dzieliła się między

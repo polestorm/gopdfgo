@@ -2380,6 +2380,9 @@ func TestTablePageBreaksComplex1(t *testing.T) {
 		{{"Header"}, {"Row 2", "Row 3"}, {"Footer"}},
 		{{"Header"}, {"Row 4"}},
 		{{"Row 5"}},
+		// gopdfgo: stopka, która nie zmieściła się pod ostatnim wierszem, przechodzi na następną stronę
+		// (z powtórzonym nagłówkiem, bo tabela obejmuje i tę stronę; CSS Tables 3 § 6.2). Źródło ją gubiło.
+		{{"Header"}, {"Footer"}},
 	})
 }
 
@@ -3057,22 +3060,33 @@ func TestTableEmptyBody(t *testing.T) {
 		thead, tfoot int
 		content      string
 	}{
-		{[][]string{nil, {"Header", "Footer"}}, 45, 45, "<p>content</p>"},
-		{[][]string{nil, {"Header", "Footer"}}, 85, 5, "<p>content</p>"},
+		// gopdfgo: strona ma 100px, więc nagłówek i stopka są powtarzane tylko do 25px wysokości, każda
+		// grupa osobno (CSS Tables 3 § 6.2); wyższa płynie jak zwykła grupa wierszy i stoi tam, gdzie wypada
+		// w treści. Stopka, która nie mieści się w ostatnim fragmencie, przechodzi do następnego, zamiast
+		// znikać. Źródło traktowało każdą grupę mieszczącą się na stronie jak powtarzaną: trzymało nagłówek
+		// i stopkę razem na następnej stronie, a gdy jedna z nich była za wysoka, gubiło drugą.
+		// Zmienione przypadki: 45/45 (obie grupy płyną: nagłówek pod akapitem, stopka na następnej stronie;
+		// źródło: obie na stronie 2), 85/5 (nagłówek 85px nie jest powtarzany, a stopka, wysoka na wiersz
+		// tekstu, nie mieści się pod nim i przechodzi na stronę 3; źródło: obie na stronie 2, wystając poza
+		// nią), 30/110 i 30/60 (nagłówek 30px płynie i zostaje na stronie 1; źródło: przenosiło go albo
+		// gubiło), 110/30 (stopka nie znika, tylko przechodzi na stronę 3).
+		{[][]string{{"Header"}, {"Footer"}}, 45, 45, "<p>content</p>"},
+		{[][]string{nil, {"Header"}, {"Footer"}}, 85, 5, "<p>content</p>"},
 		{[][]string{{"Header", "Footer"}}, 30, 30, "<p>content</p>"},
-		{[][]string{nil, {"Footer"}}, 30, 110, "<p>content</p>"},
-		{[][]string{nil, {"Header", "Footer"}}, 30, 60, "<p>content</p>"},
-		{[][]string{nil, {"Header"}}, 110, 30, "<p>content</p>"},
+		{[][]string{{"Header"}, {"Footer"}}, 30, 110, "<p>content</p>"},
+		{[][]string{{"Header"}, {"Footer"}}, 30, 60, "<p>content</p>"},
+		{[][]string{nil, {"Header"}, {"Footer"}}, 110, 30, "<p>content</p>"},
 
 		// gopdfgo: nagłówek albo stopka wyższe niż strona nie są już pomijane, tylko płyną jak zwykła
 		// grupa wierszy; wtedy to one są treścią, dla której ustępuje druga, powtarzana grupa.
 		// Źródło oczekiwało, że za wysoka grupa zniknie (w ostatnim przypadku obie, czyli pusta tabela).
 		{[][]string{nil, {"Header"}, {"Footer"}}, 110, 110, "<p>content</p>"},
 
+		// gopdfgo: jak wyżej; 30/110 i 110/30: druga grupa nie znika, tylko przechodzi na stronę 2.
 		{[][]string{{"Header", "Footer"}}, 30, 30, ""},
-		{[][]string{{"Footer"}}, 30, 110, ""},
+		{[][]string{{"Header"}, {"Footer"}}, 30, 110, ""},
 		{[][]string{{"Header", "Footer"}}, 30, 60, ""},
-		{[][]string{{"Header"}}, 110, 30, ""},
+		{[][]string{{"Header"}, {"Footer"}}, 110, 30, ""},
 		{[][]string{{"Header"}, {"Footer"}}, 110, 110, ""},
 	} {
 		html := fmt.Sprintf(`

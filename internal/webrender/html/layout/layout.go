@@ -484,6 +484,9 @@ type layoutContext struct {
 	marginClearance bool
 	forcedBreak     bool
 	inColumn        bool
+	// gopdfgo: wysokość bieżącej kolumny (fragmentatora w kontenerze kolumn), zob. blockContainerLayout;
+	// 0, gdy nie jest znana
+	columnHeight pr.Float
 	// gopdfgo: rodzaj podziału przed bieżącą kolumną (columnBreakNone: obowiązuje podział strony);
 	// zob. breakAtFragmentTop
 	columnBreak columnBreakKind
