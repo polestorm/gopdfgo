@@ -2008,6 +2008,34 @@ func processWhitespace(box Box, state *whitespaceState) {
 	}
 }
 
+// inheritInlineStacking (gopdfgo): blok wydzielony z pudełka liniowego, które tworzy kontekst
+// nakładania (opacity mniejsze od 1 albo pozycjonowanie z z-index), należy do tego kontekstu
+// (CSS 2.1 § 9.2.1.1: blok pozostaje potomkiem pudełka liniowego; testy WPT
+// opacity-affects-block-in-inline, zindex-affects-block-in-inline). Rysowanie zna konteksty tylko
+// na pudełkach, więc blok przejmuje krycie (mnożone przez własne) i z-index pudełka liniowego.
+// Źródło gubiło je przy wydzielaniu bloku.
+func inheritInlineStacking(block, inline Box) {
+	inlineStyle := inline.Box().Style
+	opacity := inlineStyle.GetOpacity()
+	zIndex := inlineStyle.GetZIndex()
+	positioned := inlineStyle.GetPosition().String != "static"
+	stacksZ := positioned && zIndex.String != "auto"
+	if opacity >= 1 && !stacksZ {
+		return
+	}
+	style := block.Box().Style.Copy()
+	if opacity < 1 {
+		style.SetOpacity(style.GetOpacity() * opacity)
+	}
+	if stacksZ && style.GetZIndex().String == "auto" {
+		if style.GetPosition().String == "static" {
+			style.SetPosition(pr.BoolString{String: "relative"})
+		}
+		style.SetZIndex(zIndex)
+	}
+	block.Box().Style = style
+}
+
 // Capitalize words according to CSS’s "text-transform: capitalize".
 func capitalize(text string) string {
 	letterFound := false
@@ -2420,6 +2448,9 @@ func innerBlockInInline(box Box, skipStack tree.ResumeStack) (Box, Box, tree.Res
 				// block-in-inline-relpos-001, -002).
 				if blockLevelBox != nil && child.Box().Style.GetPosition().String == "relative" {
 					blockLevelBox.Box().RelativeInlineAncestors = append(blockLevelBox.Box().RelativeInlineAncestors, child)
+				}
+				if blockLevelBox != nil {
+					inheritInlineStacking(blockLevelBox, child)
 				}
 			} else {
 				if skipStack != nil {

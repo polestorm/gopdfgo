@@ -232,6 +232,13 @@ func applyPreferredRatio(style pr.ElementStyle, width, height, ratio pr.MaybeFlo
 	return width, height, preferred
 }
 
+// hasIntrinsicRatio (gopdfgo) podaje, czy element zastępowany ma proporcję wewnętrzną (także z aspect-ratio).
+func hasIntrinsicRatio(box *bo.ReplacedBox) bool {
+	width, height, ratio := box.Replacement.GetIntrinsicSize(box.Style.GetImageResolution().Value, box.Style.GetFontSize().Value)
+	_, _, ratio = applyPreferredRatio(box.Style, width, height, ratio)
+	return pr.Is(ratio)
+}
+
 // Resolve min/max constraints on replaced elements
 // that have "auto" width or heights.
 func minMaxAutoReplaced(box *bo.BoxFields) {
@@ -313,7 +320,16 @@ func inlineReplacedBoxWidthHeight(box Box, containingBlock containingBlock) {
 	if style := box.Box().Style; style.GetWidth().Tag == pr.Auto && style.GetHeight().Tag == pr.Auto {
 		replacedBoxWidth_(box, nil, containingBlock)
 		replacedBoxHeight_(box, nil, nil)
-		minMaxAutoReplaced(box.Box())
+		// gopdfgo: tabela ograniczeń z CSS 2.1 § 10.4 dotyczy tylko elementów z proporcją wewnętrzną;
+		// bez niej szerokość i wysokość ograniczamy niezależnie (test WPT replaced-elements-max-height-20).
+		// Źródło stosowało tabelę zawsze, więc np. obraz 300×150 bez proporcji zachowywał proporcję 2:1.
+		if replaced, ok := box.(bo.ReplacedBoxITF); ok && !hasIntrinsicRatio(replaced.Replaced()) {
+			fields := box.Box()
+			fields.Width = max(fields.MinWidth.V(), min(fields.Width.V(), fields.MaxWidth.V()))
+			fields.Height = max(fields.MinHeight.V(), min(fields.Height.V(), fields.MaxHeight.V()))
+		} else {
+			minMaxAutoReplaced(box.Box())
+		}
 	} else {
 		// gopdfgo: przy szerokości automatycznej i podanej wysokości najpierw wysokość z min/max-height,
 		// żeby szerokość wynikała z wysokości już ograniczonej (CSS 2 §10.7); w źródle szerokość liczono

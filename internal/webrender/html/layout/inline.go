@@ -321,6 +321,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	var (
 		linePlaceholders, lineAbsolutes, lineFixed []*AbsolutePlaceholder
 		waitingFloats                              []Box
+		inlineAbsolutes                            []inlineAbsolute
 	)
 	for {
 		linebox.PositionX, linebox.PositionY = positionX, positionY
@@ -340,8 +341,12 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 
 		savedStart, savedTabUnit, savedInLine := context.lineStartX, context.lineTabUnit, context.inLine
 		context.lineStartX, context.lineTabUnit, context.inLine = linebox.PositionX, -1, true
+		savedDeferred := context.deferredInlineAbsolutes
+		inlineAbsolutes = inlineAbsolutes[:0]
+		context.deferredInlineAbsolutes = &inlineAbsolutes
 		spi := splitInlineBox(context, linebox, positionX, maxX, bottomSpace, skipStack, containingBlock_,
 			&lineAbsolutes, &lineFixed, &linePlaceholders, &waitingFloats, nil)
+		context.deferredInlineAbsolutes = savedDeferred
 		context.lineStartX, context.lineTabUnit, context.inLine = savedStart, savedTabUnit, savedInLine
 		resumeAt, preservedLineBreak, floatWidths = spi.resumeAt, spi.preservedLineBreak, spi.floatWidths
 		forcedBreak = preservedLineBreak
@@ -469,6 +474,13 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			placeholder.Translate(line.PositionX-placeholder.Box().PositionX.V(),
 				staticY-placeholder.Box().PositionY.V(), false)
 		}
+	}
+	// gopdfgo: pudełka pozycjonowane względem pudełka liniowego układamy dopiero teraz, gdy wiersz
+	// jest wyrównany w pionie, a położenia statyczne ustalone (CSS 2.1 § 10.1 pkt 4; test WPT
+	// abspos-inline-007). W źródle były układane przed wyrównaniem wiersza, względem tymczasowego
+	// położenia pudełka liniowego, i przesuwały się potem razem z przodkami.
+	for _, deferred := range inlineAbsolutes {
+		absoluteLayout(context, deferred.placeholder, deferred.containingBlock, deferred.fixedBoxes, deferred.bottomSpace, nil)
 	}
 
 	// gopdfgo: element pływający ułożony w części wiersza, która po złamaniu przeszła do następnego
@@ -1624,6 +1636,13 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 
 	if newBox.Style.GetPosition().String == "relative" {
 		for _, absoluteBox := range *absoluteBoxes {
+			// gopdfgo: w wierszu odkładamy układ do chwili, gdy pudełko liniowe ma już ostateczne
+			// położenie w pionie (zob. getNextLinebox)
+			if context.deferredInlineAbsolutes != nil {
+				*context.deferredInlineAbsolutes = append(*context.deferredInlineAbsolutes,
+					inlineAbsolute{absoluteBox, newBox_, fixedBoxes, bottomSpace})
+				continue
+			}
 			absoluteLayout(context, absoluteBox, newBox_, fixedBoxes, bottomSpace, nil)
 		}
 	}
@@ -1987,15 +2006,16 @@ func lineBoxVerticality(context *layoutContext, box Box) (pr.Float, pr.Float) {
 func translateSubtree(box Box, dy pr.Float) {
 	if bo.InlineT.IsInstance(box) {
 		box.Box().PositionY += dy
-		if va := box.Box().Style.GetVerticalAlign().Tag; va == pr.Top || va == pr.Bottom {
-			for _, child := range box.Box().Children {
-				// gopdfgo: zagnieżdżone poddrzewo z top/bottom jest przesuwane osobno (lineBoxVerticality);
-				// w źródle przesuwało się dwa razy (test WPT vertical-align-nested-top-001)
-				if cva := child.Box().Style.GetVerticalAlign().Tag; child.Box().IsInNormalFlow() && (cva == pr.Top || cva == pr.Bottom) {
-					continue
-				}
-				translateSubtree(child, dy)
+		// gopdfgo: przesuwamy też treść zagnieżdżonych pudełek liniowych o innym vertical-align (test WPT
+		// anonymous-inline-inherit-001); w źródle schodziło się w głąb tylko z pudełka top/bottom, więc
+		// tekst w zwykłym <span> wewnątrz takiego pudełka zostawał na miejscu.
+		for _, child := range box.Box().Children {
+			// gopdfgo: zagnieżdżone poddrzewo z top/bottom jest przesuwane osobno (lineBoxVerticality);
+			// w źródle przesuwało się dwa razy (test WPT vertical-align-nested-top-001)
+			if cva := child.Box().Style.GetVerticalAlign().Tag; child.Box().IsInNormalFlow() && (cva == pr.Top || cva == pr.Bottom) {
+				continue
 			}
+			translateSubtree(child, dy)
 		}
 	} else {
 		// Text or atomic boxes

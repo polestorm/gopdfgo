@@ -610,10 +610,20 @@ func absoluteBlockAlignment(box_ Box) (pr.Float, bool) {
 	return 0, true
 }
 
-// isBareEmptyInline (gopdfgo) podaje, czy pudełko jest liniowym pudełkiem bez dzieci,
-// bez marginesów, dopełnienia i obramowań po bokach, czyli bez żadnego śladu w wierszu.
+// inlineAbsolute (gopdfgo): pudełko pozycjonowane bezwzględnie czekające na układ względem
+// pudełka liniowego, które jest jego blokiem zawierającym (zob. getNextLinebox).
+type inlineAbsolute struct {
+	placeholder     *AbsolutePlaceholder
+	containingBlock Box
+	fixedBoxes      *[]*AbsolutePlaceholder
+	bottomSpace     pr.Float
+}
+
+// isBareEmptyInline (gopdfgo) podaje, czy pudełko jest pustą resztą pudełka liniowego po
+// wydzieleniu z niego bloku (SplitBefore), bez marginesów, dopełnienia i obramowań po bokach, czyli
+// bez żadnego śladu w wierszu. Puste pudełka z dokumentu (np. kotwice <a id>) zostają w wierszu.
 func isBareEmptyInline(box Box) bool {
-	if !bo.InlineT.IsInstance(box) || len(box.Box().Children) != 0 {
+	if !bo.InlineT.IsInstance(box) || len(box.Box().Children) != 0 || !box.Box().SplitBefore {
 		return false
 	}
 	style := box.Box().Style
