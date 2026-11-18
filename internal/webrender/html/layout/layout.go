@@ -334,6 +334,11 @@ type brokenBox struct {
 	// deferredPages > 0: pudełko pozycjonowane leży poniżej strony, na której zostało ułożone; liczba mówi,
 	// o ile stron dalej jesteśmy teraz względem tamtej strony
 	deferredPages int
+	// columnX (gopdfgo): położenie kolumny, w której pudełko zostało podzielone (zob. layoutContext.columnX)
+	columnX pr.Float
+	// nextColumn (gopdfgo): pudełko pozycjonowane, które w kolumnie nie zmieściło żadnej treści i w całości
+	// zaczyna się w następnej kolumnie (zob. absoluteLayout)
+	nextColumn bool
 }
 
 // gopdfgo: pudełka poza przepływem podzielone między strony są kontynuowane w kolejności zgłoszenia.
@@ -344,6 +349,7 @@ type brokenBox struct {
 func (l *layoutContext) setBrokenOutOfFlow(key Box, broken brokenBox) {
 	l.brokenSequence++
 	broken.order = l.brokenSequence
+	broken.columnX = l.columnX
 	l.brokenOutOfFlow[key] = broken
 }
 
@@ -405,6 +411,9 @@ type layoutContext struct {
 	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie, do kontynuacji na górze następnej
 	// (zob. columnsLayout, takeColumnFloats)
 	columnFloats []columnFloat
+	// columnX (gopdfgo): położenie najgłębszej układanej właśnie kolumny; dalszy ciąg pudełka poza
+	// przepływem zachowuje w następnej kolumnie odległość od jej lewej krawędzi
+	columnX pr.Float
 	// gopdfgo: ile kolumn zostaje w bieżącym rzędzie kontenera kolumn za kolumną układaną teraz
 	columnsLeft int
 	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się
@@ -428,6 +437,9 @@ type layoutContext struct {
 	fixedHeightRemaining map[uintptr]pr.Float
 	// gopdfgo: reszta min-height kontenera kolumn podzielonego między fragmentatory; klucz jak wyżej
 	minHeightRemaining map[uintptr]pr.Float
+	// pendingMarkers (gopdfgo): znaczniki list (list-style-position: outside) czekające na pierwszy wiersz
+	// elementu listy w dalszym fragmencie, według stylu elementu (zob. alignOutsideMarker)
+	pendingMarkers map[pr.ElementStyle]Box
 	// gopdfgo: reszta podanej wysokości komórki tabeli podzielonej między fragmentatory; klucz to stos
 	// wznowienia komórki (resumeKey), zob. tables.go
 	cellHeightRemaining map[uintptr]pr.Float

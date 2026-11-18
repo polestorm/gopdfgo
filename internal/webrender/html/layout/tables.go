@@ -47,6 +47,29 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 	// Define column positions.
 	columnWidths := table.ColumnWidths
+	// gopdfgo: kolumny z visibility: collapse znikają po wyznaczeniu szerokości kolumn: nie zajmują
+	// miejsca ani odstępu między komórkami, tabela zwęża się o nie, a komórki rozpięte także na nich są
+	// przycinane (CSS Tables 3 § 9.2 i 9.3, CSS 2.1 § 17.5.5; test WPT visibility-collapse-colspan-003).
+	// W źródle visibility: collapse na kolumnach nie działało. Tylko dla kierunku ltr.
+	var collapsedColumns map[int]bool
+	var collapsedWidth pr.Float
+	if table.Style.GetDirection() == pr.Ltr {
+		for _, group := range table.ColumnGroups {
+			for _, column := range group.Children {
+				if x := column.Box().GridX; column.Box().Style.GetVisibility() == "collapse" && x < len(columnWidths) {
+					if collapsedColumns == nil {
+						collapsedColumns = map[int]bool{}
+						columnWidths = slices.Clone(columnWidths)
+					}
+					if !collapsedColumns[x] {
+						collapsedColumns[x] = true
+						collapsedWidth += columnWidths[x] + borderSpacingX
+						columnWidths[x] = 0
+					}
+				}
+			}
+		}
+	}
 	table.ColumnPositions = nil
 	positionX := table.ContentBoxX()
 	rowsLeftX := positionX + borderSpacingX
@@ -54,8 +77,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	if table.Style.GetDirection() == pr.Ltr {
 		positionX := table.ContentBoxX()
 		rowsX := positionX + borderSpacingX
-		for _, width := range columnWidths {
-			positionX += borderSpacingX
+		for x, width := range columnWidths {
+			if !collapsedColumns[x] {
+				positionX += borderSpacingX
+			}
 			table.ColumnPositions = append(table.ColumnPositions, positionX)
 			positionX += width
 		}
@@ -184,9 +209,28 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				bordersPlusPadding := cell.BorderWidth() // with width==0
 				// TODO: we should remove the number of columns with no
 				// originating cells to cell.colspan, see test_layout_table_auto_49.
-				width := borderSpacingX*pr.Float(cell.Colspan-1) - bordersPlusPadding
+				spanned := cell.Colspan
+				if collapsedColumns != nil {
+					spanned = 0
+					for x := cell.GridX; x < cell.GridX+cell.Colspan; x++ {
+						if !collapsedColumns[x] {
+							spanned++
+						}
+					}
+					if spanned != cell.Colspan && cell.Style.GetOverflow() == "visible" {
+						cell.Style = cell.Style.Copy()
+						cell.Style.SetOverflow("hidden")
+						if spanned == 0 {
+							cell.Style.SetVisibility("hidden")
+						}
+					}
+				}
+				width := borderSpacingX*pr.Float(max(spanned, 1)-1) - bordersPlusPadding
 				for _, sw := range spannedWidths {
 					width += sw
+				}
+				if collapsedColumns != nil {
+					width = max(width, 0)
 				}
 				cell.Width = width
 				var cellSkipStack tree.ResumeStack
@@ -504,6 +548,33 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if row.Style.GetVisibility() == "collapse" && resumeAt == nil {
 				row.Height = pr.Float(0)
 				nextPositionY = row.PositionY
+				// gopdfgo: komórka rozpięta także na zwiniętym wierszu traci jego wysokość, a jej treść jest
+				// przycinana (CSS Tables 3 § 9.2, „visibility-collapse-cell-rendering”; test WPT
+				// visibility-collapse-rowspan-005); w źródle wystawała pod komórkę.
+				clip := func(cell Box) {
+					if cell.Box().Rowspan > 1 && cell.Box().Style.GetOverflow() == "visible" {
+						cell.Box().Style = cell.Box().Style.Copy()
+						cell.Box().Style.SetOverflow("hidden")
+					}
+				}
+				for _, cell_ := range endingCells {
+					clip(cell_)
+					// komórka kończy się teraz na dole poprzedniego wiersza
+					cell := cell_.Box()
+					if cell.Rowspan > 1 {
+						delta := row.PositionY - borderSpacingY - (cell.PositionY + cell.BorderHeight())
+						if delta < 0 {
+							shrink := min(-delta, cell.PaddingBottom.V())
+							cell.PaddingBottom = cell.PaddingBottom.V() - shrink
+							cell.Height = max(0, cell.Height.V()+delta+shrink)
+						}
+					}
+				}
+				for _, cells := range endingCellsByRow {
+					for _, cell := range cells {
+						clip(cell)
+					}
+				}
 			}
 
 			// Break if one cell was broken.
@@ -872,22 +943,44 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// gopdfgo: nagłówek albo stopka, które nie mieszczą się w całości nawet na pustej stronie, przestają być
 	// powtarzane i płyną jak zwykła grupa wierszy (z podziałem między strony). W źródle taka grupa była
 	// po cichu pomijana i jej treść znikała z dokumentu.
-	if pageIsEmpty && skipStack == nil {
+	// gopdfgo: w kolumnach (próby równoważenia o dowolnie małej wysokości) i przy próbie bez miejsca
+	// (bottomSpace = +Inf, zob. columnsLayout) zmieniamy kopię tabeli, nie pudełko źródłowe: inaczej
+	// nagłówek tracił powtarzanie na stałe, a tabela dzieliła się zaraz za nim (fragment z samym
+	// nagłówkiem, bez powtórzenia w następnej kolumnie; korpus 22-multicol-pagination).
+	if pageIsEmpty && skipStack == nil && (hasHeader || hasFooter) {
+		permanent := !context.inColumn && bottomSpace < pr.Inf
+		groups := table.Children
+		if !permanent {
+			groups = append([]Box(nil), table.Children...)
+		}
+		demote := func(i int, header bool) {
+			if !permanent {
+				groups[i] = groups[i].Copy()
+			}
+			if header {
+				groups[i].Box().IsHeader = false
+			} else {
+				groups[i].Box().IsFooter = false
+			}
+		}
 		demoted := false
 		if hasHeader {
 			if group, groupResume, _ := groupLayout(table.Children[0], positionY, bottomSpace, false, nil); group == nil || groupResume != nil {
-				table.Children[0].Box().IsHeader = false
+				demote(0, true)
 				demoted = true
 			}
 		}
 		if hasFooter {
 			last := table.Children[len(table.Children)-1]
 			if group, groupResume, _ := groupLayout(last, positionY, bottomSpace, false, nil); group == nil || groupResume != nil {
-				last.Box().IsFooter = false
+				demote(len(table.Children)-1, false)
 				demoted = true
 			}
 		}
 		if demoted {
+			if !permanent {
+				table_ = bo.CopyWithChildren(table_, groups).(bo.TableBoxITF)
+			}
 			return tableLayout(context, table_, bottomSpace, skipStack, pageIsEmpty, absoluteBoxes, fixedBoxes)
 		}
 	}
@@ -910,6 +1003,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 	table_ = bo.CopyWithChildren(table_, newChildren).(bo.TableBoxITF) // CopyWithChildren is type stable
 	table = table_.Table()
+	if collapsedWidth > 0 {
+		table.Width = max(table.Width.V()-collapsedWidth, 0)
+	}
 	for i, v := range table.ColumnGroups {
 		table.ColumnGroups[i] = v.Copy().(*bo.TableColumnGroupBox)
 	}

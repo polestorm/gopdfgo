@@ -163,8 +163,10 @@ h1, h2, h3, h4, h5, h6 { bookmark-label: content(text) }
 
 /* Page breaks and hyphens */
 
-h1, h2, h3, h4, h5, h6 { hyphens: manual; break-after: avoid; break-inside: avoid }
-ol, ul { break-before: avoid }
+/* gopdfgo: bez break-after: avoid i break-inside: avoid dla nagłówków oraz break-before: avoid dla list;
+   arkusz domyślny HTML (rozdz. 15 „Rendering”) ani przeglądarki ich nie mają (testy WPT
+   multicol-margin-child-001, multicol-collapsing-001, multicol-block-no-clip-001). W przejętym arkuszu były. */
+h1, h2, h3, h4, h5, h6 { hyphens: manual }
 
 /* Form fields */
 

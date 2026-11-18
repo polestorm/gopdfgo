@@ -95,6 +95,20 @@ func _absoluteWidth(box_ Box, context *layoutContext, containingBlock containing
 	var translateX pr.Float = 0
 	translateBoxWidth := false
 	defaultTranslateX := cbX - box.PositionX
+	// gopdfgo: tabela nie jest rozciągana między left i right: szerokość pudełka opakowującego to szerokość
+	// tabeli (CSS 2.1 § 17.4, CSS Tables 3 § 3.9.3), a marginesy automatyczne ją wyśrodkowują jak przy
+	// bloku o podanej szerokości (test WPT absolute-tables-016). W źródle opakowanie dostawało całą
+	// szerokość między left i right, a tabela stała przy lewej krawędzi.
+	if box.IsTableWrapper && width == pr.AutoF && left != pr.AutoF && right != pr.AutoF {
+		available := cbWidth - left.V() - right.V()
+		for _, margin := range [2]pr.MaybeFloat{marginL, marginR} {
+			if margin != pr.AutoF {
+				available -= margin.V()
+			}
+		}
+		tableWrapperWidth(context, box_, bo.MaybePoint{max(available, 0), cb_.Height})
+		width = box.Width
+	}
 	if left == pr.AutoF && right == pr.AutoF && width == pr.AutoF {
 		if marginL == pr.AutoF {
 			box.MarginLeft = pr.Float(0)
@@ -193,6 +207,14 @@ func absoluteHeight(box_ Box, containingBlock block) (bool, pr.Float) {
 	var translateY pr.Float = 0
 	translateBoxHeight := false
 	defaultTranslateY := cbY - box.PositionY
+	// gopdfgo: tak samo w pionie: tabela o podanej wysokości (bez podpisu) nie jest rozciągana między top
+	// i bottom, więc marginesy automatyczne ją wyśrodkowują (test WPT absolute-tables-016)
+	if box.IsTableWrapper && height == pr.AutoF && top != pr.AutoF && bottom != pr.AutoF && len(box.Children) == 1 {
+		if tableHeight := box.Children[0].Box().Style.GetHeight(); tableHeight.Tag != pr.Auto && tableHeight.Unit == pr.Px {
+			height = tableHeight.Value
+			box.Height = height
+		}
+	}
 	if top == pr.AutoF && bottom == pr.AutoF && height == pr.AutoF {
 		// Keep the static position
 		if marginT == pr.AutoF {
@@ -423,6 +445,24 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		}
 		if dx != 0 || dy != 0 {
 			newBox.Translate(dx, dy, false)
+		}
+	}
+	// gopdfgo: pudełko pozycjonowane w kolumnie, którego górna krawędź leży na dole kolumny albo niżej, nie
+	// ma w niej miejsca na żadną treść: pierwszy fragment jest pusty, a całe pudełko zaczyna się u góry
+	// następnej kolumny (CSS Position 3 § 4.2, CSS Break 3 § 4.4; test WPT
+	// fixedpos-static-pos-with-viewport-cb-001). W źródle wystawało z kolumny w całości.
+	if context.inColumn && newBox != nil && resumeAt == nil && len(skipStack) == 0 && bottomSpace > -pr.Inf && context.pageBottom != pr.Inf &&
+		context.clipDepth == 0 && newBox.Box().PositionY >= context.pageBottom-bottomSpace-0.01 && newBox.Box().MarginHeight() > 0 &&
+		box.Box().Style.GetTop().Tag == pr.Auto && box.Box().Style.GetBottom().Tag == pr.Auto {
+		if _, isPage := containingBlock.(*bo.PageBox); !isPage && containingBlock.Box().Style.GetOverflow() == "visible" {
+			removePlaceholders(context, []Box{newBox}, new([]*AbsolutePlaceholder), fixedBoxes)
+			empty := bo.CopyWithChildren(newBox, nil)
+			empty.Box().Height = pr.Float(0)
+			empty.Box().Style = empty.Box().Style.Copy()
+			empty.Box().Style.SetVisibility("hidden")
+			placeholder.setLaidOutBox(empty)
+			context.setBrokenOutOfFlow(placeholder, brokenBox{box: box, containingBlock: containingBlock, nextColumn: true})
+			return
 		}
 	}
 	placeholder.setLaidOutBox(newBox)

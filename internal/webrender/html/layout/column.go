@@ -47,6 +47,8 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 	wasInColumn := context.inColumn
 	outerColumnsLeft := context.columnsLeft
+	outerColumnX := context.columnX
+	defer func() { context.columnX = outerColumnX }()
 	defer func() { context.columnsLeft = outerColumnsLeft }()
 	// gopdfgo: kolumna po pierwszej zaczyna się za podziałem kolumny, więc przylegające do niego marginesy
 	// są obcinane (CSS Fragmentation 3 § 5.2); w źródle tylko na stronach po pierwszej. Pierwsza kolumna
@@ -248,7 +250,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			if len(columnChildren) != 0 {
 				columnsAndBlocks = append(columnsAndBlocks, ibl{index - len(columnChildren), boxOrList{list: columnChildren}})
 			}
-			columnsAndBlocks = append(columnsAndBlocks, ibl{index, boxOrList{box: child.Copy().(bo.BlockLevelBoxITF)}})
+			spanner := child.Copy().(bo.BlockLevelBoxITF)
+			spanner.Box().IsSpanner = true
+			columnsAndBlocks = append(columnsAndBlocks, ibl{index, boxOrList{box: spanner}})
 			columnChildren = nil
 			continue
 		}
@@ -330,6 +334,22 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				lastLoop, breakPage = true, true
 				break
 			}
+			// marginesy przodków przylegające do marginesów elementu (zob. hoistSpanners)
+			ancestorMargin := func(styles []pr.ElementStyle, top bool) (out []pr.Float) {
+				for _, s := range styles {
+					value := s.GetMarginBottom()
+					if top {
+						value = s.GetMarginTop()
+					}
+					if margin, ok := pr.ResolvePercentage(value, box.Width.V()).(pr.Float); ok {
+						out = append(out, margin)
+					}
+				}
+				return out
+			}
+			if spannerSkip == nil {
+				adjoiningMargins = append(adjoiningMargins, ancestorMargin(block.Box().SpannerMarginsBefore, true)...)
+			}
 			newChild, tmp, _ := blockLevelLayout(context, block, originalBottomSpace, spannerSkip,
 				box, pageIsEmpty, absoluteBoxes, fixedBoxes, &adjoiningMargins, false, -1)
 			nextPage, adjoiningMargins = tmp.nextPage, tmp.adjoiningMargins
@@ -342,6 +362,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			newChildren = append(newChildren, newChild)
 			currentPositionY = newChild.Box().BorderHeight() + newChild.Box().BorderBoxY()
 			adjoiningMargins = append(adjoiningMargins, newChild.Box().MarginBottom.V())
+			if tmp.resumeAt == nil {
+				adjoiningMargins = append(adjoiningMargins, ancestorMargin(block.Box().SpannerMarginsAfter, false)...)
+			}
 			if tmp.resumeAt != nil {
 				lastLoop = true
 				breakPage = true
@@ -400,9 +423,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				context.columnBreak = outerColumnBreak
 				if i > 0 {
 					context.columnBreak = columnBreakAfter(nextPage)
-					takeColumnFloats(context, floatMark, 0)
+					takeColumnFloats(context, floatMark, columnBox.Box().PositionX)
 				}
 				floatMark = context.brokenSequence
+				context.columnX = columnBox.Box().PositionX
 				context.columnsLeft = count - 1 - i
 				newBox, tmp := blockBoxLayout(context, columnBox, context.pageBottom-currentPositionY-height,
 					columnSkipStack, containingBlock, pageIsEmpty || !balancing, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
@@ -659,7 +683,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			}
 			return withMargin - max(0, last.MarginBottom.V())
 		}
-		floatMark, previousColumnX := context.brokenSequence, pr.Float(0)
+		floatMark := context.brokenSequence
 		for {
 			i_ := pr.Float(i)
 
@@ -683,9 +707,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			tookFloats := false
 			if i > 0 {
 				context.columnBreak = columnBreakAfter(nextPage)
-				tookFloats = takeColumnFloats(context, floatMark, columnBox.Box().PositionX-previousColumnX)
+				tookFloats = takeColumnFloats(context, floatMark, columnBox.Box().PositionX)
 			}
-			floatMark, previousColumnX = context.brokenSequence, columnBox.Box().PositionX
+			floatMark = context.brokenSequence
+			context.columnX = columnBox.Box().PositionX
 			context.columnsLeft = count - 1 - i
 			newChild, tmp := blockBoxLayout(context, columnBox, bottomSpace, skipStack,
 				containingBlock, originalPageIsEmpty || (i > 0 && !deferrable) || unpaged, absoluteBoxes, fixedBoxes, new([]pr.Float),
@@ -791,6 +816,8 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 		return nil, blockLayout{resumeAt: tree.ResumeStack{0: nil}, nextPage: tree.PageBreak{Break: "any"}}
 	}
+
+	alignColumnsMarker(newChildren)
 
 	// Set the height of box and the containing box
 	box.Children = newChildren
@@ -981,11 +1008,29 @@ func hoistSpanners(children []Box) ([]Box, bool) {
 		var run []Box
 		first := true
 		used := new(pr.Float)
+		var lastSpanner Box
+		var pendingBefore []pr.ElementStyle
 		flush := func(last bool) {
 			part := bo.CopyWithChildren(child, run)
 			part.Box().SpannerSplitUsed = used
 			part.Box().SpannerSplitBefore = !first
 			part.Box().SpannerSplitAfter = !last
+			// gopdfgo: margines przodka przylega w drzewie do marginesu elementu rozpinającego, gdy między
+			// nimi nie ma treści, obramowania ani dopełnienia, i zwija się z nim (CSS 2 § 8.3.1); pusty
+			// fragment przodka go wtedy nie ma (test WPT multicol-span-all-margin-nested-002). W źródle
+			// pusty fragment zachowywał margines, który dodawał się do marginesu elementu.
+			style := child.Box().Style
+			if len(run) == 0 && first && !last && style.GetBorderTopWidth().Value == 0 && style.GetPaddingTop().Value == 0 {
+				part.Box().Style = style.Copy()
+				part.Box().Style.SetMarginTop(pr.ZeroPixels.Tagged())
+				pendingBefore = append(pendingBefore, style)
+			}
+			if len(run) == 0 && !first && last && lastSpanner != nil && style.GetBorderBottomWidth().Value == 0 &&
+				style.GetPaddingBottom().Value == 0 {
+				part.Box().Style = style.Copy()
+				part.Box().Style.SetMarginBottom(pr.ZeroPixels.Tagged())
+				lastSpanner.Box().SpannerMarginsAfter = append(slices.Clip(lastSpanner.Box().SpannerMarginsAfter), style)
+			}
 			out = append(out, part)
 			run, first = nil, false
 		}
@@ -995,12 +1040,17 @@ func hoistSpanners(children []Box) ([]Box, bool) {
 				if first || len(run) != 0 {
 					flush(false)
 				}
+				c = c.Copy()
+				if len(pendingBefore) != 0 {
+					c.Box().SpannerMarginsBefore = append(append([]pr.ElementStyle(nil), pendingBefore...), c.Box().SpannerMarginsBefore...)
+					pendingBefore = nil
+				}
+				lastSpanner = c
 				// gopdfgo: element rozpinający nadal należy do przodka, więc przezroczystość przodka
 				// dotyczy także jego (CSS Color 4 § 13: opacity działa na całą grupę potomków). Grupa
 				// przodka zawiera tu tylko element, więc wystarczy pomnożyć krycie (test WPT
 				// spanner-in-opacity); bez tego wyniesiony element tracił krycie przodka.
 				if opacity := child.Box().Style.GetOpacity(); opacity < 1 {
-					c = c.Copy()
 					c.Box().Style = c.Box().Style.Copy()
 					c.Box().Style.SetOpacity(c.Box().Style.GetOpacity() * opacity)
 				}
@@ -1095,13 +1145,15 @@ type columnFloat struct {
 	x pr.Float
 }
 
-// takeColumnFloats przenosi elementy pływające podzielone po znaczniku after (zob.
-// layoutContext.brokenSequence) do kontynuacji w następnej kolumnie i mówi, czy jakieś były.
-func takeColumnFloats(context *layoutContext, after int, dx pr.Float) bool {
+// takeColumnFloats przenosi elementy pływające (i pudełka pozycjonowane bezwzględnie) podzielone po
+// znaczniku after (zob. layoutContext.brokenSequence) do kontynuacji w następnej kolumnie, położonej
+// w columnX, i mówi, czy jakieś były. Dalszy ciąg zachowuje odległość od lewej krawędzi kolumny, w której
+// pudełko zostało podzielone; to może być kolumna zagnieżdżonego kontenera kolumn.
+func takeColumnFloats(context *layoutContext, after int, columnX pr.Float) bool {
 	context.columnFloats = nil
 	for key, v := range context.brokenOutOfFlow {
-		if v.order > after && v.box.Box().IsFloated() && v.deferredPages == 0 {
-			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, x: key.Box().PositionX + dx})
+		if v.order > after && continuesInColumn(v) {
+			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, x: key.Box().PositionX - v.columnX + columnX})
 			delete(context.brokenOutOfFlow, key)
 		}
 	}
@@ -1112,11 +1164,18 @@ func takeColumnFloats(context *layoutContext, after int, dx pr.Float) bool {
 // hasColumnFloats mówi, czy po znaczniku after podzielono jakiś element pływający.
 func hasColumnFloats(context *layoutContext, after int) bool {
 	for _, v := range context.brokenOutOfFlow {
-		if v.order > after && v.box.Box().IsFloated() && v.deferredPages == 0 {
+		if v.order > after && continuesInColumn(v) {
 			return true
 		}
 	}
 	return false
+}
+
+// continuesInColumn mówi, czy dalszy ciąg pudełka poza przepływem trafia do następnej kolumny: element
+// pływający albo pudełko pozycjonowane bezwzględnie podzielone w kolumnie (gopdfgo: w źródle tylko na
+// stronach).
+func continuesInColumn(v brokenBox) bool {
+	return v.deferredPages == 0 && (v.resumeAt != nil || v.nextColumn) && (v.box.Box().IsFloated() || v.box.Box().IsAbsolutelyPositioned())
 }
 
 // floatsOnlyResume to wznowienie kolumny, w której zostaje już tylko dalszy ciąg elementów pływających:

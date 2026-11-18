@@ -294,9 +294,11 @@ func (ctx drawContext) drawBorder(box_ Box) {
 
 	// Draw column rules.
 	columns := bo.BlockContainerT.IsInstance(box_) && (box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto")
+	// gopdfgo: linie między kolumnami leżą nad obramowaniem kontenera (CSS Multicol 1 § 4: są malowane
+	// tuż pod treścią liniową kontenera), więc rysujemy je po obramowaniu; w źródle przed nim, a szeroka
+	// linia znikała pod obramowaniem (test WPT multicol-rule-large-001).
 	if columns && !box.Style.GetColumnRuleWidth().IsNone() && !ctx.borderMask {
-		// with stream.artifact():
-		ctx.drawColumnRules(box)
+		defer ctx.drawColumnRules(box)
 	}
 
 	// If there's a border image, that takes precedence.
