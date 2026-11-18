@@ -47,7 +47,7 @@ pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentat
 pass	flex-fragmentation	css/css-break/flexbox/single-line-column-flex-fragmentation-069d-print.html	
 fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-001-print.html	strona 2: różne piksele 46080
 fail	flex-fragmentation	css/css-flexbox/break-nested-float-in-flex-item-002-print.html	strona 2: różne piksele 46080
-fail	flex-fragmentation	css/css-flexbox/inline-flexbox-vertical-rl-image-flexitem-crash-print.html	
+pass	flex-fragmentation	css/css-flexbox/inline-flexbox-vertical-rl-image-flexitem-crash-print.html	
 fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-1-print.html	strony 2 vs 3
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-2-print.html	
 fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-3-print.html	strona 1: różne piksele 8448
@@ -57,7 +57,7 @@ pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-6-pri
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-7-print.html	
 fail	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-8-print.html	strona 1: różne piksele 716
 pass	float-fragmentation	css/CSS2/pagination/float-page-break-inside-avoid-9-print.html	
-fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-001-print.html	strony 1 vs 2
+fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-001-print.html	strona 2: różne piksele 3200
 fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-002-print.html	strony 1 vs 2
 pass	margin-boxes	css/css-page/margin-boxes/alignment-001-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	strona 1: różne piksele 3256

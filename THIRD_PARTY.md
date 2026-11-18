@@ -919,6 +919,118 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- listy i treść generowana, 2026-11-18 (CSS Lists 3, CSS Content 3, CSS Pseudo 4; praca pomocnika):
+  - `html/boxes/build.go`, `reversedCounterStart`: wartość początkowa licznika odwróconego dokładnie według
+    CSS Lists 3 § 4.4.2 (liczone są też `::before` i `::after`; przy `counter-set` dolicza się ustawianą
+    wartość bez przyrostu tego elementu, a ostatni niezerowy przyrost dolicza się zawsze); licznik
+    zagnieżdżony w liczniku przodka nie obejmuje rodzeństwa;
+  - `html/tree/computed_values.go`: `::marker { content: none }` zostaje `none` i nie tworzy znacznika
+    (§ 3.1; źródło zamieniało `none` na `inhibit`); element z `display: contents` nie zmienia liczników
+    (§ 4.5); `counter-*` działa w `::marker`, a licznik założony przez znacznik widzi reszta elementu listy;
+  - `css/selector/parser.go`, `html/tree/style.go` (`nestedMarkerStyle`): `::before::marker`
+    i `::after::marker` (CSS Pseudo 4 § 4.2) dziedziczą po swoim pseudoelemencie, a samo `::marker` ich nie
+    wybiera; test przejęty `TestCounters8` oczekuje nazwy `p::before::marker`;
+  - `html/boxes/build.go` (`replacementImage`, `contentImage`), `css/validation/utils.go`,
+    `css/properties/utils.go` (`ContentImage`): pojedynczy `<image>` w `content` zastępuje zawartość
+    elementu (CSS Content 3 § 1, także `<img>` i element główny); gradienty i `image-set()` (CSS Images 4
+    § 2.2, wariant 1x; działa też w tłach) w `content`; obraz będący całą treścią `::before`/`::after` ma
+    `width` i `height` pseudoelementu (model Chromium); `images/gradients.go`: gradient przycinany do
+    swojego rozmiaru (źródło malowało cieniowanie bez przycięcia);
+  - `quotes: match-parent` (CSS Content 3 § 4.1; `keywords_src.go` i wygenerowany `keywords_gen.go`);
+  - `html/layout/absolute.go`, `block.go` (`shiftOutsideMarkerBesideFloat`): strona znacznika zewnętrznego
+    według kierunku elementu listy, nie `::marker`; znacznik przesuwa się w poziomie na początek pierwszego
+    wiersza leżącego bezpośrednio w elemencie listy, gdy wiersz skraca element pływający spoza elementu
+    (bez przesunięcia przy elementach pływających wewnątrz, `text-indent` i `text-align` center/right, jak
+    w Chromium). Nadal sprzeczne testy W3C o dziedziczeniu liczników od rodzeństwa
+    (`counter-reset-reversed-siblings-003`, `counters-scope-002/003`, `counter-list-item-2`,
+    `CSS2/content-counter-006…008`, `counters-010` przeciw `counter-001…003`, `li-value-reversed-007`);
+- ogon CSS Text, 2026-11-18 (CSS Text 3 i 4; praca pomocnika):
+  - odstęp między literami (CSS Text 3 § 7.2): na końcu wiersza go nie ma; odstęp za ostatnim znakiem
+    tekstu dodawany po zawinięciu i wiszący przy sprawdzaniu mieszczenia (`removeLastLetterSpacing`,
+    `TrailingLetterSpacing`); znaki Cf, znaki klasy BK i znak przed nimi oraz znak za tabulatorem bez
+    odstępu; ciąg elementów atomowych liczy się jak jeden znak. Źródło dodawało pełny odstęp za ostatnim
+    znakiem przed zawijaniem; test przejęty `TestLetterSpacing1` oczekuje 33 odstępów zamiast 34;
+  - `white-space-trim` (CSS Text 4 § 4.2; nowy `boxes/whitespace_trim.go`) i `white-space-collapse`
+    (§ 4.1) jako długa forma części `white-space` (bez `discard` i `preserve-spaces`); skrót `white-space`
+    ustawia `white-space-trim` na `none`;
+  - wiszące białe znaki (CSS Text 3 § 4.1.3): odstępy Zs przy zwijanych białych znakach wiszą
+    bezwarunkowo, także przez kilka pudełek tekstu; ciąg pre-wrap przed wymuszonym złamaniem wisi
+    warunkowo w całości; także dla min-content;
+  - `hyphens: auto` dla wyrazów rozciętych granicami elementów (nowy `boxes/hyphenate_across.go`,
+    `TextBox.ManualHyphens`); puste pudełko liniowe nie blokuje podziału, a znak dzielenia pojawia się także
+    przed takim pudełkiem;
+  - `html/layout/block.go`: pozycja statyczna liniowego elementu absolutnego stojącego przed pierwszym
+    wierszem bloku uwzględnia `text-indent` (CSS 2 § 10.3.7; tylko ltr, bez `hanging`);
+- ogon CSS 2 i tła, 2026-11-18 (praca pomocnika): `:lang()` porównuje wielkość liter tylko w ASCII
+  (`selector/parser.go`, `pseudo_classes.go`); element główny z `position: relative` jest przesuwany,
+  a pływający układany jak element pływający (`layout/pages.go`); położenie statyczne bloku pozycjonowanego
+  w pudełku liniowym bez treści przed nim to góra wiersza, a pudełka bezwzględne względem pudełka
+  liniowego układane po wyrównaniu wiersza w pionie (`layout/inline.go`, `absolute.go`, `layout.go`);
+  `clear` na `<br>` przenosi następny wiersz pod elementy pływające, element pływający o niedodatniej
+  wysokości pudełka marginesowego nachodzi na element obejmujący jego wysokość, dopasowanie szerokości
+  z tolerancją 0,01 px (`layout/float.go`); usuwanie spacji z początku wiersza przechodzi przez pustą resztę
+  pudełka liniowego po wydzieleniu bloku, a `vertical-align: top/bottom` przesuwa też treść zagnieżdżonych
+  pudełek (`layout/inline.go`); blok wydzielony z pudełka liniowego przejmuje jego `opacity` i `z-index`,
+  `::first-letter` z literą w `::before` dziedziczy po `::before` (`boxes/build.go`, `tree/style.go`);
+  `::first-letter` nie usuwa znaku nowego wiersza z `<br>`; podpis tabeli rysowany po tabeli
+  (`document/stacking.go`, CSS 2.1 dodatek E); min/max obrazu bez proporcji ograniczają wymiary niezależnie
+  (`layout/replaced.go`, § 10.4); `conic-gradient` i `repeating-conic-gradient` (`properties/types.go`,
+  `validation/utils.go`, `images/gradients.go`, nowy `goweasyprint/pdf/conic.go`: cieniowanie funkcyjne typu 1
+  z funkcją kalkulatora PostScript typu 4, przezroczystość przez maskę miękką); `background-attachment:
+  local` w pudełku przewijanym pozycjonuje względem całej treści, `fixed` w elemencie przekształconym działa
+  jak `scroll` (`layout/background.go`); tło elementu głównego SVG wyświetlanego jako obraz (`svg/svg.go`);
+  maska `background-clip: text` obejmuje dekoracje tekstu i uwzględnia `text-overflow` (`document/draw.go`,
+  `draw_text.go`). Poza przejętym kodem: `xhtml.go` zachowuje znak nowego wiersza po `<pre>` w XHTML;
+- ogon flex i siatki, 2026-11-18 (praca pomocnika):
+  - flex (`preferred.go`, `flex.go`): wkład elementu do szerokości wewnętrznej kontenera wierszowego
+    ograniczony przez `flex-basis` (od góry bez wzrostu, od dołu bez kurczenia; `flex-basis: auto` bierze
+    `width` w px), dla max-content większa z wartości treść i podana szerokość, bez minimum automatycznego
+    dla elementów kurczliwych (CSS Flexbox 1 § 9.9.1); wysokość kontenera kolumnowego z
+    `height: min-/max-/fit-content` jako suma wkładów; rozciągnięty rozmiar poprzeczny obrazu jest określony
+    (§ 9.8, § 4.5); `width: max-content` nie jest rozciągane w kroku 11; rozmiar hipotetyczny respektuje
+    `min-width`; obraz z samymi proporcjami ma rozmiar bazowy z dostępnej szerokości (CSS 2 § 10.3.2); obraz
+    bez rozmiaru i proporcji zachowuje wysokość 150px w kolumnie; podpisy tabeli wchodzą do `flex-basis`
+    w kolumnie; wysokość procentowa przy nieokreślonym bloku zawierającym nie jest określona, a wysokość
+    kontenera wynika wtedy z linii;
+  - wysokości procentowe przy szerokościach z treści (`boxes.go`, `grid.go`, `preferred.go`, `intrinsic.go`):
+    nowe pole `BoxFields.HeightBase` (podstawa procentów wysokości znana przed układem),
+    `primeFlexDefiniteHeights`, `setChildrenDefiniteHeight` w `resolveIntrinsicSizes`; szerokość z treści
+    obrazu ograniczona przez `min-/max-height` przeniesione proporcjami (CSS 2.1 § 10.4);
+  - siatka (`grid.go`): przy rozmiarze nieokreślonym rozmiary bazowe rosną do granic wzrostu (CSS Grid 1
+    § 12.6); `auto-fill` z `min-height` przeniesionym przez `aspect-ratio` i bez ograniczenia pomiaru
+    (§ 7.2.3.2); nieskończona granica wzrostu liczona jak rozmiar bazowy i ścieżki „nieskończenie rosnące”
+    przy elementach rozpiętych (§ 11.5.1); `safe` w `justify-self`/`align-self` elementów;
+  - `css/validation/logical.go`: skróty `place-*` dzielone według gramatyki wartości (`safe`/`unsafe`,
+    `first`/`last baseline`); `place-content` z samym `baseline` daje `justify-content: start` (CSS Box
+    Alignment 3); źródło nie dzieliło wartości wielowyrazowych;
+  - `utils/urls.go`: usuwanie tabulacji i nowych wierszy z adresu URL (URL Standard, basic URL parser);
+  - `layout/replaced.go`: element zastępowany bez wysokości własnej ma wysokość auto zamiast nil (panika
+    przy `min-/max-height`);
+- ogon kolumn i tabel, 2026-11-18 (praca pomocnika):
+  - `html/tree/html5_ua.css`: usunięte `break-after: avoid; break-inside: avoid` dla `h1`–`h6`
+    i `break-before: avoid` dla `ol, ul` (nie ma ich w arkuszu z HTML, rozdz. 15 „Rendering”, ani
+    w przeglądarkach; dodał je WeasyPrint); w korpusie nagłówek w `11-edge-cases` stoi teraz jak u Chromium;
+  - `html/layout/tables.go`: nagłówek albo stopka zdegradowane do zwykłej grupy wierszy w kolumnach i przy
+    próbie bez miejsca (bottomSpace = +Inf) zmieniają kopię tabeli, nie pudełko źródłowe (wcześniej
+    nagłówek tracił powtarzanie na stałe); komórka rozpięta na wierszu z `visibility: collapse` kończy się na
+    poprzednim wierszu i przycina treść; kolumny z `visibility: collapse` nie zajmują szerokości ani
+    odstępu, tabela się zwęża, komórki na nich rozpięte są przycinane, a całkiem w nich leżące ukryte
+    (CSS Tables 3 § 9.2–9.3; tylko ltr);
+  - `html/boxes/boxes.go`, `html/layout/column.go`: element rozpinający kolumny zakłada kontekst formatowania
+    blokowego (`IsSpanner`, CSS Multicol 1 § 6.1); marginesy przodków przylegające do wyniesionego elementu
+    rozpinającego zwijają się z jego marginesami (`SpannerMarginsBefore/After`), a pusty fragment przodka
+    traci ten margines;
+  - `html/layout/absolute.go`, `block.go`, `column.go`, `layout.go`: pudełka pozycjonowane bezwzględnie
+    podzielone w kolumnie ciągną się od góry następnej kolumny z zachowaniem odległości od jej lewej
+    krawędzi (`brokenBox.columnX`); pudełko z pozycją statyczną na samym dole kolumny zaczyna się w całości
+    w następnej (`brokenBox.nextColumn`); tabela pozycjonowana między `left`/`right` i `top`/`bottom` ma
+    własny rozmiar, a marginesy automatyczne ją wyśrodkowują (CSS 2.1 § 10.3.7, § 17.4);
+  - `html/document/stacking.go`: dalsze fragmenty tego samego pozycjonowanego elementu rysowane zaraz po
+    wcześniejszych; `draw_border.go`: linie między kolumnami rysowane po obramowaniu kontenera
+    (CSS Multicol 1 § 4);
+  - `html/layout/marker.go` (nowy, `alignOutsideMarker`, `alignColumnsMarker`): znacznik
+    `list-style-position: outside` stoi w pionie obok pierwszego wiersza elementu i przechodzi do fragmentu
+    z tym wierszem (CSS Lists 3 § 3.1), także dla elementu listy będącego kontenerem kolumn;
 - flex, 2026-11-18 (CSS Flexbox 1; testy W3C `css-flexbox`; praca pomocnika):
   - `html/layout/flex.go`: krok 10 (`visibility: collapse`) zaimplementowany: po pierwszym przebiegu element
     zwinięty staje się rozpórką o zerowym rozmiarze głównym i rozmiarze poprzecznym swojej linii, a układ

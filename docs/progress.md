@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-18 po piątej paczce równoległej (flex, siatka, tła, fonty, kolumny). Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-18 po szóstej paczce równoległej (listy i treść generowana, tekst, ogon CSS 2 i teł, flex i siatka, kolumny i tabele). Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów (od 16.11 osobno liczone trzy
@@ -30,9 +30,9 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7677 z 9123 (84,1%)** | ściśle 7279, krawędziowo 398; tryb ciągły; od 17.11 zestaw większy o 13 testów |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1582 z 1839 (86,0%)** | ściśle 1531, krawędziowo 51; `css-text` 766 z 909, `css-backgrounds` 562 z 603, `css-fonts` 254 z 327; od 17.11 zestaw większy o 71 testów |
-| Reftesty druku W3C | **244 z 340 (71,8%)** | wszystkie ściśle |
+| Sondaż ekranowy W3C | **7771 z 9123 (85,2%)** | ściśle 7371, krawędziowo 400; tryb ciągły; od 17.11 zestaw większy o 13 testów |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1615 z 1839 (87,8%)** | ściśle 1563, krawędziowo 52; `css-text` 792 z 909, `css-backgrounds` 569 z 603, `css-fonts` 254 z 327; od 17.11 zestaw większy o 71 testów |
+| Reftesty druku W3C | **245 z 340 (72,1%)** | wszystkie ściśle |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
@@ -88,6 +88,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 17.11  elementy pływające, tabele    7517 █████████████████████████████████████████▏ 82,4%
 18.11  ogon CSS 2 i tekst            7569 █████████████████████████████████████████▌ 83,0%
 18.11  flex, siatka, tła, fonty, kolumny 7677 ██████████████████████████████████████████ 84,1%
+18.11  listy, tekst, ogony obszarów  7771 ██████████████████████████████████████████▌ 85,2%
 ```
 
 (*) Skoki z 13.11 i przejście na tryb ciągły 16.11 to poprawki metody pomiaru, nie silnika; przy trybie
@@ -110,6 +111,7 @@ Reftesty druku (z 340):
 16.11  240  ███████████████████████████████████▎    70,6%
 16.11  242  ███████████████████████████████████▌    71,2%
 18.11  244  ███████████████████████████████████▉    71,8%
+18.11  245  ████████████████████████████████████    72,1%
 ```
 
 ## Poprawki według obszarów
@@ -132,7 +134,7 @@ inne                                   9  ████▌
 ```
 
 Razem 239 wpisów w chwili liczenia; dwie późniejsze paczki dodały 13 (siatka 4, strony 3, style 2, tekst 2,
-pływające i pozycjonowanie 2). Piąta paczka równoległa (18.11) dodała 5 wpisów zbiorczych, po jednym na obszar. Trzy obszary zebrały prawie połowę poprawek: stronicowanie (bo to cel silnika,
+pływające i pozycjonowanie 2). Piąta i szósta paczka równoległa (18.11) dodały po 5 wpisów zbiorczych, po jednym na obszar. Trzy obszary zebrały prawie połowę poprawek: stronicowanie (bo to cel silnika,
 a przejęty kod gubił treść na granicach stron), style i składnia (dużo małych braków) oraz tekst.
 
 ## Stan obszarów sondażu
@@ -141,16 +143,16 @@ Jeden znak to 5 punktów procentowych.
 
 ```
 obszar                          zaliczone        brakuje
-CSS 2 (5846)                    ███████████████████▎ 96,4%    209
-css-backgrounds (603)           ██████████████████▋  93,2%     41
-css-tables (141)                ████████████████▉    84,4%     22
-css-lists (151)                 ███████████████▌     77,5%     34
-css-flexbox (952)               ████████████████▉    84,5%    148
-css-grid bez lanes i subgrid    ████████████████▌    83,1%    108
-css-multicol (370)              ████████████████▋    83,2%     62
-css-text (909)                  ████████████████▊    84,3%    143
+CSS 2 (5846)                    ███████████████████▍ 96,9%    182
+css-backgrounds (603)           ██████████████████▉  94,4%     34
+css-tables (141)                █████████████████▎   86,5%     19
+css-lists (151)                 ██████████████████▏  90,7%     14
+css-flexbox (952)               █████████████████▏   85,8%    135
+css-grid bez lanes i subgrid    ████████████████▊    83,8%    104
+css-multicol (370)              █████████████████▌   87,6%     46
+css-text (909)                  █████████████████▍   87,1%    117
 css-fonts (327)                 ███████████████▌     77,7%     73
-css-content (40)                ██████████▌          52,5%     19
+css-content (40)                ████████████████▌    82,5%      7
 css-grid: subgrid (88)          ██████▎              31,8%     60
 css-grid: grid-lanes (865)      ██▍                  12,1%    760
 css-multicol: column-height (30) ██                  10,0%     27
@@ -158,7 +160,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7539 z 8140 (92,6%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7633 z 8140 (93,8%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 

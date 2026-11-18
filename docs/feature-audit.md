@@ -1838,3 +1838,50 @@ Korpus (22 dokumenty, binarka z 5ef9e30 wobec scalonej): bez zmian w żadnym dok
 Do ewentualnej decyzji: `place-self: safe end` w skrócie jest gubiony (`css/validation/logical.go` nie dzieli
 wartości wielowyrazowych); długie formy działają. Test `matrix/TestTranslate` (losowe macierze) nie przechodzi
 czasem, jak opisano w `THIRD_PARTY.md`.
+
+## Szósta paczka równoległa: listy, tekst, ogony obszarów (2026-11-18)
+
+Pięciu pomocników: listy i treść generowana, ogon CSS Text, ogon CSS 2 z tłami, ogon flex i siatki,
+ogon kolumn i tabel; pismo pionowe i RTL poza zakresem (decyzja użytkownika). Jeden pełny sondaż po scaleniu.
+Czterech pomocników przerwał limit API; wznowieni od miejsca przerwania.
+
+| Miara | Przed | Po |
+|---|---|---|
+| siedem dotychczasowych obszarów (9123) | 7677 | 7771 (85,2%; ściśle 7371, krawędziowo 400) |
+| bez funkcji eksperymentalnych (8140) | 7539 | 7633 (93,8%) |
+| tekst, tła, fonty (1839) | 1582 | 1615 (87,8%; `css-text` 792 z 909, `css-backgrounds` 569 z 603) |
+| reftesty druku (340) | 244 | 245 |
+| zyski według obszaru | | CSS 2: 27, tekst 26, listy 20, kolumny 16, flex 13, content 11, tła 7, siatka 4, tabele 3 |
+
+Razem 127 zysków i 0 strat. Korpus (binarka z 5ef9e30 wobec scalonej): zmienia się tylko `11-edge-cases`:
+nagłówek „9. Blok niepodzielny…” stoi na dole strony 1 jak u Chromium, po usunięciu z arkusza domyślnego reguł
+`break-after: avoid` dla `h1`–`h6` i `break-before: avoid` dla `ol, ul`, których nie ma w HTML ani
+w przeglądarkach (dodał je WeasyPrint).
+
+- **Listy i treść generowana:** wartość początkowa liczników `reversed()` według CSS Lists 3 § 4.4.2,
+  `::marker { content: none }`, `::before::marker`, `content: <image>` zastępujący element, `image-set()`,
+  `quotes: match-parent`, znacznik obok wiersza skróconego przez element pływający. Przejęty `TestCounters8`
+  poprawiony. Nierozstrzygnięte: sprzeczne testy W3C o dziedziczeniu liczników od rodzeństwa.
+- **Tekst:** `letter-spacing` bez odstępu na końcu wiersza i przy znakach sterujących, `white-space-trim`,
+  `white-space-collapse`, wiszące odstępy Zs, dzielenie wyrazów przez granice elementów. Przejęty
+  `TestLetterSpacing1` poprawiony (33 odstępy zamiast 34). Pominięte: stary model `letter-spacing` w części
+  testów (sam szkic CSS Text 3 zapowiada ich zmianę), kształtowanie przez granice elementów,
+  `-webkit-line-clamp`.
+- **CSS 2 i tła:** `conic-gradient` (cieniowanie funkcyjne PDF z funkcją PostScript), `clear` na `<br>`,
+  pozycja statyczna w pudełku liniowym, element główny pływający i względny, `:lang()` tylko ASCII bez
+  wielkości liter, min/max obrazów bez proporcji, kolejność rysowania podpisu tabeli, `<pre>` w XHTML.
+- **Flex i siatka:** wkład elementów do szerokości wewnętrznej ograniczony przez `flex-basis`, wysokości
+  procentowe znane przy szerokościach z treści (`BoxFields.HeightBase`), obrazy z samymi proporcjami,
+  podpisy tabeli w `flex-basis`, `place-*` z `safe` (wcześniej gubione), adresy URL z nowymi wierszami,
+  panika przy obrazie bez wysokości własnej.
+- **Kolumny i tabele:** pudełka pozycjonowane dzielone między kolumny, elementy rozpinające jako kontekst
+  formatowania i zwijanie marginesów przodków, `visibility: collapse` kolumn, linie kolumn nad obramowaniem;
+  nagłówek tabeli tracił powtarzanie w kolumnach (próba układu zmieniała pudełko źródłowe; znalezione
+  w korpusie `22-multicol-pagination`).
+
+Przy scaleniu dwie funkcje `alignOutsideMarker` (listy: przesunięcie w poziomie; kolumny: w pionie i między
+fragmentami) zderzyły się nazwą; pierwsza nazywa się teraz `shiftOutsideMarkerBesideFloat`.
+
+Narzędzie: `bench/survey/tools/chk.sh` liczy teraz tą samą miarą co sondaż (przez `survey96e.py`
+z `SURVEY_LIST`), w 6 procesach i z pamięcią wzorców: ok. 20 testów/s zamiast 1/s; znikły też fałszywe
+straty na stronach wyższych niż 600 px.
