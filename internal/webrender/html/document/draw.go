@@ -154,22 +154,25 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 
 		if clips := box.Style.GetClip(); box.IsAbsolutelyPositioned() && len(clips) != 0 {
 			top, right, bottom, left := clips[0], clips[1], clips[2], clips[3]
+			// gopdfgo: rect(top, right, bottom, left) podaje przesunięcia od górnej (top, bottom) i lewej
+			// (right, left) krawędzi obramowania, a auto oznacza krawędź pudełka (CSS 2.2 § 11.1.2).
+			// Źródło zamieniało right z left: prostokąt zaczynał się w x = right i miał szerokość left − right.
 			if top.Tag == pr.Auto {
 				top.Value = 0
 			}
 			if right.Tag == pr.Auto {
-				right.Value = 0
+				right.Value = box.BorderWidth()
 			}
 			if bottom.Tag == pr.Auto {
 				bottom.Value = box.BorderHeight()
 			}
 			if left.Tag == pr.Auto {
-				left.Value = box.BorderWidth()
+				left.Value = 0
 			}
 			ctx.dst.Rectangle(
-				fl(box.BorderBoxX()+right.Value),
+				fl(box.BorderBoxX()+left.Value),
 				fl(box.BorderBoxY()+top.Value),
-				fl(left.Value-right.Value),
+				fl(right.Value-left.Value),
 				fl(bottom.Value-top.Value),
 			)
 			ctx.dst.State().Clip(false)
