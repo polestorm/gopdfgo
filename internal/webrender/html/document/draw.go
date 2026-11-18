@@ -133,6 +133,14 @@ func (ctx drawContext) StrutLayoutsCache() map[text.StrutLayoutKey][2]pr.Float {
 
 // Draw the given PageBox.
 func (ctx drawContext) drawPage(page *bo.PageBox) {
+	// gopdfgo: dokument, którego element główny ma display: none, nie ma czego drukować: strona zostaje
+	// pusta, bez tła, obramowania i pól marginesowych @page (norma tego nie rozstrzyga; tak drukuje
+	// Chromium, test WPT css-page/root-element-display-none-print)
+	for _, child := range page.Children {
+		if child.Box().RootDisplayNone {
+			return
+		}
+	}
 	marks := page.Style.GetMarks()
 	stackingContext := NewStackingContextFromPage(page)
 	ctx.drawBackground(stackingContext.box.Box().Background, false, page.Bleed(), marks)

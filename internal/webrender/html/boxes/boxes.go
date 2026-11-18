@@ -186,6 +186,8 @@ type BoxFields struct {
 	IsFlexItem           bool
 	IsGridItem           bool
 	IsForRootElement     bool
+	// RootDisplayNone (gopdfgo): pudełko zastępuje element główny z display: none (strona jest pusta)
+	RootDisplayNone bool
 	// MarginTopTruncated (gopdfgo): górny margines pudełka przylega do zwykłego podziału strony i jest
 	// obcięty do zera (CSS Fragmentation 3 § 5.2). Ustawia to układ bloku nadrzędnego przed każdym
 	// ułożeniem dziecka, które nie jest blokiem; układ dziecka nie przywraca wtedy marginesu ze stylu.
