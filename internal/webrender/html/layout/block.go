@@ -2405,8 +2405,13 @@ func alignOutsideMarker(box *bo.BoxFields, children []Box) {
 	if line == nil {
 		return
 	}
-	if box.Style.GetDirection() == pr.Ltr {
-		marker.Box().PositionX += line.PositionX - box.ContentBoxX()
+	// przesunięcie poziome tylko dla wiersza bez wyrównania: przy center i right położenie wiersza
+	// zawiera już przesunięcie z text-align, a znacznik stoi na początku wiersza, nie tekstu
+	switch line.Style.GetTextAlignAll() {
+	case "left", "start", "justify":
+		if box.Style.GetDirection() == pr.Ltr {
+			marker.Box().PositionX += line.PositionX - box.ContentBoxX()
+		}
 	}
 	marker.Box().PositionY = line.PositionY
 }
