@@ -700,9 +700,11 @@ func (fc *FontConfigurationGotext) heightCap(style *TextStyle) pr.Fl {
 }
 
 // autospaceWidth (gopdfgo) zwraca odstęp text-autospace (1/8 ic, CSS Text 4 § 6.4) albo zero, gdy
-// styl go wyłącza albo w tekście nie ma ideogramów.
+// styl go wyłącza albo w tekście nie ma ideogramów. Przy niezerowym letter-spacing odstępu nie
+// dodajemy: znaki są już rozsunięte, a test WPT letter-spacing-200 (ideogramy z letter-spacing: 1em)
+// oczekuje samego odstępu między literami; norma tego przypadku nie rozstrzyga.
 func (fc *FontConfigurationGotext) autospaceWidth(style *TextStyle, text []rune) fixed.Int26_6 {
-	if style.Autospace == 0 || !slices.ContainsFunc(text, func(r rune) bool { return classifyAutospace(r) == autospaceIdeograph }) {
+	if style.Autospace == 0 || style.LetterSpacing != 0 || !slices.ContainsFunc(text, func(r rune) bool { return classifyAutospace(r) == autospaceIdeograph }) {
 		return 0
 	}
 	return floatToFixed(fc.widthIdeographic(style) / 8)
