@@ -1452,6 +1452,7 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 			*fixedBoxes = append(*fixedBoxes, placeholder)
 		}
 	} else if child.IsFloated() { // Float child layout.
+		brokenBefore := context.brokenSequence
 		newChild, outOfFlowLayoutResumeAt = floatLayout(context, child_, box.Box(), absoluteBoxes, fixedBoxes, bottomSpace, nil)
 		// Check that child doesn’t overflow page.
 		pageOverflow := context.overflowsPage(bottomSpace, newChild.Box().PositionY+newChild.Box().Height.V())
@@ -1462,6 +1463,21 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 		if len(newChild.Box().Children) != 0 && context.overflowsPage(bottomSpace, newChild.Box().BorderBoxY()+0.5) {
 			pageOverflow = true
 		}
+		// gopdfgo: element pływający z break-inside: avoid, który musiałby się podzielić, przechodzi w całości
+		// na następną stronę, o ile przed nim na tej coś już jest (CSS Break 3 § 3.2). Element pływający jest
+		// układany jak na pustej stronie, więc w źródle ta właściwość nie działała (testy WPT
+		// CSS2/pagination/float-page-break-inside-avoid-*). Element zaczynający się u samej góry strony
+		// zostaje: na następnej i tak by się dzielił.
+		// Dzielenie się może też wynikać z elementów pływających zagnieżdżonych, zgłaszanych osobno.
+		fragmentedInside := outOfFlowLayoutResumeAt != nil
+		for _, broken := range context.brokenOutOfFlow {
+			fragmentedInside = fragmentedInside || broken.order > brokenBefore
+		}
+		avoidedSplit := false
+		if fragmentedInside && avoidPageBreak(string(child.Style.GetBreakInside()), context) &&
+			newChild.Box().PositionY > context.pageBottom-context.pageHeight+0.5 {
+			pageOverflow, avoidedSplit = true, true
+		}
 		addChild := (pageIsEmpty && len(*newChildren) == 0) || !pageOverflow || bo.IsMonolithic(box)
 		if addChild {
 			// Child fits or has to fit, add it.
@@ -1470,6 +1486,9 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 		} else {
 			// Child doesn’t fit and we can break, find where to break and stop
 			// parent rendering.
+			if avoidedSplit {
+				removePlaceholders(context, []Box{newChild}, absoluteBoxes, fixedBoxes)
+			}
 			lastInFlowChild := findLastInFlowChild(*newChildren)
 			pageBreak := blockLevelPageBreak(lastInFlowChild, child_)
 			resumeAt = tree.ResumeStack{index: nil}

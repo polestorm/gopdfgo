@@ -205,6 +205,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	box := box_.Box()
 
 	context.createFlexFormattingContext()
+	brokenAtStart := context.brokenSequence // gopdfgo: zob. niżej, przed ostatecznym układem elementów
 
 	var resumeAt tree.ResumeStack
 
@@ -1980,6 +1981,17 @@ restartCollapsed:
 	}
 	box_ = bo.CopyWithChildren(box_, newChildren)
 	box = box_.Box()
+	// gopdfgo: elementy pływające i pozycjonowane podzielone między strony w układach próbnych elementów
+	// (rozmiar hipotetyczny, wkład) zgłaszały swój dalszy ciąg; zgłoszenia te zastępuje ostateczny układ
+	// poniżej. W źródle zostawały, więc dalszy ciąg elementu pływającego zagnieżdżonego w elemencie flex
+	// był rysowany na następnych stronach podwójnie (testy WPT css-flexbox/break-nested-float-in-flex-item-*).
+	if context.flexMeasuring == 0 {
+		for key, broken := range context.brokenOutOfFlow {
+			if broken.order > brokenAtStart {
+				delete(context.brokenOutOfFlow, key)
+			}
+		}
+	}
 	childSkipStack = skipStack
 	finalLines := make([][]Box, len(flexLines)) // pudełka po ostatecznym układzie, według linii
 	// gopdfgo: w wierszu elementy jednej linii dzielą się między strony równolegle (CSS Flexbox 1 § 12):
