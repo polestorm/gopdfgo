@@ -699,6 +699,15 @@ func (fc *FontConfigurationGotext) heightCap(style *TextStyle) pr.Fl {
 	return pr.Fl(fixedToFloat(glyphs[0].YBearing) / sizeFactor)
 }
 
+// autospaceWidth (gopdfgo) zwraca odstęp text-autospace (1/8 ic, CSS Text 4 § 6.4) albo zero, gdy
+// styl go wyłącza albo w tekście nie ma ideogramów.
+func (fc *FontConfigurationGotext) autospaceWidth(style *TextStyle, text []rune) fixed.Int26_6 {
+	if style.Autospace == 0 || !slices.ContainsFunc(text, func(r rune) bool { return classifyAutospace(r) == autospaceIdeograph }) {
+		return 0
+	}
+	return floatToFixed(fc.widthIdeographic(style) / 8)
+}
+
 // widthIdeographic (gopdfgo): posunięcie znaku '水' (jednostka ic, CSS Values 4 § 6.1.1); 1em, gdy
 // żaden font go nie ma.
 func (fc *FontConfigurationGotext) widthIdeographic(style *TextStyle) pr.Fl {
@@ -1136,6 +1145,12 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 	}
 
+	// gopdfgo: text-autospace (CSS Text 4 § 6.4): 1/8 ic między ideogramem a literą lub cyfrą
+	autospace := fc.autospaceWidth(style, text)
+	if autospace != 0 && dir.Progression() == di.FromTopLeft {
+		applyAutospace(outputs, text, autospace, style.Autospace)
+	}
+
 	// do we have some tabs ?
 	// gopdfgo: po odstępach między literami, bo tabulator ich nie dostaje: kończy się na pozycji tabulacji
 	if indexRune(text, '\t') != -1 {
@@ -1350,6 +1365,13 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 		lastRun.Glyphs = lastRun.Glyphs[:i+1]
 		lastRun.RecalculateAll()
+	}
+
+	// gopdfgo: odstęp text-autospace na granicy, na której łamie się wiersz, znika (CSS Text 4 § 6.4:
+	// odstęp wstawia się tylko między znakami w jednym wierszu)
+	if autospace != 0 && !mandatoryBreak && wLine.NextLine < len(text) && autospaceBoundary(text, wLine.NextLine, style.Autospace) &&
+		dir.Progression() == di.FromTopLeft {
+		addToLastGlyph(line, text, -autospace, false)
 	}
 
 	// gopdfgo: odstęp między literami na końcu wiersza (CSS Text 3 § 7.2), zob. trailingLetterSpacing
@@ -2098,6 +2120,21 @@ func (fc *FontConfigurationGotext) synthesizePosition(input shaping.Input, posit
 	return out, true
 }
 
+// clusterIgnorableForSpacing (gopdfgo) mówi, czy klaster glifu g składa się wyłącznie ze znaków Cf albo
+// znaków wymuszonego złamania, które nie dostają odstępu między literami (zob. joinersWithoutSpacing).
+func clusterIgnorableForSpacing(g shaping.Glyph, text []rune) bool {
+	if g.ClusterIndex < 0 || g.ClusterIndex >= len(text) {
+		return false
+	}
+	end := min(g.ClusterIndex+max(g.RuneCount, 1), len(text))
+	for _, c := range text[g.ClusterIndex:end] {
+		if !isIgnorableForSpacing(c) && !isMandatoryBreak(c) {
+			return false
+		}
+	}
+	return true
+}
+
 // joinersWithoutSpacing (gopdfgo) zdejmuje letter-spacing dodany przez go-text do znaków ZWNJ i ZWJ
 // stojących we własnym klastrze. Należą one do klastra grafemów poprzedniego znaku (Grapheme_Extend,
 // UAX 29), a odstęp między literami dodaje się między klastrami grafemów (CSS Text 3 § 8.2), więc
@@ -2107,25 +2144,33 @@ func (fc *FontConfigurationGotext) synthesizePosition(input shaping.Input, posit
 // letter-spacing-202, letter-spacing-control-chars-001).
 func joinersWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
 	half := ls / 2
+	// gopdfgo: klaster może obejmować kilka takich znaków (HarfBuzz dołącza ZWJ do klastra
+	// poprzedzającego ZWNJ: dwa glify, dwa znaki), więc sprawdzamy wszystkie znaki klastra, a odstęp
+	// zdejmujemy tam, gdzie go-text go dodał: połowę przed pierwszym glifem klastra i połowę za ostatnim
 	for r := range runs {
 		run := &runs[r]
 		changed := false
-		for i := range run.Glyphs {
-			g := &run.Glyphs[i]
-			if g.GlyphCount != 1 || g.ClusterIndex < 0 || g.ClusterIndex >= len(text) ||
-				!isIgnorableForSpacing(text[g.ClusterIndex]) && !isMandatoryBreak(text[g.ClusterIndex]) {
+		for start := 0; start < len(run.Glyphs); {
+			g := run.Glyphs[start]
+			end := start + max(g.GlyphCount, 1) - 1
+			next := end + 1
+			if end >= len(run.Glyphs) || !clusterIgnorableForSpacing(g, text) {
+				start = next
 				continue
 			}
-			if i > 0 || r > 0 { // połowa przed klastrem (zob. shaping.Output.AddLetterSpacing)
-				g.Advance -= half
-				g.XAdvance -= half
-				g.XOffset -= half
+			if start > 0 || r > 0 { // połowa przed klastrem (zob. shaping.Output.AddLetterSpacing)
+				first := &run.Glyphs[start]
+				first.Advance -= half
+				first.XAdvance -= half
+				first.XOffset -= half
 			}
-			if i < len(run.Glyphs)-1 || r < len(runs)-1 { // połowa za klastrem
-				g.Advance -= half
-				g.XAdvance -= half
+			if next < len(run.Glyphs) || r < len(runs)-1 { // połowa za klastrem
+				last := &run.Glyphs[end]
+				last.Advance -= half
+				last.XAdvance -= half
 			}
 			changed = true
+			start = next
 		}
 		if changed {
 			run.RecomputeAdvance()
@@ -2135,7 +2180,7 @@ func joinersWithoutSpacing(runs shaping.Line, text []rune, ls fixed.Int26_6) {
 	// sąsiada po tej stronie, więc nie dostaje połowy odstępu przed sobą (za sobą), jak gdyby
 	// znaków Cf nie było (test WPT letter-spacing-control-chars-001)
 	ignorable := func(g shaping.Glyph) bool {
-		return g.GlyphCount == 1 && g.ClusterIndex >= 0 && g.ClusterIndex < len(text) && isIgnorableForSpacing(text[g.ClusterIndex])
+		return clusterIgnorableForSpacing(g, text) && !isMandatoryBreak(text[g.ClusterIndex])
 	}
 	type glyphRef struct{ r, i int }
 	var first, last *glyphRef

@@ -269,6 +269,7 @@ const (
 	PBackgroundBlendMode    // gopdfgo: CSS Compositing 1 § 3.2; niedziedziczona
 	PClipPath               // gopdfgo: CSS Masking 1 § 5.1; niedziedziczona
 	PBoxOrient              // gopdfgo: -webkit-box-orient (CSS Overflow 4 § 4.3, starszy line-clamp); niedziedziczona
+	PTextAutospace          // gopdfgo: CSS Text 4 § 6.4; dziedziczona
 
 	nbProperties
 )

@@ -200,6 +200,7 @@ var (
 		PWordSpaceTransform,
 		PTextWrapMode,
 		PTextWrapStyle,
+		PTextAutospace,
 		PFontSynthesisWeight,
 		PFontSynthesisStyle,
 		PFontSynthesisSmallCaps,

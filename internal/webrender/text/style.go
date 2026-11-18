@@ -162,6 +162,10 @@ type TextStyle struct {
 	// SynthesizedPosition (gopdfgo): "sub" albo "super", gdy font-variant-position wolno syntetyzować
 	// (font-synthesis-position: auto); zob. synthesizePosition
 	SynthesizedPosition string
+
+	// Autospace (gopdfgo): odstępy text-autospace między ideogramami a literami lub cyframi innych
+	// pism (CSS Text 4 § 6.4), zob. applyAutospace
+	Autospace Autospace
 }
 
 // If ignoreSpacing is true, 'word-spacing' and 'letter-spacing' are
@@ -230,6 +234,7 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.FontFeatures = getFontFeatures(style, featureValues)
 
 	out.Direction = style.GetDirection()
+	out.Autospace = newAutospace(string(style.GetTextAutospace()))
 	if position := style.GetFontVariantPosition(); (position == "sub" || position == "super") &&
 		style.GetFontSynthesisPosition() != "none" {
 		out.SynthesizedPosition = string(position)
@@ -271,7 +276,8 @@ type styleKey struct {
 	// gopdfgo: font-size-adjust zmienia rozmiar fontów zastępczych (zob. FaceSizeScale), choć rozmiar
 	// fontu podstawowego bywa ten sam co bez niego
 	SizeAdjust          pr.SBoolFloat
-	SynthesizedPosition string // gopdfgo: jak w TextStyle
+	SynthesizedPosition string    // gopdfgo: jak w TextStyle
+	Autospace           Autospace // gopdfgo: jak w TextStyle
 }
 
 func (ts *TextStyle) key() styleKey {
@@ -300,6 +306,7 @@ func (ts *TextStyle) key() styleKey {
 		ts.Direction,
 		ts.SizeAdjust,
 		ts.SynthesizedPosition,
+		ts.Autospace,
 	}
 }
 

@@ -635,6 +635,9 @@ func (s Properties) SetClipPath(v ClipPath) { s[PClipPath] = v }
 func (s Properties) GetBoxOrient() String  { return s[PBoxOrient].(String) }
 func (s Properties) SetBoxOrient(v String) { s[PBoxOrient] = v }
 
+func (s Properties) GetTextAutospace() String  { return s[PTextAutospace].(String) }
+func (s Properties) SetTextAutospace(v String) { s[PTextAutospace] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1256,6 +1259,9 @@ type StyleAccessor interface {
 
 	GetBoxOrient() String
 	SetBoxOrient(v String)
+
+	GetTextAutospace() String
+	SetTextAutospace(v String)
 }
 
 var propsNames = [...]string{
@@ -1466,6 +1472,7 @@ var propsNames = [...]string{
 	PBackgroundBlendMode:     "background-blend-mode",
 	PClipPath:                "clip-path",
 	PBoxOrient:               "box-orient",
+	PTextAutospace:           "text-autospace",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1677,4 +1684,5 @@ var PropsFromNames = map[string]KnownProp{
 	"background-blend-mode":      PBackgroundBlendMode,
 	"clip-path":                  PClipPath,
 	"box-orient":                 PBoxOrient,
+	"text-autospace":             PTextAutospace,
 }

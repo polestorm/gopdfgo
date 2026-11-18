@@ -271,6 +271,7 @@ var (
 		pr.PClipPath:                clipPath,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PWordSpaceTransform:      wordSpaceTransform,
+		pr.PTextAutospace:           textAutospace,
 		pr.PTextWrapMode:            textWrapMode,
 		pr.PTextWrapStyle:           textWrapStyle,
 		pr.PFontSynthesisWeight:     fontSynthesisAutoNone,
@@ -2886,6 +2887,34 @@ func wordSpaceTransform(tokens []Token, _ string) pr.CssProperty {
 		return nil
 	}
 	return pr.String(strings.TrimSpace(space + " " + phrase))
+}
+
+// gopdfgo: “text-autospace“ (CSS Text 4 § 6.4): normal | auto | no-autospace |
+// [ ideograph-alpha || ideograph-numeric || punctuation ] || [ insert | replace ].
+// Wartość obliczona to słowa kluczowe w kolejności z gramatyki. Źródło właściwości nie znało.
+func textAutospace(tokens []Token, _ string) pr.CssProperty {
+	if keyword := getSingleKeyword(tokens); keyword == "normal" || keyword == "auto" || keyword == "no-autospace" {
+		return pr.String(keyword)
+	}
+	order := []string{"ideograph-alpha", "ideograph-numeric", "punctuation", "insert", "replace"}
+	seen := map[string]bool{}
+	for _, token := range tokens {
+		keyword := getKeyword(token)
+		if !slices.Contains(order, keyword) || seen[keyword] {
+			return nil
+		}
+		seen[keyword] = true
+	}
+	if seen["insert"] && seen["replace"] || len(seen) == 0 {
+		return nil
+	}
+	var out []string
+	for _, keyword := range order {
+		if seen[keyword] {
+			out = append(out, keyword)
+		}
+	}
+	return pr.String(strings.Join(out, " "))
 }
 
 // gopdfgo: “text-wrap-mode“ (CSS Text 4 § 5.1): nowrap wyłącza miękkie łamanie wierszy bez zmiany

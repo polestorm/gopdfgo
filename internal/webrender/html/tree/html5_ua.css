@@ -89,6 +89,8 @@ b, strong, th { font-weight: bold }
 th { text-align: -internal-center }
 caption { text-align: center }
 code, kbd, listing, plaintext, pre, samp, tt, xmp { font-family: monospace }
+/* gopdfgo: bez odstępów text-autospace w tekście preformatowanym, jak w Chromium (CSS Text 4 § 6.4) */
+code, kbd, listing, plaintext, pre, samp, tt, xmp { text-autospace: no-autospace }
 h1 { font-size: 2em; font-weight: bold }
 h2 { font-size: 1.5em; font-weight: bold }
 h3 { font-size: 1.17em; font-weight: bold }

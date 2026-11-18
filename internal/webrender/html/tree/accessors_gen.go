@@ -2097,3 +2097,13 @@ func (s *ComputedStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBo
 
 func (s *AnonymousStyle) GetBoxOrient() pr.String  { return s.Get(pr.PBoxOrient.Key()).(pr.String) }
 func (s *AnonymousStyle) SetBoxOrient(v pr.String) { s.propsCache.setKnown(pr.PBoxOrient, v) }
+
+func (s *ComputedStyle) GetTextAutospace() pr.String {
+	return s.Get(pr.PTextAutospace.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetTextAutospace(v pr.String) { s.propsCache.setKnown(pr.PTextAutospace, v) }
+
+func (s *AnonymousStyle) GetTextAutospace() pr.String {
+	return s.Get(pr.PTextAutospace.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetTextAutospace(v pr.String) { s.propsCache.setKnown(pr.PTextAutospace, v) }

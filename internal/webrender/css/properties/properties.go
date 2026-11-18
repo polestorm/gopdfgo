@@ -184,6 +184,7 @@ var InitialValues = Properties{
 	PWordSpaceTransform:     String("none"),       // gopdfgo
 	PTextWrapMode:           String("wrap"),       // gopdfgo
 	PTextWrapStyle:          String("auto"),       // gopdfgo
+	PTextAutospace:          String("normal"),     // gopdfgo
 	PFontSynthesisWeight:    String("auto"),       // gopdfgo
 	PFontSynthesisStyle:     String("auto"),       // gopdfgo
 	PFontSynthesisSmallCaps: String("auto"),       // gopdfgo
