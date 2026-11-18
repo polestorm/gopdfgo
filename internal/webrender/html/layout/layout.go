@@ -399,6 +399,9 @@ type layoutContext struct {
 	excludedShapesLists []shapeList
 	brokenOutOfFlow     map[Box]brokenBox
 	brokenSequence      int
+	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie, do kontynuacji na górze następnej
+	// (zob. columnsLayout, takeColumnFloats)
+	columnFloats []columnFloat
 	// flexMeasuring > 0 oznacza układ próbny elementu flex (pomiar rozmiaru); kontenery flex nie dzielą się
 	// wtedy między strony, żeby pomiar dał pełną wysokość treści.
 	flexMeasuring int

@@ -661,6 +661,16 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		context.clipDepth++
 		defer func() { context.clipDepth-- }()
 	}
+	// gopdfgo: w kolumnach kontener przewijania (overflow: hidden, scroll, auto; CSS Overflow 3 § 3) jest
+	// niepodzielny (CSS Break 3 § 4.1), także przy wysokości auto: jego treść układamy bez ograniczenia,
+	// a o przeniesieniu całości do następnej kolumny decyduje rodzic. W źródle treść dzieliła się między
+	// kolumny (test WPT overflow-unsplittable-003). Na stronach zostaje zachowanie źródła: na papierze
+	// nie da się przewinąć, więc treść dzielimy jak przeglądarki przy druku.
+	if context.inColumn && !box.IsColumn && bo.BlockT.IsInstance(box_) && skipStack == nil && box.IsInNormalFlow() {
+		if overflow := box.Style.GetOverflow(); overflow == "hidden" || overflow == "scroll" || overflow == "auto" {
+			bottomSpace = -pr.Inf
+		}
+	}
 
 	// See https://www.w3.org/TR/CSS21/visuren.html#block-formatting
 	// gopdfgo: pudełko opakowujące tabelę zakłada kontekst formatowania blokowego (CSS 2.1 § 17.4),
@@ -721,6 +731,23 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		resumeAt                     tree.ResumeStack
 		lastInFlowChild              Box
 	)
+	// gopdfgo: elementy pływające podzielone w poprzedniej kolumnie ciągną się od góry tej kolumny
+	// (CSS Break 3 § 4.4: fragmenty pudełka trafiają do kolejnych fragmentatorów), tak jak na stronach
+	// robi to pages.go. W źródle ich dalszy ciąg trafiał dopiero na następną stronę.
+	if box.IsColumn && len(context.columnFloats) != 0 {
+		pending := context.columnFloats
+		context.columnFloats = nil
+		for _, v := range pending {
+			v.box.Box().PositionY = box.ContentBoxY()
+			placed, placedResumeAt := floatLayout(context, v.box, v.containingBlock.Box(), absoluteBoxes, fixedBoxes, bottomSpace, v.resumeAt)
+			placed.Translate(v.dx, 0, false)
+			newChildren = append(newChildren, placed)
+			if placedResumeAt != nil {
+				context.setBrokenOutOfFlow(placed, brokenBox{box: v.box, containingBlock: v.containingBlock, resumeAt: placedResumeAt})
+				brokenOutOfFlow = append(brokenOutOfFlow, placed)
+			}
+		}
+	}
 
 	if ml := box.Style.GetMaxLines(); ml.Tag != pr.None {
 		if maxLines <= 0 || ml.I <= maxLines {
