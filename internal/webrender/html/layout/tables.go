@@ -776,6 +776,16 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		}
 	}
 
+	// gopdfgo: fragment, w którym z tabeli została tylko stopka (zob. placeDroppedFooter), nie ma już
+	// wierszy treści: stopka stoi w nim jak w tabeli bez wierszy.
+	lastIndex := len(table.Children) - 1
+	onlyFooterLeft := false
+	if skipStack != nil && hasFooter {
+		skip, _ := skipStack.Unpack()
+		onlyFooterLeft = skip == lastIndex
+	}
+	rowsLeft := len(tableRows) != 0 && !onlyFooterLeft
+
 	allGroupsLayout := func() (Box, []Box, Box, pr.Float, tree.ResumeStack, tree.PageBreak) {
 		var (
 			header, footer             Box
@@ -832,6 +842,21 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			return children, resumeAt, nextPage, endPositionY
 		}
 
+		// gopdfgo: stopka, z której zrezygnowaliśmy, bo w tym fragmencie nie zmieściła się razem z treścią,
+		// jest częścią tabeli i musi się pojawić tam, gdzie wypada w treści (CSS Tables 3 § 6.2): gdy treść
+		// tabeli skończyła się w tym fragmencie, stawiamy stopkę pod nią, a jeśli i ona się nie mieści,
+		// przechodzi do następnego fragmentu. W źródle taka stopka znikała z dokumentu.
+		placeDroppedFooter := func(children []Box, resumeAt tree.ResumeStack, endPositionY pr.Float) (Box, tree.ResumeStack, pr.Float) {
+			if !hasFooter || resumeAt != nil || len(children) == 0 {
+				return nil, resumeAt, endPositionY
+			}
+			footer, footerResume, _ := groupLayout(table.Children[lastIndex], endPositionY, bottomSpace, false, nil)
+			if footer != nil && footerResume == nil {
+				return footer, nil, endPositionY + footer.Box().Height.V() + borderSpacingY
+			}
+			return nil, tree.ResumeStack{lastIndex: nil}, endPositionY
+		}
+
 		// Don't remove headers and footers if breaks are avoided in line groups
 		skip := 0
 		if skipStack != nil {
@@ -854,11 +879,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY+headerHeight,
 				bottomSpace+footerHeight, avoidBreaks)
-			if len(newTableChildren) == 0 && len(tableRows) != 0 && pageIsEmpty {
+			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
 				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY+headerHeight, bottomSpace+footerHeight,
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
-			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
+			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
 				if resumeAt != nil {
 					// gopdfgo: po wierszu przerwanym na granicy strony odstęp jest przed powtarzaną stopką,
 					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza
@@ -883,11 +908,12 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				endPositionY     pr.Float
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY+headerHeight, bottomSpace, avoidBreaks)
-			if len(newTableChildren) == 0 && len(tableRows) != 0 && pageIsEmpty {
+			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
 				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY+headerHeight, bottomSpace,
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
-			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
+			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
+				footer, resumeAt, endPositionY = placeDroppedFooter(newTableChildren, resumeAt, endPositionY)
 				return header, newTableChildren, footer, endPositionY, resumeAt, nextPage
 			} else {
 				// We could not fit any content, drop the header
@@ -902,11 +928,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				endPositionY     pr.Float
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY, bottomSpace+footerHeight, avoidBreaks)
-			if len(newTableChildren) == 0 && len(tableRows) != 0 && pageIsEmpty {
+			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
 				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY, bottomSpace+footerHeight,
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
-			if len(newTableChildren) != 0 || len(tableRows) == 0 || !pageIsEmpty {
+			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
 				if resumeAt != nil {
 					// gopdfgo: po wierszu przerwanym na granicy strony odstęp jest przed powtarzaną stopką,
 					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza
@@ -928,6 +954,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			panic(fmt.Sprintf("expected empty header and footer, got %v %v", header, footer))
 		}
 		newTableChildren, resumeAt, nextPage, endPositionY := bodyGroupsLayout(skipStack, positionY, bottomSpace, pageIsEmpty)
+		footer, resumeAt, endPositionY = placeDroppedFooter(newTableChildren, resumeAt, endPositionY)
 		return header, newTableChildren, footer, endPositionY, resumeAt, nextPage
 	}
 
@@ -955,6 +982,42 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// (bottomSpace = +Inf, zob. columnsLayout) zmieniamy kopię tabeli, nie pudełko źródłowe: inaczej
 	// nagłówek tracił powtarzanie na stałe, a tabela dzieliła się zaraz za nim (fragment z samym
 	// nagłówkiem, bez powtórzenia w następnej kolumnie; korpus 22-multicol-pagination).
+	// gopdfgo: nagłówek i stopka są powtarzane tylko wtedy, gdy każda z tych grup mieści się w ćwierci
+	// wysokości fragmentatora (strony albo kolumny), osobno dla nagłówka i osobno dla stopki (CSS Tables 3
+	// § 6.2 „Repeating headers across pages”). Grupa wyższa płynie jak zwykła grupa wierszy, czyli
+	// pojawia się tylko tam, gdzie wypada w treści; druga grupa jest nadal powtarzana. Decyzję podejmujemy
+	// w każdym fragmencie na kopii tabeli (pudełko źródłowe zostaje), bo fragmentatory mogą mieć różną
+	// wysokość, a w kolumnach próby równoważenia mają różne wysokości. W źródle powtarzana była każda
+	// grupa, która zmieściła się na stronie (testy WPT CSS2/pagination/row*-page-break-inside-avoid-*).
+	if fragmentainerHeight := repeatFragmentainerHeight(context, bottomSpace); fragmentainerHeight > 0 && (hasHeader || hasFooter) {
+		tooTall := func(group_ Box) bool {
+			group, _, _ := groupLayout(group_, positionY, -pr.Inf, false, nil)
+			return group != nil && group.Box().Height.V() > fragmentainerHeight/4
+		}
+		var groups []Box
+		demote := func(i int, header bool) {
+			if groups == nil {
+				groups = append([]Box(nil), table.Children...)
+			}
+			groups[i] = groups[i].Copy()
+			if header {
+				groups[i].Box().IsHeader = false
+			} else {
+				groups[i].Box().IsFooter = false
+			}
+		}
+		if hasHeader && tooTall(table.Children[0]) {
+			demote(0, true)
+		}
+		if hasFooter && tooTall(table.Children[len(table.Children)-1]) {
+			demote(len(table.Children)-1, false)
+		}
+		if groups != nil {
+			table_ = bo.CopyWithChildren(table_, groups).(bo.TableBoxITF)
+			return tableLayout(context, table_, bottomSpace, skipStack, pageIsEmpty, absoluteBoxes, fixedBoxes)
+		}
+	}
+
 	if pageIsEmpty && skipStack == nil && (hasHeader || hasFooter) {
 		permanent := !context.inColumn && bottomSpace < pr.Inf
 		groups := table.Children
@@ -1816,4 +1879,17 @@ func markTablesWithoutColumnPercentages(box Box, inside bool) {
 			markTablesWithoutColumnPercentages(child, inside)
 		}
 	}
+}
+
+// repeatFragmentainerHeight zwraca wysokość fragmentatora (kolumny albo obszaru strony), względem której
+// tableLayout ocenia powtarzanie nagłówka i stopki (CSS Tables 3 § 6.2), albo 0, gdy treść nie jest
+// dzielona na fragmenty (tryb ciągły, pomiary bez ograniczenia wysokości).
+func repeatFragmentainerHeight(context *layoutContext, bottomSpace pr.Float) pr.Float {
+	if bottomSpace == -pr.Inf || bottomSpace == pr.Inf || context.pageBottom == pr.Inf || context.flexMeasuring > 0 {
+		return 0
+	}
+	if context.inColumn {
+		return context.columnHeight
+	}
+	return context.pageHeight
 }
