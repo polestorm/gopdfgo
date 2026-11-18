@@ -136,6 +136,13 @@ func (ctx drawContext) drawPage(page *bo.PageBox) {
 	marks := page.Style.GetMarks()
 	stackingContext := NewStackingContextFromPage(page)
 	ctx.drawBackground(stackingContext.box.Box().Background, false, page.Bleed(), marks)
+	// gopdfgo: pola marginesowe o ujemnym z-index leżą nad tłem strony, ale pod płótnem dokumentu
+	// (CSS Page 3 § 3.1: „may only paint in front of the document content or behind the document
+	// canvas”). W źródle rysowały się nad płótnem, razem z treścią.
+	for _, behind := range stackingContext.negativeZContexts {
+		ctx.drawStackingContext(behind)
+	}
+	stackingContext.negativeZContexts = nil
 	ctx.setMaskBorder(page)
 	ctx.drawBackground(page.CanvasBackground, false, bo.Bleed{}, pr.Marks{})
 	ctx.drawBorder(page)
