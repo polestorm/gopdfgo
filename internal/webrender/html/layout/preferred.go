@@ -868,7 +868,15 @@ type tableContentWidths struct {
 	gridMinWidth                 pr.Float
 	totalHorizontalBorderSpacing pr.Float
 	tableMaxContentWidth         pr.Float
+	// layoutMaxContentWidth (gopdfgo): szerokość maksymalna treści używana przy układzie samej tabeli,
+	// zawsze z wkładem kolumn procentowych (zob. intrinsicMaxContentWidth niżej)
+	layoutMaxContentWidth pr.Float
 }
+
+// tableMaxInlineSize (gopdfgo) to „nieskończenie duża liczba” z dbaron.org/css/intrinsic dla wkładu
+// kolumn procentowych sumujących się do 100 %; 1e6 jak kTableMaxInlineSize w Chromium. Źródło
+// używało math.MaxInt32, który w float32 traci precyzję przy odejmowaniu (kurczenie elementów flex).
+const tableMaxInlineSize = 1e6
 
 // Return content widths for the auto layout table and its columns.
 // https://dbaron.org/css/intrinsic/
@@ -970,6 +978,7 @@ func tableAndColumnsPreferredWidths(context *layoutContext, box_ Box, outer bool
 			false: {
 				tableMinContentWidth:         minWidth,
 				tableMaxContentWidth:         maxWidth,
+				layoutMaxContentWidth:        maxWidth,
 				totalHorizontalBorderSpacing: totalHorizontalBorderSpacing,
 			},
 			true: {
@@ -1203,7 +1212,7 @@ outerLoop:
 			// Please note that "an infinitely large number" is not "infinite",
 			// and that"s probably not a coincindence: putting "inf" here breaks
 			// some cases (see #305).
-			largepercentageContribution = math.MaxInt32
+			largepercentageContribution = tableMaxInlineSize
 		}
 	} else {
 		largepercentageContribution = largepercentageContributionNumerator / largepercentageContributionDenominator
@@ -1222,7 +1231,9 @@ outerLoop:
 	gridMinWidth := tableMinContentWidth
 	tableMinWidth := tableMinContentWidth
 	tableMaxWidth := tableMaxContentWidth
+	fixedWidth := false
 	if wid := table.Style.GetWidth(); wid.Tag != pr.Auto && wid.Unit == pr.Px {
+		fixedWidth = true
 		// "percentages on the following properties are treated instead as
 		// though they were the following: width: auto"
 		// https://dbaron.org/css/intrinsic/#outer-intrinsic
@@ -1261,8 +1272,30 @@ outerLoop:
 	if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
 		tableMaxContentWidth = max(tableMinContentWidth, min(tableMaxContentWidth, maxWidth.Value))
 	}
+	// gopdfgo: wkład procentowych kolumn („large/small percentage contribution”) liczymy do szerokości
+	// preferowanej tabeli tylko wtedy, gdy żaden przodek nie jest komórką tabeli, kontenerem flex ani
+	// siatki i tabela nie ma width: max-content; przy samym układzie tabeli wkład liczy się zawsze (jak
+	// TableNode::AllowColumnPercentages w Chromium; CSS Tables 3 § 3.9.1 tego nie rozstrzyga). Źródło
+	// liczyło wkład zawsze, więc tabela z komórką width: 100% obok innej komórki rozpychała element flex
+	// i ścieżkę siatki do „nieskończenie dużej” szerokości (testy WPT
+	// item-with-table-with-infinite-max-intrinsic-width, table-as-item-percent-width-cell-001).
+	intrinsicMaxContentWidth := tableMaxContentWidth
+	if noPercentages := totalHorizontalBorderSpacing + sumMax; (table.NoColumnPercentages ||
+		table.Style.GetWidth().Intrinsic == pr.IntrinsicMaxContent) && noPercentages < tableMaxContentWidth {
+		limit := noPercentages
+		if fixedWidth {
+			limit = tableMaxWidth
+		}
+		intrinsicMaxContentWidth = max(noPercentages, adjust(table, false, limit, true, true))
+		if hasCaption {
+			intrinsicMaxContentWidth = max(intrinsicMaxContentWidth, captionContentWidth)
+		}
+		if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
+			intrinsicMaxContentWidth = max(tableMinContentWidth, min(intrinsicMaxContentWidth, maxWidth.Value))
+		}
+	}
 	tableOuterMinContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMinContentWidth, true, true), true, true)
-	tableOuterMaxContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMaxContentWidth, true, true), true, true)
+	tableOuterMaxContentWidth := marginWidth(&table.BoxFields, marginWidth(box, intrinsicMaxContentWidth, true, true), true, true)
 
 	result := tableContentWidths{
 		columnMinContentWidths:       minContentWidths,
@@ -1275,7 +1308,8 @@ outerLoop:
 	}
 	resultFalse := result
 	resultFalse.tableMinContentWidth = tableMinContentWidth
-	resultFalse.tableMaxContentWidth = tableMaxContentWidth
+	resultFalse.tableMaxContentWidth = intrinsicMaxContentWidth
+	resultFalse.layoutMaxContentWidth = tableMaxContentWidth
 	resultTrue := result
 	resultTrue.tableMinContentWidth = tableOuterMinContentWidth
 	resultTrue.tableMaxContentWidth = tableOuterMaxContentWidth

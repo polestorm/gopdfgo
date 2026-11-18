@@ -97,6 +97,9 @@ type TableBox struct {
 	CollapsedBorderGrid                     BorderGrids
 	SkippedRows                             int
 	SkipCellBorderTop, SkipCellBorderBottom bool
+	// NoColumnPercentages (gopdfgo): przodkiem tabeli jest komórka tabeli, kontener flex albo siatki,
+	// więc wkład kolumn procentowych nie wchodzi do jej szerokości preferowanej (jak Chromium)
+	NoColumnPercentages bool
 }
 
 type InlineTableBox struct {

@@ -171,6 +171,7 @@ func layoutFixedBoxes(context *layoutContext, pages []*bo.PageBox, containingPag
 
 func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layoutContext, maxLoops int) []*bo.PageBox {
 	initializePageMaker(context, *rootBox.Box())
+	markTablesWithoutColumnPercentages(rootBox, false) // gopdfgo: zob. TableBox.NoColumnPercentages
 	if maxLoops == -1 {
 		maxLoops = 8 // default value
 	}

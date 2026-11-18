@@ -680,6 +680,7 @@ restartCollapsed:
 		}
 
 		var flexBasis pr.MaybeFloat // nil means "content"
+		basisIntrinsic := pr.IntrinsicNone
 		basisIsContent := child.Style.GetFlexBasis().Tag == pr.Content
 		if styleFlexBasis := child.Style.GetFlexBasis(); styleFlexBasis.Tag == pr.Content {
 			flexBasis = nil
@@ -691,8 +692,23 @@ restartCollapsed:
 			basisIsContent = true
 		} else {
 			resolved := pr.ResolvePercentage(styleFlexBasis, availableMainSpace)
-			if resolved == pr.AutoF {
+			if styleFlexBasis.Intrinsic != pr.IntrinsicNone {
+				// gopdfgo: flex-basis: min-content, max-content i fit-content to rozmiar z treści (CSS Flexbox 1
+				// § 7.2.3, CSS Sizing 3 § 3.1); źródło brało wtedy szerokość pudełka jak przy auto.
+				flexBasis = nil
+				basisIsContent = true
+				basisIntrinsic = styleFlexBasis.Intrinsic
+			} else if resolved == pr.AutoF {
 				flexBasis = getAttr(child, main, "")
+				// gopdfgo: tabela bez podanej szerokości ma podstawę z treści (flex-basis: auto przechodzi
+				// w content, CSS Flexbox 1 § 7.2.3); szerokość pudełka opakowującego jest tu wynikiem
+				// układu tabeli w całym dostępnym miejscu, nie rozmiarem podanym. Źródło brało ją jako
+				// podstawę (test WPT table-as-item-percent-width-cell-001).
+				if child.IsTableWrapper && main == pr.PWidth {
+					if ts := child.GetWrappedTable().Box().Style.GetWidth(); ts.Tag == pr.Auto && ts.Intrinsic == pr.IntrinsicNone {
+						flexBasis = nil
+					}
+				}
 				if flexBasis == pr.AutoF {
 					flexBasis = nil
 				}
@@ -801,6 +817,12 @@ restartCollapsed:
 				newChild.Style.SetMaxWidth(pr.FToPx(pr.Inf))
 
 				child.FlexBaseSize = maxContentWidth(context, newChild_, false)
+				switch basisIntrinsic {
+				case pr.IntrinsicMinContent:
+					child.FlexBaseSize = minContentWidth(context, newChild_, false)
+				case pr.IntrinsicFitContent:
+					child.FlexBaseSize = min(child.FlexBaseSize, max(minContentWidth(context, newChild_, false), availableMainSpace))
+				}
 				if fill, ok := ratioOnlyFillWidth(child_, availableMainSpace); ok {
 					child.FlexBaseSize = fill
 				}
