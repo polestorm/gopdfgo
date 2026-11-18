@@ -1335,6 +1335,9 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	}
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
+		if collapsedInRow(box, child) {
+			continue
+		}
 		if child.Box().IsFlexItem {
 			v := minContentWidth(context, child, true)
 			if content, ok := flexibleItemContentWidth(context, box, child); ok && content > v {
@@ -1434,6 +1437,13 @@ func inflexibleBasis(context *layoutContext, container, child Box) (pr.Float, bo
 	return width, true
 }
 
+// collapsedInRow (gopdfgo): element z visibility: collapse w kontenerze wierszowym staje się rozpórką
+// o zerowym rozmiarze głównym (CSS Flexbox 1 § 4.4), więc nie wnosi nic do szerokości wewnętrznej.
+func collapsedInRow(container, child Box) bool {
+	return child.Box().IsFlexItem && child.Box().Style.GetVisibility() == "collapse" && !child.Box().IsTableWrapper &&
+		strings.HasPrefix(string(container.Box().Style.GetFlexDirection()), "row")
+}
+
 // flexMainGaps (gopdfgo): suma odstępów column-gap między elementami kontenera flex w wierszu; liczy
 // się do jego szerokości wewnętrznej (CSS Align 3 § 8). Odstęp w procentach daje tu zero.
 func flexMainGaps(box Box) pr.Float {
@@ -1443,7 +1453,7 @@ func flexMainGaps(box Box) pr.Float {
 	}
 	items := 0
 	for _, child := range box.Box().Children {
-		if child.Box().IsFlexItem {
+		if child.Box().IsFlexItem && !collapsedInRow(box, child) { // gopdfgo: przy rozpórce odstęp znika (CSS Align 3 § 8.1)
 			items++
 		}
 	}
@@ -1562,6 +1572,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	}
 	var sum, max pr.Float
 	for _, child := range box.Box().Children {
+		if collapsedInRow(box, child) {
+			continue
+		}
 		if child.Box().IsFlexItem {
 			v := maxContentWidth(context, child, true)
 			if ratioWidth, ok := stretchedRatioContribution(box, child); ok {

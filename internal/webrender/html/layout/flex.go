@@ -343,6 +343,28 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		mainGap, crossGap = rowGap.Value, columnGap.Value
 	}
 
+	// gopdfgo: elementy z visibility: collapse zamieniamy po pierwszym przebiegu na rozpórki i układ
+	// zaczyna się od nowa od kroku 3 (CSS Flexbox 1 § 9.4 krok 10); w źródle krok 10 był pominięty
+	// („TODO”), więc zwinięty element zajmował miejsce jak visibility: hidden.
+	collapsedPass := false
+	struts := map[*bo.BoxFields]bool{}
+	// lineGap: odstęp osi głównej przed i-tym elementem linii. Odstępy przylegające do rozpórki
+	// znikają (CSS Align 3 § 8.1, test WPT gap-collapse): odstęp stoi tylko między dwoma elementami,
+	// które nie są rozpórkami.
+	lineGap := func(items []indexedBox, i int) pr.Float {
+		if struts[items[i].box.Box()] {
+			return 0
+		}
+		for j := i - 1; j >= 0; j-- {
+			if !struts[items[j].box.Box()] {
+				return mainGap
+			}
+		}
+		return 0
+	}
+	var boxBeforeLines bo.BoxFields
+	var absoluteBefore, fixedBefore int
+restartCollapsed:
 	positionX := (parentBox.PositionX + parentBox.BorderLeftWidth + parentBox.PaddingLeft.V())
 	if parentBox.MarginLeft != pr.AutoF {
 		positionX += parentBox.MarginLeft.V()
@@ -354,6 +376,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	for index, child_ := range children {
 		child := child_.Box()
+		if !child.IsFlexItem && collapsedPass {
+			continue // pozostałe dzieci obsłużył już pierwszy przebieg
+		}
 		if !child.IsFlexItem {
 			// Absolute child layout: create placeholder.
 			if child.IsAbsolutelyPositioned() {
@@ -708,20 +733,28 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 
 	// 4 Determine the main size of the flex container using the rules of the formatting
 	// context in which it participates.
+	if !collapsedPass {
+		boxBeforeLines = *box
+		absoluteBefore, fixedBefore = len(*absoluteBoxes), len(*fixedBoxes)
+	}
 
 	if main == pr.PWidth {
 		blockLevelWidth(box_, nil, containingBlock)
 	} else {
 		if box.Height == pr.AutoF {
 			box.Height = pr.Float(0)
-			for i, child_ := range children {
+			seen := false // gopdfgo: odstęp tylko między elementami (źródło liczyło od indeksu, także przed pierwszym elementem po dziecku pozycjonowanym)
+			for _, child_ := range children {
 				child := child_.Box()
 				if !child.IsFlexItem {
 					continue
 				}
 				box.Height = box.Height.V() + child.HypotheticalMainSize + child.MainOuterExtra
-				if i != 0 {
-					box.Height = box.Height.V() + mainGap
+				if !struts[child] {
+					if seen {
+						box.Height = box.Height.V() + mainGap
+					}
+					seen = true
 				}
 			}
 		}
@@ -742,7 +775,8 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			continue
 		}
 		lineSize += child.HypotheticalMainSize + child.MainOuterExtra
-		if i > skip {
+		// gopdfgo: odstęp przed elementem tylko wtedy, gdy linia ma już element (zob. lineGap)
+		if probe := append(line.line, indexedBox{index: i, box: child_}); lineGap(probe, len(probe)-1) != 0 {
 			lineSize += mainGap
 		}
 		if box.Style.GetFlexWrap() != "nowrap" && lineSize > mainSize.V() {
@@ -812,9 +846,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			} else {
 				initialFreeSpace -= child.FlexBaseSize + child.MainOuterExtra
 			}
-			if i != 0 {
-				initialFreeSpace -= mainGap
-			}
+			initialFreeSpace -= lineGap(line.line, i)
 		}
 
 		// 9.7.5.a Check for flexible items.
@@ -831,9 +863,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 					remainingFreeSpace -= child.FlexBaseSize + child.MainOuterExtra
 					unfrozenFactorSum += child.FlexFactor
 				}
-				if i != 0 {
-					remainingFreeSpace -= mainGap
-				}
+				remainingFreeSpace -= lineGap(line.line, i)
 			}
 
 			if initialFreeSpace == pr.Inf {
@@ -1031,6 +1061,12 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			for _, v := range line.line {
 				child := v.box.Box()
 				alignSelf := child.Style.GetAlignSelf()
+				// gopdfgo: align-self: auto przyjmuje wartość align-items kontenera (CSS Align 3 § 6.1);
+				// źródło sprawdzało tu samo align-self, więc elementy wyrównane do linii bazowej przez
+				// align-items nie poszerzały linii o różnicę swoich linii bazowych
+				if alignSelf.Has(pr.Auto) {
+					alignSelf = box.Style.GetAlignItems()
+				}
 				collect := strings.HasPrefix(string(box.Style.GetFlexDirection()), "row") && alignSelf.Has(pr.Baseline) &&
 					child.MarginTop != pr.AutoF && child.MarginBottom != pr.AutoF
 				if collect {
@@ -1130,7 +1166,29 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 	}
 
-	// TODO: 10 Collapse 'visibility: collapse' items.
+	// 10 Collapse 'visibility: collapse' items.
+	if !collapsedPass {
+		collapsed := map[Box]pr.Float{}
+		for _, line := range flexLines {
+			for _, v := range line.line {
+				if child := v.box.Box(); child.Style.GetVisibility() == "collapse" && !child.IsTableWrapper {
+					collapsed[v.box] = line.crossSize
+				}
+			}
+		}
+		if len(collapsed) != 0 {
+			for k, child := range children {
+				if size, ok := collapsed[child]; ok {
+					children[k] = collapsedStrut(child, size, main)
+					struts[children[k].Box()] = true
+				}
+			}
+			*box = boxBeforeLines
+			*absoluteBoxes, *fixedBoxes = (*absoluteBoxes)[:absoluteBefore], (*fixedBoxes)[:fixedBefore]
+			collapsedPass = true
+			goto restartCollapsed
+		}
+	}
 
 	// 11 Determine the used cross size of each flex item.
 
@@ -1227,7 +1285,9 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				}
 			}
 		}
-		freeSpace -= pr.Float(len(line.line)-1) * mainGap
+		for i := range line.line {
+			freeSpace -= lineGap(line.line, i)
+		}
 
 		// 12.1 If the remaining free space is positive…
 		var margins pr.Float
@@ -1328,9 +1388,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		}
 		for i, v := range line.line {
 			child := v.box.Box()
-			if i != 0 {
-				positionMain += mainGap
-			}
+			positionMain += lineGap(line.line, i)
 			if main == pr.PWidth {
 				child.PositionX = positionMain
 				if justifyContent.Has(pr.Stretch) && growths != 0 {
@@ -2298,4 +2356,38 @@ func isStretchedFlexItem(item Box, container *bo.BoxFields) bool {
 // nie jest widoczne, więc nie przechodzi na następną stronę.
 func clipsBlockOverflow(box *bo.BoxFields) bool {
 	return box.Style.GetOverflow() != "visible" && box.Style.GetHeight().Tag != pr.Auto
+}
+
+// collapsedStrut zamienia element flex z visibility: collapse na rozpórkę (CSS Flexbox 1 § 4.4): pudełko
+// bez treści, o zerowym rozmiarze głównym i rozmiarze poprzecznym równym rozmiarowi poprzecznemu linii,
+// w której element stał przy pierwszym przebiegu. Rozpórka nie ma marginesów, obramowań ani odstępów
+// i nie jest elastyczna.
+func collapsedStrut(item Box, crossSize pr.Float, main pr.KnownProp) Box {
+	strut := bo.CopyWithChildren(item, nil)
+	style := item.Box().Style.Copy()
+	zero := pr.ZeroPixels.Tagged()
+	for _, set := range []func(pr.TaggedDim){
+		style.SetMarginTop, style.SetMarginRight, style.SetMarginBottom, style.SetMarginLeft,
+		style.SetPaddingTop, style.SetPaddingRight, style.SetPaddingBottom, style.SetPaddingLeft,
+		style.SetBorderTopWidth, style.SetBorderRightWidth, style.SetBorderBottomWidth, style.SetBorderLeftWidth,
+		style.SetMinWidth, style.SetMinHeight,
+	} {
+		set(zero)
+	}
+	style.SetMaxWidth(pr.FToPx(pr.Inf))
+	style.SetMaxHeight(pr.FToPx(pr.Inf))
+	style.SetBoxSizing("content-box")
+	style.SetFlexGrow(0)
+	style.SetFlexShrink(0)
+	style.SetFlexBasis(pr.TagToV(pr.Auto))
+	style.SetAlignSelf(pr.JustifyOrAlign{pr.FlexStart})
+	if main == pr.PWidth {
+		style.SetWidth(zero)
+		style.SetHeight(pr.FToPx(crossSize))
+	} else {
+		style.SetHeight(zero)
+		style.SetWidth(pr.FToPx(crossSize))
+	}
+	strut.Box().Style = style
+	return strut
 }
