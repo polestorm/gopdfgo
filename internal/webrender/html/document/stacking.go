@@ -215,6 +215,22 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 			// `childContexts` list.
 			// Insert at the position before creating the sub-context.
 			index := len(*childContexts)
+			// gopdfgo: dalszy ciąg pudełka podzielonego między kolumny jest rysowany razem z wcześniejszymi
+			// fragmentami, przed potomkami pozycjonowanymi pierwszego fragmentu (porządek drzewa elementów,
+			// CSS 2.1 Appendix E; test WPT fixed-in-nested-multicol-with-viewport-container). Bez tego
+			// zasłaniał np. pudełko position: fixed z pierwszego fragmentu.
+			if element := box.Box().Element; element != nil {
+				for j, earlier := range *childContexts {
+					if earlier.box.Box().Element == element && earlier.box.Box().Style == style {
+						index = j + 1
+						for index < len(*childContexts) && (*childContexts)[index].box.Box().Element == element &&
+							(*childContexts)[index].box.Box().Style == style {
+							index++
+						}
+						break
+					}
+				}
+			}
 			insertStackingContext(childContexts, index, newStackingContextFromBox(box, page, childContexts, nil))
 		} else if box.Box().IsFloated() || box.Box().IsFlexItem || box.Box().IsGridItem {
 			// gopdfgo: elementy flex i grid są rysowane jak pudełka inline-block, czyli każdy w całości,

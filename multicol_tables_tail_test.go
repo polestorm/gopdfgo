@@ -70,4 +70,38 @@ func TestMulticolTablesTail(t *testing.T) {
 		`<tr style="visibility:collapse"><td style="padding:0;height:20px"></td></tr>`+
 		`<tr><td style="padding:0;height:20px;background:navy"></td><td style="padding:0;background:navy"></td></tr></table>`,
 		block(0, 0, 50, 20, "navy")+block(50, 0, 50, 20, "green")+block(0, 20, 100, 20, "navy"))
+
+	// Linia między kolumnami leży nad obramowaniem kontenera: szeroka linia zakrywa boczne obramowania.
+	same("column-rule-over-border", `<div style="columns:2;column-gap:0;width:100px;margin-left:20px;border:10px solid gray;`+
+		`column-rule:140px solid blue"><div style="height:40px"></div></div>`,
+		block(20, 0, 120, 40, "gray")+block(10, 10, 140, 20, "blue"))
+
+	// Pudełko pozycjonowane bezwzględnie dzieli się między kolumny i ciągnie od góry następnych kolumn.
+	quad := `<div style="columns:4;column-fill:auto;column-gap:0;width:200px;height:100px"><div style="position:relative">`
+	same("abspos-fragmented-in-columns", quad+`<div style="height:150px;background:navy"></div>`+
+		`<div style="position:absolute;width:25px;height:200px;background:green"></div></div></div>`,
+		block(0, 0, 50, 100, "navy")+block(50, 0, 50, 50, "navy")+block(50, 50, 25, 50, "green")+
+			block(100, 0, 25, 100, "green")+block(150, 0, 25, 50, "green"))
+
+	// Pudełko, którego pozycja statyczna wypada na samym dole kolumny, zaczyna się w następnej kolumnie.
+	same("abspos-at-column-end", quad+`<div style="height:200px;background:navy"></div>`+
+		`<div style="position:absolute;width:25px;height:150px;background:green"></div></div></div>`,
+		block(0, 0, 100, 100, "navy")+block(100, 0, 25, 100, "green")+block(150, 0, 25, 50, "green"))
+
+	// Znacznik listy umieszczony na zewnątrz stoi obok pierwszego wiersza elementu, a nie na jego górze.
+	same("marker-beside-first-line", `<div style="display:list-item;margin-left:40px"><div style="height:30px"></div>tekst</div>`,
+		`<div style="display:list-item;margin-left:40px;padding-top:30px">tekst</div>`)
+
+	// Znacznik elementu, z którego w pierwszej kolumnie zmieścił się tylko pusty blok, przechodzi razem
+	// z pierwszym wierszem do następnej kolumny.
+	same("marker-follows-first-line", `<div style="columns:2;column-fill:auto;column-gap:0;width:300px;height:100px;line-height:50px;margin-left:40px">`+
+		`<div style="height:80px"></div><div style="display:list-item"><div style="height:10px"></div>tekst</div></div>`,
+		`<div style="columns:2;column-fill:auto;column-gap:0;width:300px;height:100px;line-height:50px;margin-left:40px">`+
+			`<div style="height:100px"></div><div style="display:list-item">tekst</div></div>`)
+
+	// Tabela pozycjonowana bezwzględnie między left/right i top/bottom ma własny rozmiar, a marginesy
+	// automatyczne ją wyśrodkowują.
+	same("abspos-table-auto-margins", `<div style="position:relative;width:160px;height:160px">`+
+		`<div style="display:table;position:absolute;inset:0;margin:auto;width:100px;height:100px;background:green"></div></div>`,
+		block(30, 30, 100, 100, "green"))
 }

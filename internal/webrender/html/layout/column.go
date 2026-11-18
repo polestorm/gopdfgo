@@ -47,6 +47,8 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 	wasInColumn := context.inColumn
 	outerColumnsLeft := context.columnsLeft
+	outerColumnX := context.columnX
+	defer func() { context.columnX = outerColumnX }()
 	defer func() { context.columnsLeft = outerColumnsLeft }()
 	// gopdfgo: kolumna po pierwszej zaczyna się za podziałem kolumny, więc przylegające do niego marginesy
 	// są obcinane (CSS Fragmentation 3 § 5.2); w źródle tylko na stronach po pierwszej. Pierwsza kolumna
@@ -421,9 +423,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				context.columnBreak = outerColumnBreak
 				if i > 0 {
 					context.columnBreak = columnBreakAfter(nextPage)
-					takeColumnFloats(context, floatMark, 0)
+					takeColumnFloats(context, floatMark, columnBox.Box().PositionX)
 				}
 				floatMark = context.brokenSequence
+				context.columnX = columnBox.Box().PositionX
 				context.columnsLeft = count - 1 - i
 				newBox, tmp := blockBoxLayout(context, columnBox, context.pageBottom-currentPositionY-height,
 					columnSkipStack, containingBlock, pageIsEmpty || !balancing, new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float),
@@ -680,7 +683,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			}
 			return withMargin - max(0, last.MarginBottom.V())
 		}
-		floatMark, previousColumnX := context.brokenSequence, pr.Float(0)
+		floatMark := context.brokenSequence
 		for {
 			i_ := pr.Float(i)
 
@@ -704,9 +707,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			tookFloats := false
 			if i > 0 {
 				context.columnBreak = columnBreakAfter(nextPage)
-				tookFloats = takeColumnFloats(context, floatMark, columnBox.Box().PositionX-previousColumnX)
+				tookFloats = takeColumnFloats(context, floatMark, columnBox.Box().PositionX)
 			}
-			floatMark, previousColumnX = context.brokenSequence, columnBox.Box().PositionX
+			floatMark = context.brokenSequence
+			context.columnX = columnBox.Box().PositionX
 			context.columnsLeft = count - 1 - i
 			newChild, tmp := blockBoxLayout(context, columnBox, bottomSpace, skipStack,
 				containingBlock, originalPageIsEmpty || (i > 0 && !deferrable) || unpaged, absoluteBoxes, fixedBoxes, new([]pr.Float),
@@ -812,6 +816,8 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 
 		return nil, blockLayout{resumeAt: tree.ResumeStack{0: nil}, nextPage: tree.PageBreak{Break: "any"}}
 	}
+
+	alignColumnsMarker(newChildren)
 
 	// Set the height of box and the containing box
 	box.Children = newChildren
@@ -1139,13 +1145,15 @@ type columnFloat struct {
 	x pr.Float
 }
 
-// takeColumnFloats przenosi elementy pływające podzielone po znaczniku after (zob.
-// layoutContext.brokenSequence) do kontynuacji w następnej kolumnie i mówi, czy jakieś były.
-func takeColumnFloats(context *layoutContext, after int, dx pr.Float) bool {
+// takeColumnFloats przenosi elementy pływające (i pudełka pozycjonowane bezwzględnie) podzielone po
+// znaczniku after (zob. layoutContext.brokenSequence) do kontynuacji w następnej kolumnie, położonej
+// w columnX, i mówi, czy jakieś były. Dalszy ciąg zachowuje odległość od lewej krawędzi kolumny, w której
+// pudełko zostało podzielone; to może być kolumna zagnieżdżonego kontenera kolumn.
+func takeColumnFloats(context *layoutContext, after int, columnX pr.Float) bool {
 	context.columnFloats = nil
 	for key, v := range context.brokenOutOfFlow {
-		if v.order > after && v.box.Box().IsFloated() && v.deferredPages == 0 {
-			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, x: key.Box().PositionX + dx})
+		if v.order > after && continuesInColumn(v) {
+			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, x: key.Box().PositionX - v.columnX + columnX})
 			delete(context.brokenOutOfFlow, key)
 		}
 	}
@@ -1156,11 +1164,18 @@ func takeColumnFloats(context *layoutContext, after int, dx pr.Float) bool {
 // hasColumnFloats mówi, czy po znaczniku after podzielono jakiś element pływający.
 func hasColumnFloats(context *layoutContext, after int) bool {
 	for _, v := range context.brokenOutOfFlow {
-		if v.order > after && v.box.Box().IsFloated() && v.deferredPages == 0 {
+		if v.order > after && continuesInColumn(v) {
 			return true
 		}
 	}
 	return false
+}
+
+// continuesInColumn mówi, czy dalszy ciąg pudełka poza przepływem trafia do następnej kolumny: element
+// pływający albo pudełko pozycjonowane bezwzględnie podzielone w kolumnie (gopdfgo: w źródle tylko na
+// stronach).
+func continuesInColumn(v brokenBox) bool {
+	return v.deferredPages == 0 && (v.resumeAt != nil || v.nextColumn) && (v.box.Box().IsFloated() || v.box.Box().IsAbsolutelyPositioned())
 }
 
 // floatsOnlyResume to wznowienie kolumny, w której zostaje już tylko dalszy ciąg elementów pływających:

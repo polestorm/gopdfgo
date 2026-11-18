@@ -749,6 +749,25 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		context.columnFloats = nil
 		for _, v := range pending {
 			v.box.Box().PositionY = box.ContentBoxY()
+			// gopdfgo: pudełko pozycjonowane bezwzględnie podzielone w poprzedniej kolumnie też ciągnie się
+			// od góry tej kolumny (CSS Position 3 § 4.2 „abspos-breaking”; testy WPT fixedpos-static-pos-*,
+			// fixed-in-*); w źródle jego dalszy ciąg czekał na następną stronę.
+			if v.box.Box().IsAbsolutelyPositioned() {
+				placed, placedResumeAt := absoluteBoxLayout(context, v.box, v.containingBlock, fixedBoxes, bottomSpace, v.resumeAt)
+				dy := pr.Float(0)
+				if v.nextColumn { // pozycja statyczna u góry kolumny, zob. absoluteLayout
+					dy = box.ContentBoxY() - placed.Box().PositionY
+				}
+				placed.Translate(v.x-placed.Box().PositionX, dy, false)
+				placeholder := NewAbsolutePlaceholder(v.box)
+				placeholder.setLaidOutBox(placed)
+				newChildren = append(newChildren, placeholder)
+				if placedResumeAt != nil {
+					context.setBrokenOutOfFlow(placeholder, brokenBox{box: v.box, containingBlock: v.containingBlock, resumeAt: placedResumeAt})
+					brokenOutOfFlow = append(brokenOutOfFlow, placeholder)
+				}
+				continue
+			}
 			placed, placedResumeAt := floatLayout(context, v.box, v.containingBlock.Box(), absoluteBoxes, fixedBoxes, bottomSpace, v.resumeAt)
 			placed.Translate(v.x-placed.Box().PositionX, 0, false)
 			newChildren = append(newChildren, placed)
@@ -1123,6 +1142,8 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		positionY += collapseMargin(*adjoiningMargins)
 		adjoiningMargins = new([]pr.Float)
 	}
+
+	newChildren = alignOutsideMarker(context, box_, newChildren, isStart, resumeAt != nil, absoluteBoxes)
 
 	newBox_ := bo.CopyWithChildren(box_, newChildren)
 	newBox := newBox_.Box()
