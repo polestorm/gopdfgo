@@ -1975,12 +1975,31 @@ func float(tokens []Token, _ string) pr.CssProperty {
 	}
 }
 
+// genericFamilies (gopdfgo) to słowa kluczowe rodzin generycznych (CSS Fonts 4 § 2.1.3).
+var genericFamilies = map[string]bool{
+	"serif": true, "sans-serif": true, "cursive": true, "fantasy": true, "monospace": true,
+	"system-ui": true, "emoji": true, "math": true, "fangsong": true,
+	"ui-serif": true, "ui-sans-serif": true, "ui-monospace": true, "ui-rounded": true,
+}
+
+// QuotedFamilyName (gopdfgo) zwraca nazwę rodziny podaną w cudzysłowie. Nazwa równa słowu kluczowemu
+// rodziny generycznej jest wtedy zwykłą nazwą fontu, nie rodziną generyczną (CSS Fonts 4 § 2.1.2),
+// więc dostaje cudzysłowy, z którymi ani tablica rodzin generycznych, ani podstawienia go-text jej nie
+// rozpoznają. Tak samo jest zapisywana w deskryptorze font-family reguły @font-face. Źródło gubiło
+// różnicę między "serif" a serif.
+func QuotedFamilyName(name string) string {
+	if genericFamilies[strings.ToLower(name)] {
+		return `"` + name + `"`
+	}
+	return name
+}
+
 func _fontFamily(tokens []Token) string {
 	if len(tokens) == 0 {
 		return ""
 	}
 	if tt, ok := tokens[0].(pa.String); len(tokens) == 1 && ok {
-		return tt.Value
+		return QuotedFamilyName(tt.Value)
 	} else if len(tokens) > 0 {
 		var values []string
 		for _, token := range tokens {

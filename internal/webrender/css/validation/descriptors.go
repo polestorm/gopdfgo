@@ -83,7 +83,7 @@ func _fontFamilyDesc(tokens []Token, allowSpaces bool) string {
 	}
 	if len(tokens) == 1 {
 		if str, ok := tokens[0].(pa.String); ok {
-			return str.Value
+			return QuotedFamilyName(str.Value) // gopdfgo: zob. QuotedFamilyName
 		}
 	}
 
