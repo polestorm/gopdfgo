@@ -1050,11 +1050,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	if splittable && !resumedRemainder && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
 		splittable = false
 	}
-	// Bloku, który w kolumnach jest blokiem zawierającym elementy pozycjonowane, nie dzielimy:
-	// tych elementów nie umiemy podzielić razem z nim.
-	if splittable && context.inColumn && ownsAbsoluteDescendants(box_) && (len(*absoluteBoxes) != 0 || (ownsFixed && len(*fixedBoxes) != 0)) {
-		splittable = false
-	}
+	// gopdfgo: blok o podanej wysokości, który w kolumnach jest blokiem zawierającym elementy
+	// pozycjonowane, też dzielimy (CSS Break 3 § 4); elementy pozycjonowane dzielą się teraz między
+	// kolumny same (brokenOutOfFlow). Wcześniej taki blok był niepodzielny (testy WPT
+	// multicol-contained-absolute, multicol-span-all-children-height-012).
 	if resumeAt == nil && box.Height != pr.AutoF && splittable && canSplitFixedHeight(context, box_, bottomSpace) {
 		// Dzielimy wysokość używaną, czyli po uwzględnieniu min-height i max-height; dla dalszego ciągu
 		// jest nią reszta z poprzedniej strony.
