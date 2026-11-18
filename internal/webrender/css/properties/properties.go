@@ -326,6 +326,9 @@ const (
 	SWhiteSpace    // gopdfgo: white-space ustawia też text-wrap-mode (CSS Text 4 § 3)
 	STextWrap      // gopdfgo: text-wrap ustawia text-wrap-mode i text-wrap-style (CSS Text 4 § 5.4)
 	SFontSynthesis // gopdfgo: font-synthesis ustawia cztery właściwości font-synthesis-* (CSS Fonts 4 § 7.1)
+	// gopdfgo: white-space-collapse (CSS Text 4 § 4.1) ustawia część white-space opisującą
+	// zwijanie białych znaków; zawijanie nakłada text-wrap-mode (zob. tree.effectiveWhiteSpace)
+	SWhiteSpaceCollapse
 )
 
 // NewShortand return the tag for 's' or 0 if not supported
@@ -407,6 +410,8 @@ func NewShortand(s string) Shortand {
 		return STextWrap
 	case "font-synthesis":
 		return SFontSynthesis
+	case "white-space-collapse":
+		return SWhiteSpaceCollapse
 	default:
 		return 0
 	}
@@ -491,6 +496,8 @@ func (sh Shortand) String() string {
 		return "text-wrap"
 	case SFontSynthesis:
 		return "font-synthesis"
+	case SWhiteSpaceCollapse:
+		return "white-space-collapse"
 	default:
 		return ""
 	}
