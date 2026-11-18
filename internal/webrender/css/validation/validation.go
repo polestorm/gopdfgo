@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
@@ -264,6 +265,7 @@ var (
 		pr.PFontSizeAdjust:          fontSizeAdjust,
 		pr.PTextJustify:             textJustify,
 		pr.PWrapInside:              wrapInside,
+		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextWrapMode:            textWrapMode,
@@ -2771,6 +2773,34 @@ func wrapInside(tokens []Token, _ string) pr.CssProperty {
 	default:
 		return nil
 	}
+}
+
+// gopdfgo: “white-space-trim“ (CSS Text 4 § 4.2): none | discard-before || discard-after ||
+// discard-inner. Wartość obliczona to słowa kluczowe w kolejności z gramatyki, rozdzielone spacją.
+// Źródło właściwości nie znało.
+func whiteSpaceTrim(tokens []Token, _ string) pr.CssProperty {
+	if len(tokens) == 1 && getKeyword(tokens[0]) == "none" {
+		return pr.String("none")
+	}
+	order := []string{"discard-before", "discard-after", "discard-inner"}
+	seen := map[string]bool{}
+	for _, token := range tokens {
+		keyword := getKeyword(token)
+		if seen[keyword] || !slices.Contains(order, keyword) {
+			return nil
+		}
+		seen[keyword] = true
+	}
+	var parts []string
+	for _, keyword := range order {
+		if seen[keyword] {
+			parts = append(parts, keyword)
+		}
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return pr.String(strings.Join(parts, " "))
 }
 
 // gopdfgo: “hyphenate-limit-lines“ (CSS Text 4, #hyphenate-limit-lines): no-limit albo nieujemna liczba całkowita

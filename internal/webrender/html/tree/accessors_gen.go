@@ -2047,3 +2047,13 @@ func (s *AnonymousStyle) GetFontSynthesisPosition() pr.String {
 func (s *AnonymousStyle) SetFontSynthesisPosition(v pr.String) {
 	s.propsCache.setKnown(pr.PFontSynthesisPosition, v)
 }
+
+func (s *ComputedStyle) GetWhiteSpaceTrim() pr.String {
+	return s.Get(pr.PWhiteSpaceTrim.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetWhiteSpaceTrim(v pr.String) { s.propsCache.setKnown(pr.PWhiteSpaceTrim, v) }
+
+func (s *AnonymousStyle) GetWhiteSpaceTrim() pr.String {
+	return s.Get(pr.PWhiteSpaceTrim.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetWhiteSpaceTrim(v pr.String) { s.propsCache.setKnown(pr.PWhiteSpaceTrim, v) }

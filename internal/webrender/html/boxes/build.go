@@ -340,6 +340,10 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 		box.Box().Children = nil
 	}
 
+	// gopdfgo: white-space-trim przed fazą I przetwarzania białych znaków (CSS Text 4 § 4.2)
+	if BlockContainerT.IsInstance(box) {
+		ApplyWhiteSpaceTrim(box)
+	}
 	ProcessWhitespace(box, false)
 	setContentLists(element, box, style, counterValues, targetCollector, cs)
 	ProcessTextTransform(box)

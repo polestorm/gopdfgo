@@ -53,7 +53,7 @@ var expanders = [...]expander{
 	pr.SGridTemplate:   genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas)(_expandGridTemplate),
 	pr.SGrid:           genericExpander(pr.PGridTemplateColumns, pr.PGridTemplateRows, pr.PGridTemplateAreas, pr.PGridAutoColumns, pr.PGridAutoRows, pr.PGridAutoFlow)(_expandGrid),
 	pr.SGap:            genericExpander(pr.PColumnGap, pr.PRowGap)(_expandGap),
-	pr.SWhiteSpace:     genericExpander(pr.PWhiteSpace, pr.PTextWrapMode)(_expandWhiteSpace),
+	pr.SWhiteSpace:     genericExpander(pr.PWhiteSpace, pr.PTextWrapMode, pr.PWhiteSpaceTrim)(_expandWhiteSpace),
 	pr.STextWrap:       genericExpander(pr.PTextWrapMode, pr.PTextWrapStyle)(_expandTextWrap),
 	pr.SFontSynthesis: genericExpander(pr.PFontSynthesisWeight, pr.PFontSynthesisStyle,
 		pr.PFontSynthesisSmallCaps, pr.PFontSynthesisPosition)(_expandFontSynthesis),
@@ -1081,6 +1081,9 @@ func _expandWhiteSpace(_ string, _ pr.Shortand, tokens []Token) ([]namedTokens, 
 	return []namedTokens{
 		{name: pr.PWhiteSpace, tokens: tokens},
 		{name: pr.PTextWrapMode, tokens: []Token{pa.NewIdent(mode, tokens[0].Pos())}},
+		// gopdfgo: white-space ustawia też white-space-trim (CSS Text 4 § 3); słowa kluczowe skrótu
+		// dają jej wartość początkową
+		{name: pr.PWhiteSpaceTrim, tokens: []Token{pa.NewIdent("none", tokens[0].Pos())}},
 	}, nil
 }
 

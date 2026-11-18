@@ -620,6 +620,9 @@ func (s Properties) SetFontSynthesisSmallCaps(v String) { s[PFontSynthesisSmallC
 func (s Properties) GetFontSynthesisPosition() String  { return s[PFontSynthesisPosition].(String) }
 func (s Properties) SetFontSynthesisPosition(v String) { s[PFontSynthesisPosition] = v }
 
+func (s Properties) GetWhiteSpaceTrim() String  { return s[PWhiteSpaceTrim].(String) }
+func (s Properties) SetWhiteSpaceTrim(v String) { s[PWhiteSpaceTrim] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1226,6 +1229,9 @@ type StyleAccessor interface {
 
 	GetFontSynthesisPosition() String
 	SetFontSynthesisPosition(v String)
+
+	GetWhiteSpaceTrim() String
+	SetWhiteSpaceTrim(v String)
 }
 
 var propsNames = [...]string{
@@ -1431,6 +1437,7 @@ var propsNames = [...]string{
 	PFontSynthesisStyle:      "font-synthesis-style",
 	PFontSynthesisSmallCaps:  "font-synthesis-small-caps",
 	PFontSynthesisPosition:   "font-synthesis-position",
+	PWhiteSpaceTrim:          "white-space-trim",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1637,4 +1644,5 @@ var PropsFromNames = map[string]KnownProp{
 	"font-synthesis-style":       PFontSynthesisStyle,
 	"font-synthesis-small-caps":  PFontSynthesisSmallCaps,
 	"font-synthesis-position":    PFontSynthesisPosition,
+	"white-space-trim":           PWhiteSpaceTrim,
 }
