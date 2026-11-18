@@ -1093,6 +1093,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}
 	inputs = fc.spacesInOwnFace(inputs)
 	inputs = fc.controlsInSpaceFace(inputs)
+	inputs = nonBreakingHyphenFallback(inputs)
 
 	// gopdfgo: reszty zaokrągleń szerokości znaków, potrzebne tylko przy zawijaniu (zob. LineWrap)
 	var residuals []int32
@@ -1126,6 +1127,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	if wordSpacing := fc.wordSpacing(style); style.LetterSpacing != 0 || wordSpacing != 0 {
 		ws, ls := floatToFixed(wordSpacing), floatToFixed(style.LetterSpacing)
 		shaping.AddSpacing(outputs, text, ws, ls)
+		oddLetterSpacingRemainder(outputs, ls)
 		if ls != 0 {
 			joinersWithoutSpacing(outputs, text, ls)
 			if dir.Progression() == di.FromTopLeft {
@@ -2120,6 +2122,41 @@ func (fc *FontConfigurationGotext) synthesizePosition(input shaping.Input, posit
 	return out, true
 }
 
+// oddLetterSpacingRemainder (gopdfgo): go-text dzieli odstęp między literami na dwie połowy obcięte
+// do 1/64 piksela (ls/2), więc przy nieparzystej liczbie jednostek każdy odstęp jest o 1/64 piksela za
+// krótki i rząd znaków z odstępem rozjeżdża się z tabulacją liczoną z pełnego odstępu (test WPT
+// tab-size-spacing-002). Brakującą jednostkę dokładamy do połowy za klastrem, tam gdzie go-text ją dodał
+// (wszędzie poza ostatnim klastrem ostatniego przebiegu, zob. shaping.Output.AddLetterSpacing).
+func oddLetterSpacingRemainder(runs shaping.Line, ls fixed.Int26_6) {
+	rem := ls - 2*(ls/2)
+	if rem == 0 {
+		return
+	}
+	for r := range runs {
+		run := &runs[r]
+		changed := false
+		for start := 0; start < len(run.Glyphs); {
+			end := start + max(run.Glyphs[start].GlyphCount, 1) - 1
+			if end >= len(run.Glyphs) {
+				break
+			}
+			if end+1 < len(run.Glyphs) || r < len(runs)-1 {
+				run.Glyphs[end].Advance += rem
+				if run.Direction.IsVertical() {
+					run.Glyphs[end].YAdvance += rem
+				} else {
+					run.Glyphs[end].XAdvance += rem
+				}
+				changed = true
+			}
+			start = end + 1
+		}
+		if changed {
+			run.RecomputeAdvance()
+		}
+	}
+}
+
 // clusterIgnorableForSpacing (gopdfgo) mówi, czy klaster glifu g składa się wyłącznie ze znaków Cf albo
 // znaków wymuszonego złamania, które nie dostają odstępu między literami (zob. joinersWithoutSpacing).
 func clusterIgnorableForSpacing(g shaping.Glyph, text []rune) bool {
@@ -2403,6 +2440,63 @@ func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []sha
 			}
 			start = i
 		}
+	}
+	return out
+}
+
+// nonBreakingHyphenFallback (gopdfgo): HarfBuzz rysuje łącznik nierozdzielający U+2011 glifem
+// łącznika U+2010, gdy font nie ma własnego (hb-ot-shape-normalize; go-text robi to samo), więc
+// w przeglądarkach font sąsiedniego tekstu, który ma U+2010, obsługuje też U+2011. Segmentacja go-text
+// patrzy tylko na mapę znaków i dawała takiemu znakowi font zastępczy (test WPT
+// line-break-anywhere-overrides-uax-behavior-013: Ahem nie ma U+2011). Przebieg złożony z samych
+// U+2011 dostaje więc font przebiegu poprzedniego (albo następnego), jeśli ten ma U+2010, i łączy się
+// z nim; także gdy jego font zastępczy ma własny U+2011, bo font sąsiedniego tekstu jest zwykle
+// wcześniej na liście rodzin.
+func nonBreakingHyphenFallback(inputs []shaping.Input) []shaping.Input {
+	onlyNBH := func(in shaping.Input) bool {
+		if in.RunEnd <= in.RunStart {
+			return false
+		}
+		for _, r := range in.Text[in.RunStart:in.RunEnd] {
+			if r != 0x2011 {
+				return false
+			}
+		}
+		return true
+	}
+	hasHyphen := func(face *font.Face) bool {
+		if face == nil {
+			return false
+		}
+		_, ok := face.NominalGlyph(0x2010)
+		return ok
+	}
+	changed := false
+	for i := range inputs {
+		if !onlyNBH(inputs[i]) {
+			continue
+		}
+		switch {
+		case i > 0 && hasHyphen(inputs[i-1].Face):
+			inputs[i].Face = inputs[i-1].Face
+			changed = true
+		case i+1 < len(inputs) && hasHyphen(inputs[i+1].Face):
+			inputs[i].Face = inputs[i+1].Face
+			changed = true
+		}
+	}
+	if !changed {
+		return inputs
+	}
+	out := inputs[:1]
+	for _, in := range inputs[1:] {
+		last := &out[len(out)-1]
+		if last.Face == in.Face && last.RunEnd == in.RunStart && last.Direction == in.Direction &&
+			last.Script == in.Script && last.Language == in.Language && last.Size == in.Size {
+			last.RunEnd = in.RunEnd
+			continue
+		}
+		out = append(out, in)
 	}
 	return out
 }
