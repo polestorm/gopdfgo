@@ -90,6 +90,13 @@ func TestCSS2MC8ColumnFragmentation(t *testing.T) {
 		`<div style="columns:3;column-gap:0;column-fill:auto;width:300px;height:30px"><div style="height:1px;border:5px solid green"></div>`+
 			`<div style="break-before:column;height:1px;border:5px solid green"></div></div>`)
 
+	// Pudełko pozycjonowane podzielone w kolumnach zagnieżdżonego kontenera ciągnie się w jego kolumnach
+	// w następnej kolumnie zewnętrznej, choć treść w przepływie już się skończyła.
+	same("nested-abspos-continuation", `<div style="columns:2;column-gap:0;column-fill:auto;width:100px;height:100px">`+
+		`<div style="columns:2;column-gap:0;column-fill:auto;width:50px"><div style="position:relative">`+
+		`<div style="position:absolute;width:25px;height:400px;background:green"></div></div></div></div>`,
+		block(0, 0, 100, 100, "green"))
+
 	// ::column jest poprawnym selektorem, ale tło do niego się nie stosuje.
 	same("column-pseudo", `<style>@supports not selector(::column) { .m::before { content: "X" } } .m::column { background: red }</style>`+
 		`<div class="m" style="columns:1;width:100px;height:100px"><div style="height:100px;background:green"></div></div>`,

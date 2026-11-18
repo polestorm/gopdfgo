@@ -65,6 +65,17 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	// zostaje w tym kontenerze. Kontener zagnieżdżony w kolumnie dzieli się między kolumny zewnętrzne.
 	unpaged := context.behavior.Continuous && !wasInColumn
 	context.inColumn = true
+	// gopdfgo: dalsze ciągi pudełek poza przepływem podzielonych w kolumnach tego kontenera należą do niego
+	// (brokenBox.owner): kontener zagnieżdżony, który ciągnie się w następnej kolumnie zewnętrznej, umieszcza
+	// je w swojej pierwszej kolumnie, a nie kontener zewnętrzny na górze swojej kolumny (CSS Fragmentation 3
+	// § 4.4; testy WPT fixed-in-nested-multicol-with-viewport-container, multicol-nested-column-rule-002).
+	outerOwner := context.columnOwner
+	context.columnOwner = box_.Box().Element
+	defer func() { context.columnOwner = outerOwner }()
+	var ownedFloats []columnFloat
+	if skipStack != nil {
+		ownedFloats = takeOwnedFloats(context)
+	}
 
 	// gopdfgo: kontener kolumn z transform jest blokiem zawierającym także dla potomków fixed
 	// (CSS Transforms 1 § 3; zob. ownsFixedDescendants)
@@ -267,6 +278,11 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	if len(columnChildren) != 0 {
 		columnsAndBlocks = append(columnsAndBlocks, ibl{len(box.Children) - len(columnChildren), boxOrList{list: columnChildren}})
 	}
+	// gopdfgo: wznowienie, w którym zostały same dalsze ciągi pudełek poza przepływem (zob. ownedFloats)
+	childCount := len(box.Children) // box.Children dostaje niżej pudełka kolumn
+	if len(columnsAndBlocks) == 0 && len(ownedFloats) != 0 && skip >= len(box.Children) {
+		columnsAndBlocks = append(columnsAndBlocks, ibl{len(box.Children), boxOrList{list: []Box{}}})
+	}
 
 	// gopdfgo: wznowienie elementu rozpinającego (column-span: all) jest jego własnym stosem i trafia do niego
 	// bez zmian. W źródle było przekazywane jak wznowienie treści kolumn: indeks dziecka elementu
@@ -320,6 +336,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		footnoteAreaHeights = []pr.Float{context.currentFootnoteArea.MarginHeight()}
 	}
 
+	firstIndex := -1
+	if len(columnsAndBlocks) != 0 {
+		firstIndex = columnsAndBlocks[0].index
+	}
 	for _, pair := range columnsAndBlocks {
 		context.columnBreak = outerColumnBreak
 		index = pair.index
@@ -433,6 +453,8 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 				if i > 0 {
 					context.columnBreak = columnBreakAfter(nextPage)
 					takeColumnFloats(context, floatMark, columnBox.Box().PositionX)
+				} else if pair.index == firstIndex {
+					context.columnFloats = placeOwnedFloats(ownedFloats, columnBox.Box().PositionX)
 				}
 				floatMark = context.brokenSequence
 				context.columnX = columnBox.Box().PositionX
@@ -743,6 +765,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 			if i > 0 {
 				context.columnBreak = columnBreakAfter(nextPage)
 				tookFloats = takeColumnFloats(context, floatMark, columnBox.Box().PositionX)
+			} else if pair.index == firstIndex && len(ownedFloats) != 0 {
+				context.columnFloats = placeOwnedFloats(ownedFloats, columnBox.Box().PositionX)
+				tookFloats = true
 			}
 			floatMark = context.brokenSequence
 			context.columnX = columnBox.Box().PositionX
@@ -844,6 +869,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	if len(box.Children) != 0 && len(newChildren) == 0 {
 		// The box has children but none can be drawn, let's skip the whole box
 		context.inColumn = wasInColumn
+		restoreOwnedFloats(context, ownedFloats)
 
 		if traceMode {
 			traceLogger.Dump("columnLayout: exit early")
@@ -919,6 +945,9 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	}
 
 	// Calculate skip stack
+	if isFloatsOnlyResume(columnSkipStack, columnChildren) {
+		columnSkipStack = nil
+	}
 	if spannerResume != nil {
 		skipStack = tree.ResumeStack{index: spannerResume}
 	} else if columnSkipStack != nil {
@@ -930,6 +959,21 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		skipStack = remainderResume
 	} else if afterSpannerResume != nil {
 		skipStack = afterSpannerResume
+	}
+	// gopdfgo: kontener zagnieżdżony, którego treść się skończyła, a dalsze ciągi pudełek poza przepływem z jego
+	// kolumn zostały, ciągnie się w następnej kolumnie zewnętrznej, o ile taka jest w tym rzędzie; inaczej
+	// dalsze ciągi przejmuje kontener zewnętrzny (albo strona), jak w źródle.
+	if wasInColumn && skipStack == nil && hasOwnedFloats(context) {
+		if outerColumnsLeft > 0 && !unpaged {
+			skipStack = tree.ResumeStack{childCount: nil}
+		} else {
+			for key, v := range context.brokenOutOfFlow {
+				if v.owner == context.columnOwner {
+					v.owner = outerOwner
+					context.brokenOutOfFlow[key] = v
+				}
+			}
+		}
 	}
 	// gopdfgo: fragment, po którym kontener ciągnie się dalej, nie ma dolnego marginesu, obramowania ani
 	// dopełnienia (CSS Fragmentation 3 § 5.4); w źródle je zachowywał.
@@ -1175,7 +1219,8 @@ func addSpannerSplitUsed(children []Box) {
 // między kolumnami.
 type columnFloat struct {
 	brokenBox
-	x pr.Float
+	x   pr.Float
+	key Box // klucz w layoutContext.brokenOutOfFlow (zob. restoreOwnedFloats)
 }
 
 // takeColumnFloats przenosi elementy pływające (i pudełka pozycjonowane bezwzględnie) podzielone po
@@ -1185,7 +1230,7 @@ type columnFloat struct {
 func takeColumnFloats(context *layoutContext, after int, columnX pr.Float) bool {
 	context.columnFloats = nil
 	for key, v := range context.brokenOutOfFlow {
-		if v.order > after && continuesInColumn(v) {
+		if v.order > after && continuesInColumn(v) && v.owner == context.columnOwner {
 			context.columnFloats = append(context.columnFloats, columnFloat{brokenBox: v, x: key.Box().PositionX - v.columnX + columnX})
 			delete(context.brokenOutOfFlow, key)
 		}
@@ -1194,10 +1239,51 @@ func takeColumnFloats(context *layoutContext, after int, columnX pr.Float) bool 
 	return len(context.columnFloats) != 0
 }
 
+// takeOwnedFloats (gopdfgo) wyjmuje dalsze ciągi pudełek poza przepływem należące do układanego kontenera
+// kolumn (zob. brokenBox.owner); x jest liczone względem lewej krawędzi kolumny.
+func takeOwnedFloats(context *layoutContext) []columnFloat {
+	var out []columnFloat
+	for key, v := range context.brokenOutOfFlow {
+		if continuesInColumn(v) && v.owner == context.columnOwner && v.owner != nil {
+			out = append(out, columnFloat{brokenBox: v, x: key.Box().PositionX - v.columnX, key: key})
+			delete(context.brokenOutOfFlow, key)
+		}
+	}
+	slices.SortFunc(out, func(a, b columnFloat) int { return a.order - b.order })
+	return out
+}
+
+// placeOwnedFloats kopiuje dalsze ciągi z takeOwnedFloats do kolumny położonej w columnX.
+func placeOwnedFloats(owned []columnFloat, columnX pr.Float) []columnFloat {
+	out := make([]columnFloat, len(owned))
+	for i, v := range owned {
+		v.x += columnX
+		out[i] = v
+	}
+	return out
+}
+
+// restoreOwnedFloats oddaje dalsze ciągi, gdy kontener nie zmieścił w tym fragmencie niczego.
+func restoreOwnedFloats(context *layoutContext, owned []columnFloat) {
+	for _, v := range owned {
+		context.brokenOutOfFlow[v.key] = v.brokenBox
+	}
+}
+
+// hasOwnedFloats mówi, czy zostały dalsze ciągi pudełek poza przepływem z kolumn układanego kontenera.
+func hasOwnedFloats(context *layoutContext) bool {
+	for _, v := range context.brokenOutOfFlow {
+		if continuesInColumn(v) && v.owner == context.columnOwner {
+			return true
+		}
+	}
+	return false
+}
+
 // hasColumnFloats mówi, czy po znaczniku after podzielono jakiś element pływający.
 func hasColumnFloats(context *layoutContext, after int) bool {
 	for _, v := range context.brokenOutOfFlow {
-		if v.order > after && continuesInColumn(v) {
+		if v.order > after && continuesInColumn(v) && v.owner == context.columnOwner {
 			return true
 		}
 	}
