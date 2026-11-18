@@ -952,7 +952,8 @@ Wspólne dla obu katalogów:
     Chromium); zagnieżdżone poddrzewa top/bottom przesuwane raz; linia bazowa tabeli inline liczona od
     krawędzi marginesu tabeli;
   - `html/layout/tables.go`: pusty wiersz nie wyznacza linii bazowej; przy szukaniu ostatniej linii bazowej
-    blok z `overflow` bez wierszy daje dolną krawędź marginesu; wiersz bez komórek wyrównanych do linii
+    blok z `overflow` bez wierszy daje dolną krawędź marginesu (poza elementem siatki i flex, których linię
+    bazową syntetyzuje kontener); wiersz bez komórek wyrównanych do linii
     bazowej ma ją na najniższej dolnej krawędzi treści komórek po rozciągnięciu; wiersz bez komórek ma
     podaną wysokość (§ 17.5.3);
   - `html/layout/tables.go` (`cellHasInFlowContent`, `rowHasBaselineCells`): komórka bez treści w przepływie
@@ -994,7 +995,9 @@ Wspólne dla obu katalogów:
     § 4.3.5, § 4.3.6); tokenizer dokłada za nim znacznik błędu, który w źródle unieważniał deklarację
     i regułę `@import`;
   - `html/tree/computed_values.go` (`computeAttrFunction`): nazwa atrybutu w `attr()` sprowadzana do małych
-    liter, jak nazwy atrybutów w dokumencie HTML (CSS Values 5 § 7.7); źródło szukało jej dosłownie;
+    liter dla elementów HTML, jak nazwy ich atrybutów (CSS Values 5 § 7.7); atrybuty MathML i SVG rozróżniają
+    wielkość liter. Źródło szukało nazwy dosłownie. Test W3C `content-attr-case-002.xht` (XHTML) traci
+    przypadkowe zaliczenie: wymaga parsera XML (pytanie 25);
   - `css/selector/parser.go` (`htmlCaseInsensitiveAttributes`): wartości atrybutów z listy HTML § 4.16.2
     (m.in. `lang`, `type`, `dir`) porównywane bez rozróżniania wielkości liter, flaga `s` to wyłącza
     (Selectors 4 § 6.3); źródło nie znało ani listy, ani flagi `s`. W `html/tree/html5_ph.css` reguły

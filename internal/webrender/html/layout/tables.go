@@ -1492,7 +1492,10 @@ func findBaseline(box Box, last, flexBaseline bool, baselinesT ...bo.BoxType) pr
 			// linii bazowej linię bazową na dolnej krawędzi marginesu (jak samo inline-block z overflow,
 			// CSS 2.1 § 10.8.1; tak robi Chromium, test WPT baseline-block-with-overflow-001); w źródle
 			// szukanie szło dalej, do wcześniejszych pudełek.
-			if last && bo.BlockT.IsInstance(child) && child.Box().Style.GetOverflow() != "visible" {
+			// Nie dotyczy elementu siatki ani flex: ich linię bazową syntetyzuje kontener z krawędzi
+			// obramowania (CSS Align 3 § 9.1, test WPT grid-baseline-003).
+			if last && bo.BlockT.IsInstance(child) && child.Box().Style.GetOverflow() != "visible" &&
+				!child.Box().IsGridItem && !child.Box().IsFlexItem {
 				return child.Box().PositionY + child.Box().MarginHeight()
 			}
 		}

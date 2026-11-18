@@ -586,7 +586,11 @@ func computeAttrFunction(computer *ComputedStyle, values pr.AttrData) (out pr.Co
 	var prop pr.InnerContent
 	// gopdfgo: w dokumencie HTML nazwy atrybutów są pisane małymi literami, więc nazwę z attr() też do nich
 	// sprowadzamy (CSS Values 5 § 7.7; WPT content-attr-case-001); źródło szukało nazwy dosłownie
-	attrValue := node.Get(strings.ToLower(attrName))
+	// (atrybuty elementów MathML i SVG rozróżniają wielkość liter, WPT attr-case-sensitivity-003)
+	if node.Namespace == "" || node.Namespace == "html" {
+		attrName = strings.ToLower(attrName)
+	}
+	attrValue := node.Get(attrName)
 	if attrValue == "" && fallback != nil {
 		atrValue_, ok := fallback.(pr.InnerContent)
 		if !ok {
