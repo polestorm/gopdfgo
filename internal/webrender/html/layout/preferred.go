@@ -551,12 +551,24 @@ func inlineLineWidthsHang(context *layoutContext, box_ Box, outer, isLineStart,
 	if skipStack != nil {
 		skip, skipStack = skipStack.Unpack()
 	}
+	afterAtomic := false // gopdfgo: poprzednie dziecko w przepływie było elementem atomowym
 	for _, child := range box.Children[skip:] {
 		// Skip absolutely positioned elements.
 		if child.Box().IsAbsolutelyPositioned() {
 			continue
 		}
 		textBox, isTextBox := child.(*bo.TextBox)
+		// gopdfgo: ciąg elementów atomowych liczy się do odstępu między literami jak jeden znak, więc
+		// między nim a następującym tekstem jest odstęp (CSS Text 3 § 7.2; test WPT letter-spacing-204)
+		if child.Box().IsInNormalFlow() {
+			atomic := !isTextBox && !bo.InlineT.IsInstance(child)
+			if afterAtomic && !atomic && !minimum && (!isTextBox || len(textBox.Text) != 0 && textBox.Text[0] != ' ') {
+				currentLine += atomicRunSpacing(box.Style)
+			}
+			if atomic || !isTextBox || len(textBox.Text) != 0 {
+				afterAtomic = atomic
+			}
+		}
 		firstLineEnds := false
 		// nil is used in "lines" to track line breaks, transformed to 0 when yielded.
 		var lines []pr.MaybeFloat

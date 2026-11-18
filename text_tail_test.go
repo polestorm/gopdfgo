@@ -31,6 +31,11 @@ func TestTextTail(t *testing.T) {
 	same("letter-spacing-tab", `<div style="white-space:pre;tab-size:3;letter-spacing:20px">1&#9;1</div>`,
 		box(0, 0, 20)+box(120, 0, 20))
 
+	// ciąg elementów atomowych liczy się jak jeden znak: odstęp przed nim i za nim, nie między nimi
+	same("letter-spacing-atomic-run", `<div style="letter-spacing:20px">a<span style="display:inline-block;vertical-align:top;width:20px;height:20px;background:green"></span><span
+		style="display:inline-block;vertical-align:top;width:20px;height:20px;background:green"></span>b</div>`,
+		box(0, 0, 20)+box(40, 0, 40)+box(100, 0, 20))
+
 	// white-space-trim: discard-before i discard-after usuwają zwijane białe znaki poza elementem,
 	// także przez granice przodka; discard-inner usuwa je wewnątrz elementu
 	same("white-space-trim-before-after", `<div>a <b style="white-space-trim:discard-before">b</b>c</div>

@@ -759,6 +759,15 @@ func removeLastLetterSpacing(line *bo.LineBox) {
 	}
 }
 
+// atomicRunSpacing (gopdfgo) zwraca odstęp między literami pudełka liniowego, który przysługuje ciągowi
+// elementów atomowych przed następującą treścią (CSS Text 3 § 7.2)
+func atomicRunSpacing(style pr.ElementStyle) pr.Float {
+	if ls := style.GetLetterSpacing(); ls.Tag != pr.Normal {
+		return pr.Float(ls.Value)
+	}
+	return 0
+}
+
 // trailingLetterSpacing (gopdfgo) zwraca odstęp między literami za ostatnim znakiem treści box, który
 // zniknie, jeśli wiersz skończy się na box (zob. removeLastLetterSpacing); przy sprawdzaniu, czy treść
 // mieści się w wierszu, nie liczy się, jak wiszące odstępy.
@@ -1383,6 +1392,15 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 			continue
 		}
 
+		// gopdfgo: ciąg elementów atomowych liczy się do odstępu między literami jak jeden znak, więc
+		// po nim, przed następującą treścią, jest odstęp między literami rodzica (CSS Text 3 § 7.2; test
+		// WPT letter-spacing-204). Źródło nie dawało go wcale.
+		var atomicSpacing pr.Float
+		if lastLetter == '\u2e80' && !isNilTextBox(child_) && (bo.TextT.IsInstance(child_) || bo.InlineT.IsInstance(child_)) {
+			atomicSpacing = atomicRunSpacing(box.Style)
+			positionX += atomicSpacing
+		}
+
 		lastChild := index == len(box.Children)-1
 		availableWidth := maxX
 		var childWaitingFloats []Box
@@ -1422,6 +1440,14 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		skipStack = nil
 		if preserved {
 			preservedLineBreak = true
+		}
+		if atomicSpacing != 0 && (first == '\u2e80' || first == 0 || first == ' ' || first == letterTrue) {
+			// dziecko zaczyna się elementem atomowym albo jest puste: ciąg trwa, odstępu nie ma; przed
+			// spacją też nie (spacja ma własny odstęp, a zwinięta na końcu wiersza znika razem z nim)
+			positionX -= atomicSpacing
+			if newChild != nil && !isNilTextBox(newChild) {
+				newChild.Translate(-atomicSpacing, 0, true)
+			}
 		}
 
 		var canBreak pr.MaybeBool
