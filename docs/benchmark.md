@@ -231,3 +231,32 @@ byłaby mniejsza. Tego nie mierzyłam.
 Rozmiar binarki `cmd/gopdfgo` (macOS arm64, `CGO_ENABLED=0 -trimpath -ldflags='-s -w'`): **23,35 MB**
 (14.11: 21,60 MB); linux/amd64 z `-s -w`: 24,3 MB. Wobec ok. 400 MB Chromium z bibliotekami to 17 razy
 mniej, wobec 150–200 MB `chrome-headless-shell` 6–8 razy mniej.
+
+## 10. Czas i rozmiar po paczkach piątej–ósmej (2026-11-18)
+
+Sposób pomiaru jak w § 9 (`go test -run '^$' -bench … -benchmem .`, macOS arm64, go1.26.6, maszyna bez innej
+pracy, obciążenie ok. 2); czasy na stanach z końca każdej paczki, 5 powtórzeń; pamięć to suma przydziałów
+na jedno wywołanie.
+
+| Stan | Tabela 4000 wierszy [ms / MB] | `19-flex-grid-pagination` [ms / MB] | `22-multicol-pagination` [ms / MB] |
+|---|---|---|---|
+| `5ef9e30` (przed piątą paczką) | 1189 / 1330 | 92 / 158 | 104 / 165 |
+| `a9fb4a6` (po piątej) | 1198 / 1339 | 92 / 159 | 105 / 166 |
+| `47b6ec0` (po szóstej) | 1250 / 1369 | 92 / 159 | 107 / 168 |
+| `f04fa4f` (po siódmej) | 1286 / 1377 | 97 / 166 | 113 / 175 |
+| `1930d0c` (po ósmej) | 1344 / 1406 | 104 / 167 | 116 / 175 |
+
+Cały korpus (10 powtórzeń, `1930d0c`): 35–117 ms na dokument, czyli o 5–20% więcej niż w § 9.
+
+Binarka (`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`): **23,30 MB** (16.11: 23,35 MB).
+
+Wnioski:
+
+- Przez cztery paczki (ok. 450 nowych zaliczeń W3C) czas dużej tabeli wzrósł o 13%, a przydzielona pamięć
+  o 6%; przyrost jest rozłożony, najwięcej dała ósma paczka (+58 ms).
+- W profilu procesora nie widać żadnej z nowych funkcji (`text-autospace`, kapitaliki, dopasowanie nazw
+  rodzin, `-webkit-line-clamp`); ok. 24% czasu to odśmiecanie. W profilu przydziałów wobec `f04fa4f` rośnie
+  kształtowanie tekstu (`HarfbuzzShaper.shape` +54 MB, kopie glifów w `WrapWordBreak` +40 MB na 5 przebiegów),
+  co odpowiada kształtowaniu w całości tekstów do 128 znaków przy łamaniu wierszy (ósma paczka). Kandydat do
+  przyspieszenia, gdy czas zacznie mieć znaczenie; dziś 130 stron w 1,34 s.
+- Rozmiar binarki stoi w miejscu: nowe funkcje to kod układu, bez nowych tablic danych.
