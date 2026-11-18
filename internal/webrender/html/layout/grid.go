@@ -1767,12 +1767,18 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// (CSS Grid 1 § 11.1 krok 2 i § 11.7.1); źródło robiło jeden przebieg.
 	if box.Height == pr.AutoF && measure == nil && skipStack == nil {
 		var factors pr.Float
+		percentRows := false
 		for _, function := range rowSizingFunctions {
 			if isFr(function[1]) {
 				factors += function[1].Value
 			}
+			for _, f := range function {
+				percentRows = percentRows || (isLength(f) && f.Unit == pr.Perc)
+			}
 		}
-		if factors > 0 && factors < 1 {
+		// gopdfgo: tak samo przy wierszach procentowych: w pierwszym przebiegu liczą się jak auto,
+		// a potem odnoszą się do wynikłej wysokości treści (CSS Grid 1 § 7.2.1)
+		if (factors > 0 && factors < 1) || percentRows {
 			contentHeight = sum0(rowsSizes) + pr.Float(max(len(rowsSizes)-1, 0))*rowGap
 			rowsSizes = resolveTracksSizes(context, rowSizingFunctions, contentHeight, childrenPositions, implicitY1,
 				'y', rowGap, box_, columnsSizes)
@@ -2440,7 +2446,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// Zastępniki dzieci pozycjonowanych, z obszarem siatki jako pudełkiem zawierającym.
 	for _, child_ := range append(positionedChildren[:len(positionedChildren):len(positionedChildren)], nil) {
 		edges := func(start, end pr.GridLine, names []pr.GridNames, positions []pr.Float, sizes [][2]pr.Float,
-			implicitBefore int, paddingStart, paddingSize pr.Float, collapsed []int,
+			implicitBefore int, paddingStart, paddingSize, contentStart pr.Float, collapsed []int,
 		) (pr.Float, pr.Float, bool) {
 			from, to, placed := paddingStart, paddingStart+paddingSize, false
 			resolve := func(line pr.GridLine, side string) (int, bool) {
@@ -2458,7 +2464,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 					}
 				}
 				index -= shift
-				if !coord.valid || index < 0 || index > len(positions) || len(positions) == 0 {
+				if !coord.valid || index < 0 || index > len(positions) {
 					return 0, false
 				}
 				return index, true
@@ -2481,6 +2487,11 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				} else if endIndex == startIndex {
 					endOk = false
 				}
+			}
+			// gopdfgo: siatka bez ścieżek ma jedną linię, na początku treści kontenera
+			if len(positions) == 0 {
+				positions, sizes = []pr.Float{contentStart}, [][2]pr.Float{{0, 0}}
+				startIndex, endIndex = min(startIndex, 0), min(endIndex, 0)
 			}
 			if index, ok := startIndex, startOk; ok {
 				placed = true
@@ -2513,9 +2524,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 					}
 					style := descendant.Style
 					x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
-						columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth(), collapsedColumns)
+						columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth(), box.ContentBoxX(), collapsedColumns)
 					y, height, placedY := edges(style.GetGridRowStart(), style.GetGridRowEnd(), explicitRowNames,
-						rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight(), collapsedRows)
+						rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight(), box.ContentBoxY(), collapsedRows)
 					if placedX || placedY {
 						descendant.GridArea = &[4]pr.Float{x, y, width, height}
 					}
@@ -2526,9 +2537,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		child := child_.Box()
 		style := child.Style
 		x, width, placedX := edges(style.GetGridColumnStart(), style.GetGridColumnEnd(), explicitColumnNames,
-			columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth(), collapsedColumns)
+			columnsPositions, columnsSizes, -implicitX1, box.PaddingBoxX(), box.PaddingWidth(), box.ContentBoxX(), collapsedColumns)
 		y, height, placedY := edges(style.GetGridRowStart(), style.GetGridRowEnd(), explicitRowNames,
-			rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight(), collapsedRows)
+			rowsPositions, rowsSizes, -implicitY1, box.PaddingBoxY(), box.PaddingHeight(), box.ContentBoxY(), collapsedRows)
 		child.PositionX, child.PositionY = box.ContentBoxX(), box.ContentBoxY()
 		child.GridArea = nil
 		// gopdfgo: obszar siatki jest pudełkiem zawierającym tylko wtedy, gdy kontener jest pudełkiem
