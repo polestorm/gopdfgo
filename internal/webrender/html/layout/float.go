@@ -306,6 +306,17 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 				}
 				continue
 			}
+			// gopdfgo: element pływający o niedodatniej wysokości pudełka marginesowego (ujemny margines)
+			// zajmuje jedną wysokość, więc nachodzi na każdy element pływający, którego pas ją obejmuje
+			// (CSS 2.1 § 9.5.1, reguła 2: górna krawędź musi leżeć niżej niż dół wcześniejszego elementu;
+			// jak Chromium, który przyjmuje wtedy wysokość zero; test WPT overhanging-float-paint-order).
+			// W źródle ujemna wysokość odwracała przedział i element stawał obok niewłaściwego sąsiada.
+			if outer && boxHeight <= 0 {
+				if shapePositionY <= positionY && positionY < shapePositionY+shapeMarginHeight {
+					collidingShapes = append(collidingShapes, shape)
+				}
+				continue
+			}
 			if (shapePositionY < positionY && positionY < shapePositionY+shapeMarginHeight) ||
 				(shapePositionY < positionY+boxHeight && positionY+boxHeight < shapePositionY+shapeMarginHeight) ||
 				(shapePositionY >= positionY && shapePositionY+shapeMarginHeight <= positionY+boxHeight) {
@@ -379,7 +390,9 @@ func avoidCollisions(context *layoutContext, box_ Box, containingBlock *bo.BoxFi
 			}
 
 			// Points 3, 7 && 8
-			if boxWidth > fitRight-fitLeft+endMargin {
+			// gopdfgo: z tolerancją 0,01 px na błędy zaokrągleń sumy szerokości (Chromium liczy w 1/64 px;
+			// test WPT units-005: dziesięć elementów po 0,87em w bloku 8,7em). W źródle porównanie było ścisłe.
+			if boxWidth > fitRight-fitLeft+endMargin+0.01 {
 				// The box does not fit here
 				min := pr.Inf
 				for _, shape := range collidingShapes {
@@ -538,4 +551,33 @@ func relayoutBesideFloats(context *layoutContext, original, laidOut Box, contain
 	}
 	relaid, layout := relayout(originalWidth)
 	return relaid, layout, true
+}
+
+// clearAfterLine (gopdfgo) obsługuje właściwość clear elementu <br>: następny wiersz zaczyna się
+// poniżej elementów pływających po wskazanej stronie (HTML § 15.3.3 odwzorowuje atrybut clear
+// elementu br na tę właściwość; Chromium stosuje ją do wiersza po złamaniu). Zwraca nowy początek
+// następnego wiersza. Źródło ignorowało clear na elemencie liniowym.
+func clearAfterLine(context *layoutContext, line Box, y pr.Float) pr.Float {
+	clear := ""
+	var walk func(b Box)
+	walk = func(b Box) {
+		for _, child := range b.Box().Children {
+			if child.Box().Element != nil && child.Box().Element.Data == "br" && child.Box().PseudoType == "" {
+				if c := child.Box().Style.GetClear(); c != "none" {
+					clear = string(c)
+				}
+			}
+			walk(child)
+		}
+	}
+	walk(line)
+	if clear == "" || context.excludedShapes == nil {
+		return y
+	}
+	for _, shape := range context.excludedShapes.list {
+		if float := string(shape.Style.GetFloat()); clear == "both" || clear == float {
+			y = max(y, shape.PositionY+shape.MarginHeight())
+		}
+	}
+	return y
 }

@@ -141,6 +141,9 @@ func newStackingContextFromBox(box Box, page *bo.PageBox, childContexts, escape 
 	)
 
 	box = dispatchChildren(box, page, childContexts, escape, &blocks, &floats, blocksAndCells)
+	if box.Box().IsTableWrapper {
+		tableBeforeCaptions(box, blocks)
+	}
 	return NewStackingContext(box, children, blocks, floats, blocksAndCells, page)
 }
 
@@ -235,6 +238,9 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 				boxBlocksAndCells := newBoxTree()
 				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
 				*blocks = slices.Insert(*blocks, blocksIndex, box)
+				if box.Box().IsTableWrapper {
+					tableBeforeCaptions(box, (*blocks)[blocksIndex+1:])
+				}
 				blocksAndCells.set(box, boxBlocksAndCells)
 			} else if bo.TableCellT.IsInstance(box) {
 				boxBlocksAndCells := newBoxTree()
@@ -248,6 +254,35 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		}
 	}
 	return nil
+}
+
+// tableBeforeCaptions (gopdfgo) przestawia w liście bloków potomków opakowania tabeli tak, żeby
+// tabela (z całym poddrzewem) poprzedzała podpisy: tła i obramowania tabeli należą do elementu
+// tabeli, który w porządku drzewa poprzedza swój podpis (CSS 2.1 dodatek E.2, pkt 4), więc
+// podpis z ujemnym marginesem zakrywa obramowanie tabeli, a nie odwrotnie (test WPT root-box-002).
+// Źródło rysowało bloki w kolejności pudełek opakowania: podpis nad tabelą był rysowany pierwszy.
+func tableBeforeCaptions(wrapper Box, segment []Box) {
+	direct := map[*bo.BoxFields]bool{}
+	for _, child := range wrapper.Box().Children {
+		direct[child.Box()] = true
+	}
+	start := -1
+	for i, b := range segment {
+		if _, isTable := b.(bo.TableBoxITF); isTable && direct[b.Box()] {
+			start = i
+			break
+		}
+	}
+	if start <= 0 {
+		return
+	}
+	end := start + 1
+	for end < len(segment) && !direct[segment[end].Box()] {
+		end++
+	}
+	moved := slices.Clone(segment[start:end])
+	copy(segment[end-start:end], segment[:start])
+	copy(segment, moved)
 }
 
 func dispatchChildren(box Box, page *bo.PageBox, childContexts, escape *[]StackingContext,

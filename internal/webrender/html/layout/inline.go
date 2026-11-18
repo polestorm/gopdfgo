@@ -105,6 +105,9 @@ func (l *lineBoxeIterator) Has() bool {
 	if line != nil {
 		handleLeader(l.context, line, l.containingBlock.Box())
 		l.positionY = line.Box().PositionY + line.Box().Height.V()
+		if forcedBreak { // gopdfgo: clear elementu <br> (clearAfterLine)
+			l.positionY = clearAfterLine(l.context, line, l.positionY)
+		}
 	}
 	if line == nil {
 		l.done = true
@@ -318,6 +321,7 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	var (
 		linePlaceholders, lineAbsolutes, lineFixed []*AbsolutePlaceholder
 		waitingFloats                              []Box
+		inlineAbsolutes                            []inlineAbsolute
 	)
 	for {
 		linebox.PositionX, linebox.PositionY = positionX, positionY
@@ -337,8 +341,12 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 
 		savedStart, savedTabUnit, savedInLine := context.lineStartX, context.lineTabUnit, context.inLine
 		context.lineStartX, context.lineTabUnit, context.inLine = linebox.PositionX, -1, true
+		savedDeferred := context.deferredInlineAbsolutes
+		inlineAbsolutes = inlineAbsolutes[:0]
+		context.deferredInlineAbsolutes = &inlineAbsolutes
 		spi := splitInlineBox(context, linebox, positionX, maxX, bottomSpace, skipStack, containingBlock_,
 			&lineAbsolutes, &lineFixed, &linePlaceholders, &waitingFloats, nil)
+		context.deferredInlineAbsolutes = savedDeferred
 		context.lineStartX, context.lineTabUnit, context.inLine = savedStart, savedTabUnit, savedInLine
 		resumeAt, preservedLineBreak, floatWidths = spi.resumeAt, spi.preservedLineBreak, spi.floatWidths
 		forcedBreak = preservedLineBreak
@@ -466,9 +474,22 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 			placeholder.Translate(0, positionY-placeholder.Box().PositionY.V(), false)
 		} else {
 			// Block-level static position: at the start of the next line
+			// gopdfgo: bez treści przed blokiem wiersz przed nim miałby zerową wysokość,
+			// więc położeniem statycznym jest góra wiersza (contentBeforeInLine).
+			staticY := positionY + line.Height.V()
+			if !contentBeforeInLine(line_, placeholder) {
+				staticY = positionY
+			}
 			placeholder.Translate(line.PositionX-placeholder.Box().PositionX.V(),
-				positionY+line.Height.V()-placeholder.Box().PositionY.V(), false)
+				staticY-placeholder.Box().PositionY.V(), false)
 		}
+	}
+	// gopdfgo: pudełka pozycjonowane względem pudełka liniowego układamy dopiero teraz, gdy wiersz
+	// jest wyrównany w pionie, a położenia statyczne ustalone (CSS 2.1 § 10.1 pkt 4; test WPT
+	// abspos-inline-007). W źródle były układane przed wyrównaniem wiersza, względem tymczasowego
+	// położenia pudełka liniowego, i przesuwały się potem razem z przodkami.
+	for _, deferred := range inlineAbsolutes {
+		absoluteLayout(context, deferred.placeholder, deferred.containingBlock, deferred.fixedBoxes, deferred.bottomSpace, nil)
 	}
 
 	// gopdfgo: element pływający ułożony w części wiersza, która po złamaniu przeszła do następnego
@@ -605,15 +626,18 @@ func skipFirstWhitespace(box Box, skipStack tree.ResumeStack) (tree.ResumeStack,
 	if IsLine(box) {
 		children := box.Box().Children
 		if index == 0 && len(children) == 0 {
-			return nil, false
+			// gopdfgo: puste pudełko liniowe bez marginesów, dopełnienia i obramowań w poziomie nie
+			// zatrzymuje usuwania spacji z początku wiersza (CSS Text 3 § 4.1.2); tak wygląda np.
+			// reszta pudełka po wydzieleniu z niego bloku. Źródło kończyło tu usuwanie spacji.
+			return nil, isBareEmptyInline(box)
 		}
 		result, cont := skipFirstWhitespace(children[index], nextSkipStack)
-		if cont {
+		for cont {
 			index += 1
 			if index >= len(children) {
 				return nil, true
 			}
-			result, _ = skipFirstWhitespace(children[index], nil)
+			result, cont = skipFirstWhitespace(children[index], nil)
 		}
 		if index != 0 || result != nil {
 			return tree.ResumeStack{index: result}, false
@@ -871,6 +895,7 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 			// która może jeszcze zostać zwinięta) nie ma ::first-letter, jak w Chromium; spacje nie są
 			// typograficzną jednostką litery (CSS Pseudo 4 § 2.2, test WPT first-letter-space-not-selected).
 			// Źródło brało taką spację za pierwszą literę.
+			afterSkip := text
 			leadingSpace := len(text) != 0 && text[0] != ' ' && unicode.Is(unicode.Zs, text[0])
 			for len(text) != 0 && !leadingSpace {
 				nextLetter := text[0]
@@ -884,8 +909,12 @@ func firstLetterToBox(context *layoutContext, box Box, skipStack tree.ResumeStac
 				firstLetter += string(nextLetter)
 				text = text[1:]
 			}
-			textBox.Text = text
+			// gopdfgo: tekst skracamy tylko wtedy, gdy znaleziono literę; sam znak nowego wiersza z <br>
+			// nie jest pierwszą literą i zostaje w tekście (test WPT first-letter-selector-005). Źródło
+			// usuwało go zawsze, więc pierwsze złamanie wiersza znikało.
+			textBox.Text = afterSkip
 			if strings.TrimLeft(firstLetter, "\n") != "" {
+				textBox.Text = text
 				// "This type of initial letter is similar to an
 				// inline-level element if its "float" property is "none",
 				// otherwise it is similar to a floated element."
@@ -1694,6 +1723,13 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 
 	if newBox.Style.GetPosition().String == "relative" {
 		for _, absoluteBox := range *absoluteBoxes {
+			// gopdfgo: w wierszu odkładamy układ do chwili, gdy pudełko liniowe ma już ostateczne
+			// położenie w pionie (zob. getNextLinebox)
+			if context.deferredInlineAbsolutes != nil {
+				*context.deferredInlineAbsolutes = append(*context.deferredInlineAbsolutes,
+					inlineAbsolute{absoluteBox, newBox_, fixedBoxes, bottomSpace})
+				continue
+			}
 			absoluteLayout(context, absoluteBox, newBox_, fixedBoxes, bottomSpace, nil)
 		}
 	}
@@ -2054,15 +2090,16 @@ func lineBoxVerticality(context *layoutContext, box Box) (pr.Float, pr.Float) {
 func translateSubtree(box Box, dy pr.Float) {
 	if bo.InlineT.IsInstance(box) {
 		box.Box().PositionY += dy
-		if va := box.Box().Style.GetVerticalAlign().Tag; va == pr.Top || va == pr.Bottom {
-			for _, child := range box.Box().Children {
-				// gopdfgo: zagnieżdżone poddrzewo z top/bottom jest przesuwane osobno (lineBoxVerticality);
-				// w źródle przesuwało się dwa razy (test WPT vertical-align-nested-top-001)
-				if cva := child.Box().Style.GetVerticalAlign().Tag; child.Box().IsInNormalFlow() && (cva == pr.Top || cva == pr.Bottom) {
-					continue
-				}
-				translateSubtree(child, dy)
+		// gopdfgo: przesuwamy też treść zagnieżdżonych pudełek liniowych o innym vertical-align (test WPT
+		// anonymous-inline-inherit-001); w źródle schodziło się w głąb tylko z pudełka top/bottom, więc
+		// tekst w zwykłym <span> wewnątrz takiego pudełka zostawał na miejscu.
+		for _, child := range box.Box().Children {
+			// gopdfgo: zagnieżdżone poddrzewo z top/bottom jest przesuwane osobno (lineBoxVerticality);
+			// w źródle przesuwało się dwa razy (test WPT vertical-align-nested-top-001)
+			if cva := child.Box().Style.GetVerticalAlign().Tag; child.Box().IsInNormalFlow() && (cva == pr.Top || cva == pr.Bottom) {
+				continue
 			}
+			translateSubtree(child, dy)
 		}
 	} else {
 		// Text or atomic boxes

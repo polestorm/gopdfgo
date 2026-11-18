@@ -36,7 +36,7 @@ func expandSelfClosing(document []byte) []byte {
 	if !isXHTML(document) {
 		return document
 	}
-	document = decodeStyleEntities(stripNamespacePrefixes(document))
+	document = keepPreLeadingNewline(decodeStyleEntities(stripNamespacePrefixes(document)))
 	var out bytes.Buffer
 	rest := document
 	for len(rest) > 0 {
@@ -84,6 +84,15 @@ func stripNamespacePrefixes(document []byte) []byte {
 		document = bytes.ReplaceAll(document, append(append([]byte("</"), prefix...), ':'), []byte("</"))
 	}
 	return document
+}
+
+var preStartWithNewline = regexp.MustCompile(`(?i)(<(?:pre|listing|textarea)\b[^<>]*>)(\r?\n)`)
+
+// keepPreLeadingNewline zachowuje w dokumencie XHTML znak nowego wiersza tuż po znaczniku <pre>.
+// Parser HTML5 go pomija (HTML § 13.2.6.4.7), parser XML nie, więc dokument XHTML ma w <pre> o jeden
+// pusty wiersz więcej (test WPT c548-ln-ht-000). Dopisujemy jeden znak, który parser HTML zje.
+func keepPreLeadingNewline(document []byte) []byte {
+	return preStartWithNewline.ReplaceAll(document, []byte("$1\n$2"))
 }
 
 var styleElement = regexp.MustCompile(`(?is)(<style\b[^>]*>)(.*?)(</style\s*>)`)

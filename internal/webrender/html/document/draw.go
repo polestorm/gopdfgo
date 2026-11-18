@@ -488,13 +488,22 @@ func (ctx *drawContext) setTextMask(box_ Box, withBorder bool) {
 	ctx.dst.Rectangle(fl(rbb.X), fl(rbb.Y), fl(rbb.Width), fl(rbb.Height))
 	ctx.dst.Paint(backend.FillNonZero)
 	ctx.dst.State().SetColorRgba(Color{R: 1, G: 1, B: 1, A: 1}, false)
+	// gopdfgo: text-overflow i block-ellipsis wiersza obowiązują też w masce, żeby kształt tekstu
+	// zgadzał się z tekstem rysowanym zwyczajnie (test WPT clip-text-ellipsis); źródło dawało "clip".
 	var walk func(Box)
+	textOverflow, blockEllipsis := "clip", pr.TaggedString{Tag: pr.None}
 	walk = func(b Box) {
+		if lineBox, ok := b.(*bo.LineBox); ok {
+			textOverflow, blockEllipsis = lineBox.TextOverflow, lineBox.BlockEllipsis
+		}
 		if textbox, ok := b.(*bo.TextBox); ok {
 			if textbox.Style.GetVisibility() == "visible" {
 				textbox.TextLayout.ApplyJustification()
-				ctx.drawFirstLine(textbox, "clip", pr.TaggedString{Tag: pr.None},
+				ctx.drawFirstLine(textbox, textOverflow, blockEllipsis,
 					pr.Fl(textbox.PositionX), pr.Fl(textbox.PositionY+textbox.Baseline.V()))
+				// gopdfgo: maska obejmuje też dekoracje tekstu (drawTextDecorationsInColor)
+				ctx.drawTextDecorationsInColor(textbox, Color{R: 1, G: 1, B: 1, A: 1})
+				ctx.dst.State().SetColorRgba(Color{R: 1, G: 1, B: 1, A: 1}, false)
 			}
 			return
 		}

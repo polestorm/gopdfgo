@@ -416,3 +416,50 @@ func (rg RadialGradient) resolveSize(width, height, centerX, centerY pr.Float) (
 	cornerX, cornerY := c[0], c[1]
 	return cornerX * pr.Float(math.Sqrt(2)), cornerY * pr.Float(math.Sqrt(2))
 }
+
+// ConicGradient (gopdfgo): gradient stożkowy z CSS Images 4 § 3.3. Źródło go nie znało.
+type ConicGradient struct {
+	gradient
+	from   pr.Fl
+	center pr.CenterPos
+}
+
+func (ConicGradient) isImage() {}
+
+func NewConicGradient(from pr.ConicGradient) ConicGradient {
+	self := ConicGradient{gradient: newGradient(from.ColorStops, from.Repeating)}
+	self.layouter = &self
+	self.from = from.From
+	self.center = from.Center
+	return self
+}
+
+// Layout zwraca gradient rodzaju "conic": Coords to (środek x, środek y, kąt początkowy w radianach),
+// pozycje przystanków są ułamkami pełnego obrotu liczonego zgodnie z ruchem wskazówek zegara od góry.
+func (cg ConicGradient) Layout(width, height pr.Float) backend.GradientLayout {
+	if len(cg.colors) == 1 {
+		return backend.GradientLayout{ScaleY: 1, GradientKind: backend.GradientKind{Kind: "solid"}, Colors: []parser.RGBA{cg.colors[0]}}
+	}
+	centerX := pr.ResolvePercentage(cg.center.Pos[0].Tagged(), width).V()
+	centerY := pr.ResolvePercentage(cg.center.Pos[1].Tagged(), height).V()
+	if cg.center.OriginX == pr.Right {
+		centerX = width - centerX
+	}
+	if cg.center.OriginY == pr.Bottom {
+		centerY = height - centerY
+	}
+	positions := processColorStops(1, cg.stopPositions)
+	colors := cg.colors
+	if cg.repeating && positions[len(positions)-1]-positions[0] <= 0 {
+		// powtarzany gradient o zerowym okresie ma barwę średnią (CSS Images 3 § 3.6)
+		return backend.GradientLayout{ScaleY: 1, GradientKind: backend.GradientKind{Kind: "solid"},
+			Colors: []parser.RGBA{gradientAverageColor(colors, positions)}}
+	}
+	return backend.GradientLayout{
+		Positions:    positions,
+		Colors:       colors,
+		GradientKind: backend.GradientKind{Kind: "conic", Coords: [6]pr.Fl{pr.Fl(centerX), pr.Fl(centerY), cg.from}},
+		ScaleY:       1,
+		Reapeating:   cg.repeating,
+	}
+}

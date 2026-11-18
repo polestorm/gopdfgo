@@ -86,6 +86,32 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	}
 }
 
+// drawTextDecorationsInColor (gopdfgo) rysuje wszystkie linie dekoracji pudełka tekstu w podanym
+// kolorze, w tych samych miejscach co drawText; służy masce background-clip: text, która obejmuje
+// też dekoracje tekstu (CSS Backgrounds 4 § 3.6; test WPT clip-text-text-decorations).
+func (ctx drawContext) drawTextDecorationsInColor(textbox *bo.TextBox, color Color) {
+	decoration := textbox.Style.GetTextDecorationLine()
+	if decoration == 0 {
+		return
+	}
+	metrics := textbox.TextLayout.Metrics()
+	if decoration&pr.Overline != 0 {
+		thickness := metrics.UnderlineThickness
+		offsetY := textbox.Baseline.V() - pr.Float(metrics.Ascent) + pr.Float(thickness)/2
+		ctx.drawTextDecoration(textbox, 0, pr.Fl(offsetY), thickness, color)
+	}
+	if decoration&pr.Underline != 0 {
+		thickness := metrics.UnderlineThickness
+		offsetY := textbox.Baseline.V() - pr.Float(metrics.UnderlinePosition) + pr.Float(thickness)/2
+		ctx.drawTextDecoration(textbox, 0, pr.Fl(offsetY), thickness, color)
+	}
+	if decoration&pr.LineThrough != 0 {
+		thickness := metrics.StrikethroughThickness
+		offsetY := textbox.Baseline.V() - pr.Float(metrics.StrikethroughPosition)
+		ctx.drawTextDecoration(textbox, 0, pr.Fl(offsetY), thickness, color)
+	}
+}
+
 func (ctx drawContext) drawFirstLine(textbox *bo.TextBox, textOverflow string, blockEllipsis pr.TaggedString, x, y pr.Fl) {
 	// Don’t draw lines with only invisible characters
 	if strings.TrimSpace(textbox.TextS()) == "" {

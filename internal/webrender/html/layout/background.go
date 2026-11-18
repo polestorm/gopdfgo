@@ -67,9 +67,37 @@ func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.
 	case pr.LinearGradient:
 		img.ColorStops = resolveStops(img.ColorStops)
 		return images.NewLinearGradient(img)
+	case pr.ConicGradient: // gopdfgo: gradient stożkowy (CSS Images 4 § 3.3)
+		img.ColorStops = resolveStops(img.ColorStops)
+		return images.NewConicGradient(img)
 	default:
 		panic(fmt.Sprintf("unexpected type for image: %T %v", image, image))
 	}
+}
+
+// scrollContentExtent (gopdfgo) zwraca prawą i dolną krawędź treści pudełka: największe krawędzie pudełek
+// marginesowych potomków w przepływie (wiersze, bloki, tekst), bez potomków pozycjonowanych.
+func scrollContentExtent(box_ Box) (right, bottom pr.Float) {
+	box := box_.Box()
+	right, bottom = box.ContentBoxX()+box.Width.V(), box.ContentBoxY()+box.Height.V()
+	var walk func(b Box)
+	walk = func(b Box) {
+		for _, child := range b.Box().Children {
+			fields := child.Box()
+			if fields.IsAbsolutelyPositioned() {
+				continue
+			}
+			if _, ok := fields.Width.(pr.Float); ok {
+				if _, ok := fields.Height.(pr.Float); ok {
+					right = max(right, fields.PositionX+fields.MarginWidth())
+					bottom = max(bottom, fields.PositionY+fields.MarginHeight())
+				}
+			}
+			walk(child)
+		}
+	}
+	walk(box_)
+	return right, bottom
 }
 
 // Fetch and position background images.
@@ -77,13 +105,22 @@ func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.
 // płótna, które według CSS Backgrounds 3 § 2.11.1 jest pozycjonowane względem elementu głównego; w źródle
 // było pozycjonowane względem pudełka strony.
 func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFetcher, layoutChildren bool, style pr.ElementStyle, positioningBox *bo.BoxFields) {
+	layoutBoxBackgroundsIn(page, box_, getImageFromUri, layoutChildren, style, positioningBox, false)
+}
+
+// layoutBoxBackgroundsIn: inTransform (gopdfgo) mówi, że któryś przodek ma transform. Tło
+// z background-attachment: fixed zachowuje się wtedy jak scroll (CSS Transforms 1 § 3: element
+// przekształcony tworzy blok zawierający dla potomków, a tło stałe przewija się z nim; test WPT
+// background-attachment-fixed-inside-transform-1). Źródło pozycjonowało je względem strony.
+func layoutBoxBackgroundsIn(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFetcher, layoutChildren bool, style pr.ElementStyle, positioningBox *bo.BoxFields, inTransform bool) {
 	// Resolve percentages in border-radius properties
 	box := box_.Box()
 	resolveRadiiPercentages(box)
 
 	if layoutChildren {
+		childInTransform := inTransform || len(box_.Box().Style.GetTransform()) != 0
 		for _, child := range box_.AllChildren() {
-			layoutBoxBackgrounds(page, child, getImageFromUri, true, nil, nil)
+			layoutBoxBackgroundsIn(page, child, getImageFromUri, true, nil, nil, childInTransform)
 		}
 	}
 
@@ -138,13 +175,17 @@ func layoutBoxBackgrounds(page *bo.PageBox, box_ Box, getImageFromUri bo.ImageFe
 	ir := style.GetImageResolution()
 	layers := make([]bo.BackgroundLayer, len(images_))
 	for i, img := range images_ {
+		attachment := attachments[cycle(i, attachmentsN)]
+		if attachment == "fixed" && (inTransform || (len(box.Style.GetTransform()) != 0 && !box.IsForRootElement)) {
+			attachment = "scroll"
+		}
 		layers[i] = layoutBackgroundLayer(box_, page, positioningBox, ir, img,
 			sizes[cycle(i, sizesN)],
 			clips[cycle(i, clipsN)],
 			repeats[cycle(i, repeatsN)],
 			origins[cycle(i, originsN)],
 			positions[cycle(i, positionsN)],
-			attachments[cycle(i, attachmentsN)],
+			attachment,
 		)
 		// gopdfgo: background-clip: border-area (CSS Backgrounds 4 § 3.6); tło strony maluje się w obszarze
 		// spadu niezależnie od background-clip
@@ -298,6 +339,17 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 		positioningArea = boxRectangle(*positioningBox, origin)
 	} else {
 		positioningArea = boxRectangle(*box, origin)
+		// gopdfgo: przy background-attachment: local w pudełku przewijanym obszarem pozycjonowania jest
+		// cały przewijany obszar treści, nie tylko widoczna część (CSS Backgrounds 3 § 3.5; test WPT
+		// background-attachment-350). Wydruk pokazuje stan bez przewinięcia, więc obszar rośnie w prawo
+		// i w dół o treść wystającą poza pudełko (wraz z dopełnieniem po stronie końca).
+		if overflow := box.Style.GetOverflow(); attachment == "local" && overflow != "visible" && overflow != "clip" && box_ != page {
+			right, bottom := scrollContentExtent(box_)
+			right += box.PaddingRight.V()
+			bottom += box.PaddingBottom.V()
+			positioningArea[2] = max(positioningArea[2], right-positioningArea[0])
+			positioningArea[3] = max(positioningArea[3], bottom-positioningArea[1])
+		}
 	}
 
 	_, _, positioningWidth, positioningHeight := positioningArea[0], positioningArea[1], positioningArea[2], positioningArea[3]

@@ -380,6 +380,9 @@ type layoutContext struct {
 	lineStartX    pr.Float
 	lineTabUnit   pr.Float
 	inLine        bool
+	// gopdfgo: pudełka pozycjonowane bezwzględnie, których blokiem zawierającym jest pudełko liniowe
+	// układanego wiersza; układamy je po wyrównaniu wiersza w pionie (zob. getNextLinebox)
+	deferredInlineAbsolutes *[]inlineAbsolute
 
 	// caches
 	stringSet       map[string]map[int][]string

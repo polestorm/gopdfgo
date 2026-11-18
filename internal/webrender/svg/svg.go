@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
+	"github.com/polestorm/gopdfgo/internal/webrender/css/parser"
 	"github.com/polestorm/gopdfgo/internal/webrender/matrix"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
@@ -42,6 +44,11 @@ func newDefinitions() definitions {
 
 type SVGImage struct {
 	root *svgNode
+
+	// background (gopdfgo): kolor tła elementu głównego <svg> z właściwości CSS background(-color);
+	// w dokumencie SVG wyświetlanym jako obraz tło elementu głównego wypełnia cały obszar obrazu
+	// (CSS Backgrounds 3 § 2.11.2, tło płótna; test WPT background-image-007). Źródło je pomijało.
+	background *parser.RGBA
 
 	// setup when calling Draw
 	textContext text.TextLayoutContext
@@ -89,6 +96,13 @@ func (svg *SVGImage) Draw(dst backend.Canvas, width, height Fl, textContext text
 	dims.setupDiagonal()
 
 	svg.textContext = textContext
+	if svg.background != nil && svg.background.A > 0 {
+		dst.OnNewStack(func() {
+			dst.Rectangle(0, 0, width, height)
+			dst.State().SetColorRgba(*svg.background, false)
+			dst.Paint(backend.FillNonZero)
+		})
+	}
 	svg.drawNode(dst, svg.root, dims, true)
 }
 
@@ -479,12 +493,18 @@ func Parse(svg io.Reader, baseURL string, imageLoader ImageLoader, urlFetcher ut
 		return nil, err
 	}
 
-	return ParseNode(root, baseURL, imageLoader, urlFetcher)
+	return parseNode(root, baseURL, imageLoader, urlFetcher, true)
 }
 
 // ParseNode is the same as Parse but works with an already parsed
 // svg input.
 func ParseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher) (*SVGImage, error) {
+	return parseNode(root, baseURL, imageLoader, urlFetcher, false)
+}
+
+// parseNode: standalone (gopdfgo) mówi, że SVG jest osobnym dokumentem (obrazem), a nie elementem
+// osadzonym w HTML, którego tło rysuje układ HTML.
+func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher, standalone bool) (*SVGImage, error) {
 	tree, err := newSVGContext(root, baseURL, urlFetcher)
 	if err != nil {
 		return nil, err
@@ -494,6 +514,9 @@ func ParseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 
 	var out SVGImage
 	out.definitions = newDefinitions()
+	if standalone {
+		out.background = rootBackground(tree.root)
+	}
 	// Build the drawable items by parsing attributes
 	out.root, err = tree.processNode(tree.root, out.definitions)
 	if err != nil {
@@ -501,6 +524,27 @@ func ParseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 	}
 
 	return &out, nil
+}
+
+// rootBackground (gopdfgo) odczytuje kolor tła elementu głównego: background-color albo background
+// złożone z samego koloru.
+func rootBackground(root *cascadedNode) *parser.RGBA {
+	if root == nil {
+		return nil
+	}
+	for _, name := range []string{"background-color", "background"} {
+		value := strings.TrimSpace(root.attrs[name])
+		if value == "" {
+			continue
+		}
+		color := parser.ParseColorString(value)
+		if color.IsNone() {
+			continue
+		}
+		rgba := color.RGBA
+		return &rgba
+	}
+	return nil
 }
 
 // svgNode is a node in a drawable SVG tree

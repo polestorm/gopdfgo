@@ -379,6 +379,10 @@ func (g *group) DrawRasterImage(img backend.RasterImage, width fl, height fl) {
 // Solid gradient are already handled, meaning that only linear and radial
 // must be taken care of.
 func (g *group) DrawGradient(layout backend.GradientLayout, width fl, height fl) {
+	if layout.Kind == "conic" { // gopdfgo: gradient stożkowy, zob. drawConicGradient
+		g.drawConicGradient(layout, width, height)
+		return
+	}
 	grad := cs.GradientComplex{
 		Offsets:    layout.Positions,
 		Colors:     make([][4]fl, len(layout.Colors)),
