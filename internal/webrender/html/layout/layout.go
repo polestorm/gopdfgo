@@ -618,9 +618,13 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 // PageArea (gopdfgo) podaje obszar zwykłej strony wynikający z arkuszy przeglądarki i podanych arkuszy
 // (bez marginesów, obramowania i odstępu); zero, gdy nie da się go ustalić. Służy do wyznaczenia
 // rozmiaru medium z arkusza użytkownika na pustym dokumencie (ADR 0019).
-func PageArea(html *tree.HTML, stylesheets []tree.CSS, fontConfig text.FontConfiguration) (width, height pr.Float) {
+// gopdfgo: podaje też rozmiar samej strony (arkusza), do którego odnoszą się jednostki vw i vh w @page
+// (tree.SetDefaultPageBox).
+func PageArea(html *tree.HTML, stylesheets []tree.CSS, fontConfig text.FontConfiguration) (width, height, boxWidth, boxHeight pr.Float) {
 	context := newLayoutContext(html, stylesheets, false, fontConfig, make(counters.CounterStyle))
-	return context.styleFor.PageArea()
+	width, height = context.styleFor.PageArea()
+	boxWidth, boxHeight = context.styleFor.PageBox()
+	return width, height, boxWidth, boxHeight
 }
 
 func (l *layoutContext) CurrentPage() int { return l.currentPage }

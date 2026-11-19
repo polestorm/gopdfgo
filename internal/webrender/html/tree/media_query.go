@@ -34,14 +34,32 @@ var (
 )
 
 // SetMediaReference ustawia rozmiar medium dla cech width, height, aspect-ratio i orientation.
-// Wartości niedodatnie przywracają rozmiar domyślny.
+// Wartości niedodatnie przywracają rozmiar domyślny (także domyślnego arkusza, zob. SetDefaultPageBox).
 func SetMediaReference(width, height float64) {
 	mediaReferenceWidth, mediaReferenceHeight = defaultMediaWidth, defaultMediaHeight
 	if width > 0 && height > 0 {
 		mediaReferenceWidth, mediaReferenceHeight = width, height
+	} else {
+		SetDefaultPageBox(0, 0)
 	}
 	mediaSizeSeen = false
 	sizeMediaDepth = 0
+}
+
+// gopdfgo: rozmiar arkusza domyślnego (A4 w pionie albo size z arkusza użytkownika, bez @page autora).
+// Do niego odnoszą się jednostki vw, vh, vmin i vmax w kontekście @page i pól marginesowych: inaczej
+// rozmiar strony zależałby od samego siebie (test WPT css-page/page-size-015..017 i
+// margin-boxes/dimensions-015, Chromium issue 380860850, CSSWG issue #5437; w normie sprawa otwarta).
+// Źródło (i gopdfgo wcześniej) dawało w tym kontekście zero, więc np. width: 150vw dawało stronę
+// o zerowej szerokości.
+var defaultPageBoxWidth, defaultPageBoxHeight float64 = 210 * 96 / 25.4, 297 * 96 / 25.4
+
+// SetDefaultPageBox ustawia rozmiar arkusza domyślnego; wartości niedodatnie przywracają A4.
+func SetDefaultPageBox(width, height float64) {
+	defaultPageBoxWidth, defaultPageBoxHeight = 210*96/25.4, 297*96/25.4
+	if width > 0 && height > 0 {
+		defaultPageBoxWidth, defaultPageBoxHeight = width, height
+	}
 }
 
 // MediaReference podaje bieżący rozmiar medium.
