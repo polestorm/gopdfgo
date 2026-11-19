@@ -136,10 +136,22 @@ func initializePageMaker(context *layoutContext, rootBox bo.BoxFields) {
 }
 
 // Lay out and yield the fixed boxes of “pages“.
-func layoutFixedBoxes(context *layoutContext, pages []*bo.PageBox, containingPage *bo.PageBox) []Box {
+//
+// gopdfgo: pudełko fixed jest powtarzane na stronie raz (CSS 2.1 § 9.6.1). Element w powtarzanej stopce albo
+// nagłówku tabeli (oraz w układach próbnych, które potem odrzucono) rejestruje się na wielu stronach,
+// także kilka razy na jednej; źródło dokładało każdą rejestrację, więc pudełko było rysowane 7–8 razy
+// (test WPT css-break/table/repeated-section/fixedpos-in-footer-forced-break). Pomijamy elementy, które
+// strona zawierająca ma już sama, i powtórzenia tego samego elementu; seen jest wspólne dla obu wywołań
+// dla jednej strony.
+func layoutFixedBoxes(context *layoutContext, pages []*bo.PageBox, containingPage *bo.PageBox, seen map[fixedKey]bool) []Box {
 	var out []Box
 	for _, page := range pages {
 		for _, box := range page.FixedBoxes {
+			if key := fixedKeyOf(box); seen[key] {
+				continue
+			} else {
+				seen[key] = true
+			}
 			// As replaced boxes are never copied during layout, ensure that we
 			// have different boxes (with a possibly different layout) for
 			// each pages.
@@ -280,9 +292,13 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 	for i, page := range pages {
 		var rootChildren []Box
 		root, footnoteArea := page.Box().Children[0], page.Box().Children[1]
-		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[:i], page)...)
+		seen := map[fixedKey]bool{}
+		for _, own := range page.FixedBoxes {
+			seen[fixedKeyOf(own)] = true
+		}
+		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[:i], page, seen)...)
 		rootChildren = append(rootChildren, root.Box().Children...)
-		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[i+1:], page)...)
+		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[i+1:], page, seen)...)
 		root.Box().Children = rootChildren
 		context.currentPage = i + 1 // pageNumber starts at 1
 
@@ -950,4 +966,19 @@ func contentBottomEdge(box_ Box) pr.Float {
 		edge = max(edge, contentBottomEdge(child))
 	}
 	return edge
+}
+
+// fixedKey (gopdfgo) wskazuje element źródłowy pudełka fixed (zob. layoutFixedBoxes); pudełko anonimowe
+// rozpoznajemy po samym pudełku.
+type fixedKey struct {
+	element *html.Node
+	pseudo  string
+	box     Box
+}
+
+func fixedKeyOf(box Box) fixedKey {
+	if fields := box.Box(); fields.Element != nil {
+		return fixedKey{element: fields.Element, pseudo: fields.PseudoType}
+	}
+	return fixedKey{box: box}
 }

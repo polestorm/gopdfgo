@@ -73,4 +73,13 @@ func TestMonolithicPrint12(t *testing.T) {
 	same("percent-height-continuation", `<style>html, body { height: 100% }</style><div style="height:10px"></div>
 		<div class=b style="break-before:page;height:50%"></div>`,
 		`<div style="height:10px"></div><div class=b style="break-before:page;height:50px"></div>`)
+	// pudełko fixed w powtarzanej stopce tabeli jest rysowane na każdej stronie raz (półprzezroczyste tło
+	// narysowane dwa razy byłoby ciemniejsze)
+	same("fixed-in-repeated-footer", `<style>.f { position:fixed; bottom:0; width:20px; height:20px; background:rgba(0,0,255,.3) }</style>
+		<div style="display:table"><div style="display:table-row"><div style="height:60px"></div>
+		<div style="break-before:page;height:60px"></div><div style="break-before:page;height:60px"></div></div>
+		<div style="display:table-footer-group"><div style="height:20px"></div><div class=f></div></div></div>`,
+		`<style>.f { position:absolute; left:0; width:20px; height:20px; background:rgba(0,0,255,.3) }</style>
+		<div style="height:100px"></div><div style="height:100px"></div><div style="height:80px"></div>
+		<div class=f style="top:80px"></div><div class=f style="top:180px"></div><div class=f style="top:280px"></div>`)
 }
