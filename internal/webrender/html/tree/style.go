@@ -77,7 +77,9 @@ type viewport struct {
 	styleFor      *StyleFor
 	html          *HTML
 	width, height pr.Float
-	done, running bool
+	// gopdfgo: rozmiar samej strony (arkusza) pierwszej strony, zob. PageBox
+	boxWidth, boxHeight pr.Float
+	done, running       bool
 }
 
 func (v *viewport) size() (pr.Float, pr.Float) {
@@ -109,6 +111,7 @@ func (v *viewport) size() (pr.Float, pr.Float) {
 		return 0, 0
 	}
 	size := style.GetSize()
+	v.boxWidth, v.boxHeight = size[0].Value, size[1].Value
 	// gopdfgo: obszar strony to strona bez marginesów, obramowania i odstępu wewnętrznego; procenty liczą się
 	// od szerokości strony dla boków i od wysokości dla góry i dołu (CSS Page 3 § 5.3). Wcześniej odejmowane
 	// były tylko marginesy podane długością.
@@ -188,6 +191,13 @@ func (v *viewport) firstPageName() string {
 // PageArea (gopdfgo) podaje rozmiar obszaru strony (bez marginesów, obramowania i odstępu) wynikający
 // z reguł @page dla zwykłej strony; zero, gdy nie da się go ustalić.
 func (sf *StyleFor) PageArea() (width, height pr.Float) { return sf.viewport.size() }
+
+// PageBox (gopdfgo) podaje rozmiar strony (arkusza) zwykłej strony wynikający z reguł @page; zero, gdy
+// nie da się go ustalić.
+func (sf *StyleFor) PageBox() (width, height pr.Float) {
+	sf.viewport.size()
+	return sf.viewport.boxWidth, sf.viewport.boxHeight
+}
 
 func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	targetColllector *TargetCollector, textContext text.TextLayoutContext,

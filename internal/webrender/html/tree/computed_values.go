@@ -355,8 +355,14 @@ func length_(computer *ComputedStyle, value pr.TaggedDim, fontSize pr.Float, pix
 		// Convert absolute lengths to pixels
 		result = value.Value * pr.LengthsToPixels[unit]
 	case pr.Vw, pr.Vh, pr.Vmin, pr.Vmax:
-		// gopdfgo: procent obszaru pierwszej strony
-		width, height := computer.viewport.size()
+		// gopdfgo: procent obszaru pierwszej strony; w kontekście @page i pól marginesowych procent
+		// arkusza domyślnego (zob. defaultPageBoxWidth)
+		var width, height pr.Float
+		if _, isPage := computer.element.(utils.PageElement); isPage {
+			width, height = pr.Float(defaultPageBoxWidth), pr.Float(defaultPageBoxHeight)
+		} else {
+			width, height = computer.viewport.size()
+		}
 		switch unit {
 		case pr.Vw:
 			result = value.Value * width / 100

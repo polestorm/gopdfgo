@@ -257,7 +257,9 @@ func render(html []byte, opts Options) (result Result, err error) {
 		if err != nil {
 			return Result{}, fmt.Errorf("gopdfgo: %w", err)
 		}
-		width, height := layout.PageArea(empty, sheets, fontConfig)
+		width, height, boxWidth, boxHeight := layout.PageArea(empty, sheets, fontConfig)
+		// gopdfgo: arkusz domyślny dla jednostek vw i vh w @page (tree.SetDefaultPageBox)
+		tree.SetDefaultPageBox(float64(boxWidth), float64(boxHeight))
 		if defaultWidth, defaultHeight := tree.MediaReference(); width > 0 && height > 0 &&
 			(math.Abs(float64(width)-defaultWidth) > 0.01 || math.Abs(float64(height)-defaultHeight) > 0.01) {
 			tree.SetMediaReference(float64(width), float64(height))
