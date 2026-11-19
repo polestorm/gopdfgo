@@ -17,6 +17,10 @@ import (
 type indexedBox struct {
 	box   Box
 	index int
+	// measured (gopdfgo): kopia elementu ułożona przy wyznaczaniu hipotetycznego rozmiaru poprzecznego
+	// (CSS Flexbox 1 § 9.4 krok 7); z niej odczytujemy linie zagnieżdżonego kontenera flex (zob.
+	// forcedBreakAtEdge). Może być nil.
+	measured Box
 }
 
 type flexLine struct {
@@ -1242,7 +1246,7 @@ restartCollapsed:
 				}
 			}
 
-			newFlexLine.line = append(newFlexLine.line, indexedBox{index: v.index, box: child_})
+			newFlexLine.line = append(newFlexLine.line, indexedBox{index: v.index, box: child_, measured: newChild_})
 
 			// Skip stack is only for the first child
 			childSkipStack = nil
@@ -2455,12 +2459,61 @@ func parallelLineState(stack tree.ResumeStack) map[int]tree.ResumeStack {
 // wymuszony podział strony.
 func forcedBreakBetweenFlexLines(context *layoutContext, previous, next flexLine) bool {
 	for _, v := range previous.line {
-		if forcedBreakAtEdge(context, v.box, false) {
+		if forcedBreakAtEdge(context, v.box, false) || forcedBreakAtFlexLineEdge(context, v.measured, false) {
 			return true
 		}
 	}
 	for _, v := range next.line {
-		if forcedBreakAtEdge(context, v.box, true) {
+		if forcedBreakAtEdge(context, v.box, true) || forcedBreakAtFlexLineEdge(context, v.measured, true) {
+			return true
+		}
+	}
+	return false
+}
+
+// forcedBreakAtFlexLineEdge (gopdfgo) mówi, czy ułożony kontener flex wierszowy z zawijaniem żąda podziału
+// strony przed sobą (before) albo po sobie przez elementy swojej pierwszej albo ostatniej linii: w kontenerze
+// wierszowym break-before i break-after elementów przechodzą na linię flex, a break-before pierwszej linii
+// i break-after ostatniej na sam kontener (CSS Flexbox 1 § 12). forcedBreakAtEdge schodzi tylko do
+// pierwszego albo ostatniego dziecka, więc podział żądany przez drugi element pierwszej linii ginął (testy
+// WPT css-break/flexbox/multi-line-row-flex-fragmentation-082b, -082c). Linie odtwarzamy z położeń ułożonych
+// elementów: w kierunku row nowa linia zaczyna się elementem, który nie stoi na prawo od poprzedniego.
+func forcedBreakAtFlexLineEdge(context *layoutContext, measured Box, before bool) bool {
+	if measured == nil || !bo.FlexContainerT.IsInstance(measured) {
+		return false
+	}
+	box := measured.Box()
+	if box.Style.GetFlexDirection() != "row" || box.Style.GetFlexWrap() != "wrap" {
+		return false
+	}
+	var items []Box
+	for _, child := range box.Children {
+		if child.Box().IsFlexItem && child.Box().IsInNormalFlow() {
+			items = append(items, child)
+		}
+	}
+	if len(items) < 2 {
+		return false
+	}
+	newLine := func(prev, next Box) bool {
+		p, n := prev.Box(), next.Box()
+		return n.PositionX < p.PositionX+p.MarginWidth()-0.5
+	}
+	var edge []Box
+	if before {
+		edge = items[:1]
+		for i := 1; i < len(items) && !newLine(items[i-1], items[i]); i++ {
+			edge = items[:i+1]
+		}
+	} else {
+		start := len(items) - 1
+		for start > 0 && !newLine(items[start-1], items[start]) {
+			start--
+		}
+		edge = items[start:]
+	}
+	for _, item := range edge {
+		if forcedBreakAtEdge(context, item, before) {
 			return true
 		}
 	}
