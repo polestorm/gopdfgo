@@ -68,4 +68,9 @@ func TestMonolithicPrint12(t *testing.T) {
 	same("relative-cb-bottom", `<div style="position:relative"><div class=b style="position:absolute;bottom:0;width:50px;height:30px"></div>
 		<div style="height:150px"></div></div>`,
 		`<div style="height:120px"></div><div class=b style="width:50px;height:30px"></div>`)
+	// procentowa wysokość w dalszym ciągu body z height: 100% liczy się od pełnej wysokości body,
+	// nie od reszty na tej stronie (wcześniej zero)
+	same("percent-height-continuation", `<style>html, body { height: 100% }</style><div style="height:10px"></div>
+		<div class=b style="break-before:page;height:50%"></div>`,
+		`<div style="height:10px"></div><div class=b style="break-before:page;height:50px"></div>`)
 }

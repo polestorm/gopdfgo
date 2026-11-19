@@ -875,6 +875,12 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	resumedRemainder, overflowContinuation, finishedWithOverflow := false, false, false
 	resumedFixed := false
 	if !isStart {
+		// gopdfgo: procentowe wysokości dzieci w dalszym ciągu bloku o podanej wysokości liczą się od jego
+		// pełnej wysokości używanej (CSS 2.1 § 10.5), nie od reszty na tej stronie; wcześniej dziecko
+		// z height: 50% w dalszym ciągu body z height: 100% dostawało wysokość zero
+		if full, ok := box.Height.(pr.Float); ok {
+			box.PercentBaseHeight = full
+		}
 		if inner, isOverflow := skipStack.Overflow(); isOverflow {
 			// sam blok skończył się na poprzedniej stronie: zostaje po nim tylko wylewająca się treść
 			overflowContinuation = true
