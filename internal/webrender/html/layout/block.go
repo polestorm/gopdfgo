@@ -965,8 +965,22 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 					child.PositionX += resolveOnePercentage(indent.TaggedDim, pr.PTextIndent, box.Width.V()).V()
 				}
 			}
-			stop, resumeAt, newChild, outOfFlowResumeAt = outOfFlowLayout(context, box_, index, child_,
-				&newChildren, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins, bottomSpace)
+			// gopdfgo: wymuszony podział za poprzednim rodzeństwem w przepływie (break-after) obowiązuje też
+			// wtedy, gdy następne jest pudełko pływające albo pozycjonowane absolutnie w pozycji statycznej:
+			// to pudełko stoi za miejscem podziału, więc zaczyna się na następnej stronie (CSS Fragmentation 3
+			// § 4: podział klasy A między rodzeństwem, wartości wymuszone przechodzą na granicę; § 3.1
+			// i CSS 2.1 § 13.3.1 pozwalają stosować break-before do elementów pływających; tak drukuje
+			// Chromium, wzorce WPT css-page/page-size-007/008-print-ref). W źródle podział sprawdzało dopiero
+			// następne dziecko w przepływie, więc element pływający zostawał na stronie przed podziałem.
+			if pageBreak, forced := forcedBreakBeforeOutOfFlow(context, child_, newChildren); forced {
+				pageName, _ := child.PageValues()
+				nextPage = tree.PageBreak{Break: pageBreak, Page: pageName, HasPage: true}
+				resumeAt = tree.ResumeStack{index: nil}
+				stop = true
+			} else {
+				stop, resumeAt, newChild, outOfFlowResumeAt = outOfFlowLayout(context, box_, index, child_,
+					&newChildren, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins, bottomSpace)
+			}
 			if outOfFlowResumeAt != nil {
 				context.setBrokenOutOfFlow(newChild, brokenBox{box: child_, containingBlock: box_, resumeAt: outOfFlowResumeAt})
 				brokenOutOfFlow = append(brokenOutOfFlow, newChild)
@@ -2434,6 +2448,35 @@ func avoidPageBreak(pageBreak string, context *layoutContext) bool {
 		return pageBreak == "avoid" || pageBreak == "avoid-page" || pageBreak == "avoid-column"
 	}
 	return pageBreak == "avoid" || pageBreak == "avoid-page"
+}
+
+// forcedBreakBeforeOutOfFlow podaje wymuszony podział między ostatnim dzieckiem w przepływie ułożonym na
+// tej stronie a pudełkiem spoza przepływu child_, które ma stanąć za nim: elementem pływającym (liczy się
+// też jego break-before, CSS 2.1 § 13.3.1) albo pudełkiem pozycjonowanym absolutnie w pionowej pozycji
+// statycznej (liczy się tylko break-after poprzednika, bo pudełko spoza przepływu nie tworzy granicy
+// podziału, CSS Fragmentation 3 § 4).
+func forcedBreakBeforeOutOfFlow(context *layoutContext, child_ Box, newChildren []Box) (string, bool) {
+	child := child_.Box()
+	var after Box
+	switch {
+	case child.IsOutsideMarker || child.IsRunning():
+		return "", false
+	case child.IsFloated():
+		after = child_
+	case child.IsAbsolutelyPositioned() && child.Style.GetPosition().String == "absolute" &&
+		child.Style.GetTop().Tag == pr.Auto && child.Style.GetBottom().Tag == pr.Auto:
+	default:
+		return "", false
+	}
+	// dalszy ciąg treści wylewającej się z wcześniejszego rodzeństwa nie jest poprzednikiem (zob. inFlowLayout)
+	lastInFlowChild := findLastInFlowChild(slices.DeleteFunc(slices.Clone(newChildren), func(b Box) bool {
+		return context.overflowContinuationBoxes[b.Box()]
+	}))
+	if lastInFlowChild == nil {
+		return "", false
+	}
+	pageBreak := blockLevelPageBreak(lastInFlowChild, after)
+	return pageBreak, forcePageBreak(pageBreak, context)
 }
 
 // Test whether we should force breaks.
