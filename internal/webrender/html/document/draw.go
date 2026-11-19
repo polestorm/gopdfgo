@@ -283,8 +283,20 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 					ctx.drawCollapsedBorders(top.box.(bo.TableBoxITF).Table())
 				}
 			}
-			for _, block := range stackingContext.blockLevelBoxes {
+			var paintRoot Box
+			if rootIsTable {
+				paintRoot = box_
+			}
+			blocks := orderTablePaint(stackingContext.blockLevelBoxes, paintRoot)
+			for _, item := range blocks {
+				block := item.box
 				closeTables(block)
+				if item.table != nil {
+					// odłożony nagłówek lub stopka tabeli (zob. orderTablePaint)
+					ctx.setMaskBorder(item.table)
+					ctx.drawTableGroup(item.table.(bo.TableBoxITF).Table(), block)
+					continue
+				}
 				ctx.setMaskBorder(block)
 				if box_, ok := block.(bo.TableBoxITF); ok {
 					ctx.drawTable(box_.Table())
@@ -739,22 +751,8 @@ func (ctx drawContext) drawTable(table *bo.TableBox) {
 		}
 	}
 	for _, rowGroup := range table.Children {
-		ctx.drawBackgroundDefaut(rowGroup.Box().Background)
-		for _, row := range rowGroup.Box().Children {
-			// gopdfgo: cień wiersza tabeli (box-shadow dotyczy wszystkich elementów, CSS Backgrounds 3
-			// § 7.1; test WPT box-shadow-table-row-display); źródło rysowało cienie tylko komórek
-			ctx.drawBoxShadows(row.Box(), false)
-			ctx.drawBackgroundDefaut(row.Box().Background)
-			ctx.drawBoxShadows(row.Box(), true)
-			for _, cell := range row.Box().Children {
-				cell := cell.Box()
-				if table.Style.GetBorderCollapse() == "collapse" ||
-					cell.Style.GetEmptyCells() == "show" || !cell.Empty {
-					ctx.drawBoxShadows(cell, false)
-					ctx.drawBackgroundDefaut(cell.Background)
-					ctx.drawBoxShadows(cell, true)
-				}
-			}
+		if !deferredTableGroup(table, rowGroup) {
+			ctx.drawTableGroupBackgrounds(table, rowGroup)
 		}
 	}
 
@@ -766,14 +764,145 @@ func (ctx drawContext) drawTable(table *bo.TableBox) {
 
 	ctx.drawBorder(table)
 	for _, rowGroup := range table.Children {
-		for _, row := range rowGroup.Box().Children {
-			for _, cell := range row.Box().Children {
-				if cell.Box().Style.GetEmptyCells() == "show" || !cell.Box().Empty {
-					ctx.drawBorder(cell)
-				}
+		if !deferredTableGroup(table, rowGroup) {
+			ctx.drawTableGroupBorders(rowGroup)
+		}
+	}
+}
+
+// deferredTableGroup (gopdfgo): nagłówek i stopka fragmentu tabeli, pod które wylewa się treść
+// niepodzielna wierszy (bo.TableBox.PartsOverOverflow), są malowane osobno, po tej treści (zob.
+// orderTablePaint).
+func deferredTableGroup(table *bo.TableBox, group Box) bool {
+	return table.PartsOverOverflow && (group.Box().IsHeader || group.Box().IsFooter)
+}
+
+// drawTableGroup rysuje tła i obramowania (rozdzielone) grupy wierszy group tabeli table.
+func (ctx drawContext) drawTableGroup(table *bo.TableBox, group Box) {
+	ctx.drawTableGroupBackgrounds(table, group)
+	if table.Style.GetBorderCollapse() != "collapse" {
+		ctx.drawTableGroupBorders(group)
+	}
+}
+
+func (ctx drawContext) drawTableGroupBackgrounds(table *bo.TableBox, rowGroup Box) {
+	ctx.drawBackgroundDefaut(rowGroup.Box().Background)
+	for _, row := range rowGroup.Box().Children {
+		// gopdfgo: cień wiersza tabeli (box-shadow dotyczy wszystkich elementów, CSS Backgrounds 3
+		// § 7.1; test WPT box-shadow-table-row-display); źródło rysowało cienie tylko komórek
+		ctx.drawBoxShadows(row.Box(), false)
+		ctx.drawBackgroundDefaut(row.Box().Background)
+		ctx.drawBoxShadows(row.Box(), true)
+		for _, cell := range row.Box().Children {
+			cell := cell.Box()
+			if table.Style.GetBorderCollapse() == "collapse" ||
+				cell.Style.GetEmptyCells() == "show" || !cell.Empty {
+				ctx.drawBoxShadows(cell, false)
+				ctx.drawBackgroundDefaut(cell.Background)
+				ctx.drawBoxShadows(cell, true)
 			}
 		}
 	}
+}
+
+func (ctx drawContext) drawTableGroupBorders(rowGroup Box) {
+	for _, row := range rowGroup.Box().Children {
+		for _, cell := range row.Box().Children {
+			if cell.Box().Style.GetEmptyCells() == "show" || !cell.Box().Empty {
+				ctx.drawBorder(cell)
+			}
+		}
+	}
+}
+
+// tablePaintItem to pozycja kroku 4 malowania (zob. orderTablePaint): pudełko blokowe albo, gdy table nie
+// jest nil, odłożona grupa wierszy box tej tabeli.
+type tablePaintItem struct {
+	box, table Box
+}
+
+// orderTablePaint (gopdfgo) układa pudełka blokowe kroku 4 (CSS 2.1 dodatek E.2) do malowania. Zwykle
+// zostaje porządek drzewa, a tabela maluje tła wszystkich swoich części naraz (dodatek E.2, krok 4, za
+// CSS 2.1 § 17.5.1). Wyjątkiem jest fragment tabeli, w którym treść niepodzielna wierszy wylewa się pod
+// powtarzany nagłówek lub stopkę (bo.TableBox.PartsOverOverflow): nagłówek, a za nim stopka, są wtedy
+// malowane po pudełkach blokowych pozostałych grup, każde razem z pudełkami blokowymi w swoich komórkach,
+// tak jak w Chromium, które maluje grupy wierszy po kolei, każdą w całości. Specyfikacje nie mówią, jak
+// powtarzane części tabeli mają się do przepełnienia z fragmentacji (CSS Break 3 § 4.4, CSS Tables 3
+// § 6.2); test WPT css-page/monolithic-overflow-017. root to tabela tworząca sama kontekst nakładania,
+// której potomkami są wszystkie bloki (nil, gdy jej nie ma).
+func orderTablePaint(blocks []Box, root Box) []tablePaintItem {
+	if root != nil && root.(bo.TableBoxITF).Table().PartsOverOverflow {
+		return orderTableParts(root, blocks)
+	}
+	out := make([]tablePaintItem, 0, len(blocks))
+	for i := 0; i < len(blocks); i++ {
+		block := blocks[i]
+		out = append(out, tablePaintItem{box: block})
+		table, ok := block.(bo.TableBoxITF)
+		if !ok || !table.Table().PartsOverOverflow {
+			continue
+		}
+		descendants := tableDescendants(block)
+		end := i + 1
+		for end < len(blocks) && descendants[blocks[end].Box()] {
+			end++
+		}
+		out = append(out, orderTableParts(block, blocks[i+1:end])...)
+		i = end - 1
+	}
+	return out
+}
+
+// orderTableParts porządkuje bloki run leżące w tabeli table (zob. orderTablePaint).
+func orderTableParts(table Box, run []Box) []tablePaintItem {
+	groups := table.Box().Children
+	var header, footer Box
+	var headerSet, footerSet map[*bo.BoxFields]bool
+	if len(groups) != 0 && groups[0].Box().IsHeader {
+		header, headerSet = groups[0], tableDescendants(groups[0])
+	}
+	if L := len(groups); L != 0 && groups[L-1].Box().IsFooter {
+		footer, footerSet = groups[L-1], tableDescendants(groups[L-1])
+	}
+	var body, inHeader, inFooter []Box
+	for _, block := range run {
+		switch {
+		case headerSet[block.Box()]:
+			inHeader = append(inHeader, block)
+		case footerSet[block.Box()]:
+			inFooter = append(inFooter, block)
+		default:
+			body = append(body, block)
+		}
+	}
+	out := orderTablePaint(body, nil)
+	if header != nil {
+		out = append(out, tablePaintItem{box: header, table: table})
+		out = append(out, orderTablePaint(inHeader, nil)...)
+	}
+	if footer != nil {
+		out = append(out, tablePaintItem{box: footer, table: table})
+		out = append(out, orderTablePaint(inFooter, nil)...)
+	}
+	return out
+}
+
+// tableDescendants zbiera pola pudełek potomnych parent poza osobnymi kontekstami nakładania.
+func tableDescendants(parent Box) map[*bo.BoxFields]bool {
+	descendants := map[*bo.BoxFields]bool{}
+	var collect func(Box)
+	collect = func(parent Box) {
+		for _, child := range parent.Box().Children {
+			switch child.(type) {
+			case StackingContext, *StackingContext:
+				continue
+			}
+			descendants[child.Box()] = true
+			collect(child)
+		}
+	}
+	collect(parent)
+	return descendants
 }
 
 type segment struct {

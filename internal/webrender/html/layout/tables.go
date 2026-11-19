@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
+	"golang.org/x/net/html"
 )
 
 // Layout for tables and internal table boxes.
@@ -34,6 +36,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// gopdfgo: przy box-decoration-break: clone każdy fragment ma dolny odstęp i obramowanie tabeli,
 	// więc wiersze muszą zostawić na nie miejsce (tak samo jak w blockContainerLayout); źródło tego
 	// nie rezerwowało i dolna dekoracja wychodziła na margines strony.
+	outerBottomSpace := bottomSpace
 	if table.Style.GetBoxDecorationBreak() == "clone" {
 		bottomSpace += table.PaddingBottom.V() + table.BorderBottomWidth.V()
 	}
@@ -791,6 +794,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 	rowsLeft := len(tableRows) != 0 && !onlyFooterLeft
 
+	// gopdfgo: zob. overflowUnderRepeatedParts
+	overflowUnderParts := (hasHeader || hasFooter) && bottomSpace > -pr.Inf && context.pageBottom != pr.Inf &&
+		!context.inColumn && !context.behavior.Continuous && context.clipDepth == 0
+	var behindHeaderRemainders map[*html.Node]pr.Float
 	allGroupsLayout := func() (Box, []Box, Box, pr.Float, tree.ResumeStack, tree.PageBreak) {
 		var (
 			header, footer             Box
@@ -837,7 +844,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		// Wynik bierzemy tylko wtedy, gdy treść rzeczywiście mieści się nad stopką; inaczej zostaje
 		// zachowanie źródła (nagłówek i stopka znikają, żeby zrobić miejsce na wiersz). W źródle wiersz
 		// wyższy niż strona zawsze zabierał tabeli nagłówek i stopkę.
-		forcedBodyLayout := func(positionY, bottomSpace pr.Float, children []Box, resumeAt tree.ResumeStack,
+		forcedBodyLayout := func(skipStack tree.ResumeStack, positionY, bottomSpace pr.Float, children []Box, resumeAt tree.ResumeStack,
 			nextPage tree.PageBreak, endPositionY pr.Float,
 		) ([]Box, tree.ResumeStack, tree.PageBreak, pr.Float) {
 			forcedChildren, forcedResumeAt, forcedNextPage, forcedEnd := bodyGroupsLayout(skipStack, positionY, bottomSpace, true)
@@ -862,6 +869,23 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			return nil, tree.ResumeStack{lastIndex: nil}, endPositionY
 		}
 
+		// gopdfgo: reszta treści niepodzielnej wznawianego wiersza stoi za powtarzanym nagłówkiem (zob.
+		// overflowUnderRepeatedParts): wysokość nagłówka liczy się do niej, więc pod nagłówkiem zostaje
+		// tylko to, co z niej wystaje.
+		behindHeader := func(headerHeight pr.Float) tree.ResumeStack {
+			behindHeaderRemainders = nil
+			if !overflowUnderParts || skipStack == nil {
+				return skipStack
+			}
+			return mapMonolithicRemainders(context, table_, skipStack, func(box Box, remaining float64) float64 {
+				if behindHeaderRemainders == nil {
+					behindHeaderRemainders = map[*html.Node]pr.Float{}
+				}
+				behindHeaderRemainders[box.Box().Element] = pr.Float(remaining)
+				return remaining - float64(headerHeight)
+			})
+		}
+
 		// Don't remove headers and footers if breaks are avoided in line groups
 		skip := 0
 		if skipStack != nil {
@@ -882,10 +906,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				newTableChildren []Box
 				endPositionY     pr.Float
 			)
-			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY+headerHeight,
+			bodySkip := behindHeader(headerHeight)
+			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(bodySkip, positionY+headerHeight,
 				bottomSpace+footerHeight, avoidBreaks)
 			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
-				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY+headerHeight, bottomSpace+footerHeight,
+				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(bodySkip, positionY+headerHeight, bottomSpace+footerHeight,
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
 			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
@@ -912,9 +937,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				newTableChildren []Box
 				endPositionY     pr.Float
 			)
-			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY+headerHeight, bottomSpace, avoidBreaks)
+			bodySkip := behindHeader(headerHeight)
+			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(bodySkip, positionY+headerHeight, bottomSpace, avoidBreaks)
 			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
-				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY+headerHeight, bottomSpace,
+				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(bodySkip, positionY+headerHeight, bottomSpace,
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
 			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
@@ -934,7 +960,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			)
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY, bottomSpace+footerHeight, avoidBreaks)
 			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
-				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(positionY, bottomSpace+footerHeight,
+				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(skipStack, positionY, bottomSpace+footerHeight,
 					newTableChildren, resumeAt, nextPage, endPositionY)
 			}
 			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
@@ -1062,9 +1088,17 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 
 	header, newTableChildren, footer, positionY, resumeAt, nextPage := allGroupsLayout()
-	if header != nil && skipStack != nil && len(newTableChildren) != 0 && bottomSpace > -pr.Inf && context.pageBottom != pr.Inf &&
-		!context.inColumn && !context.behavior.Continuous && context.clipDepth == 0 {
-		positionY = overflowBehindHeader(table_, skipStack, header, newTableChildren, positionY, borderSpacingY)
+	overflowUnder := false
+	if overflowUnderParts && len(newTableChildren) != 0 {
+		if header == nil {
+			behindHeaderRemainders = nil
+		}
+		var headerHeight pr.Float
+		if header != nil {
+			headerHeight = header.Box().Height.V() + borderSpacingY
+		}
+		resumeAt, overflowUnder = overflowUnderRepeatedParts(context, table_, newTableChildren, behindHeaderRemainders,
+			headerHeight, footer != nil, resumeAt, context.pageBottom-outerBottomSpace)
 	}
 	if newTableChildren == nil {
 		if resumeAt != nil {
@@ -1083,6 +1117,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 	table_ = bo.CopyWithChildren(table_, newChildren).(bo.TableBoxITF) // CopyWithChildren is type stable
 	table = table_.Table()
+	table.PartsOverOverflow = overflowUnder
 	if collapsedWidth > 0 {
 		table.Width = max(table.Width.V()-collapsedWidth, 0)
 	}
@@ -1903,81 +1938,137 @@ func repeatFragmentainerHeight(context *layoutContext, bottomSpace pr.Float) pr.
 	return context.pageHeight
 }
 
-// overflowBehindHeader (gopdfgo): reszta treści niepodzielnej (zob. canSplitFixedHeight), która wylewa się
-// z wiersza na stronę z powtarzanym nagłówkiem tabeli i kończy się, zanim skończy się nagłówek, nie odsuwa
-// następnych wierszy: w Chromium przepełnienie zaczyna się u góry fragmentu tabeli, za nagłówkiem, a dalsza
-// treść stoi tuż pod nagłówkiem (CSS Break 3 § 4.4 zostawia miejsce przepełnienia przeglądarce; test WPT
-// css-page/monolithic-overflow-023). W źródle (i w naszym krojeniu) wycinek stał pod nagłówkiem, a następne
-// wiersze o jego wysokość niżej. Wycinek przenosimy pod nagłówek i ukrywamy: nagłówek, malowany przed
-// treścią tabeli, inaczej by go nie zakrył (Chromium maluje nagłówek na nim). Dotyczy tylko wiersza, w którego
-// komórkach poza resztą treści niepodzielnej nic już nie zostało; dłuższe przepełnienie zostaje pod
-// nagłówkiem jak dotąd. Zwraca nowy koniec treści tabeli.
-func overflowBehindHeader(table_ bo.TableBoxITF, skipStack tree.ResumeStack, header Box, groups []Box, endY, borderSpacingY pr.Float) pr.Float {
-	ok, tail := monolithicRemainderOnly(table_, skipStack, false)
-	group := groups[0].Box()
-	if !ok || !tail || len(group.Children) == 0 {
-		return endY
+// overflowUnderRepeatedParts (gopdfgo): treść niepodzielna (zob. canSplitFixedHeight, bo.IsMonolithic) wyższa
+// niż strona, krojona w komórce tabeli z powtarzanym nagłówkiem lub stopką, wylewa się pod nie tak jak
+// w Chromium: wycinek na stronie, na której treść się urywa, sięga do dołu strony pod stopką, a na
+// stronie z dalszym ciągiem zaczyna się u góry fragmentu tabeli, pod nagłówkiem. Nagłówek i stopka są
+// wtedy malowane na wycinku (TableBox.PartsOverOverflow, zob. document.drawTable). CSS Break 3 § 4.4
+// zostawia miejsce przepełnienia treści niepodzielnej przeglądarce, a CSS Tables 3 § 6.2 nie mówi, jak
+// powtarzany nagłówek i stopka mają się do niej mieć (testy WPT css-page/monolithic-overflow-016, -017,
+// -023). Wcześniej wycinek kończył się nad stopką i zaczynał pod nagłówkiem, więc treść zajmowała o ich
+// wysokość więcej stron, a reszta krótsza niż nagłówek odsuwała następne wiersze.
+//
+// Część pod nagłówkiem odjął już od reszty przed układem behindHeader (remainders: reszty przed odjęciem,
+// według elementu); tu wycinki są przesuwane w górę o headerHeight, a te ucięte na końcu strony
+// wydłużane do pageEnd, o co zmniejsza się reszta w stosie wznowienia resumeAt. Zwraca nowy stos i to, czy
+// coś leży pod nagłówkiem lub stopką.
+func overflowUnderRepeatedParts(context *layoutContext, table_ bo.TableBoxITF, groups []Box,
+	remainders map[*html.Node]pr.Float, headerHeight pr.Float, hasFooter bool, resumeAt tree.ResumeStack, pageEnd pr.Float,
+) (tree.ResumeStack, bool) {
+	under := false
+	for element, remaining := range remainders {
+		fragment := findMonolithicFragment(groups, element)
+		if fragment == nil || headerHeight <= 0 {
+			continue
+		}
+		box := fragment.Box()
+		height := box.Height.V()
+		fragment.Translate(0, -headerHeight, false)
+		if remaining > headerHeight {
+			box.Height = height + headerHeight
+		} else {
+			// reszta mieści się w całości pod nagłówkiem; w układzie została jej najmniejsza możliwa część
+			box.Height = remaining
+		}
+		under = true
 	}
-	row := group.Children[0]
-	headerHeight := header.Box().Height.V() + borderSpacingY
-	if row.Box().Height.V() > headerHeight-borderSpacingY+0.01 {
-		return endY
+	if hasFooter && resumeAt != nil {
+		resumeAt = mapMonolithicRemainders(context, table_, resumeAt, func(source Box, remaining float64) float64 {
+			fragment := findMonolithicFragment(groups, source.Box().Element)
+			if fragment == nil {
+				return remaining
+			}
+			box := fragment.Box()
+			extension := pageEnd - (box.BorderBoxY() + box.BorderHeight())
+			if extension <= 0 {
+				return remaining
+			}
+			box.Height = box.Height.V() + extension
+			under = true
+			return remaining - float64(extension)
+		})
 	}
-	var shift pr.Float
-	if len(group.Children) > 1 {
-		shift = group.Children[1].Box().PositionY - row.Box().PositionY
-	} else if len(groups) > 1 {
-		shift = groups[1].Box().PositionY - row.Box().PositionY
-	} else {
-		shift = row.Box().Height.V() + borderSpacingY
-	}
-	if shift <= 0 {
-		return endY
-	}
-	row.Translate(0, -headerHeight, false)
-	hideSubtree(row)
-	for _, next := range group.Children[1:] {
-		next.Translate(0, -shift, false)
-	}
-	group.Height = max(group.Height.V()-shift, 0)
-	for _, next := range groups[1:] {
-		next.Translate(0, -shift, false)
-	}
-	return endY - shift
+	return resumeAt, under
 }
 
-// hideSubtree ustawia visibility: hidden w pudełku box i wszystkich jego potomkach (na kopiach stylów).
-func hideSubtree(box Box) {
-	fields := box.Box()
-	fields.Style = fields.Style.Copy()
-	fields.Style.SetVisibility("hidden")
-	for _, child := range fields.Children {
-		hideSubtree(child)
+// findMonolithicFragment szuka w poddrzewach boxes fragmentu pudełka niepodzielnego elementu element.
+func findMonolithicFragment(boxes []Box, element *html.Node) Box {
+	if element == nil {
+		return nil
 	}
+	for _, box := range boxes {
+		if box.Box().Element == element && bo.IsMonolithic(box) && bo.BlockT.IsInstance(box) {
+			return box
+		}
+		if found := findMonolithicFragment(box.Box().Children, element); found != nil {
+			return found
+		}
+	}
+	return nil
 }
 
-// monolithicRemainderOnly mówi, czy stos wznowienia stack pudełka box prowadzi wyłącznie do reszt
-// wysokości pudełek niepodzielnych (zob. tree.RemainderResume, bo.IsMonolithic). tail mówi dodatkowo, że
-// w komórkach po tych pudełkach nie ma już treści.
-func monolithicRemainderOnly(box Box, stack tree.ResumeStack, inCell bool) (ok, tail bool) {
-	if _, isRemainder := stack.Remainder(); isRemainder {
-		return bo.IsMonolithic(box), true
-	}
+// mapMonolithicRemainders (gopdfgo) zwraca stos wznowienia stack pudełka box, w którym reszta wysokości
+// (tree.RemainderResume) każdego pudełka niepodzielnego jest zastąpiona wynikiem f, nie mniejszym niż
+// najmniejsza zapisywalna reszta (reszta zero oznaczałaby całą wysokość). Mapy na drodze do zmienionych
+// reszt są kopiowane razem z wpisami kontekstu kluczowanymi tożsamością stosu (zob. resumeKey); reszta
+// stosu jest wspólna z oryginałem, który pozostaje bez zmian.
+func mapMonolithicRemainders(context *layoutContext, box Box, stack tree.ResumeStack, f func(Box, float64) float64) tree.ResumeStack {
 	if len(stack) == 0 {
-		return false, false
+		return stack
 	}
-	inCell = inCell || bo.TableCellT.IsInstance(box)
+	if remaining, ok := stack.Remainder(); ok {
+		if !bo.IsMonolithic(box) || !bo.BlockT.IsInstance(box) {
+			return stack
+		}
+		mapped := f(box, remaining)
+		if mapped == remaining {
+			return stack
+		}
+		out := tree.RemainderResume(max(mapped, 1.0/64))
+		copyResumeKeys(context, stack, out)
+		return out
+	}
+	if _, _, ok := stack.Slice(); ok {
+		return stack
+	}
+	if inner, ok := stack.Overflow(); ok {
+		mapped := mapMonolithicRemainders(context, box, inner, f)
+		if resumeKey(mapped) == resumeKey(inner) {
+			return stack
+		}
+		out := tree.OverflowResume(mapped)
+		copyResumeKeys(context, stack, out)
+		return out
+	}
 	children := box.Box().Children
-	tail = true
+	var out tree.ResumeStack
 	for k, sub := range stack {
 		if k < 0 || k >= len(children) || sub == nil {
-			return false, false
+			continue
 		}
-		childOK, childTail := monolithicRemainderOnly(children[k], sub, inCell)
-		if !childOK {
-			return false, false
+		mapped := mapMonolithicRemainders(context, children[k], sub, f)
+		if resumeKey(mapped) == resumeKey(sub) {
+			continue
 		}
-		tail = tail && childTail && (!inCell || k == len(children)-1)
+		if out == nil {
+			out = maps.Clone(stack)
+			copyResumeKeys(context, stack, out)
+		}
+		out[k] = mapped
 	}
-	return true, tail
+	if out == nil {
+		return stack
+	}
+	return out
+}
+
+// copyResumeKeys przenosi na kopię to stosu from wpisy kontekstu kluczowane tożsamością stosu.
+func copyResumeKeys(context *layoutContext, from, to tree.ResumeStack) {
+	old, key := resumeKey(from), resumeKey(to)
+	for _, m := range []map[uintptr]pr.Float{context.fixedHeightRemaining, context.minHeightRemaining,
+		context.cellHeightRemaining, context.flexPushOffset} {
+		if v, ok := m[old]; ok {
+			m[key] = v
+		}
+	}
 }

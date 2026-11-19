@@ -103,6 +103,9 @@ type TableBox struct {
 	// NoColumnPercentages (gopdfgo): przodkiem tabeli jest komórka tabeli, kontener flex albo siatki,
 	// więc wkład kolumn procentowych nie wchodzi do jej szerokości preferowanej (jak Chromium)
 	NoColumnPercentages bool
+	// PartsOverOverflow (gopdfgo): we fragmencie tabeli treść niepodzielna z wierszy wylewa się pod
+	// powtarzany nagłówek lub stopkę, które są wtedy malowane na niej (zob. layout.overflowUnderRepeatedParts)
+	PartsOverOverflow bool
 }
 
 type InlineTableBox struct {
