@@ -44,4 +44,12 @@ func TestPrintLayoutFTA13(t *testing.T) {
 		`<div class=h style="position:absolute;top:80px;width:20px;height:20px"></div>
 		<div class=h style="position:absolute;top:180px;left:50px;width:20px;height:20px"></div>
 		<div style="height:100px"></div><span class=i></span><br><span class=i></span>`)
+	// reszta treści niepodzielnej, krótsza niż powtarzany nagłówek tabeli, nie odsuwa następnego wiersza:
+	// stoi on tuż pod nagłówkiem (monolithic-overflow-023)
+	same("monolithic-rest-behind-header", `<div style="display:table">
+		<div style="display:table-header-group;break-inside:avoid"><div class=g style="width:40px;height:20px"></div></div>
+		<div style="display:table-row"><div style="height:88px;width:100px;contain:size"></div></div>
+		<div style="display:table-row"><div class=b style="height:20px;width:100px"></div></div></div>`,
+		`<div class=g style="width:40px;height:20px"></div>
+		<div class=g style="break-before:page;width:40px;height:20px"></div><div class=b style="height:20px;width:100px"></div>`)
 }
