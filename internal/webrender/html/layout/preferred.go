@@ -249,6 +249,26 @@ func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer,
 			panic(fmt.Sprintf("expected Px got %d", width.Unit))
 		}
 		widthValue = width.Value
+		// gopdfgo: przy box-sizing: border-box podana szerokość obejmuje obramowanie i odstęp wewnętrzny
+		// (przy padding-box sam odstęp), a adjust dodaje je jeszcze raz; szerokość treści to więc width
+		// minus te pola (CSS Box Sizing 3 § 3, CSS Sizing 3 § 5.2: udział to rozmiar pudełka marginesu).
+		// Źródło brało width wprost, więc np. inline-block albo kontener flex z dzieckiem o stałej
+		// szerokości i box-sizing: border-box wychodził szerszy o obramowanie i odstęp dziecka (test WPT
+		// css-page/margin-boxes/auto-margins-002, wzorzec).
+		if boxSizing := box.Box().Style.GetBoxSizing(); boxSizing == "border-box" || boxSizing == "padding-box" {
+			style := box.Box().Style
+			pixels := func(d pr.TaggedDim) pr.Float {
+				if d.Tag == 0 && d.Unit == pr.Px && d.Calc == nil {
+					return d.Value
+				}
+				return 0
+			}
+			widthValue -= pixels(style.GetPaddingLeft()) + pixels(style.GetPaddingRight())
+			if boxSizing == "border-box" {
+				widthValue -= style.GetBorderLeftWidth().Value + style.GetBorderRightWidth().Value
+			}
+			widthValue = max(widthValue, 0)
+		}
 	}
 
 	return adjust(box, outer, widthValue, true, true)

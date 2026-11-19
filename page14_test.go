@@ -63,3 +63,37 @@ func TestPageViewportUnits(t *testing.T) {
 		<div class=a style="width:40px;height:10px;background:blue"></div>
 		<div class=a style="top:30px;width:300px;height:200px;background:lime"></div>`, user)
 }
+
+// TestBorderBoxIntrinsicWidth: udział w szerokości wewnętrznej bloku o stałej szerokości i box-sizing:
+// border-box to sama ta szerokość (plus marginesy), bez ponownie doliczonego obramowania i odstępu
+// (CSS Box Sizing 3 § 3; wzorzec testu WPT css-page/margin-boxes/auto-margins-002).
+func TestBorderBoxIntrinsicWidth(t *testing.T) {
+	fonts := testFonts(t)
+	dir := t.TempDir()
+	render := func(name, html string) [][]byte {
+		t.Helper()
+		result, err := Render(context.Background(), []byte(html), Options{Fonts: fonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rasterize(t, result.PDF, dir, name)
+	}
+	head := `<style>@page { size: 500px 100px; margin: 0 } :root { print-color-adjust: exact } body { margin: 0 }
+		div { position: absolute; top: 0 }
+		div div { position: static; height: 40px; background: green }
+		.b { box-sizing: border-box; width: 100px; border: 3px solid green; padding: 0 5px }
+		.p { box-sizing: padding-box; width: 100px; padding: 0 5px; border: 3px solid green }</style>`
+	// tło czerwone wystawałoby spod dzieci, gdyby kontenery były szersze od nich
+	test := render("test", head+`<div style="left:0;background:red"><div class=b></div></div>
+		<div style="left:120px;display:flex;background:red"><div class=b style="flex:1"></div><div class=b style="flex:1"></div></div>
+		<div style="left:340px;background:red"><div class=p></div></div>`)
+	reference := render("ref", head+`<div style="left:0"><div style="width:100px"></div></div>
+		<div style="left:120px"><div style="width:200px"></div></div>
+		<div style="left:340px"><div style="width:106px;height:46px"></div></div>`)
+	if len(test) != 1 || len(reference) != 1 {
+		t.Fatalf("%d stron, wzorzec %d", len(test), len(reference))
+	}
+	if n := differentPixels(test[0], reference[0]); n != 0 {
+		t.Errorf("%d pikseli różni się od wzorca", n)
+	}
+}
