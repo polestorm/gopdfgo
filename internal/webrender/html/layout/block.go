@@ -1898,7 +1898,13 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 	abort, stop bool, resumeAt tree.ResumeStack, _ pr.Float, _ []pr.Float, nextPage tree.PageBreak, _ []Box, _ int,
 ) {
 	box := box_.Box()
-	lastInFlowChild := findLastInFlowChild(newChildren)
+	// gopdfgo: dalszy ciąg treści wylewającej się z wcześniejszego rodzeństwa nie jest poprzednikiem tego
+	// pudełka: podział między nimi wypadł już na stronie, na której tamto rodzeństwo się skończyło
+	// (CSS Fragmentation 3 § 4, przepływy równoległe), więc wymuszony podział nie powtarza się na każdej
+	// stronie z dalszym ciągiem
+	lastInFlowChild := findLastInFlowChild(slices.DeleteFunc(slices.Clone(newChildren), func(b Box) bool {
+		return context.overflowContinuationBoxes[b.Box()]
+	}))
 	child := child_.Box()
 	pageBreak := "auto"
 	if lastInFlowChild != nil {

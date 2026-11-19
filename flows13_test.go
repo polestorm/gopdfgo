@@ -68,4 +68,18 @@ func TestParallelOverflowFlows(t *testing.T) {
 		<div class=y style="margin-left:40px;width:20px;height:120px"></div>`,
 		`<div class=g style="width:20px;height:250px"></div>
 		<div class=y style="position:absolute;top:10px;left:40px;width:20px;height:120px"></div>`)
+	// wymuszony podział przed rodzeństwem zachodzi raz: rodzeństwo staje u góry drugiej strony obok dalszego
+	// ciągu wylewającej się treści, a nie dopiero za nim
+	same("forced-break-beside-overflow", `<div style="height:10px"><div class=g style="width:20px;height:150px"></div></div>
+		<div class=y style="break-before:page;margin-left:40px;width:20px;height:20px"></div>`,
+		`<div class=g style="width:20px;height:150px"></div>
+		<div class=y style="position:absolute;top:100px;left:40px;width:20px;height:20px"></div>`)
+	// zagnieżdżenie: rodzic o wysokości auto z obramowaniem kończy się za blokiem, a jego rodzeństwo stoi
+	// zaraz za nim; wylewająca się treść sięga trzeciej strony
+	same("nested-overflow", `<div style="border:2px solid blue"><div style="height:10px">
+		<div class=g style="width:20px;height:250px"></div></div></div>
+		<div class=y style="margin-left:40px;width:20px;height:20px"></div>`,
+		`<div style="position:absolute;top:0;left:0;width:196px;height:10px;border:2px solid blue"></div>
+		<div class=g style="position:absolute;top:2px;left:2px;width:20px;height:250px"></div>
+		<div class=y style="position:absolute;top:14px;left:40px;width:20px;height:20px"></div>`)
 }
