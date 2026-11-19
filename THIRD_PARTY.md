@@ -919,6 +919,31 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- pozycjonowanie w druku, 2026-11-18 (praca pomocnika; `layout/absolute.go`, `pages.go`, `layout.go`,
+  `document/draw.go`): pudełko `absolute`, którego blokiem zawierającym jest blok początkowy, liczone jest od
+  pierwszej strony, a blok początkowy ciągnie się w dół przez kolejne strony (CSS 2.1 § 10.1; jak Chrome 157);
+  pudełko wypadające na stronę już ułożoną jest do niej dokładane po paginacji (`lateBoxes`), a pudełka
+  odłożone przesuwamy według geometrii stron zamiast liczby stron razy wysokość bieżącej. Dalszy ciąg pudełka
+  z blokiem zawierającym będącym stroną układamy względem bieżącej strony i przesuwamy o różnicę lewych
+  krawędzi obszarów stron. Potomkowie pozycjonowani dalszego ciągu pudełka `absolute` liczą przesunięcia od
+  niepodzielonego pudełka. Pudełko w pozycji statycznej, którego zastępnik stoi dokładnie na dolnej krawędzi
+  strony, zaczyna się w całości na następnej. Bezpiecznik stron bez postępu nie przerywa dokumentu na stronach
+  z dalszym ciągiem pudełek poza przepływem (limit 1000 takich stron z rzędu; wcześniej po 3 stronach ucinał
+  pudełka wyższe niż trzy strony). Element zastępowany `absolute` wyższy niż strona jest krojony. Tło
+  `no-repeat` (i `space` z jednym obrazem): kafel sięga od obrazu przez cały obszar malowania, więc tło płótna
+  nie powtarza się na trzeciej stronie (źródło: dwie wysokości obszaru). Reftesty: `css-page/fixedpos-005`,
+  `-006`, `-008`, `page-margin-007`, `page-background-002`;
+- korpus wobec Chromium, 2026-11-18 (praca pomocnika): legenda `fieldset` stoi na górnej krawędzi ramki,
+  a przesunięcie obramowania (połowa legendy) nie zwija się z marginesami (`LegendShift`), `fieldset` zakłada
+  kontekst formatowania blokowego (HTML § 15.3.13); znacznik `disclosure-open`/`closed` wewnątrz elementu ma
+  1,06 em jak w Chromium (`boxes/build.go`); puste pole tekstowe ma linię bazową tekstu (`html5_ua.css`);
+  słowniki dzielenia dla `en` i `de` według regionu z CLDR (`en-US`, `de-DE`; generator brał alfabetycznie
+  `en-GB` i `de-AT`; test W3C `hyphenate-character-002` traci zaliczenie, Chrome 157 dzieli tak samo jak my);
+  `larger`/`smaller` przy rozmiarze rodzica między wpisami tablicy interpolowane logarytmicznie (CSS Fonts 4
+  § 2.5; test przejęty `TestFontSize` w `style_test.go`: przypadki 28px); `block.go`: blok o podanej wysokości
+  dzielony dalej po przeniesieniu dziecka na następną stronę (wcześniej reszta jego wysokości ginęła), pudełko
+  `absolute` na początku strony dzielone także, gdy jest niższe niż strona (CSS Fragmentation 3 § 5.1).
+  W korpusie `13-forms-html-elements` 26 → 2 słowa przesunięte wobec Chromium, `12-floats-positioning` 1 → 0;
 - nagłówki i stopki tabel w druku, 2026-11-18 (CSS Tables 3 § 6.2; sprawdzone w Chrome 157; praca pomocnika):
   `html/layout/tables.go`: nagłówek i stopka tabeli są powtarzane tylko wtedy, gdy każda z tych grup mieści się
   w ćwierci wysokości fragmentatora (obszaru strony albo kolumny), oceniane osobno; wyższa grupa płynie jak zwykła

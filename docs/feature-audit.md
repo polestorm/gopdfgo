@@ -2039,3 +2039,37 @@ Chrome traktuje blok początkowy jak pierwszą stronę ciągnącą się w dół 
 między strony. Poprawka wymaga dołożenia pudełka do strony już ułożonej (`pages.go`, `absolute.go`); reftesty
 `css-page/fixedpos-005/006/008-print`. Przerwane: pomocnicy zatrzymani przez tygodniowy limit API
 (reset 2026-11-20 23:00).
+
+## Pozycjonowanie w druku i korpus wobec Chromium (2026-11-19)
+
+Dwóch pomocników: strony i pozycjonowanie (`pages.go`, `absolute.go`, `layout.go`, rysowanie) oraz różnice
+w korpusie (tekst, bloki, tabele, style). Reftesty druku 282 → **287 z 340**; sondaż ekranowy 9498 bez zmiany
+netto (zysk 1, strata `hyphenate-character-002`: słownik `en-US` dzieli „implemen-tation” tak jak Chrome 157,
+który ten test też oblewa).
+
+- **Pudełko `absolute` względem bloku początkowego** liczone od pierwszej strony, jak w Chrome (wszystkie trzy
+  zmierzone przypadki zgodne); pudełko na stronie już ułożonej dokładane po paginacji. Bezpiecznik stron bez
+  postępu ucinał pudełka wyższe niż trzy strony. Tło `no-repeat` płótna nie powtarza się na stronie 3; dalsze
+  ciągi pudełek na stronach o innych marginesach mają właściwe położenie poziome.
+- **Utrata treści w zwykłym przepływie:** blok o podanej wysokości, którego dziecko przeszło na następną
+  stronę, tracił resztę wysokości (225 px na stronach 100 px: 2 strony zamiast 3). Naprawione.
+- **Korpus:** `13-forms-html-elements` 26 → 2 słowa przesunięte wobec Chromium (legenda `fieldset`, znacznik
+  `<summary>` 1,06 em, linia bazowa pustego pola), `12-floats-positioning` 1 → 0 (`smaller` w `<sub>`
+  interpolowane logarytmicznie, CSS Fonts 4 § 2.5), `05-hyphenation`: „responsi-bilities” jak w Chrome
+  (słowniki `en-US`, `de-DE` zamiast `en-GB`, `de-AT`).
+- **Wyjaśnione, bez zmian:** `04` (Chrome łamie akapit 3/2 wbrew `widows: 3`; my przenosimy go w całości, jak
+  wymaga CSS Fragmentation 3), `18` (Chrome nie zna `running()` ani `target-counter()`), `19` (całe karty,
+  ADR 0004), `22`, `09`, część `13` (Chrome rysuje punktory jako kształty), `16` (fonty zastępcze),
+  `13` (wygląd kontrolek formularzy).
+
+Do decyzji:
+
+1. **Zaokrąglanie obszaru strony do pikseli jak w Chrome 157** (pomiar pomocnika na własnych plikach): szerokość
+   i wysokość obszaru treści zaokrąglane w górę do całych pikseli, lewa krawędź do najbliższego piksela, górna
+   bez zaokrąglenia. Próba (nie zatwierdzona): `19-flex-grid-pagination` 72 → 18 słów przesuniętych,
+   `21-mixed-report` 26/4 → 0, mediana przesunięcia poziomego ok. 0,02 pt w każdym dokumencie. Odchodzi od
+   dokładnego rozmiaru z normy (A4 z marginesami 15 mm: 681 px zamiast 680,31).
+2. **`text-transform: capitalize` po interpunkcji:** Chrome pisze „Text-Transform”, nasz test własny
+   `TestTextTransformFullCaseMapping` oczekuje „Text-transform”. CSS Text 3 zostawia granice słów
+   przeglądarce. Reguła Chrome (zmierzona): słowo kończy każdy znak niebędący literą, poza cyframi, znakami
+   łączącymi, `_`, apostrofami ' i ’ oraz kropką środkową · (test WPT `text-transform-capitalize-035`).
