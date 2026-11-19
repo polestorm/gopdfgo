@@ -41,10 +41,16 @@ func MulticolWrappers(box Box) Box {
 	wrapper := BlockBoxAnonymousFrom(box, b.Children)
 	wrapper.Style = wrapper.Style.Copy()
 	b.Style = b.Style.Copy()
+	// gopdfgo: najpierw przenosimy wszystkie wartości, dopiero potem przywracamy początkowe: wartość
+	// obliczona column-rule-width zależy od column-rule-style (CSS Multicol 1 § 4.3, zero przy none)
+	// i jest liczona leniwie, więc odczytana po wyzerowaniu stylu wychodziła 0 i linie między kolumnami
+	// pudełka liniowo-blokowego znikały.
 	for _, name := range multicolContainerProperties {
 		key := name.Key()
 		wrapper.Style.Set(key, b.Style.Get(key))
-		b.Style.Set(key, pr.InitialValues[name])
+	}
+	for _, name := range multicolContainerProperties {
+		b.Style.Set(name.Key(), pr.InitialValues[name])
 	}
 	b.Children = []Box{wrapper}
 	return box
