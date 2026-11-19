@@ -137,6 +137,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		var resumeAt tree.ResumeStack
 		nextPage := tree.PageBreak{Break: "any"}
 		originalPageIsEmpty := pageIsEmpty
+		forcedBreak := false // podział wymuszony między wierszami grupy (break-before/after)
 		resolvePercentagesBox(group_, &table.BoxFields)
 		group := group_.Box()
 		group.PositionX = rowsLeftX
@@ -161,6 +162,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				if forcePageBreak(pageBreak, context) {
 					nextPage.Break = pageBreak
 					resumeAt = tree.ResumeStack{indexRow: nil}
+					forcedBreak = true
 					break
 				}
 			}
@@ -651,7 +653,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 		// Do not keep the row group if we made a page break
 		// before any of its rows or with "avoid".
-		abort := resumeAt != nil && !originalPageIsEmpty && (avoidPageBreak(string(group.Style.GetBreakInside()), context) || len(newGroupChildren) == 0)
+		// gopdfgo: podział wymuszony wewnątrz grupy z break-inside: avoid nie przenosi grupy na następną
+		// stronę: avoid dotyczy tylko podziałów niewymuszonych (CSS Fragmentation 3 § 3.1, § 4.4); w źródle
+		// grupa była przenoszona w całości także wtedy (WPT rowgroup-page-break-inside-avoid-8-print).
+		abort := resumeAt != nil && !originalPageIsEmpty && ((avoidPageBreak(string(group.Style.GetBreakInside()), context) && !forcedBreak) || len(newGroupChildren) == 0)
 		if abort {
 			removePlaceholders(context, newGroupChildren, absoluteBoxes, fixedBoxes)
 			return nil, nil, nextPage

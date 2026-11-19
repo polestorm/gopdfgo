@@ -28,7 +28,11 @@ func floatWidth_(box Box, context *layoutContext, containingBlock containingBloc
 func floatLayout(context *layoutContext, box_ Box, containingBlock *bo.BoxFields, absoluteBoxes,
 	fixedBoxes *[]*AbsolutePlaceholder, bottomSpace pr.Float, skipStack tree.ResumeStack,
 ) (Box, tree.ResumeStack) {
-	cbWidth, cbHeight := containingBlock.Width, containingBlock.Height
+	// gopdfgo: procenty liczymy od wysokości z ContainingBlock(): anonimowe pudełko blokowe jest przy tym
+	// pomijane (CSS 2 § 9.2.1.1). W źródle brana była wysokość pola, czyli auto dla anonimowego bloku, więc
+	// element pływający z height: 60% obok tekstu dostawał wysokość treści (WPT
+	// float-page-break-inside-avoid-8-print).
+	cbWidth, cbHeight := containingBlock.ContainingBlock()
 	resolveSizes(context, box_, bo.MaybePoint{cbWidth, cbHeight})
 
 	// TODO: This is only handled later in blocks.blockContainerLayout
