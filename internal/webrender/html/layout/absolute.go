@@ -514,6 +514,10 @@ func absoluteLayout(context *layoutContext, placeholder *AbsolutePlaceholder, co
 		panic("placeholder can't have its layout done.")
 	}
 	box := placeholder.AliasBox
+	if len(skipStack) == 0 && len(context.lateBoxes) > 0 {
+		// gopdfgo: układ od początku zastępuje fragmenty z poprzedniego układu (zob. forgetLateFragments)
+		context.forgetLateFragments(box)
+	}
 	// gopdfgo: pudełko fixed, którego blokiem zawierającym jest strona, powtarza się na każdej stronie
 	// (CSS 2.1 § 9.6.1, CSS Position 3 § 2.1). Strona zapamiętuje je przed układem pudełek pozycjonowanych,
 	// więc pudełka fixed zagnieżdżone w pudełkach absolute (dopisywane do listy w trakcie tego układu) nie
@@ -916,10 +920,31 @@ func contentBeforeInLine(line Box, placeholder *AbsolutePlaceholder) bool {
 // pageArea to położenie i rozmiar obszaru strony (pudełka treści strony) we współrzędnych tej strony.
 type pageArea struct{ x, y, width, height pr.Float }
 
-// lateBox to fragment pudełka pozycjonowanego dla wcześniejszej strony page (numer od 1).
+// lateBox to fragment pudełka pozycjonowanego dla wcześniejszej strony page (numer od 1); source to
+// pudełko z drzewa, z którego fragment ułożono.
 type lateBox struct {
-	page int
-	box  Box
+	page   int
+	box    Box
+	source Box
+}
+
+// forgetLateFragments (gopdfgo) usuwa z lateBoxes fragmenty pudełka source ułożone wcześniej. Pudełko
+// układane od nowa (zastępnik przeniesiony z niepełnej strony na następną, próbny układ wiersza tabeli)
+// wytwarza swoje fragmenty jeszcze raz; bez tego fragmenty z poprzedniego układu zostawały pod numerem
+// strony, której nikt już nie układał, i pudełko było rysowane dwa razy (CSS Break 3 § 2: każdy fragment
+// pudełka jest jeden; wzorzec WPT css-break/table/repeated-section/fixedpos-in-footer-forced-break-print).
+func (l *layoutContext) forgetLateFragments(source Box) {
+	for origin, lates := range l.lateBoxes {
+		kept := lates[:0:0]
+		for _, late := range lates {
+			if late.source != source {
+				kept = append(kept, late)
+			}
+		}
+		if len(kept) != len(lates) {
+			l.lateBoxes[origin] = kept
+		}
+	}
 }
 
 // pageOffset podaje odległość początku obszaru strony n od początku obszaru pierwszej strony w ciągłej
@@ -1006,6 +1031,7 @@ func (l *layoutContext) usesInitialContainingBlock(box Box, cb Box, bottomSpace 
 func (l *layoutContext) layoutEarlierFragments(box Box, cbFor func(j int) Box, first, cur int,
 	fixedBoxes *[]*AbsolutePlaceholder,
 ) (fragment Box, resumeAt tree.ResumeStack, reached bool) {
+	l.forgetLateFragments(box)
 	for j := first; j <= cur; j++ {
 		l.onPage(j, func() {
 			if j == first {
@@ -1019,7 +1045,7 @@ func (l *layoutContext) layoutEarlierFragments(box Box, cbFor func(j int) Box, f
 		if j == cur {
 			return fragment, resumeAt, true
 		}
-		l.lateBoxes[cur] = append(l.lateBoxes[cur], lateBox{page: j, box: fragment})
+		l.lateBoxes[cur] = append(l.lateBoxes[cur], lateBox{page: j, box: fragment, source: box})
 		if resumeAt == nil {
 			return nil, nil, false
 		}

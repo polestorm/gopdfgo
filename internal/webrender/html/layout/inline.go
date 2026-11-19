@@ -329,6 +329,10 @@ func (l *lineBoxeIterator) trial(f func()) {
 	for name, pages := range context.runningElements {
 		savedRunning[name] = maps.Clone(pages)
 	}
+	savedLate := make(map[int][]lateBox, len(context.lateBoxes))
+	for origin, lates := range context.lateBoxes {
+		savedLate[origin] = slices.Clone(lates)
+	}
 	var absolutes, fixed []*AbsolutePlaceholder
 	l.absoluteBoxes, l.fixedBoxes = &absolutes, &fixed
 	l.balanced = true
@@ -343,13 +347,24 @@ func (l *lineBoxeIterator) trial(f func()) {
 	}
 	context.brokenOutOfFlow, context.brokenSequence = savedBroken, savedSequence
 	context.runningElements = savedRunning
+	context.lateBoxes = savedLate
 }
 
+// consume liczy wiersze, które zostały do ułożenia (dla widows przy podziale strony).
+// gopdfgo: wiersze układamy próbnie (trial) i skutki uboczne ich układu cofamy: te wiersze przechodzą na
+// następną stronę i tam są układane ponownie. W źródle zastępniki pudełek pozycjonowanych z tych wierszy
+// zostawały na liście pudełek pozycjonowanych bieżącej strony, a ich elementy pływające na liście
+// wykluczeń, więc pudełko absolute było układane na tej stronie i drugi raz na następnej (rysowane dwa
+// razy; CSS Break 3 § 2, wzorzec WPT css-break/table/repeated-section/fixedpos-in-footer-forced-break-print).
 func (l *lineBoxeIterator) consume() int {
 	count := 0
-	for l.Has() {
-		count++
-	}
+	balanced := l.balanced
+	l.trial(func() {
+		l.balanced = balanced
+		for l.Has() {
+			count++
+		}
+	})
 	return count
 }
 
