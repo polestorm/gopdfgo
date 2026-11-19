@@ -70,7 +70,7 @@ func blockLevelLayout(context *layoutContext, box bo.BlockLevelBoxITF, bottomSpa
 		if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty {
 			// When an unforced break occurs before or after a block-level box,
 			// any margins adjoining the break are truncated to zero.
-			if collapseWithPage := containingBlock.IsForRootElement || len(*adjoiningMargins) != 0; collapseWithPage {
+			if collapseWithPage := box_.IsForRootElement || len(*adjoiningMargins) != 0; collapseWithPage {
 				if box_.Style.GetMarginBreak() == "discard" {
 					box_.MarginTop = pr.Float(0)
 				} else if box_.Style.GetMarginBreak() == "auto" {
@@ -875,6 +875,12 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	resumedRemainder, overflowContinuation, finishedWithOverflow := false, false, false
 	resumedFixed := false
 	if !isStart {
+		// gopdfgo: procentowe wysokości dzieci w dalszym ciągu bloku o podanej wysokości liczą się od jego
+		// pełnej wysokości używanej (CSS 2.1 § 10.5), nie od reszty na tej stronie; wcześniej dziecko
+		// z height: 50% w dalszym ciągu body z height: 100% dostawało wysokość zero
+		if full, ok := box.Height.(pr.Float); ok {
+			box.PercentBaseHeight = full
+		}
 		if inner, isOverflow := skipStack.Overflow(); isOverflow {
 			// sam blok skończył się na poprzedniej stronie: zostaje po nim tylko wylewająca się treść
 			overflowContinuation = true
@@ -1286,7 +1292,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			deferBottomAnchoredAbsolutes(context, box, newBox_, absoluteBoxes, isStart, resumeAt != nil, bottomSpace)
 		}
 		// New containing block, resolve the layout of the absolute descendants
-		layoutOwnedPositioned(context, newBox_, absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
+		layoutOwnedPositioned(context, inFlowFragmentCB(context, box_, newBox_, isStart), absoluteBoxes, fixedBoxes, ownsFixed, bottomSpace)
 	}
 
 	// gopdfgo: przy wysokości bloku zawierającego zależnej od treści procentowe top i bottom liczą się jak
@@ -1504,6 +1510,16 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 		avoidedSplit := false
 		if fragmentedInside && avoidPageBreak(string(child.Style.GetBreakInside()), context) &&
 			newChild.Box().PositionY > context.pageBottom-context.pageHeight+0.5 {
+			pageOverflow, avoidedSplit = true, true
+		}
+		// gopdfgo: to samo, gdy pudełko obramowania się mieści, ale dolny margines elementu pływającego
+		// wychodzi poza stronę: element z break-inside: avoid przechodzi w całości na następną stronę razem
+		// z marginesem (marginesy elementów pływających nie są obcinane przy podziale, CSS Break 3 § 5.2;
+		// tak drukuje Chromium, test WPT css-break/float-with-large-margin-bottom-cross-page-002). W źródle
+		// liczyła się tylko wysokość treści.
+		if !avoidedSplit && !fragmentedInside && avoidPageBreak(string(child.Style.GetBreakInside()), context) &&
+			newChild.Box().PositionY > context.pageBottom-context.pageHeight+0.5 &&
+			context.overflowsPage(bottomSpace, newChild.Box().PositionY+newChild.Box().MarginHeight()) {
 			pageOverflow, avoidedSplit = true, true
 		}
 		addChild := (pageIsEmpty && len(*newChildren) == 0) || !pageOverflow || bo.IsMonolithic(box)
@@ -2695,4 +2711,37 @@ func deferBottomAnchoredAbsolutes(context *layoutContext, original *bo.BoxFields
 		newBox.Children = append(newBox.Children, placeholder)
 		*absoluteBoxes = append(*absoluteBoxes, placeholder)
 	}
+}
+
+// inFlowFragmentCB (gopdfgo) zwraca blok zawierający potomków pozycjonowanych pudełka pozycjonowanego
+// względnie w przepływie. Dalszy ciąg pudełka podzielonego między strony jest nim tak, jakby pudełko nie było
+// podzielone: kopia fragmentu przesunięta w górę tak, że krawędź jego odstępu wewnętrznego leży tam, gdzie
+// w pierwszym fragmencie (CSS Break 3 § 2: jeden ciągły przepływ fragmentacji; tak układa Chromium, test
+// WPT css-break/abspos-002). Pudełko o podanym top wypada wtedy na wcześniejszą stronę i jest tam
+// dokładane (absoluteLayout, layoutEarlierFragments), jak dla pudełek absolute (zob. absoluteBlock).
+// Wcześniej top liczyło się od góry fragmentu na stronie, na której stał zastępnik.
+func inFlowFragmentCB(context *layoutContext, source Box, fragment Box, isStart bool) Box {
+	if len(context.pageAreas) == 0 || context.behavior.Continuous || context.inColumn || context.clipDepth > 0 ||
+		context.pageBottom == pr.Inf || !source.Box().IsInNormalFlow() {
+		return fragment
+	}
+	g := context.geometryPage
+	f := fragment.Box().PaddingBoxY() - context.area(g).y + context.pageOffset(g)
+	if isStart {
+		context.fragmentStarts[source] = f
+		return fragment
+	}
+	start, ok := context.fragmentStarts[source]
+	if !ok || f-start <= 0.01 {
+		return fragment
+	}
+	// kopia sięga od początku pierwszego fragmentu do końca bieżącego: bottom pudełek zakotwiczonych
+	// u dołu (układanych w ostatnim fragmencie, zob. deferBottomAnchoredAbsolutes) liczy się od dołu całości
+	shifted := fragment.Copy()
+	shifted.Box().PositionY -= f - start
+	if height, ok := shifted.Box().Height.(pr.Float); ok {
+		shifted.Box().Height = height + f - start
+	}
+	context.shiftedBlocks[shifted] = true
+	return shifted
 }

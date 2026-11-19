@@ -1002,6 +1002,16 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		if laidOut, ok := laidOut.(bo.BlockLevelBoxITF); ok {
 			rootBox = laidOut
 		}
+	} else if resumeAt == nil && rootMarginFillsPage(context, rootBox, initialContainingBlock) {
+		// gopdfgo: górny margines elementu głównego wyższy niż obszar strony wypełnia tę stronę, a treść
+		// zaczyna się na następnej, gdzie margines jest obcięty, bo przylega do zwykłego podziału strony
+		// (CSS Break 3 § 5.2; test WPT css-break/root-margin-001). W źródle pierwszy wiersz był wymuszany
+		// na tę stronę (strona pusta) daleko pod jej dolną krawędzią i ginął.
+		empty := bo.CopyWithChildren(rootBox, nil).(bo.BlockLevelBoxITF)
+		empty.Box().ForceFragmentation = true
+		rootBox, tmp, _ = blockLevelLayout(context, empty, 0, nil,
+			&initialContainingBlock.BoxFields, true, &positionedBoxes, &positionedBoxes, &adjoiningMargins, false, -1)
+		tmp.resumeAt = tree.ResumeStack{0: nil}
 	} else {
 		rootBox, tmp, _ = blockLevelLayout(context, rootBox, 0, resumeAt,
 			&initialContainingBlock.BoxFields, true, &positionedBoxes, &positionedBoxes, &adjoiningMargins, false, -1)
@@ -1477,4 +1487,19 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 			return out
 		}
 	}
+}
+
+// rootMarginFillsPage (gopdfgo) mówi, czy górny margines elementu głównego sięga dolnej krawędzi obszaru
+// strony lub dalej, tak że na tej stronie nie zmieści się nic z jego treści (zob. makePage).
+func rootMarginFillsPage(context *layoutContext, root Box, page *bo.PageBox) bool {
+	box := root.Box()
+	if context.behavior.Continuous || context.pageBottom == pr.Inf || len(box.Children) == 0 || box.IsFloated() {
+		return false
+	}
+	margin := box.Style.GetMarginTop()
+	if margin.Tag == pr.Auto {
+		return false
+	}
+	top := pr.ResolvePercentage(margin, page.Width.V()).V()
+	return top > 0 && box.PositionY+top >= context.pageBottom
 }

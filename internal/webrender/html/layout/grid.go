@@ -2044,13 +2044,35 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		// dalszy ciąg siatki zaczynał stronę niżej o row-gap
 		skipHeight = sum0(rowsSizes[:skipRow]) + pr.Float(skipRow)*rowGap
 	}
+	// gopdfgo: ostatni fragment wiersza podzielonego między strony nie zajmuje całej strony: gdy dalszy ciąg
+	// jego elementów kończy się na tej stronie, następne wiersze siatki stają tuż pod nim, a nie od nowej
+	// strony (CSS Fragmentation 3 § 4.4: reszta treści niepodzielnej i bloku podanej wysokości zużywa
+	// tylko swoją wysokość; tak układa Chromium, test WPT css-page/monolithic-overflow-007). W źródle
+	// (i dotąd u nas) każdy następny wiersz zaczynał się na nowej stronie. afterShift przesuwa wiersze
+	// po skipRow; wiersze do skipRow włącznie przesuwa skipHeight.
+	afterShift, continueRows := skipHeight, false
+	if rowSkip != nil && skipRow+1 < len(rowsPositions) && bottomSpace > -pr.Inf && context.flexMeasuring == 0 {
+		if fragment, ok := gridContinuedRowHeight(box, children, childrenPositions, rowSkip, skipRow, implicitY1); ok {
+			top := rowsPositions[skipRow] - skipHeight
+			if !context.overflowsPage(bottomSpace, top+fragment) {
+				afterShift = rowsPositions[skipRow+1] - (top + fragment + rowGap)
+				continueRows = true
+			}
+		}
+	}
+	rowShift := func(row int) pr.Float {
+		if row > skipRow {
+			return afterShift
+		}
+		return skipHeight
+	}
 	rowResume := tree.ResumeStack{} // elementy podzielone na tej stronie, według indeksu
 	resumedRow := -1
 	hasBroken := false
 	for i := skipRow; i < len(rowsPositions); i++ {
 		rowY := rowsPositions[i]
 		// TODO: Check that page is not empty.
-		if context.overflowsPage(bottomSpace, rowY-skipHeight) {
+		if (rowSkip == nil || (continueRows && i > skipRow+1)) && context.overflowsPage(bottomSpace, rowY-rowShift(i)) {
 			if i == 0 {
 				// gopdfgo: całą siatkę przenosi tylko układ blokowy; dla siatki pływającej albo w wierszu
 				// wynik nil kończył się paniką w układzie elementów pływających
@@ -2083,9 +2105,9 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// środkowe. Wyjątek: wiersz, od którego zaczyna się ten fragment siatki, z elementem o wysokości
 	// auto, dzieli w treści układ elementu; gdy jego elementy mają podaną wysokość, też przechodzi
 	// w całości, jak blok w ADR 0004 (w źródle zostawał i wystawał poza stronę).
-	if last := len(rowsPositions) - 1; !hasBroken && rowSkip == nil && last >= 0 && bottomSpace > -pr.Inf &&
+	if last := len(rowsPositions) - 1; !hasBroken && (rowSkip == nil || (continueRows && last > skipRow)) && last >= 0 && bottomSpace > -pr.Inf &&
 		context.flexMeasuring == 0 && !(last == skipRow && pageIsEmpty) &&
-		context.overflowsPage(bottomSpace, rowsPositions[last]+rowsSizes[last][0]-skipHeight) {
+		context.overflowsPage(bottomSpace, rowsPositions[last]+rowsSizes[last][0]-rowShift(last)) {
 		fixed, any := true, false
 		for _, child := range children {
 			_, y, _, height := childrenPositions[child].unpack()
@@ -2116,7 +2138,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 	// gopdfgo: wymuszony podział strony między wierszami siatki: break-before na elemencie wiersza albo
 	// break-after na elemencie poprzedniego (CSS Grid 2 § 11, CSS Break 3 § 3.1). Źródło ignorowało te
 	// właściwości na elementach siatki.
-	if rowSkip == nil && bottomSpace > -pr.Inf && context.flexMeasuring == 0 {
+	if (rowSkip == nil || continueRows) && bottomSpace > -pr.Inf && context.flexMeasuring == 0 {
 		forcedRow := -1
 		for _, child := range children {
 			_, y, _, height := childrenPositions[child].unpack()
@@ -2156,11 +2178,20 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				continued = append(continued, child)
 			}
 		}
-		thisPageChildren = continued
-		resumeRow, resumeAt = -1, nil
-		if skipRow+1 < len(rowsPositions) {
-			resumeRow, resumeAt = skipRow+1, tree.ResumeStack{skipRow + 1: nil}
+		if continueRows {
+			// wiersze po skipRow, które zmieściły się na tej stronie; wznowienie z pętli wyżej
+			for _, child := range thisPageChildren {
+				if _, y, _, _ := childrenPositions[child].unpack(); y-implicitY1 > skipRow {
+					continued = append(continued, child)
+				}
+			}
+		} else {
+			resumeRow, resumeAt = -1, nil
+			if skipRow+1 < len(rowsPositions) {
+				resumeRow, resumeAt = skipRow+1, tree.ResumeStack{skipRow + 1: nil}
+			}
 		}
+		thisPageChildren = continued
 	}
 	if box.Height == pr.AutoF {
 		slice := resumeRow
@@ -2226,7 +2257,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 		xi := min(max(x-implicitX1, 0), len(columnsPositions)-1)
 		yi := min(max(y-implicitY1, 0), len(rowsPositions)-1)
 		childB.PositionX = columnsPositions[xi]
-		childB.PositionY = rowsPositions[yi] - skipHeight
+		childB.PositionY = rowsPositions[yi] - rowShift(yi)
 		cbW, cbH := box.ContainingBlock()
 		widthF := (sum0(pySlice(columnsSizes, xi, xi+width)) + pr.Float(width-1)*columnGap)
 		heightF := (sum0(pySlice(rowsSizes, yi, yi+height)) + pr.Float(height-1)*rowGap)
@@ -2480,7 +2511,7 @@ func gridLayoutPass(context *layoutContext, box_ Box, bottomSpace pr.Float, skip
 				if participant.last {
 					participant.row = lastRow
 				}
-				participant.areaEnd = rowsPositions[lastRow] + rowsSizes[lastRow][0] - skipHeight
+				participant.areaEnd = rowsPositions[lastRow] + rowsSizes[lastRow][0] - rowShift(lastRow)
 				baselineItems = append(baselineItems, participant)
 			}
 		}
@@ -3177,4 +3208,49 @@ func transferredMinWidth(box *bo.BoxFields) (pr.Float, bool) {
 		return max(max(value, frameY)*ratio-frameX, 0), true
 	}
 	return value * ratio, true
+}
+
+// gridContinuedRowHeight szacuje wysokość ostatniego fragmentu wiersza skipRow, którego elementy wznawia
+// rowSkip: reszta wysokości każdego wznawianego elementu (stos z [tree.RemainderResume], czyli element
+// o podanej wysokości dzielony w miejscu końca strony) z dolnym odstępem, obramowaniem i marginesem.
+// Zwraca false, gdy któryś element wznawia się inaczej (np. treść o wysokości auto) albo gdy element
+// wiersza sięga dalszych wierszy: wtedy nie wiadomo, gdzie skończy się fragment.
+func gridContinuedRowHeight(box *bo.BoxFields, children []Box, positions map[Box]rect, rowSkip tree.ResumeStack,
+	skipRow, implicitY1 int,
+) (pr.Float, bool) {
+	fragment := pr.Float(0)
+	for _, child := range children {
+		_, y, _, height := positions[child].unpack()
+		row := y - implicitY1
+		if row <= skipRow && row+height-1 > skipRow {
+			return 0, false
+		}
+		if row != skipRow {
+			continue
+		}
+		stack, pending := rowSkip[findBoxIndex(box.Children, child)]
+		if !pending {
+			continue
+		}
+		remaining, ok := stack.Remainder()
+		if !ok {
+			return 0, false
+		}
+		childB := child.Box()
+		h := pr.Float(remaining)
+		for _, side := range []pr.MaybeFloat{childB.PaddingBottom, childB.BorderBottomWidth, childB.MarginBottom} {
+			if v, ok := side.(pr.Float); ok {
+				h += v
+			}
+		}
+		if childB.Style.GetBoxDecorationBreak() == "clone" {
+			for _, side := range []pr.MaybeFloat{childB.PaddingTop, childB.BorderTopWidth} {
+				if v, ok := side.(pr.Float); ok {
+					h += v
+				}
+			}
+		}
+		fragment = max(fragment, h)
+	}
+	return fragment, true
 }

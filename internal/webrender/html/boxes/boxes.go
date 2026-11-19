@@ -203,6 +203,13 @@ type BoxFields struct {
 	// poprzednich; Height to wysokość części widocznej na tej stronie.
 	SliceFullHeight pr.Float
 	SliceOffset     pr.Float
+	// gopdfgo: fragment pudełka blokowego krojonego między strony jako całość (treść niepodzielna, CSS
+	// Break 3 § 4.4). Pudełko i jego potomkowie mają położenie całości; na tej stronie widać tylko pas
+	// od PositionY+SliceOffset o wysokości SliceVisible (zero, gdy pudełko nie jest krojone).
+	SliceVisible pr.Float
+	// gopdfgo: podstawa procentowych wysokości dzieci w dalszym ciągu pudełka o podanej wysokości, którego
+	// Height na tej stronie to tylko reszta (albo zero); nil, gdy podstawą jest Height
+	PercentBaseHeight pr.MaybeFloat
 
 	// gopdfgo: pudełko pozycjonowane bezwzględnie, które leży poniżej tej strony i zostanie ułożone na
 	// późniejszej; na tej stronie nie jest widoczne.
@@ -365,6 +372,10 @@ func (box *BoxFields) ContainingBlock() (width, height pr.MaybeFloat) {
 		// gopdfgo: wysokość wyznaczona przez układ flex w kontenerze o nieokreślonej wysokości nie jest
 		// podstawą procentów dzieci (CSS Flexbox 1 § 9.8); liczą się one jak od auto
 		return box.Width, pr.AutoF
+	}
+	if box.PercentBaseHeight != nil {
+		// gopdfgo: dalszy ciąg pudełka o podanej wysokości (zob. PercentBaseHeight)
+		return box.Width, box.PercentBaseHeight
 	}
 	if box.Height == pr.AutoF && box.AnonymousBaseHeight != nil {
 		// gopdfgo: anonimowe pudełko blokowe jest pomijane przy rozwiązywaniu procentów (CSS 2 § 9.2.1.1):
