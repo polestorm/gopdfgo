@@ -326,6 +326,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					absoluteBoxes, fixedBoxes, new([]pr.Float), false, -1)
 				cellResumeAt := tmp.resumeAt
 				cell.Style = originalStyle
+				stalled := false // komórka rozpięta, z której treści nic nie zmieściło się na tej stronie
 				if newCell == nil {
 					if cellSkipStack == nil && len(cell.Children) != 0 && !spanning {
 						leftBehind = true
@@ -334,6 +335,16 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					cell_, _, _ = blockContainerLayout(context, cell_, bottomSpace, cellSkipStack, true,
 						new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float), false, -1)
 					cellResumeAt = tree.ResumeStack{0: nil}
+					// gopdfgo: dalszy ciąg komórki rozpiętej, z którego nic się tu nie zmieściło, wznawia
+					// się w tym samym miejscu, a nie od początku treści (inaczej treść by się powtórzyła);
+					// gdy cała treść już była, nie ma czego wznawiać
+					if spanning && cellSkipStack != nil {
+						cellResumeAt = cellSkipStack
+						if k, _ := cellSkipStack.Unpack(); len(cellSkipStack) == 1 && k >= len(cell.Children) {
+							cellResumeAt = nil
+						}
+					}
+					stalled = spanning && cellResumeAt != nil
 				} else {
 					cell_ = newCell
 				}
@@ -348,7 +359,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					// gopdfgo: komórka dzielona między strony nie jest wyrównywana w pionie: jej treść
 					// zaczyna się u góry każdego fragmentu (tak jak treść dzielonego bloku).
 					spans[cell_] = spanState{row: entry.originRow, cell: entry.originCell, own: entry.own,
-						resume: cellResumeAt, top: cellResumeAt != nil || entry.own < 0}
+						resume: cellResumeAt, top: cellResumeAt != nil || entry.own < 0, stalled: stalled}
 				} else if cellResumeAt != nil {
 					if resumeAt == nil {
 						resumeAt = tree.ResumeStack{indexRow: tree.ResumeStack{}}
@@ -394,8 +405,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			// strony, dzieli ten wiersz: wiersz sięga końca strony, a na następnej ma dalszy ciąg razem
 			// z dalszym ciągiem tej komórki (CSS Fragmentation 3 § 4.4). Własne komórki wiersza dostają wtedy
 			// jawne wznowienie (zwykle „cała treść już była”), żeby ich treść nie powtórzyła się.
+			var pendingEnd []Box
+			stalledEnd := false
 			{
-				var pendingEnd []Box
 				for _, cell := range endingCellsByRow[0] {
 					if state, ok := spans[cell]; ok && state.resume != nil {
 						pendingEnd = append(pendingEnd, cell)
@@ -408,6 +420,14 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				}
 				if len(pendingEnd) != 0 && resumeAt == nil {
 					resumeAt = tree.ResumeStack{indexRow: tree.ResumeStack{}}
+				}
+				// Komórka, której treść nie zaczęła się na tej stronie, a kończy się w tym wierszu, przenosi
+				// ten wiersz na następną stronę (jak komórka bez treści w leftBehind): podzielony wiersz
+				// bez postępu w treści powtarzałby się w nieskończoność.
+				for _, cell := range pendingEnd {
+					if spans[cell].stalled && !pageIsEmpty {
+						stalledEnd = true
+					}
 				}
 				if resumeAt != nil {
 					own := resumeAt[indexRow]
@@ -441,6 +461,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// przeglądarki). W źródle na stronie zostawały komórki jednowierszowe (numer, kwoty),
 				// a nazwa pozycji lądowała na następnej.
 				if leftBehind && placedSome && len(newGroupChildren) != 0 {
+					avoidBreak = true
+				}
+				if stalledEnd {
 					avoidBreak = true
 				}
 				for _, cell := range row.Children {
@@ -652,7 +675,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			// Break if one cell was broken.
 			breakCell := false
 			if resumeAt != nil {
-				allEmpty := true
+				// gopdfgo: komórka rozpięta z wcześniejszego wiersza, której treść przechodzi dalej (pendingEnd),
+				// też jest treścią tego wiersza, choć nie jest jego dzieckiem
+				allEmpty := len(pendingEnd) == 0
 				for _, child := range row.Children {
 					if !child.Box().Empty {
 						allEmpty = false
@@ -2060,6 +2085,7 @@ type spanState struct {
 	own       int              // indeks komórki w bieżącym wierszu albo -1 dla dalszego ciągu
 	resume    tree.ResumeStack // wznowienie treści, gdy nie zmieściła się do końca strony
 	top       bool             // fragment komórki dzielonej: bez wyrównania w pionie
+	stalled   bool             // z treści nic nie zmieściło się na tej stronie
 }
 
 // cellEntry (gopdfgo) to komórka układana w wierszu: własna (own ≥ 0) albo dalszy ciąg komórki rozpiętej
