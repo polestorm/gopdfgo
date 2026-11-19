@@ -55,4 +55,17 @@ func TestMonolithicPrint12(t *testing.T) {
 	same("abspos-clip-sliced", `<div style="position:absolute;top:0;left:0;overflow:clip;width:50px;height:250px">
 		<div class=b style="height:120px"></div><div class=g style="height:400px"></div></div>`,
 		`<div class=b style="height:120px;width:50px"></div><div class=g style="height:130px;width:50px"></div>`)
+	// górny margines elementu głównego wyższy niż strona: pierwsza strona pusta, treść od góry drugiej,
+	// nic nie ginie (root-margin-001)
+	same("root-margin-fills-page", `<style>html { margin-top: 150px }</style><div class=b style="height:20px;width:50px"></div>`,
+		`<div style="height:100px"></div><div class=b style="height:20px;width:50px"></div>`)
+	// top pudełka absolute, którego zastępnik stoi w dalszym ciągu bloku relative, liczy się od początku
+	// całego bloku, a nie od góry fragmentu na stronie zastępnika (abspos-002)
+	same("relative-cb-continuation", `<div style="height:100px"></div><div style="position:relative">
+		<div style="height:150px"></div><div class=b style="position:absolute;top:20px;width:50px;height:30px"></div></div>`,
+		`<div style="height:120px"></div><div class=b style="width:50px;height:30px"></div><div style="height:100px"></div>`)
+	// bottom: 0 w takim bloku liczy się od dołu całości (abspos-001)
+	same("relative-cb-bottom", `<div style="position:relative"><div class=b style="position:absolute;bottom:0;width:50px;height:30px"></div>
+		<div style="height:150px"></div></div>`,
+		`<div style="height:120px"></div><div class=b style="width:50px;height:30px"></div>`)
 }
