@@ -506,6 +506,10 @@ type layoutContext struct {
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)
 	fixedHeightRemaining map[uintptr]pr.Float
+	// gopdfgo: dalsze ciągi treści wylewającej się z bloku, który sam skończył się na wcześniejszej
+	// stronie (overflowContinuation w blockContainerLayout). Taki fragment ma wysokość zero i biegnie
+	// równolegle z rodzeństwem, więc nie zajmuje miejsca na stronie (zob. hasPlacedChild).
+	overflowContinuationBoxes map[*bo.BoxFields]bool
 	// gopdfgo: reszta min-height kontenera kolumn podzielonego między fragmentatory; klucz jak wyżej
 	minHeightRemaining map[uintptr]pr.Float
 	// pendingMarkers (gopdfgo): znaczniki list (list-style-position: outside) czekające na pierwszy wiersz

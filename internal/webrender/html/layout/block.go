@@ -874,6 +874,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	// porzucana ("forget overflowing children").
 	resumedRemainder, overflowContinuation, finishedWithOverflow := false, false, false
 	resumedFixed := false
+	// gopdfgo: wznowienie z kilkoma dziećmi naraz (zob. parallelOverflow niżej): dalszy ciąg treści
+	// wylewającej się z wcześniejszych dzieci i miejsce podziału dalszego rodzeństwa
+	var parallelResume tree.ResumeStack
+	parallelLast := -1
 	if !isStart {
 		// gopdfgo: procentowe wysokości dzieci w dalszym ciągu bloku o podanej wysokości liczą się od jego
 		// pełnej wysokości używanej (CSS 2.1 § 10.5), nie od reszty na tej stronie; wcześniej dziecko
@@ -889,7 +893,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			box_.RemoveDecoration(box, true, true)
 			skip, skipStack = 0, nil
 			if inner != nil {
-				skip, skipStack = inner.Unpack()
+				skip, skipStack, parallelResume, parallelLast = unpackParallel(inner)
 			}
 		} else if remaining, isRemainder := skipStack.Remainder(); isRemainder {
 			// dalszy ciąg bloku o podanej wysokości: dzieci są już ułożone, zostaje reszta wysokości
@@ -906,7 +910,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				box.Height = remaining
 				box.MinHeight, box.MaxHeight = pr.Float(0), pr.Inf
 			}
-			skip, skipStack = skipStack.Unpack()
+			skip, skipStack, parallelResume, parallelLast = unpackParallel(skipStack)
 		}
 		firstLetterStyle = nil
 	}
@@ -922,8 +926,22 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 	savedClampAfter := context.clampContentAfter
 	defer func() { context.clampContentAfter = savedClampAfter }()
 	parentClampAfter := savedClampAfter && box.Style.GetMaxLines().Tag == pr.None
+	// gopdfgo: dzieci, których treść wylewa się poza ich podaną wysokość i ciągnie dalej, choć same
+	// skończyły się na tej stronie: indeks dziecka → wznowienie z OverflowResume
+	var parallelOverflow tree.ResumeStack
+	parallelNextPage := tree.PageBreak{Break: "any"}
 	for i, child_ = range box.Children[skip:] {
 		index := i + skip
+		if parallelResume != nil && index > skip {
+			// dziecko między wznowionymi skończyło się na poprzedniej stronie
+			if entry, ok := parallelResume[index]; ok {
+				skipStack = entry
+			} else if index < parallelLast {
+				continue
+			} else {
+				skipStack = nil
+			}
+		}
 		child := child_.Box()
 		context.clampContentAfter = parentClampAfter || slices.ContainsFunc(box.Children[index+1:], func(b Box) bool { return b.Box().IsInNormalFlow() })
 		child.PositionX = positionX
@@ -989,6 +1007,24 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				bottomSpace, positionY, skipStack, firstLetterStyle, collapsingWithChildren, discard, maxLines)
 			skipStack = nil
 			adjoiningMargins = &adjoiningMarginsV
+			// gopdfgo: dziecko, które samo skończyło się na tej stronie, a tylko jego treść wylewa się
+			// dalej (OverflowResume), nie zatrzymuje układu rodzeństwa: następne pudełka stoją zaraz za jego
+			// obramowaniem, a wylewająca się treść biegnie na następnych stronach równolegle z nimi
+			// (CSS 2.1 § 11.1: treść wylewająca się nie wpływa na położenie rodzeństwa; CSS Fragmentation 3
+			// § 4: przepływy równoległe). W źródle treść była porzucana, a od wcześniejszej poprawki
+			// gopdfgo rodzeństwo czekało na stronę, na której ta treść się kończy.
+			if stop && !abort && len(resumeAt) == 1 && parallelOverflowAllowed(context, box_, bottomSpace) {
+				if inner, ok := resumeAt[index]; ok {
+					if _, isOverflow := inner.Overflow(); isOverflow {
+						if parallelOverflow == nil {
+							parallelOverflow = tree.ResumeStack{}
+							parallelNextPage = nextPage
+						}
+						parallelOverflow[index] = inner
+						stop, resumeAt = false, nil
+					}
+				}
+			}
 			if collapsingWithChildren && !stop && !abort && marginChainOpen(newChildren) {
 				// gopdfgo: dziecko było puste i marginesy przeszły przez nie, więc górny margines tego
 				// pudełka (i jego przodków, które dzielą z nim listę marginesów) zwija się także
@@ -1092,6 +1128,33 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	if i != -1 {
 		resumeAt = nil
+	}
+	if len(parallelOverflow) != 0 {
+		// gopdfgo: dalszy ciąg wylewającej się treści dzieci (zob. parallelOverflow) wraca razem z miejscem
+		// podziału rodzeństwa; dzieci za miejscem podziału (np. przesunięte przez findEarlierPageBreak)
+		// zaczną się od nowa na następnej stronie, więc ich dalszego ciągu nie ma
+		first := math.MaxInt
+		for key := range resumeAt {
+			first = min(first, key)
+		}
+		merged := make(tree.ResumeStack, len(resumeAt)+len(parallelOverflow))
+		for key, value := range resumeAt {
+			merged[key] = value
+		}
+		for key, value := range parallelOverflow {
+			if key < first {
+				merged[key] = value
+			}
+		}
+		if resumeAt == nil {
+			// sam blok się skończył: na następnych stronach jest już tylko treść wylewająca się z dzieci.
+			// Wpis za ostatnim dzieckiem mówi, że wszystkie dzieci poza wznawianymi są już ułożone (zwykłe
+			// wznowienie dzieci w OverflowResume oznacza, że dzieci za wznawianym czekają na układ).
+			merged[len(box.Children)] = nil
+			finishedWithOverflow = true
+			nextPage = parallelNextPage
+		}
+		resumeAt = merged
 	}
 
 	// gopdfgo: blok o podanej wysokości, którego dzieci się zmieściły, ale który sam wystaje poza stronę,
@@ -1379,6 +1442,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 
 	if overflowContinuation {
 		newBox.Height = pr.Float(0)
+		if context.overflowContinuationBoxes == nil {
+			context.overflowContinuationBoxes = map[*bo.BoxFields]bool{}
+		}
+		context.overflowContinuationBoxes[newBox] = true
 	}
 	if finishedWithOverflow && resumeAt != nil {
 		resumeAt = tree.OverflowResume(resumeAt)
@@ -2007,7 +2074,7 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 			// gopdfgo: margines przylegający do zwykłego podziału strony jest obcinany do zera także
 			// dla kontenerów flex i siatki oraz elementów zastępowanych (CSS Fragmentation 3 § 5.2).
 			// W źródle robiły to tylko bloki, bo tylko one dostają adjoiningMargins.
-			if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty && !hasPlacedChild(newChildren) {
+			if atBreak, forcedBreak := context.breakAtFragmentTop(); atBreak && pageIsEmpty && !hasPlacedChild(context, newChildren) {
 				if mb := child.Style.GetMarginBreak(); mb == "discard" || (mb == "auto" && !forcedBreak) {
 					marginTop = 0
 					child.MarginTopTruncated = true
@@ -2020,7 +2087,7 @@ func inFlowLayout(context *layoutContext, box_ bo.Box, index int, child_ Box, ne
 		}
 	}
 
-	pageIsEmptyWithNoChildren := pageIsEmpty && !hasPlacedChild(newChildren)
+	pageIsEmptyWithNoChildren := pageIsEmpty && !hasPlacedChild(context, newChildren)
 
 	if child.FirstLetterStyle == nil {
 		child.FirstLetterStyle = firstLetterStyle
@@ -2535,14 +2602,47 @@ func markLegendGap(fieldset Box) {
 }
 
 // hasPlacedChild (gopdfgo) podaje, czy wśród ułożonych dzieci jest coś poza zastępnikami pudełek
-// pozycjonowanych bezwzględnie.
-func hasPlacedChild(children []Box) bool {
+// pozycjonowanych bezwzględnie. Dalszy ciąg treści wylewającej się z bloku, który skończył się na wcześniejszej
+// stronie (overflowContinuationBoxes), się nie liczy: ma wysokość zero i biegnie równolegle z rodzeństwem
+// (CSS Fragmentation 3 § 4), więc strona, na której stoi tylko on, jest dla rodzeństwa pusta.
+func hasPlacedChild(context *layoutContext, children []Box) bool {
 	for _, child := range children {
-		if _, isPlaceholder := child.(*AbsolutePlaceholder); !isPlaceholder {
+		if _, isPlaceholder := child.(*AbsolutePlaceholder); !isPlaceholder && !context.overflowContinuationBoxes[child.Box()] {
 			return true
 		}
 	}
 	return false
+}
+
+// unpackParallel (gopdfgo) rozkłada stos wznowienia bloku na pierwsze wznawiane dziecko i jego stos.
+// Stos z kilkoma dziećmi (zob. parallelOverflow w blockContainerLayout) zwraca też w całości razem
+// z indeksem ostatniego wznawianego dziecka: dzieci między wznawianymi skończyły się już wcześniej.
+func unpackParallel(stack tree.ResumeStack) (skip int, skipStack, parallel tree.ResumeStack, last int) {
+	if len(stack) <= 1 {
+		skip, skipStack = stack.Unpack()
+		return skip, skipStack, nil, -1
+	}
+	skip, last = math.MaxInt, -1
+	for key := range stack {
+		skip, last = min(skip, key), max(last, key)
+	}
+	return skip, stack[skip], stack, last
+}
+
+// parallelOverflowAllowed (gopdfgo) podaje, czy dzieci bloku mogą być układane dalej obok treści
+// wylewającej się z wcześniejszego dziecka (zob. parallelOverflow w blockContainerLayout). Wyłączone jest
+// to tam, gdzie wznowienie czyta kod znający tylko jedno dziecko naraz (kolumny, flex, siatka, tabele,
+// elementy pływające i pozycjonowane), oraz w bloku o podanej wysokości, który sam nie kończy się na tej
+// stronie: jego reszta wysokości przechodzi dalej (ADR 0004) i rodzeństwo czeka na nią jak w źródle.
+func parallelOverflowAllowed(context *layoutContext, box_ Box, bottomSpace pr.Float) bool {
+	box := box_.Box()
+	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.inColumn || box.IsColumn ||
+		box.Style.GetColumnWidth().Tag != pr.Auto || box.Style.GetColumnCount().String != "auto" ||
+		box.IsFlexItem || box.IsGridItem || box.IsTableWrapper || bo.TableCellT.IsInstance(box_) ||
+		!box.IsInNormalFlow() || box.Style.GetContinue() == "discard" {
+		return false
+	}
+	return box.Height == pr.AutoF || !context.overflowsPage(bottomSpace, box.BorderBoxY()+box.BorderHeight())
 }
 
 // resumeKey (gopdfgo) identyfikuje stos wznowienia: ten sam obiekt wraca do układu na następnej stronie.
