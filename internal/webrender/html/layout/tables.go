@@ -1062,6 +1062,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	}
 
 	header, newTableChildren, footer, positionY, resumeAt, nextPage := allGroupsLayout()
+	if header != nil && skipStack != nil && len(newTableChildren) != 0 && bottomSpace > -pr.Inf && context.pageBottom != pr.Inf &&
+		!context.inColumn && !context.behavior.Continuous && context.clipDepth == 0 {
+		positionY = overflowBehindHeader(table_, skipStack, header, newTableChildren, positionY, borderSpacingY)
+	}
 	if newTableChildren == nil {
 		if resumeAt != nil {
 			panic(fmt.Sprintf("resumeAt should be nil, got %v", resumeAt))
@@ -1897,4 +1901,83 @@ func repeatFragmentainerHeight(context *layoutContext, bottomSpace pr.Float) pr.
 		return context.columnHeight
 	}
 	return context.pageHeight
+}
+
+// overflowBehindHeader (gopdfgo): reszta treści niepodzielnej (zob. canSplitFixedHeight), która wylewa się
+// z wiersza na stronę z powtarzanym nagłówkiem tabeli i kończy się, zanim skończy się nagłówek, nie odsuwa
+// następnych wierszy: w Chromium przepełnienie zaczyna się u góry fragmentu tabeli, za nagłówkiem, a dalsza
+// treść stoi tuż pod nagłówkiem (CSS Break 3 § 4.4 zostawia miejsce przepełnienia przeglądarce; test WPT
+// css-page/monolithic-overflow-023). W źródle (i w naszym krojeniu) wycinek stał pod nagłówkiem, a następne
+// wiersze o jego wysokość niżej. Wycinek przenosimy pod nagłówek i ukrywamy: nagłówek, malowany przed
+// treścią tabeli, inaczej by go nie zakrył (Chromium maluje nagłówek na nim). Dotyczy tylko wiersza, w którego
+// komórkach poza resztą treści niepodzielnej nic już nie zostało; dłuższe przepełnienie zostaje pod
+// nagłówkiem jak dotąd. Zwraca nowy koniec treści tabeli.
+func overflowBehindHeader(table_ bo.TableBoxITF, skipStack tree.ResumeStack, header Box, groups []Box, endY, borderSpacingY pr.Float) pr.Float {
+	ok, tail := monolithicRemainderOnly(table_, skipStack, false)
+	group := groups[0].Box()
+	if !ok || !tail || len(group.Children) == 0 {
+		return endY
+	}
+	row := group.Children[0]
+	headerHeight := header.Box().Height.V() + borderSpacingY
+	if row.Box().Height.V() > headerHeight-borderSpacingY+0.01 {
+		return endY
+	}
+	var shift pr.Float
+	if len(group.Children) > 1 {
+		shift = group.Children[1].Box().PositionY - row.Box().PositionY
+	} else if len(groups) > 1 {
+		shift = groups[1].Box().PositionY - row.Box().PositionY
+	} else {
+		shift = row.Box().Height.V() + borderSpacingY
+	}
+	if shift <= 0 {
+		return endY
+	}
+	row.Translate(0, -headerHeight, false)
+	hideSubtree(row)
+	for _, next := range group.Children[1:] {
+		next.Translate(0, -shift, false)
+	}
+	group.Height = max(group.Height.V()-shift, 0)
+	for _, next := range groups[1:] {
+		next.Translate(0, -shift, false)
+	}
+	return endY - shift
+}
+
+// hideSubtree ustawia visibility: hidden w pudełku box i wszystkich jego potomkach (na kopiach stylów).
+func hideSubtree(box Box) {
+	fields := box.Box()
+	fields.Style = fields.Style.Copy()
+	fields.Style.SetVisibility("hidden")
+	for _, child := range fields.Children {
+		hideSubtree(child)
+	}
+}
+
+// monolithicRemainderOnly mówi, czy stos wznowienia stack pudełka box prowadzi wyłącznie do reszt
+// wysokości pudełek niepodzielnych (zob. tree.RemainderResume, bo.IsMonolithic). tail mówi dodatkowo, że
+// w komórkach po tych pudełkach nie ma już treści.
+func monolithicRemainderOnly(box Box, stack tree.ResumeStack, inCell bool) (ok, tail bool) {
+	if _, isRemainder := stack.Remainder(); isRemainder {
+		return bo.IsMonolithic(box), true
+	}
+	if len(stack) == 0 {
+		return false, false
+	}
+	inCell = inCell || bo.TableCellT.IsInstance(box)
+	children := box.Box().Children
+	tail = true
+	for k, sub := range stack {
+		if k < 0 || k >= len(children) || sub == nil {
+			return false, false
+		}
+		childOK, childTail := monolithicRemainderOnly(children[k], sub, inCell)
+		if !childOK {
+			return false, false
+		}
+		tail = tail && childTail && (!inCell || k == len(children)-1)
+	}
+	return true, tail
 }
