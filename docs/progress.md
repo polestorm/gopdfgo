@@ -30,9 +30,9 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7830 z 9123 (85,8%)** | ściśle 7425, krawędziowo 405; tryb ciągły; od 17.11 zestaw większy o 13 testów |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1668 z 1839 (90,7%)** | ściśle 1614, krawędziowo 54; `css-text` 811 z 909, `css-backgrounds` 572 z 603, `css-fonts` 285 z 327 (od 18.11 z fontami CSSTest, ADR 0018); od 17.11 zestaw większy o 71 testów |
-| Reftesty druku W3C | **287 z 340 (84,4%)** | wszystkie ściśle |
+| Sondaż ekranowy W3C | **7835 z 9123 (85,9%)** | ściśle 7430, krawędziowo 405; tryb ciągły; od 17.11 zestaw większy o 13 testów |
+| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1667 z 1839 (90,6%)** | ściśle 1613, krawędziowo 54; `css-text` 810 z 909, `css-backgrounds` 572 z 603, `css-fonts` 285 z 327 (od 18.11 z fontami CSSTest, ADR 0018); od 17.11 zestaw większy o 71 testów |
+| Reftesty druku W3C | **296 z 340 (87,1%)** | ściśle 294, krawędziowo 2 |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
@@ -91,6 +91,7 @@ Jeden znak `█` to 2 punkty procentowe zaliczonych testów. Do 15.11 mianownik 
 18.11  listy, tekst, ogony obszarów  7771 ██████████████████████████████████████████▌ 85,2%
 18.11  reszta pięciu obszarów       7817 ██████████████████████████████████████████▊ 85,7%
 18.11  tekst; CSS 2 i kolumny       7830 ██████████████████████████████████████████▉ 85,8%
+19.11  druk: tabele, flex, kolumny   7835 ██████████████████████████████████████████▉ 85,9%
 ```
 
 (*) Skoki z 13.11 i przejście na tryb ciągły 16.11 to poprawki metody pomiaru, nie silnika; przy trybie
@@ -117,6 +118,7 @@ Reftesty druku (z 340):
 18.11  279  █████████████████████████████████████████82,1%
 18.11  282  █████████████████████████████████████████▍82,9%
 19.11  287  ██████████████████████████████████████████▏84,4%
+19.11  296  ███████████████████████████████████████████▌87,1%
 ```
 
 ## Poprawki według obszarów
@@ -165,7 +167,7 @@ css-multicol: column-height (30) ██                  10,0%     27
 
 `grid-lanes` (układ murarski) i `column-height` to funkcje eksperymentalne, których przeglądarki
 jeszcze powszechnie nie mają. Bez nich i bez `subgrid` wynik siedmiu dotychczasowych obszarów to
-**7694 z 8140 (94,5%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
+**7699 z 8140 (94,6%)**; `css-text`, `css-backgrounds` i `css-fonts` liczymy osobno (tabela wyżej).
 
 ## Co zostało do naprawienia
 

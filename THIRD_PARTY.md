@@ -919,6 +919,52 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- treść niepodzielna i przycinanie w druku, 2026-11-19 (praca pomocnika):
+  - `layout/grid.go`: ostatni fragment wiersza siatki podzielonego między strony (reszta elementów o podanej
+    wysokości) nie zajmuje całej strony: następne wiersze stają tuż pod nim (CSS Fragmentation 3 § 4.4;
+    WPT css-page/monolithic-overflow-007); w źródle każdy następny wiersz zaczynał nową stronę;
+  - `layout/absolute.go`, `boxes/boxes.go` (`SliceVisible`), `document/draw.go`: pudełko absolute przycinające
+    treść (overflow inne niż visible przy podanej wysokości) wyższe niż strona jest układane w całości i krojone
+    przez strony pasami (CSS Break 3 § 4.4; monolithic-overflow-028, wzorzec page-background-003); w źródle
+    część poniżej pierwszej strony ginęła;
+  - `layout/pages.go`, `layout/block.go`: górny margines elementu głównego wyższy niż obszar strony wypełnia
+    pierwszą stronę, treść zaczyna się na następnej z obciętym marginesem; margines body nie jest wtedy
+    obcinany, bo marginesy elementu głównego nie zwijają się z dziećmi (CSS Break 3 § 5.2, CSS 2.1 § 8.3.1;
+    root-margin-001); w źródle pierwszy wiersz ginął pod dołem strony;
+  - `layout/block.go` (`inFlowFragmentCB`): dalszy ciąg pudełka relative podzielonego między strony jest blokiem
+    zawierającym potomków absolute tak, jakby nie był podzielony (CSS Break 3 § 2; abspos-002); w źródle top
+    liczyło się od fragmentu na stronie zastępnika;
+  - `layout/block.go`, `boxes/boxes.go` (`PercentBaseHeight`): procentowe wysokości dzieci w dalszym ciągu bloku
+    o podanej wysokości liczą się od pełnej wysokości używanej (CSS 2.1 § 10.5); w źródle od reszty na stronie
+    (zero dla `html, body { height: 100% }`, blok `height: 50%` na drugiej stronie znikał);
+  - `layout/block.go`: element pływający z break-inside: avoid, którego margines dolny wychodzi poza stronę,
+    przechodzi na następną w całości (float-with-large-margin-bottom-cross-page-002); w źródle liczyła się tylko
+    wysokość treści;
+  - `layout/layout.go` (`layoutFixedBoxes`): pudełko fixed powtarzane jest na stronie raz na element źródłowy
+    (CSS 2.1 § 9.6.1); w źródle każda rejestracja (powtarzana stopka tabeli, układy próbne) dokładała kopię;
+    za obecne na stronie uznajemy tylko pudełka fixed z jej drzewa (`collectFixedKeys`), bo `FixedBoxes` zawiera
+    też rejestracje z odrzuconych układów próbnych (przejęty `TestFixedInInline`);
+- fragmentacja tabel, flex i elementów pływających, 2026-11-19 (praca pomocnika):
+  - `layout/tables.go` (`groupLayout`): podział wymuszony (break-before/after) między wierszami grupy
+    z `break-inside: avoid` nie przenosi grupy na następną stronę; avoid dotyczy tylko podziałów niewymuszonych
+    (CSS Fragmentation 3 § 3.1, § 4.4). W źródle grupa była przenoszona w całości
+    (WPT rowgroup-page-break-inside-avoid-8-print);
+  - `layout/float.go` (`floatLayout`): procenty elementu pływającego liczone od `ContainingBlock()`, z pominięciem
+    anonimowego bloku (CSS 2 § 9.2.1.1); w źródle od wysokości auto anonimowego bloku;
+  - `layout/flex.go` (`forcedBreakAtFlexLineEdge`, pole `indexedBox.measured`): break-before elementów pierwszej
+    linii i break-after elementów ostatniej linii zagnieżdżonego kontenera flex wierszowego z zawijaniem
+    przechodzą na kontener (CSS Flexbox 1 § 12); wcześniej sprawdzane było tylko pierwsze i ostatnie dziecko
+    (WPT multi-line-row-flex-fragmentation-082b, -082c);
+  - `layout/inline.go` (`firstLineChildrenIn`, `reparentSubtree`): element pływający i pozycjonowany wewnątrz
+    pudełka liniowego pierwszego wiersza dziedziczy po `::first-line` (CSS Pseudo-Elements 4 § 2.1.1;
+    WPT first-line-floats-002);
+  - `layout/preferred.go` (`inlineMaxContentWidth`): przy ujemnym text-indent szerokość max-content nie jest
+    mniejsza od min-content (CSS Sizing 3); w źródle szerokość dopasowana do treści wychodziła 0
+    (WPT text-indent-intrinsic-003, -004);
+  - `boxes/multicol_wrap.go` (`MulticolWrappers`): właściwości kolumn przenoszone do anonimowego bloku przed
+    przywróceniem wartości początkowych; column-rule-width zależy od column-rule-style, więc odczytana po
+    wyzerowaniu stylu dawała 0 i linie między kolumnami pudełka liniowo-blokowego i komórki znikały
+    (WPT multicol-rule-color-inherit-002);
 - zaokrąglanie obszaru strony i granice słów `capitalize`, 2026-11-19 (decyzja użytkownika; ADR 0021):
   `layout/pages.go` `makePage`: gdy `Behavior.ExactLengths` jest wyłączone (domyślnie), szerokość i wysokość
   obszaru strony rosną do całych pikseli CSS, a lewy margines jest zaokrąglany do najbliższego piksela, jak

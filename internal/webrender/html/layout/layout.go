@@ -292,10 +292,11 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 	for i, page := range pages {
 		var rootChildren []Box
 		root, footnoteArea := page.Box().Children[0], page.Box().Children[1]
+		// gopdfgo: za widziane uznajemy pudełka fixed obecne w drzewie tej strony; page.FixedBoxes zawiera też
+		// rejestracje z odrzuconych układów próbnych (np. wiersze przeniesione przez orphans), których na stronie
+		// nie ma (przejęty TestFixedInInline)
 		seen := map[fixedKey]bool{}
-		for _, own := range page.FixedBoxes {
-			seen[fixedKeyOf(own)] = true
-		}
+		collectFixedKeys(root, seen)
 		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[:i], page, seen)...)
 		rootChildren = append(rootChildren, root.Box().Children...)
 		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[i+1:], page, seen)...)
@@ -981,4 +982,15 @@ func fixedKeyOf(box Box) fixedKey {
 		return fixedKey{element: fields.Element, pseudo: fields.PseudoType}
 	}
 	return fixedKey{box: box}
+}
+
+// collectFixedKeys (gopdfgo) zapisuje w seen klucze pudełek fixed z drzewa box, bez schodzenia w ich wnętrze.
+func collectFixedKeys(box Box, seen map[fixedKey]bool) {
+	for _, child := range box.Box().Children {
+		if f := child.Box(); f.Style != nil && f.Style.GetPosition().String == "fixed" && f.IsAbsolutelyPositioned() {
+			seen[fixedKeyOf(child)] = true
+			continue
+		}
+		collectFixedKeys(child, seen)
+	}
 }

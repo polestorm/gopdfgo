@@ -2075,3 +2075,39 @@ dokumentach; 60 testów WPT `text-transform` bez zmian.
    `TestTextTransformFullCaseMapping` oczekuje „Text-transform”. CSS Text 3 zostawia granice słów
    przeglądarce. Reguła Chrome (zmierzona): słowo kończy każdy znak niebędący literą, poza cyframi, znakami
    łączącymi, `_`, apostrofami ' i ’ oraz kropką środkową · (test WPT `text-transform-capitalize-035`).
+
+## Dwunasta paczka: fragmentacja w druku (2026-11-19)
+
+Dwóch pomocników z rozłącznymi plikami: treść niepodzielna i przycinanie (`block.go`, `grid.go`, `pages.go`,
+`absolute.go`, `layout.go`, rysowanie) oraz tabele, flex i elementy pływające (`table.go`, `flex.go`, `float.go`,
+`inline.go`, `preferred.go`, `column.go`). Reftesty druku 287 → 296 z 340 (ściśle 294, krawędziowo 2), sondaż
+ekranowy 9498 → 9502 bez strat, korpus bez zmian wobec binarki sprzed paczki (22 dokumenty, te same strony).
+
+Błędy gubiące treść w zwykłych dokumentach, naprawione:
+- procentowa wysokość w dalszym ciągu bloku (`html, body { height: 100% }`, blok `height: 50%` na stronie 2
+  miał wysokość 0);
+- górny margines elementu głównego wyższy niż strona (pierwszy wiersz znikał pod dołem strony);
+- pudełko `absolute` z przycinaniem wyższe niż strona (część poniżej pierwszej strony ginęła; teraz krojone
+  pasami jak obraz);
+- pudełko `fixed` w powtarzanej stopce tabeli rysowane 7–8 razy na stronie. Pierwsza wersja poprawki uznawała
+  za obecne na stronie także pudełka z odrzuconych układów próbnych i gubiła pudełko `fixed` (przejęty
+  `TestFixedInInline`); poprawione: liczą się tylko pudełka w drzewie strony.
+
+Inne: wiersze siatki po krojonej treści niepodzielnej, podział wymuszony w grupie wierszy z `avoid`, podział
+z dowolnego elementu pierwszej/ostatniej linii flex, procenty elementu pływającego w anonimowym bloku,
+`::first-line` w elementach pływających wewnątrz pudełka liniowego, ujemne `text-indent` a max-content, linie
+między kolumnami w `inline-block` i komórkach (błąd w `MulticolWrappers`).
+
+Otwarte, ważne dla zwykłych dokumentów:
+- **rodzeństwo po bloku o wysokości 0 z wystającą treścią** jest odsuwane na stronę, na której ta treść się
+  kończy, zamiast stać na swoim miejscu (równoległe przepływy fragmentacji, `block.go`; wzorzec
+  `monolithic-overflow-031`); wymaga stosów wznowienia z kilkoma wpisami;
+- reszta dolnego marginesu elementu pływającego przechodzącego przez stronę nie wpływa na `clear` na następnej
+  (`float-with-large-margin-bottom-cross-page-001`, `float.go`);
+- nagłówek i stopka tabeli obok treści niepodzielnej (`monolithic-overflow-016`, `-017`, `-023`, `table.go`);
+- pudełko `absolute` z zastępnikiem tuż po podziale strony trafia do `lateBoxes` z dwóch stron i jest rysowane
+  dwa razy (wzorzec `fixedpos-in-footer-forced-break`).
+
+Bez zmian z powodu decyzji: wiersz tabeli niższy niż strona w całości (ADR 0020), blok o podanej wysokości
+w całości (ADR 0004), `fixedpos-010` (test chce pudełek fixed liczonych od rozmiaru pierwszej strony; CSS 2.1
+§ 9.6.1 mówi o obszarze każdej strony), wiersz wyższy niż strona nie jest krojony (jak Chrome).
