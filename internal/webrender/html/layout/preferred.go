@@ -458,7 +458,19 @@ func inlineMaxContentWidth(context *layoutContext, box_ Box, outer, isLineStart 
 	// Remove trailing space, as split_first_line keeps trailing spaces when
 	// max_width is not set.
 	widths[len(widths)-1] -= trailingWhitespaceSize(context, box_, false)
-	return adjust(box_, outer, pr.Maxs(widths...), true, true)
+	out := adjust(box_, outer, pr.Maxs(widths...), true, true)
+	// gopdfgo: przy ujemnym wcięciu (text-indent) wiersz max-content bywa węższy niż najszerszy
+	// wiersz min-content (wcięcie skraca tylko pierwszy wiersz); rozmiar max-content nie jest jednak
+	// mniejszy od min-content (CSS Sizing 3 § 2.1: max-content to najmniejszy rozmiar bez
+	// przepełnienia, gdy łamanie nie jest wymuszone, więc mieści też każdy wiersz min-content; tak
+	// Chromium). W źródle szerokość dopasowana do treści wychodziła zero, a treść wystawała (testy
+	// WPT CSS2/text/text-indent-intrinsic-003, -004).
+	if bo.LineT.IsInstance(box_) {
+		if indent := box_.Box().Style.GetTextIndent(); indent.Unit != pr.Perc && indent.Value < 0 {
+			out = max(out, inlineMinContentWidth(context, box_, outer, nil, false, isLineStart))
+		}
+	}
+	return out
 }
 
 // Return the *-content width for a “TableColumnGroupBox“.

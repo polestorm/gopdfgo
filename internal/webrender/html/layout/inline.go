@@ -659,21 +659,59 @@ func firstLineBox(linebox *bo.LineBox, style pr.ElementStyle) *bo.LineBox {
 }
 
 func firstLineChildren(children []Box, parent pr.ElementStyle) []Box {
+	return firstLineChildrenIn(children, parent, false)
+}
+
+// firstLineChildrenIn (gopdfgo): inInline mówi, że dzieci należą do pudełka liniowego z pierwszego
+// wiersza. Element pływający albo pozycjonowany wewnątrz takiego pudełka dziedziczy po nim, czyli
+// pośrednio po `::first-line` (CSS Pseudo-Elements 4 § 2.1.1: drzewo dziedziczenia przechodzi przez
+// pseudoelement); dziecko wyjęte z przepływu stojące wprost w bloku dziedziczy po bloku i zostaje bez
+// zmian (testy WPT CSS2/selectors/first-line-floats-001, -002).
+func firstLineChildrenIn(children []Box, parent pr.ElementStyle, inInline bool) []Box {
 	out := make([]Box, len(children))
 	for i, child := range children {
 		out[i] = child
 		if !child.Box().IsInNormalFlow() {
+			if inInline {
+				if copied, ok := reparentSubtree(child, parent); ok {
+					out[i] = copied
+				}
+			}
 			continue
 		}
 		switch child.(type) {
 		case *bo.TextBox, *bo.InlineBox:
 			copied := child.Copy()
 			copied.Box().Style = tree.Reparent(child.Box().Style, parent)
-			copied.Box().Children = firstLineChildren(child.Box().Children, copied.Box().Style)
+			copied.Box().Children = firstLineChildrenIn(child.Box().Children, copied.Box().Style, true)
 			out[i] = copied
 		}
 	}
 	return out
+}
+
+// reparentSubtree (gopdfgo) zwraca kopię pudełka i jego potomków ze stylami przeliczonymi względem
+// nowego rodzica. Obejmuje tylko bloki, wiersze, pudełka liniowe i tekst; inne pudełko (tabela, flex,
+// element zastępowany, ...) zostaje bez zmian, bo jego wewnętrzne struktury wskazują na oryginalne
+// dzieci (drugi wynik false).
+func reparentSubtree(box Box, parent pr.ElementStyle) (Box, bool) {
+	switch box.(type) {
+	case *bo.BlockBox, *bo.LineBox, *bo.InlineBox, *bo.TextBox:
+	default:
+		return box, false
+	}
+	children := make([]Box, len(box.Box().Children))
+	copied := box.Copy()
+	copied.Box().Style = tree.Reparent(box.Box().Style, parent)
+	for i, child := range box.Box().Children {
+		reparented, ok := reparentSubtree(child, copied.Box().Style)
+		if !ok {
+			return box, false
+		}
+		children[i] = reparented
+	}
+	copied.Box().Children = children
+	return copied, true
 }
 
 // firstLineTarget (gopdfgo) szuka pudełka pierwszego sformatowanego wiersza bloku: pierwszy wiersz
