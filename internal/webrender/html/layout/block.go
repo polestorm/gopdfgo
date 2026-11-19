@@ -1512,6 +1512,16 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 			newChild.Box().PositionY > context.pageBottom-context.pageHeight+0.5 {
 			pageOverflow, avoidedSplit = true, true
 		}
+		// gopdfgo: to samo, gdy pudełko obramowania się mieści, ale dolny margines elementu pływającego
+		// wychodzi poza stronę: element z break-inside: avoid przechodzi w całości na następną stronę razem
+		// z marginesem (marginesy elementów pływających nie są obcinane przy podziale, CSS Break 3 § 5.2;
+		// tak drukuje Chromium, test WPT css-break/float-with-large-margin-bottom-cross-page-002). W źródle
+		// liczyła się tylko wysokość treści.
+		if !avoidedSplit && !fragmentedInside && avoidPageBreak(string(child.Style.GetBreakInside()), context) &&
+			newChild.Box().PositionY > context.pageBottom-context.pageHeight+0.5 &&
+			context.overflowsPage(bottomSpace, newChild.Box().PositionY+newChild.Box().MarginHeight()) {
+			pageOverflow, avoidedSplit = true, true
+		}
 		addChild := (pageIsEmpty && len(*newChildren) == 0) || !pageOverflow || bo.IsMonolithic(box)
 		if addChild {
 			// Child fits or has to fit, add it.

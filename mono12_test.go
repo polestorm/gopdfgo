@@ -82,4 +82,9 @@ func TestMonolithicPrint12(t *testing.T) {
 		`<style>.f { position:absolute; left:0; width:20px; height:20px; background:rgba(0,0,255,.3) }</style>
 		<div style="height:100px"></div><div style="height:100px"></div><div style="height:80px"></div>
 		<div class=f style="top:80px"></div><div class=f style="top:180px"></div><div class=f style="top:280px"></div>`)
+	// element pływający z break-inside: avoid, którego dolny margines nie mieści się na stronie, przechodzi
+	// na następną w całości (float-with-large-margin-bottom-cross-page-002)
+	same("avoid-float-margin-overflow", `<div class=y style="height:60px"></div>
+		<div class=b style="float:left;break-inside:avoid;width:50px;height:40px;margin-bottom:50px"></div>`,
+		`<div class=y style="height:60px"></div><div class=b style="break-before:page;width:50px;height:40px"></div>`)
 }
