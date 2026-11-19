@@ -255,20 +255,7 @@ func blockContentWidth(context *layoutContext, box Box, function fnBlock, outer,
 		// Źródło brało width wprost, więc np. inline-block albo kontener flex z dzieckiem o stałej
 		// szerokości i box-sizing: border-box wychodził szerszy o obramowanie i odstęp dziecka (test WPT
 		// css-page/margin-boxes/auto-margins-002, wzorzec).
-		if boxSizing := box.Box().Style.GetBoxSizing(); boxSizing == "border-box" || boxSizing == "padding-box" {
-			style := box.Box().Style
-			pixels := func(d pr.TaggedDim) pr.Float {
-				if d.Tag == 0 && d.Unit == pr.Px && d.Calc == nil {
-					return d.Value
-				}
-				return 0
-			}
-			widthValue -= pixels(style.GetPaddingLeft()) + pixels(style.GetPaddingRight())
-			if boxSizing == "border-box" {
-				widthValue -= style.GetBorderLeftWidth().Value + style.GetBorderRightWidth().Value
-			}
-			widthValue = max(widthValue, 0)
-		}
+		widthValue = max(widthValue-boxSizingFrame(box, true), 0)
 	}
 
 	return adjust(box, outer, widthValue, true, true)
@@ -300,32 +287,84 @@ func multicolContentWidth(style pr.ElementStyle, columnWidth pr.Float) pr.Float 
 	return count*columnWidth + (count-1)*gap
 }
 
+// boxSizingFrame (gopdfgo) podaje sumę odstępów wewnętrznych i obramowań w osi poziomej (horizontal)
+// albo pionowej, którą przy box-sizing: border-box (przy padding-box same odstępy) obejmują width,
+// min-width i max-width (w pionie height, min-height i max-height); rozmiar treści to podana wartość
+// minus ta suma (CSS Box Sizing 3 § 3). Procentowe odstępy liczą się w rozmiarach wewnętrznych jako
+// zero (CSS Sizing 3 § 5.2.1). Tabela i komórka w modelu zwiniętym mają za obramowanie użyte połówki
+// obramowań (CSS 2.1 § 17.6.2), a tabela w tym modelu nie ma odstępów wewnętrznych.
+func boxSizingFrame(box_ Box, horizontal bool) pr.Float {
+	box := box_.Box()
+	style := box.Style
+	boxSizing := style.GetBoxSizing()
+	if boxSizing != "border-box" && boxSizing != "padding-box" {
+		return 0
+	}
+	pixels := func(d pr.TaggedDim) pr.Float {
+		if d.Tag == 0 && d.Unit == pr.Px && d.Calc == nil {
+			return d.Value
+		}
+		return 0
+	}
+	collapse := style.GetBorderCollapse() == "collapse" && (bo.TableT.IsInstance(box_) || bo.TableCellT.IsInstance(box_))
+	var padding, border pr.Float
+	if horizontal {
+		padding = pixels(style.GetPaddingLeft()) + pixels(style.GetPaddingRight())
+		border = style.GetBorderLeftWidth().Value + style.GetBorderRightWidth().Value
+		if collapse && (box.BorderLeftWidth != 0 || box.BorderRightWidth != 0) {
+			border = box.BorderLeftWidth + box.BorderRightWidth
+		}
+	} else {
+		padding = pixels(style.GetPaddingTop()) + pixels(style.GetPaddingBottom())
+		border = style.GetBorderTopWidth().Value + style.GetBorderBottomWidth().Value
+		if collapse && (box.BorderTopWidth != 0 || box.BorderBottomWidth != 0) {
+			border = box.BorderTopWidth + box.BorderBottomWidth
+		}
+	}
+	if collapse && bo.TableT.IsInstance(box_) {
+		padding = 0
+	}
+	if boxSizing == "padding-box" {
+		return padding
+	}
+	return padding + border
+}
+
 // Get box width from given width and box min- and max-widths.
 func minMax(box Box, width pr.Float) pr.Float {
 	minWidth := box.Box().Style.GetMinWidth()
 	maxWidth := box.Box().Style.GetMaxWidth()
+	// gopdfgo: przy box-sizing: border-box (padding-box) min-width i max-width opisują pudełko
+	// obramowania (odstępu), a width tu jest szerokością treści; ograniczenia porównujemy więc po odjęciu
+	// obramowania i odstępu (CSS Box Sizing 3 § 3, CSS Sizing 3 § 5.2). W źródle porównanie szło wprost,
+	// więc pudełko dopasowujące się do treści (inline-block, element pływający, absolute, ścieżka siatki,
+	// komórka tabeli) z dzieckiem o min-width i box-sizing: border-box wychodziło szersze o obramowanie
+	// i odstęp dziecka, a z max-width nie przycinało się do niego. To samo dla min-height i max-height
+	// przeniesionych przez proporcje elementu zastępowanego.
+	frame := boxSizingFrame(box, true)
 	var resMin, resMax pr.Float
 	if minWidth.Tag == pr.Auto || minWidth.Unit == pr.Perc {
 		resMin = 0
 	} else {
-		resMin = minWidth.Value
+		resMin = max(minWidth.Value-frame, 0)
 	}
 	if maxWidth.Tag == pr.Auto || maxWidth.Unit == pr.Perc {
 		resMax = pr.Inf
 	} else {
-		resMax = maxWidth.Value
+		resMax = max(maxWidth.Value-frame, 0)
 	}
 
 	if replaced, ok := box.(bo.ReplacedBoxITF); ok {
 		_, _, ratio := replaced.Replaced().Replacement.GetIntrinsicSize(1, box.Box().Style.GetFontSize().Value)
 		if ratio != nil {
+			frameV := boxSizingFrame(box, false)
 			minHeight := box.Box().Style.GetMinHeight()
 			if minHeight.Tag != pr.Auto && minHeight.Unit != pr.Perc {
-				resMin = max(resMin, minHeight.Value*ratio.V())
+				resMin = max(resMin, max(minHeight.Value-frameV, 0)*ratio.V())
 			}
 			maxHeight := box.Box().Style.GetMaxHeight()
 			if maxHeight.Tag != pr.Auto && maxHeight.Unit != pr.Perc {
-				resMax = min(resMax, maxHeight.Value*ratio.V())
+				resMax = min(resMax, max(maxHeight.Value-frameV, 0)*ratio.V())
 			}
 		}
 	}
@@ -1393,7 +1432,9 @@ func replacedMinContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 				h = definite // gopdfgo: wysokość znana z wiersza siatki o stałym rozmiarze
 			}
 		} else if height.Unit == pr.Px {
-			h = height.Value
+			// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+			// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+			h = max(height.Value-boxSizingFrame(box, false), 0)
 		} else {
 			panic(fmt.Sprintf("expected Px got %d", height.Unit))
 		}
@@ -1415,7 +1456,9 @@ func replacedMinContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		// See https://drafts.csswg.org/css-sizing/#intrinsic-contribution
 		w = 0
 	} else if width.Unit == pr.Px {
-		w = width.Value
+		// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+		// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+		w = max(width.Value-boxSizingFrame(box, true), 0)
 	} else {
 		panic(fmt.Sprintf("expected Px got %d", width.Unit))
 	}
@@ -1485,7 +1528,9 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 				h = definite // gopdfgo: wysokość znana z wiersza siatki o stałym rozmiarze
 			}
 		} else if height.Unit == pr.Px {
-			h = height.Value
+			// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+			// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+			h = max(height.Value-boxSizingFrame(box, false), 0)
 		} else {
 			panic(fmt.Sprintf("expected Px got %d", height.Unit))
 		}
@@ -1500,7 +1545,9 @@ func replacedMaxContentWidth(box *bo.ReplacedBox, outer bool) pr.Float {
 		// See https://drafts.csswg.org/css-sizing/#intrinsic-contribution
 		w = 0
 	} else if width.Unit == pr.Px {
-		w = width.Value
+		// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+		// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+		w = max(width.Value-boxSizingFrame(box, true), 0)
 	} else {
 		panic(fmt.Sprintf("expected Px got %d", width.Unit))
 	}
@@ -1515,7 +1562,9 @@ func flexMinContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	// gopdfgo: kontener o szerokości podanej długością ma tę szerokość także jako wewnętrzną
 	// (CSS Sizing 3 § 5.1), tak jak blok i siatka; źródło liczyło ją zawsze z elementów.
 	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
-		return adjust(box, outer, width.Value, true, true)
+		// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+		// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+		return adjust(box, outer, max(width.Value-boxSizingFrame(box, true), 0), true, true)
 	}
 	primeFlexDefiniteHeights(box)
 	var sum, max pr.Float
@@ -1804,7 +1853,9 @@ func flexMaxContentWidth(context *layoutContext, box Box, outer bool) pr.Float {
 	// gopdfgo: kontener o szerokości podanej długością ma tę szerokość także jako wewnętrzną
 	// (CSS Sizing 3 § 5.1), tak jak blok i siatka; źródło liczyło ją zawsze z elementów.
 	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
-		return adjust(box, outer, width.Value, true, true)
+		// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+		// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+		return adjust(box, outer, max(width.Value-boxSizingFrame(box, true), 0), true, true)
 	}
 	primeFlexDefiniteHeights(box)
 	var sum, max pr.Float

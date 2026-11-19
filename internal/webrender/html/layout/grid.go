@@ -2979,7 +2979,9 @@ type gridMeasure struct {
 // inline-grid, siatka pływająca albo w komórce tabeli miała szerokość jednej kolumny albo zero.
 func gridContentWidth(context *layoutContext, box Box, outer, minimum bool) pr.Float {
 	if width := box.Box().Style.GetWidth(); width.Tag != pr.Auto && width.Unit == pr.Px && width.Calc == nil {
-		return adjust(box, outer, width.Value, true, true)
+		// gopdfgo: przy box-sizing: border-box/padding-box podana długość obejmuje obramowanie i odstęp, a adjust
+		// dodaje je jeszcze raz (CSS Box Sizing 3 § 3); źródło brało ją za rozmiar treści
+		return adjust(box, outer, max(width.Value-boxSizingFrame(box, true), 0), true, true)
 	}
 	probe := box.Copy()
 	request := &gridMeasure{target: probe.Box(), constraint: pr.AutoF}
