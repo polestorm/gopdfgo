@@ -919,6 +919,31 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- pudełka absolute przy liczeniu wierszy i tabela z treścią niepodzielną, 2026-11-19 (praca pomocnika):
+  - `layout/inline.go`, `absolute.go`: wiersze liczone przy podziale strony dla widows
+    (`lineBoxeIterator.consume`) są układane próbnie (`trial`, który przywraca teraz także `lateBoxes`); w źródle
+    zastępniki pudełek pozycjonowanych i elementy pływające z tych wierszy zostawały na liście bieżącej strony,
+    więc pudełko absolute było układane i rysowane na niej i drugi raz na następnej (CSS Break 3 § 2; wzorzec WPT
+    css-break/table/repeated-section/fixedpos-in-footer-forced-break-print). Fragmenty pudełka dla wcześniejszych
+    stron (`lateBoxes`) pamiętają pudełko źródłowe i są zastępowane przy każdym ponownym układzie od początku
+    (`forgetLateFragments`);
+  - `layout/tables.go`: reszta treści niepodzielnej, która wylewa się z wiersza na stronę z powtarzanym nagłówkiem
+    i jest nie wyższa niż nagłówek, nie odsuwa następnych wierszy: stoją tuż pod nagłówkiem, a wycinek trafia pod
+    nagłówek i jest ukryty (`overflowBehindHeader`; jak Chromium, WPT css-page/monolithic-overflow-023). Pełny
+    model Chromium (testy -016, -017) wymaga malowania grup wierszy w kolejności drzewa i nie jest wdrożony;
+- równoległe przepływy przy treści wylewającej się z bloku, 2026-11-19 (praca pomocnika; `layout/block.go`,
+  `layout.go`): treść wylewająca się z bloku o podanej wysokości, który sam kończy się na stronie, nie zatrzymuje
+  już układu rodzeństwa: następne pudełka stoją zaraz za jego obramowaniem, a wylewająca się treść biegnie na
+  następnych stronach równolegle z nimi (CSS 2.1 § 11.1, CSS Fragmentation 3 § 4). Stos wznowienia może wskazywać
+  kilkoro dzieci naraz (dalszy ciąg wylewającej się treści i miejsce podziału rodzeństwa; `unpackParallel`);
+  rodzic, którego własna treść się skończyła, zachowuje dolne obramowanie i zwraca `OverflowResume` z wpisem za
+  ostatnim dzieckiem. Dalszy ciąg o wysokości zero nie zajmuje strony (`hasPlacedChild`,
+  `overflowContinuationBoxes`) i nie powtarza wymuszonego podziału przed rodzeństwem. W źródle wylewająca się
+  treść była porzucana, a po wcześniejszej poprawce gopdfgo rodzeństwo czekało na stronę, na której się kończyła.
+  Wyłączone (`parallelOverflowAllowed`) w kolumnach, elementach flex i siatki, tabelach, elementach pływających
+  i pozycjonowanych, w trybie ciągłym oraz w bloku o podanej wysokości, który nie kończy się na tej stronie
+  (ADR 0004). Wzorzec `css-page/monolithic-overflow-031-print-ref` i `css-break/block-002-wm-vlr/vrl-print`
+  zaliczone;
 - treść niepodzielna i przycinanie w druku, 2026-11-19 (praca pomocnika):
   - `layout/grid.go`: ostatni fragment wiersza siatki podzielonego między strony (reszta elementów o podanej
     wysokości) nie zajmuje całej strony: następne wiersze stają tuż pod nim (CSS Fragmentation 3 § 4.4;

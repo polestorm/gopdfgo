@@ -2111,3 +2111,26 @@ Otwarte, ważne dla zwykłych dokumentów:
 Bez zmian z powodu decyzji: wiersz tabeli niższy niż strona w całości (ADR 0020), blok o podanej wysokości
 w całości (ADR 0004), `fixedpos-010` (test chce pudełek fixed liczonych od rozmiaru pierwszej strony; CSS 2.1
 § 9.6.1 mówi o obszarze każdej strony), wiersz wyższy niż strona nie jest krojony (jak Chrome).
+
+## Trzynasta paczka: przepływy równoległe i podwójne pudełka (2026-11-19)
+
+Reftesty druku 296 → 300 z 340 (ściśle 298, krawędziowo 2), sondaż ekranowy 9502 bez zmian, korpus bez zmian
+(22 dokumenty).
+
+- **Rodzeństwo po bloku z wylewającą się treścią** stoi zaraz za jego obramowaniem, a wylewająca się treść biegnie
+  na następnych stronach równolegle (CSS 2.1 § 11.1, CSS Fragmentation 3 § 4). Stos wznowienia może wskazywać
+  kilkoro dzieci. Wyłączone w kolumnach, flex, siatce, tabelach, elementach pływających i pozycjonowanych oraz
+  w bloku o podanej wysokości, który nie kończy się na tej stronie (tam po staremu: rodzeństwo czeka).
+- **Pudełko absolute rysowane dwa razy:** wiersze liczone dla `widows` przy podziale strony zostawiały zastępniki
+  pudełek pozycjonowanych (i elementy pływające) na liście bieżącej strony; teraz są liczone próbnie.
+- **Tabela z powtarzanym nagłówkiem** i resztą treści niepodzielnej nie wyższą niż nagłówek: następne wiersze
+  stoją tuż pod nagłówkiem (jak Chromium, `monolithic-overflow-023`).
+
+Świadomie bez zmian: reszta dolnego marginesu elementu pływającego za końcem strony nie wpływa na `clear` na
+następnej (`float-with-large-margin-bottom-cross-page-001`; CSS Break 3 nie mówi o elementach pływających,
+Chromium według wpt.fyi też tego nie robi). Pełny model Chromium dla nagłówka i stopki obok treści niepodzielnej
+(`-016`, `-017`) wymaga malowania grup wierszy w kolejności drzewa (`draw.go`).
+
+Zgłoszone przez pomocnika jako znikający nagłówek tabeli (nagłówek 40 px na stronie 100 px nie powtarza się na
+stronie 2): to reguła ćwiartki strony z pomiaru w Chrome (nagłówek wyższy niż 1/4 strony nie jest powtarzany),
+nie błąd.
