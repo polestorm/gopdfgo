@@ -919,6 +919,19 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- zaokrąglanie obszaru strony i granice słów `capitalize`, 2026-11-19 (decyzja użytkownika; ADR 0021):
+  `layout/pages.go` `makePage`: gdy `Behavior.ExactLengths` jest wyłączone (domyślnie), szerokość i wysokość
+  obszaru strony rosną do całych pikseli CSS, a lewy margines jest zaokrąglany do najbliższego piksela, jak
+  w Chrome 157; prawy i dolny margines maleją o tyle samo (źródło: rozmiar dokładny z arkusza). Pola
+  marginesów układamy na dokładnych wymiarach, przywracanych tylko na czas `makeMarginBoxes` (`layout.go`,
+  `exactPageGeometry`). Przejęty `TestPageBreaksComplex1` porównuje prawy margines strony po zaokrągleniu do
+  piksela (na domyślnym A4 wynosi 9,70 px zamiast 10 px).
+  `boxes/build.go` `isWordSeparator`: słowo dla `text-transform: capitalize` kończy każdy znak niebędący literą,
+  cyfrą ani znakiem łączącym, poza `_`, apostrofami ' i ’ oraz kropką środkową · (reguła Chromium; CSS Text 3
+  § 2.1.1 zostawia granice słów przeglądarce). Test własny `TestTextTransformFullCaseMapping` oczekuje
+  „Text-Transform” zamiast „Text-transform”; w przejętym `boxes/boxes_test.go` `TestCapitalize` cztery
+  oczekiwania zmienione: „Wow.Wow!Wow”, „Non‑Breaking” (U+2011), „One/Two/Three”, „Supernatural,Super”
+  (sam test zaznacza, że przeglądarki się tu różnią);
 - pozycjonowanie w druku, 2026-11-18 (praca pomocnika; `layout/absolute.go`, `pages.go`, `layout.go`,
   `document/draw.go`): pudełko `absolute`, którego blokiem zawierającym jest blok początkowy, liczone jest od
   pierwszej strony, a blok początkowy ciągnie się w dół przez kolejne strony (CSS 2.1 § 10.1; jak Chrome 157);

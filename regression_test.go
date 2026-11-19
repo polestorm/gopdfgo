@@ -538,12 +538,13 @@ func TestTabAfterTextEndingAtTabStop(t *testing.T) {
 	}
 }
 
-// text-transform: pełne odwzorowanie wielkości liter z Unicode (ß -> SS).
+// text-transform: pełne odwzorowanie wielkości liter z Unicode (ß -> SS). Granice słów dla capitalize
+// jak w Chromium: łącznik kończy słowo („Text-Transform”), apostrof nie („O'neil”).
 func TestTextTransformFullCaseMapping(t *testing.T) {
 	text := string(extractText(t, renderString(t, `<p style="text-transform: uppercase">straße zażółć</p>`+
 		`<p style="text-transform: capitalize">text-transform gęślą o'neil 2x</p>`+
 		`<p style="text-transform: lowercase">ZAŻÓŁĆ</p>`).PDF))
-	for _, want := range []string{"STRASSE ZAŻÓŁĆ", "Text-transform Gęślą O'neil 2x", "zażółć"} {
+	for _, want := range []string{"STRASSE ZAŻÓŁĆ", "Text-Transform Gęślą O'neil 2x", "zażółć"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("brak %q w %q", want, text)
 		}

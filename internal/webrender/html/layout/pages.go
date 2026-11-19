@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -790,6 +791,32 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	page.PositionY = 0
 	pageWidth(page, context, block{Width: cbWidth})
 	pageHeight(page, context, block{Height: cbHeight})
+	if !context.behavior.ExactLengths {
+		// gopdfgo: jak Chromium (pomiar Chrome 157, 2026-11-19; ADR 0021, przełącznik z ADR 0013): szerokość
+		// i wysokość obszaru strony w górę do całych pikseli CSS, lewa krawędź do najbliższego piksela,
+		// górna bez zmian. Prawy i dolny margines maleją o tyle, o ile urósł obszar. Pola marginesów
+		// dostaną z powrotem dokładne wymiary (exactPageGeometry, layout.go).
+		const eps = 1e-3 // 680,0000001 to wciąż 680
+		w, h := page.Width.V(), page.Height.V()
+		if context.exactPageGeometry == nil {
+			context.exactPageGeometry = map[int][5]pr.Float{}
+		}
+		context.exactPageGeometry[pageNumber] = [5]pr.Float{w, h, page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V()}
+		cw, ch := pr.Float(math.Ceil(float64(w-eps))), pr.Float(math.Ceil(float64(h-eps)))
+		if cw > w {
+			page.Width = cw
+			page.MarginRight = page.MarginRight.V() - (cw - w)
+		}
+		if ch > h {
+			page.Height = ch
+			page.MarginBottom = page.MarginBottom.V() - (ch - h)
+		}
+		ml := page.MarginLeft.V()
+		if rl := pr.Float(math.Round(float64(ml))); rl != ml {
+			page.MarginLeft = rl
+			page.MarginRight = page.MarginRight.V() + (ml - rl)
+		}
+	}
 	if scale := context.contentScale; scale > 1 {
 		// gopdfgo: treść układamy na powiększonym obszarze strony (ADR 0014); rozmiar z arkusza wraca
 		// przed układem pól marginesów

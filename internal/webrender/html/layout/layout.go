@@ -302,7 +302,21 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 		if len(footnoteArea.Box().Children) != 0 {
 			page.Children = append(page.Children, footnoteArea)
 		}
-		page.Children = append(page.Children, makeMarginBoxes(context, page, state)...)
+		if g, ok := context.exactPageGeometry[i+1]; ok {
+			// gopdfgo: zaokrąglenie do pikseli (ADR 0021) dotyczy obszaru treści; pola marginesów układamy
+			// według marginesów dokładnie takich, jak w arkuszu, a potem strona wraca do zaokrąglonych (dalsze
+			// kroki, m.in. rysowanie i powtórny układ, czytają geometrię, na której ułożono treść). W trybie
+			// ciągłym (ADR 0017) wysokość strony urosła już do wysokości treści i zostaje.
+			rounded := [5]pr.Float{page.Width.V(), page.Height.V(), page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V()}
+			page.Width, page.MarginLeft, page.MarginRight = g[0], g[2], g[3]
+			if !context.behavior.Continuous {
+				page.Height, page.MarginBottom = g[1], g[4]
+			}
+			page.Children = append(page.Children, makeMarginBoxes(context, page, state)...)
+			page.Width, page.Height, page.MarginLeft, page.MarginRight, page.MarginBottom = rounded[0], rounded[1], rounded[2], rounded[3], rounded[4]
+		} else {
+			page.Children = append(page.Children, makeMarginBoxes(context, page, state)...)
+		}
 		if firstRoot == nil {
 			copied := *root.Box()
 			firstRoot = &copied
@@ -467,6 +481,10 @@ type layoutContext struct {
 	// gopdfgo: contentScale > 1: obszar strony jest powiększony tyle razy na czas układu treści
 	// (pomniejszanie treści szerszej niż strona, ADR 0014)
 	contentScale pr.Float
+
+	// gopdfgo: dokładne wymiary obszaru strony i marginesy z arkusza sprzed zaokrąglenia do pikseli
+	// (ADR 0021), według numeru strony; pola marginesów układamy według nich
+	exactPageGeometry map[int][5]pr.Float
 
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)

@@ -2062,7 +2062,9 @@ który ten test też oblewa).
   ADR 0004), `22`, `09`, część `13` (Chrome rysuje punktory jako kształty), `16` (fonty zastępcze),
   `13` (wygląd kontrolek formularzy).
 
-Do decyzji:
+Rozstrzygnięte 2026-11-19 (decyzja użytkownika): oba punkty wdrożone; pkt 1 jako ADR 0021 pod przełącznikiem
+`ExactLengths`. Wynik w korpusie: `19-flex-grid-pagination` 72 → 18 słów przesuniętych, bez pogorszeń w innych
+dokumentach; 60 testów WPT `text-transform` bez zmian.
 
 1. **Zaokrąglanie obszaru strony do pikseli jak w Chrome 157** (pomiar pomocnika na własnych plikach): szerokość
    i wysokość obszaru treści zaokrąglane w górę do całych pikseli, lewa krawędź do najbliższego piksela, górna

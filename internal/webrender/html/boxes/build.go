@@ -2251,11 +2251,18 @@ func capitalizeLang(text string, lang language.Tag, letterFound *bool) string {
 	return out.String()
 }
 
-// isWordSeparator (gopdfgo) mówi, czy znak kończy słowo dla text-transform: capitalize: separatory
-// Unicode (Z) oraz znaki białe nowego wiersza i tabulacji, np. złamanie wiersza z <br> (CSS Text 3
-// § 2.1.1, granice słów; test WPT text-transform-cap-003). Źródło uznawało tylko separatory Z.
+// isWordSeparator (gopdfgo) mówi, czy znak kończy słowo dla text-transform: capitalize. CSS Text 3
+// § 2.1.1 zostawia granice słów przeglądarce, więc bierzemy regułę Chromium (pomiar Chrome 157,
+// 2026-11-19; test WPT text-transform-capitalize-035): słowo kończy każdy znak niebędący literą, cyfrą
+// ani znakiem łączącym, poza „_”, apostrofami ' i ’ oraz kropką środkową ·. Stąd „text-transform” daje
+// „Text-Transform”. Źródło uznawało tylko separatory Unicode (Z); wcześniej dodaliśmy znaki białe
+// (text-transform-cap-003).
 func isWordSeparator(r rune) bool {
-	return unicode.Is(unicode.Z, r) || r == '\n' || r == '\t' || r == '\r' || r == '\f'
+	switch r {
+	case '_', '\'', '\u2019', '\u00b7':
+		return false
+	}
+	return !unicode.In(r, unicode.L, unicode.N, unicode.M)
 }
 
 // textTransformLanguage zwraca język treści dla reguł zmiany wielkości liter (CSS Text 3 § 2.1:

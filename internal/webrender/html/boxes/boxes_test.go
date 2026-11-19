@@ -1416,13 +1416,16 @@ func TestCapitalize(t *testing.T) {
 		{"abc def ghi", "Abc Def Ghi"},
 		{"AbC def ghi", "AbC Def Ghi"},
 		{"I’m SO cool", "I’m SO Cool"},
-		{"Wow.wow!wow", "Wow.wow!wow"},
+		// gopdfgo: granice słów jak w Chromium (isWordSeparator, 2026-11-19, wpis w THIRD_PARTY.md):
+		// interpunkcja i łącznik U+2011 kończą słowo; źródło: "Wow.wow!wow", "Non‑breaking", "One/two/three",
+		// "Supernatural,super"
+		{"Wow.wow!wow", "Wow.Wow!Wow"},
 		{"!now not tomorrow", "!Now Not Tomorrow"},
 		{"SUPER cool", "SUPER Cool"},
-		{"i 😻 non‑breaking characters", "I 😻 Non‑breaking Characters"},
+		{"i 😻 non‑breaking characters", "I 😻 Non‑Breaking Characters"},
 		{"3lite 3lite", "3lite 3lite"},
-		{"one/two/three", "One/two/three"},
-		{"supernatural,super", "Supernatural,super"},
+		{"one/two/three", "One/Two/Three"},
+		{"supernatural,super", "Supernatural,Super"},
 		{"éternel αιώνια", "Éternel Αιώνια"},
 	} {
 		// Results are different for different browsers, we almost get the same

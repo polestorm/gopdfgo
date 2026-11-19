@@ -92,7 +92,9 @@ type Options struct {
 	// Domyślnie (false) długości, które Chromium zaokrągla do całych pikseli CSS, są zaokrąglane tak samo:
 	//   - border-width, outline-width i column-rule-width: wartości między 0 a 1 px rosną do 1 px,
 	//     większe są obcinane w dół (0.5pt daje 0,75 pt, 1pt daje 0,75 pt, 1.5pt daje 1,5 pt; ADR 0009);
-	//   - border-spacing: obcinane w dół do całych pikseli (1mm daje 3 px).
+	//   - border-spacing: obcinane w dół do całych pikseli (1mm daje 3 px);
+	//   - obszar strony: szerokość i wysokość w górę do całych pikseli, lewy margines do najbliższego
+	//     piksela (A4 z marginesami 15 mm: 681 px zamiast 680,31; ADR 0021).
 	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
 	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
 	ExactLengths bool

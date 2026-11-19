@@ -12,6 +12,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | 0018 | Fonty testowe CSSTest z WPT w `testdata/fonts/csstest` (zamiast instalacji w systemie) | przyjęta |
 | 0019 | Cechy rozmiaru w `@media` oceniane względem obszaru domyślnego arkusza (A4 albo arkusz użytkownika), bez wpływu `@page` autora (CSS Page 3 § 7.1; sprawdzone w Chrome 157) | przyjęta |
 | 0020 | Wiersze tabeli w druku według CSS Tables 3 § 6.1: niski wiersz w całości, wysoki dzielony; bez przełącznika, sterowanie przez `break-inside` (świadome odstępstwo od Chrome) | przyjęta |
+| 0021 | Obszar strony zaokrąglany do całych pikseli CSS jak w Chrome 157 (szerokość i wysokość w górę, lewa krawędź do najbliższego), pod przełącznikiem `ExactLengths` z ADR 0013 | przyjęta |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
 | 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page` | zastąpiona przez ADR 0019 |
 | 0011 | Element wiersza flex, który nie mieści się na stronie, przechodzi na następną sam (jak w przeglądarkach); gdy nie mieści się żaden, przechodzi cała linia | przyjęta |

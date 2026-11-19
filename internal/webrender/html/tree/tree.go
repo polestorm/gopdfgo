@@ -44,7 +44,8 @@ type Behavior struct {
 	// monospace. Zero oznacza 13 px, jak w przeglądarkach; 16 wyłącza tę regułę (ADR 0008).
 	MonospaceFontSize float64
 	// ExactLengths: długości zostają dokładne. Domyślnie szerokości obramowań, konturów i linii między
-	// kolumnami oraz border-spacing są zaokrąglane do całych pikseli CSS jak w Chromium (ADR 0009, 0013).
+	// kolumnami, border-spacing oraz obszar strony są zaokrąglane do całych pikseli CSS jak w Chromium
+	// (ADR 0009, 0013, 0021).
 	ExactLengths bool
 	// MaxShrink: największe pomniejszenie treści szerszej niż obszar strony (ADR 0014). Wartości do 1
 	// (także zero) wyłączają pomniejszanie.

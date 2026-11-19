@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"strings"
 	"testing"
@@ -230,7 +231,8 @@ func TestPageBreaksComplex1(t *testing.T) {
 	// The first page is a right page on rtl, but not here because of
 	// page-break-before on the root element.
 	tu.AssertEqual(t, page1.Box().MarginLeft, Fl(50))
-	tu.AssertEqual(t, page1.Box().MarginRight, Fl(10))
+	// gopdfgo: obszar strony zaokrąglany do pikseli (ADR 0021), więc prawy margines maleje o ułamek piksela
+	tu.AssertEqual(t, Fl(math.Round(float64(page1.Box().MarginRight.V()))), Fl(10))
 	html := unpack1(page1)
 	body := unpack1(html)
 	div := unpack1(body)
@@ -241,11 +243,11 @@ func TestPageBreaksComplex1(t *testing.T) {
 
 	html = unpack1(page2)
 	tu.AssertEqual(t, page2.Box().MarginLeft, Fl(10))
-	tu.AssertEqual(t, page2.Box().MarginRight, Fl(50))
+	tu.AssertEqual(t, Fl(math.Round(float64(page2.Box().MarginRight.V()))), Fl(50))
 	tu.AssertEqual(t, len(html.Box().Children), 0) // empty page to get toe
 
 	tu.AssertEqual(t, page3.Box().MarginLeft, Fl(50))
-	tu.AssertEqual(t, page3.Box().MarginRight, Fl(10))
+	tu.AssertEqual(t, Fl(math.Round(float64(page3.Box().MarginRight.V()))), Fl(10))
 	html = unpack1(page3)
 	body = unpack1(html)
 	p1, p2 := unpack2(body)
@@ -253,7 +255,7 @@ func TestPageBreaksComplex1(t *testing.T) {
 	tu.AssertEqual(t, p2.Box().ElementTag(), "p")
 
 	tu.AssertEqual(t, page4.Box().MarginLeft, Fl(10))
-	tu.AssertEqual(t, page4.Box().MarginRight, Fl(50))
+	tu.AssertEqual(t, Fl(math.Round(float64(page4.Box().MarginRight.V()))), Fl(50))
 	html = unpack1(page4)
 	body = unpack1(html)
 	article := unpack1(body)
