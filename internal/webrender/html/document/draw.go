@@ -164,6 +164,13 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 		box_ := stackingContext.box
 		box := box_.Box()
 
+		// gopdfgo: pas pudełka krojonego między strony jako całość (zob. BoxFields.SliceVisible): całość
+		// przycięta do części widocznej na tej stronie
+		if box.SliceVisible > 0 {
+			ctx.dst.Rectangle(-1e5, fl(box.PositionY+box.SliceOffset), 2e5, fl(box.SliceVisible))
+			ctx.dst.State().Clip(false)
+		}
+
 		// apply the viewport_overflow to the html box, see #35
 		if box.IsForRootElement && (stackingContext.page.Style.GetOverflow() != "visible") {
 			roundedBox(

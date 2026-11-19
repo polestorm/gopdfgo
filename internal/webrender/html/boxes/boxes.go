@@ -203,6 +203,10 @@ type BoxFields struct {
 	// poprzednich; Height to wysokość części widocznej na tej stronie.
 	SliceFullHeight pr.Float
 	SliceOffset     pr.Float
+	// gopdfgo: fragment pudełka blokowego krojonego między strony jako całość (treść niepodzielna, CSS
+	// Break 3 § 4.4). Pudełko i jego potomkowie mają położenie całości; na tej stronie widać tylko pas
+	// od PositionY+SliceOffset o wysokości SliceVisible (zero, gdy pudełko nie jest krojone).
+	SliceVisible pr.Float
 
 	// gopdfgo: pudełko pozycjonowane bezwzględnie, które leży poniżej tej strony i zostanie ułożone na
 	// późniejszej; na tej stronie nie jest widoczne.

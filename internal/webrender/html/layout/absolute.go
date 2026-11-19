@@ -705,6 +705,8 @@ func absoluteBoxLayout(context *layoutContext, box Box, cb_ Box, fixedBoxes *[]*
 		startY := box.Box().PositionY // dalszy ciąg: góra strony (zob. makePage)
 		newBox = absoluteReplaced(box, containingBlock)
 		newBox, resumeAt = sliceAbsoluteReplaced(context, newBox, bottomSpace, skipStack, startY)
+	} else if sliced, sliceResume, ok := sliceAbsoluteClipped(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack); ok {
+		newBox, resumeAt = sliced, sliceResume
 	} else {
 		// Absolute tables are wrapped into block boxes
 		newBox, resumeAt = absoluteBlock(context, box, containingBlock, fixedBoxes, bottomSpace, skipStack)
@@ -1121,4 +1123,53 @@ func sliceAbsoluteReplaced(context *layoutContext, box Box, bottomSpace pr.Float
 		return fragment, tree.RemainderResume(float64(left))
 	}
 	return fragment, nil
+}
+
+// sliceAbsoluteClipped (gopdfgo) kroi między strony pudełko blokowe pozycjonowane bezwzględnie, które przycina
+// swoją treść (overflow inne niż visible przy podanej wysokości) i jest wyższe niż strona. Takie pudełko jest
+// układane w całości, bez podziału treści (wewnątrz pudełka przycinającego nic nie jest dzielone, zob.
+// layoutContext.clipDepth), a każda strona pokazuje kolejny pas całości, jak treść niepodzielna wyższa niż
+// strona (CSS Break 3 § 4.4; tak drukuje Chromium: testy WPT css-page/monolithic-overflow-028, wzorzec
+// css-page/page-background-003). Wcześniej pudełko zostawało na pierwszej stronie, a to, co było niżej,
+// ginęło. Dalszy ciąg (stos z [tree.SliceResume]: wysokość pokazana wcześniej) jest układany od nowa
+// i przesuwany tak, żeby pokazana już część leżała nad górą strony (startY).
+func sliceAbsoluteClipped(context *layoutContext, box Box, containingBlock block, fixedBoxes *[]*AbsolutePlaceholder,
+	bottomSpace pr.Float, skipStack tree.ResumeStack,
+) (Box, tree.ResumeStack, bool) {
+	fields := box.Box()
+	if !bo.BlockT.IsInstance(box) || fields.IsTableWrapper || !clipsBlockOverflow(fields) || bottomSpace == -pr.Inf ||
+		context.pageBottom == pr.Inf || context.inColumn || context.clipDepth > 0 || context.behavior.Continuous ||
+		context.flexMeasuring > 0 || len(context.pageAreas) == 0 ||
+		fields.Style.GetColumnWidth().Tag != pr.Auto || fields.Style.GetColumnCount().String != "auto" {
+		return nil, nil, false
+	}
+	consumed, _, resumed := skipStack.Slice()
+	if !resumed && len(skipStack) != 0 {
+		return nil, nil, false
+	}
+	startY := fields.PositionY // dalszy ciąg: góra strony (zob. makePage)
+	whole, _ := absoluteBlock(context, box, containingBlock, fixedBoxes, -pr.Inf, nil)
+	if whole == nil {
+		return nil, nil, false
+	}
+	out := whole.Box()
+	full := out.MarginHeight()
+	if !resumed && (out.BorderHeight() <= context.pageHeight || full >= maxSliceableHeight) {
+		return whole, nil, true
+	}
+	if resumed {
+		whole.Translate(0, startY-pr.Float(consumed)-out.PositionY, false)
+	}
+	visibleTop := out.PositionY + pr.Float(consumed)
+	available := context.pageBottom - bottomSpace - visibleTop
+	remaining := full - pr.Float(consumed)
+	if !resumed && (available <= 0 || remaining <= available) {
+		return whole, nil, true
+	}
+	visible := max(min(remaining, available), 0)
+	out.SliceOffset, out.SliceVisible = pr.Float(consumed), visible
+	if left := remaining - visible; left > 0.5 && visible > 0 {
+		return whole, tree.SliceResume(consumed+float64(visible), nil), true
+	}
+	return whole, nil, true
 }
