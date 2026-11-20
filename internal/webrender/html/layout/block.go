@@ -2503,7 +2503,7 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 	// gopdfgo: wyjątkiem jest element niepodzielny przez zawieranie rozmiaru (contain: size) wyższy niż
 	// strona: wystawałby poza nią i jego dalsza część ginęła; w Chromium przechodzi na następne strony
 	// (CSS Break 3 § 4.4, testy WPT css-page/monolithic-overflow-005, -007).
-	if (box.IsFlexItem || box.IsGridItem) && !(bo.IsMonolithic(box_) && bo.HasContainment(box_, "size") && box.BorderHeight() > context.pageHeight) {
+	if box.IsGridItem && !(bo.IsMonolithic(box_) && bo.HasContainment(box_, "size") && box.BorderHeight() > context.pageHeight) {
 		return false
 	}
 	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.clipDepth > 0 {

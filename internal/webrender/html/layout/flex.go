@@ -216,6 +216,48 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	is_start := skipStack == nil
 	box_.RemoveDecoration(box, !is_start, false)
 
+	// gopdfgo: kontener o podanej wysokości (albo z min-height) wyższej niż miejsce na stronie dzieli się
+	// między strony jak zwykły blok: fragmenty dzielą między siebie wysokość używaną (CSS Fragmentation 3
+	// § 5.1, box-decoration-break: slice; CSS Flexbox 1 § 12). W źródle każdy fragment dostawał całą
+	// wysokość, a kontener, którego elementy się mieściły, wystawał poza stronę i jego dalsza część ginęła.
+	// Dalszy ciąg dostaje to, czego nie zużyły poprzednie fragmenty: resztę podanej wysokości
+	// (fixedHeightRemaining), resztę min-height (minHeightRemaining) albo, gdy elementy skończyły się
+	// wcześniej, samą resztę wysokości bez elementów (RemainderResume).
+	splitsHeight := bottomSpace > -pr.Inf && context.flexMeasuring == 0 && context.pageBottom != pr.Inf &&
+		context.clipDepth == 0 && box.Style.GetOverflow() == "visible" && !box.IsForRootElement
+	var fixedUsed, minUsed pr.Float = -1, 0
+	remainderOnly := false
+	if remaining, ok := skipStack.Remainder(); ok {
+		// także w układach próbnych (flexMeasuring): taki stos nie wskazuje żadnego dziecka
+		remainderOnly = true
+		skipStack = nil
+		box.Height, box.MinHeight, box.MaxHeight = pr.Float(remaining), pr.Float(remaining), pr.Inf
+		fixedUsed = pr.Float(remaining)
+	} else if splitsHeight {
+		if is_start {
+			if height, ok := box.Height.(pr.Float); ok && !box.IndefiniteHeight && height < maxSliceableHeight {
+				fixedUsed = height
+				if maxHeight, ok := box.MaxHeight.(pr.Float); ok {
+					fixedUsed = min(fixedUsed, maxHeight)
+				}
+				if minHeight, ok := box.MinHeight.(pr.Float); ok {
+					fixedUsed = max(fixedUsed, minHeight)
+				}
+			} else if minHeight, ok := box.MinHeight.(pr.Float); ok && box.Height == pr.AutoF && minHeight < maxSliceableHeight {
+				minUsed = minHeight
+			}
+		} else if remaining, ok := context.fixedHeightRemaining[resumeKey(skipStack)]; ok {
+			// algorytm flex dostaje resztę wysokości; element kolumny, który zaczął się wcześniej, ma
+			// w nim rozmiar równy swojej reszcie (frozenColumnItem), więc wolne miejsce dla dalszych
+			// elementów jest takie jak w układzie bez podziału
+			box.Height, box.MinHeight, box.MaxHeight = remaining, pr.Float(0), pr.Inf
+			fixedUsed = remaining
+		} else if remaining, ok := context.minHeightRemaining[resumeKey(skipStack)]; ok {
+			box.MinHeight = remaining
+			minUsed = remaining
+		}
+	}
+
 	discard = discard || box.Style.GetContinue() == "discard"
 	draw_bottom_decoration := discard || box.Style.GetBoxDecorationBreak() == "clone"
 
@@ -350,7 +392,10 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	sort.SliceStable(children, func(i, j int) bool { return orderOf(children[i]) < orderOf(children[j]) })
 
 	var skip int
-	if skipStack != nil {
+	if remainderOnly {
+		// elementy skończyły się na wcześniejszej stronie: zostaje sama reszta wysokości kontenera
+		skip, children = len(box.Children), nil
+	} else if skipStack != nil {
 		skip, skipStack = skipStack.Unpack()
 		if strings.HasSuffix(string(box.Style.GetFlexDirection()), "-reverse") {
 			children = children[:skip+1]
@@ -378,6 +423,22 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 				// element przesunięty w całości z poprzedniej strony (zob. linePushed niżej)
 				children[position] = pushedFlexItem(child, context.flexPushOffset[resumeKey(resume)])
 			}
+		}
+	}
+	// gopdfgo: element kontenera kolumnowego wznowiony z resztą swojej wysokości (podzielony blok o wysokości
+	// wyznaczonej przez algorytm flex) zachowuje w algorytmie tę resztę: bez flex-grow i flex-shrink, bo jego
+	// rozmiar główny został już ustalony na pierwszej stronie (CSS Flexbox 1 § 12: podział nie zmienia
+	// rozmiarów). W źródle był mierzony od nowa i rósł o wolne miejsce, które w układzie bez podziału
+	// przypadało dalszym elementom.
+	if main == pr.PHeight && lineSkip == nil && skipStack != nil && len(children) > 0 && children[0].Box().IsFlexItem {
+		remaining, ok := skipStack.Remainder()
+		if !ok {
+			var fixed pr.Float
+			fixed, ok = context.fixedHeightRemaining[resumeKey(skipStack)]
+			remaining = float64(fixed)
+		}
+		if ok {
+			children[0] = frozenColumnItem(children[0], pr.Float(remaining))
 		}
 	}
 	pickSkip := func(index int, first tree.ResumeStack) tree.ResumeStack {
@@ -2253,6 +2314,38 @@ restartCollapsed:
 	// gopdfgo: fragment kontenera podzielonego między strony sięga dolnej krawędzi strony, jak fragment
 	// zwykłego bloku (CSS Fragmentation 3 § 5.1); inaczej zachowałby wysokość całej treści i sam wystawał
 	// poza stronę.
+	if splitsHeight {
+		// gopdfgo: podział wysokości kontenera między fragmenty, zob. splitsHeight wyżej
+		available := context.pageBottom - bottomSpace - box.ContentBoxY()
+		if resumeAt != nil && available > 0 {
+			if fixedUsed >= 0 && fixedUsed-available > 0.5 {
+				if context.fixedHeightRemaining == nil {
+					context.fixedHeightRemaining = map[uintptr]pr.Float{}
+				}
+				context.fixedHeightRemaining[resumeKey(resumeAt)] = fixedUsed - available
+			} else if fixedUsed < 0 && minUsed > 0 {
+				if context.minHeightRemaining == nil {
+					context.minHeightRemaining = map[uintptr]pr.Float{}
+				}
+				context.minHeightRemaining[resumeKey(resumeAt)] = max(minUsed-available, 0)
+			}
+		}
+		if resumeAt == nil && !is_start && fixedUsed >= 0 {
+			box.Height = fixedUsed
+		}
+		if resumeAt == nil && available > 0 && box.Height != pr.AutoF && box.Height.V()-available > 0.5 {
+			// elementy zmieściły się na tej stronie, ale wysokość kontenera nie: reszta przechodzi dalej.
+			// Kontener niższy niż strona, który nie zaczyna się na jej początku, nie jest dzielony, tylko
+			// przenoszony w całości (ADR 0004), tak jak zwykły blok o podanej wysokości.
+			splittable := !is_start || pageIsEmpty || box.BorderHeight() > context.pageHeight
+			if splittable && is_start && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
+				splittable = false
+			}
+			if splittable {
+				resumeAt = tree.RemainderResume(float64(box.Height.V() - available))
+			}
+		}
+	}
 	if resumeAt != nil && box.Height != pr.AutoF && bottomSpace > -pr.Inf && context.flexMeasuring == 0 {
 		box.Height = max(context.pageBottom-bottomSpace-box.ContentBoxY(), 0)
 	}
@@ -2764,9 +2857,30 @@ func finishedFlexItem(item Box, stretched bool) Box {
 		style.SetVisibility("hidden")
 		// margines elementu zostaje na stronie, na której element się zaczął
 		style.SetMarginTop(pr.ZeroPixels.Tagged())
+		// gopdfgo: kopia ma wysokość auto, więc bez tego byłaby rozciągana do wysokości linii dzielonego
+		// sąsiada i, gdy ta jest wyższa niż strona, sama dzieliłaby się dalej (resztą wysokości), a na
+		// ostatniej stronie stawała się znowu widoczna (CSS Fragmentation 3 § 5.1: element, który skończył
+		// się wcześniej, nie ma dalszych fragmentów)
+		style.SetAlignSelf(pr.JustifyOrAlign{pr.FlexStart})
 	}
 	empty.Box().Style = style
 	return empty
+}
+
+// frozenColumnItem zwraca kopię elementu kontenera kolumnowego wznowionego z resztą wysokości remaining
+// (wysokość treści): rozmiar główny równy tej reszcie, bez flex-grow, flex-shrink i ograniczeń min/max.
+func frozenColumnItem(item Box, remaining pr.Float) Box {
+	frozen := item.Copy()
+	style := item.Box().Style.Copy()
+	style.SetFlexGrow(0)
+	style.SetFlexShrink(0)
+	style.SetFlexBasis(pr.TagToV(pr.Auto))
+	style.SetBoxSizing("content-box")
+	style.SetHeight(pr.FToPx(max(remaining, 0)))
+	style.SetMinHeight(pr.ZeroPixels.Tagged())
+	style.SetMaxHeight(pr.FToPx(pr.Inf))
+	frozen.Box().Style = style
+	return frozen
 }
 
 // pushedFlexItem zwraca kopię elementu wiersza flex przesuniętego w całości na następną stronę: górny
