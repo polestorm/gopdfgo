@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"net/url"
+	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -65,11 +66,7 @@ func (l line) draw(dst backend.Canvas, _ *attributes, _ *SVGImage, dims drawingD
 	dst.MoveTo(x1, y1)
 	dst.LineTo(x2, y2)
 
-	angle := atan2(y2-y1, x2-x1)
-	return []vertex{
-		{x1, y1, angle},
-		{x2, y2, angle},
-	}
+	return markVertices([]markSubpath{{start: point{x1, y1}, segs: []markSegment{lineSegment(point{x1, y1}, point{x2, y2})}}})
 }
 
 // <rect> tag
@@ -77,25 +74,30 @@ type rect struct {
 	// x, y, width, height are common attributes
 
 	rx, ry Value
+	// gopdfgo: rx/ry = auto (SVG 2 § 10.2) — zob. ellipse.
+	autoX, autoY bool
 }
 
 func newRect(node *cascadedNode, _ *svgContext) (drawable, error) {
-	rx_, ry_ := node.attrs["rx"], node.attrs["ry"]
-	if rx_ == "" {
-		rx_ = ry_
-	} else if ry_ == "" {
-		ry_ = rx_
-	}
+	rx_, ry_ := strings.TrimSpace(node.attrs["rx"]), strings.TrimSpace(node.attrs["ry"])
 
 	var (
 		out rect
 		err error
 	)
+	if rx_ == "" || strings.EqualFold(rx_, "auto") {
+		out.autoX, rx_ = true, ""
+	}
+	if ry_ == "" || strings.EqualFold(ry_, "auto") {
+		out.autoY, ry_ = true, ""
+	}
 	out.rx, err = parseValue(rx_)
 	if err != nil {
 		return nil, err
 	}
-	out.ry, err = parseValue(rx_)
+	// gopdfgo: źródło parsowało tu rx_ zamiast ry_, więc ry zawsze równało się rx.
+	// Według SVG 2 § 10.2 promień auto przyjmuje bezwzględną wartość drugiego.
+	out.ry, err = parseValue(ry_)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +112,11 @@ func (r rect) draw(dst backend.Canvas, attrs *attributes, _ *SVGImage, dims draw
 	}
 	x, y := dims.point(attrs.x, attrs.y)
 	rx, ry := dims.point(r.rx, r.ry)
+	if r.autoX {
+		rx = ry
+	} else if r.autoY {
+		ry = rx
+	}
 
 	if rx == 0 || ry == 0 { // no border radius
 		dst.Rectangle(x, y, width, height)
@@ -185,41 +192,58 @@ func (r polyline) draw(dst backend.Canvas, _ *attributes, _ *SVGImage, _ drawing
 	p1, points := r.points[0], r.points[1:]
 	dst.MoveTo(p1.x, p1.y)
 
-	// use 0 as the angle for the first point
-	vertices := []vertex{{p1.x, p1.y, 0}}
-
-	oldPoint := p1
 	for _, point := range points {
 		dst.LineTo(point.x, point.y)
-		angle := atan2(point.x-oldPoint.x, point.y-oldPoint.y)
-		vertices = append(vertices, vertex{point.x, point.y, angle})
 	}
-
 	if r.close {
 		dst.ClosePath()
 	}
 
-	return vertices
+	// gopdfgo: polyline/polygon to ścieżka „M p0 L p1 …” (z Z dla polygon, SVG 2 § 10.6–10.7);
+	// wierzchołki i kąty jak dla <path> (zob. markers.go)
+	sp := markSubpath{start: p1}
+	prev := p1
+	for _, point := range points {
+		sp.segs = append(sp.segs, lineSegment(prev, point))
+		prev = point
+	}
+	if r.close {
+		sp.close(prev)
+	}
+	return markVertices([]markSubpath{sp})
 }
 
 // ellipse or circle
 type ellipse struct {
 	rx, ry, cx, cy Value
+	// gopdfgo: rx/ry = auto (SVG 2 § 10.4) — promień „auto” przyjmuje
+	// rozwiązaną (bezwzględną) wartość drugiego promienia.
+	autoX, autoY bool
 }
 
 func newEllipse(node *cascadedNode, _ *svgContext) (drawable, error) {
-	r_, rx_, ry_ := node.attrs["r"], node.attrs["rx"], node.attrs["ry"]
-	if rx_ == "" {
-		rx_ = r_
-	}
-	if ry_ == "" {
-		ry_ = r_
+	var rx_, ry_ string
+	// gopdfgo: źródło brało dla <circle> i <ellipse> rx/ry z fallbackiem na r.
+	// Według SVG 2 § 10.3–10.4 <circle> ma tylko r, a <ellipse> tylko rx/ry,
+	// których wartością początkową jest auto (także jako właściwości CSS).
+	if node.tag == "circle" {
+		rx_, ry_ = node.attrs["r"], node.attrs["r"]
+	} else {
+		rx_, ry_ = strings.TrimSpace(node.attrs["rx"]), strings.TrimSpace(node.attrs["ry"])
 	}
 
 	var (
 		out ellipse
 		err error
 	)
+	if node.tag != "circle" {
+		if rx_ == "" || strings.EqualFold(rx_, "auto") {
+			out.autoX, rx_ = true, ""
+		}
+		if ry_ == "" || strings.EqualFold(ry_, "auto") {
+			out.autoY, ry_ = true, ""
+		}
+	}
 	out.rx, err = parseValue(rx_)
 	if err != nil {
 		return nil, err
@@ -240,8 +264,22 @@ func newEllipse(node *cascadedNode, _ *svgContext) (drawable, error) {
 	return out, nil
 }
 
+// radii zwraca rozwiązane promienie z uwzględnieniem wartości auto.
+func (e ellipse) radii(dims drawingDims) (rx, ry Fl) {
+	rx, ry = dims.point(e.rx, e.ry)
+	switch {
+	case e.autoX && e.autoY:
+		return 0, 0
+	case e.autoX:
+		rx = ry
+	case e.autoY:
+		ry = rx
+	}
+	return rx, ry
+}
+
 func (e ellipse) draw(dst backend.Canvas, _ *attributes, _ *SVGImage, dims drawingDims) []vertex {
-	rx, ry := dims.point(e.rx, e.ry)
+	rx, ry := e.radii(dims)
 	if rx == 0 || ry == 0 {
 		return nil
 	}
@@ -272,17 +310,11 @@ func newPath(node *cascadedNode, context *svgContext) (drawable, error) {
 }
 
 func (p path) draw(dst backend.Canvas, _ *attributes, _ *SVGImage, _ drawingDims) []vertex {
-	var (
-		segmentStart point
-		out          []vertex
-	)
 	for _, item := range p {
 		item.draw(dst)
-		angle := item.endAngle(segmentStart)
-		segmentStart = item.endPoint() // update the starting point
-		out = append(out, vertex{segmentStart.x, segmentStart.y, angle})
 	}
-	return out
+	// gopdfgo: wierzchołki znaczników według SVG 2 § 13.7.3 (zob. markers.go)
+	return markVertices(pathSubpaths(p))
 }
 
 // <svg> tag
@@ -612,7 +644,11 @@ func (u use) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims dra
 
 	dst.OnNewStack(func() {
 		dst.State().Transform(matrix.Translation(x, y))
-		svg.drawNode(dst, u.target, dims, true) // actually draw the target
+		// gopdfgo: <use> jest elementem kontekstu dla swojej treści (SVG 2 § 13.4.1); źródło nie
+		// znało context-fill/context-stroke
+		svg.withPaintContext(&svgNode{graphicContent: u, attributes: *attrs}, func() {
+			svg.drawNode(dst, u.target, dims, true) // actually draw the target
+		})
 	})
 	return nil
 }
@@ -768,6 +804,8 @@ func newMarker(node *cascadedNode, children []*svgNode) (out *marker, err error)
 type mask struct {
 	svgNode
 	isUnitsBBox bool
+	// gopdfgo: maskContentUnits="objectBoundingBox" (CSS Masking 1 § 7.3)
+	isContentBBox bool
 }
 
 func newMask(node *cascadedNode, children []*svgNode) (mask, error) {
@@ -775,7 +813,9 @@ func newMask(node *cascadedNode, children []*svgNode) (mask, error) {
 		svgNode: svgNode{
 			children: children,
 		},
-		isUnitsBBox: node.attrs["maskUnits"] == "objectBoundingBox",
+		// gopdfgo: wartością domyślną maskUnits jest objectBoundingBox (CSS Masking 1 § 7.3)
+		isUnitsBBox:   node.attrs["maskUnits"] != "userSpaceOnUse",
+		isContentBBox: node.attrs["maskContentUnits"] == "objectBoundingBox",
 	}
 	err := node.attrs.parseCommonAttributes(&out.svgNode.attributes)
 	if err != nil {

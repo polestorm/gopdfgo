@@ -25,6 +25,51 @@ type painter struct {
 
 	// if 'false', no painting occurs (not the same as black)
 	valid bool
+
+	// gopdfgo: context to context-fill (1) albo context-stroke (2), SVG 2 § 13.4.1
+	context uint8
+}
+
+const (
+	contextFill   = 1
+	contextStroke = 2
+)
+
+// paintContext (gopdfgo) to element kontekstu dla context-fill/context-stroke (SVG 2 § 13.4.1):
+// kształt, do którego rysujemy znacznik, albo element <use>, którego treść rysujemy.
+type paintContext struct {
+	fill, stroke               painter
+	fillOpacity, strokeOpacity Fl
+	node                       *svgNode
+}
+
+// withPaintContext rysuje f z elementem kontekstu node; jego własne wartości context-* rozwiązują
+// się względem kontekstu nadrzędnego.
+func (svg *SVGImage) withPaintContext(node *svgNode, f func()) {
+	saved := svg.paintContext
+	ctx := &paintContext{node: node, fill: node.fill, stroke: node.stroke,
+		fillOpacity: node.fillOpacity, strokeOpacity: node.strokeOpacity}
+	ctx.fill, _ = svg.resolveContextPainter(node.fill)
+	ctx.stroke, _ = svg.resolveContextPainter(node.stroke)
+	svg.paintContext = ctx
+	f()
+	svg.paintContext = saved
+}
+
+// resolveContextPainter zamienia context-fill/context-stroke na farbę elementu kontekstu (bez
+// elementu kontekstu: none). Zwraca też węzeł kontekstu dla serwerów farby.
+func (svg *SVGImage) resolveContextPainter(pt painter) (painter, *svgNode) {
+	if pt.context == 0 {
+		return pt, nil
+	}
+	ctx := svg.paintContext
+	if ctx == nil {
+		return painter{}, nil
+	}
+	if pt.context == contextFill {
+		return ctx.fill, ctx.node
+	}
+	return ctx.stroke, ctx.node
 }
 
 // parse a fill or stroke attribute
@@ -35,6 +80,12 @@ func newPainter(attr string) (painter, error) {
 	}
 
 	var out painter
+	switch attr {
+	case "context-fill":
+		return painter{valid: true, context: contextFill}, nil
+	case "context-stroke":
+		return painter{valid: true, context: contextStroke}, nil
+	}
 	if strings.HasPrefix(attr, "url(") {
 		if i := strings.IndexByte(attr, ')'); i != -1 {
 			out.refID = parseURLFragment(attr[:i])
@@ -84,17 +135,25 @@ func (dims drawingDims) resolveDashes(dashArray []Value, dashOffset Value) ([]Fl
 // apply fill and stroke painters
 func (svg *SVGImage) applyPainters(dst backend.Canvas, node *svgNode, dims drawingDims) (doFill, doStroke bool) {
 	strokeWidth := dims.length(node.strokeWidth)
-	doFill = node.fill.valid
-	doStroke = node.stroke.valid && strokeWidth > 0
+	fill, fillNode := svg.resolveContextPainter(node.fill)
+	stroke, strokeNode := svg.resolveContextPainter(node.stroke)
+	if fillNode == nil {
+		fillNode = node
+	}
+	if strokeNode == nil {
+		strokeNode = node
+	}
+	doFill = fill.valid
+	doStroke = stroke.valid && strokeWidth > 0
 
 	// fill
 	if doFill {
-		svg.applyPainter(dst, node, node.fill, node.fillOpacity, dims, false)
+		svg.applyPainter(dst, fillNode, fill, node.fillOpacity, dims, false)
 	}
 
 	// stroke
 	if doStroke {
-		svg.applyPainter(dst, node, node.stroke, node.strokeOpacity, dims, true)
+		svg.applyPainter(dst, strokeNode, stroke, node.strokeOpacity, dims, true)
 
 		// stroke options
 		dashes, offset := dims.resolveDashes(node.dashArray, node.dashOffset)

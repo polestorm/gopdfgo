@@ -58,7 +58,7 @@ func (r rect) boundingBox(attrs *attributes, dims drawingDims) (Rectangle, bool)
 }
 
 func (e ellipse) boundingBox(_ *attributes, dims drawingDims) (Rectangle, bool) {
-	rx, ry := dims.point(e.rx, e.ry)
+	rx, ry := e.radii(dims)
 	cx, cy := dims.point(e.cx, e.cy)
 	return Rectangle{cx - rx, cy - ry, 2 * rx, 2 * ry}, true
 }

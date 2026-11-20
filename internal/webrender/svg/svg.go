@@ -63,6 +63,8 @@ type SVGImage struct {
 	// hostBaseScale (gopdfgo): skala z układu bieżącego strumienia (strony albo grupy) do układu
 	// gospodarza, zob. hostScale; ustawiana w Draw i przy tworzeniu grup
 	hostBaseScale Fl
+	// paintContext (gopdfgo): bieżący element kontekstu dla context-fill/context-stroke
+	paintContext *paintContext
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -158,6 +160,13 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			svg.applyClipPath(dst, cp, node, dims)
 		}
 
+		// gopdfgo: maska działa na cały element razem z potomkami (CSS Masking 1 § 7), więc nakładamy
+		// ją przed rysowaniem; źródło robiło to po narysowaniu dzieci, przez co maska na <g> i na
+		// foreignObject nie obejmowała treści (test WPT will-change-under-mask)
+		if ma, has := svg.definitions.masks[node.maskID]; has {
+			svg.applyMask(dst, ma, node, dims)
+		}
+
 		// Handle text anchor
 		text, isText := node.graphicContent.(*textSpan)
 		var textAnchor anchor
@@ -192,6 +201,13 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 		var vertices []vertex
 		if visible && node.graphicContent != nil {
 			vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
+		} else if isText && display {
+			// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce i przesuwa pozycję
+			// bieżącą dla widocznych tspan (SVG 2 § 11.8, test WPT text-visibility-hidden-tspan-visible);
+			// źródło go pomijało, więc dalsze fragmenty zaczynały w punkcie (0, 0)
+			hidden := node.attributes
+			hidden.fill, hidden.stroke = painter{}, painter{}
+			text.draw(dst, &hidden, svg, dims)
 		}
 
 		// then recurse
@@ -227,11 +243,6 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 				}
 				dst.DrawWithOpacity(1, group)
 			})
-		}
-
-		// apply mask
-		if ma, has := svg.definitions.masks[node.maskID]; has {
-			svg.applyMask(dst, ma, node, dims)
 		}
 
 		// do the actual painting :
@@ -332,6 +343,14 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 		// scale
 		if !marker.isUnitsUserSpace {
 			scale := dims.length(node.attributes.strokeWidth)
+			// gopdfgo: przy vector-effect: non-scaling-stroke markerUnits="strokeWidth" bierze grubość
+			// obrysu w układzie użytkownika, czyli podzieloną przez skalę względem gospodarza
+			// (SVG 2 § 13.7.2, test WPT marker-units-strokewidth-non-scaling-stroke)
+			if node.nonScalingStroke {
+				if hs := svg.hostScale(dst); hs > 0 {
+					scale /= hs
+				}
+			}
 			scaleX *= scale
 			scaleY *= scale
 		}
@@ -348,7 +367,13 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 		// draw marker path
 		for _, child := range marker.children {
 			dst.OnNewStack(func() {
-				dst.State().Transform(matrix.Transform{A: scaleX, D: scaleY, E: vertex.x, F: vertex.y})
+				// gopdfgo: źródło wyznaczało kąt, ale go nie stosowało; układ znacznika to
+				// translate(wierzchołek) · rotate(kąt) · scale (SVG 2 § 13.7.3)
+				dst.State().Transform(matrix.Translation(vertex.x, vertex.y))
+				if angle != 0 {
+					dst.State().Transform(matrix.Rotation(angle))
+				}
+				dst.State().Transform(matrix.Scaling(scaleX, scaleY))
 				dst.State().Transform(matrix.Translation(-translateX, -translateY))
 
 				overflow := marker.overflow
@@ -357,7 +382,8 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 					dst.State().Clip(false)
 				}
 
-				svg.drawNode(dst, child, dims, paint)
+				// gopdfgo: kształt jest elementem kontekstu dla treści znacznika (SVG 2 § 13.4.1)
+				svg.withPaintContext(node, func() { svg.drawNode(dst, child, dims, paint) })
 			})
 		}
 
@@ -481,25 +507,36 @@ func (svg *SVGImage) applyClipPath(dst backend.Canvas, clipPath *clipPath, node 
 }
 
 func (svg *SVGImage) applyMask(dst backend.Canvas, mask mask, node *svgNode, dims drawingDims) {
-	widthRef, heightRef := dims.innerWidth, dims.innerHeight
-	if mask.isUnitsBBox {
-		widthRef, heightRef = dims.point(node.width, node.height)
-	}
-
-	x := mask.x.Resolve(dims.fontSize, widthRef)
-	y := mask.y.Resolve(dims.fontSize, heightRef)
-	width := mask.width.Resolve(dims.fontSize, widthRef)
-	height := mask.height.Resolve(dims.fontSize, heightRef)
-
-	mask.x = Value{x, Px}
-	mask.y = Value{y, Px}
-	mask.width = Value{width, Px}
-	mask.height = Value{height, Px}
-
-	if mask.isUnitsBBox {
-		x, y, width, height = 0, 0, widthRef, heightRef
+	// gopdfgo: maskUnits domyślnie objectBoundingBox, a obszar maski w tych jednostkach to ułamki
+	// (lub procenty) ramki elementu, łącznie z jej położeniem; maskContentUnits="objectBoundingBox"
+	// rysuje treść w układzie ramki (CSS Masking 1 § 7.2–7.3, test WPT foreignObject/masked).
+	// Źródło brało za ramkę tylko szerokość i wysokość elementu, domyślnie userSpaceOnUse,
+	// a maskContentUnits pomijało. Bez ramki (np. <g>) zostaje obszar względem okna.
+	bbox, hasBBox := node.resolveBoundingBox(dims, false)
+	var x, y, width, height Fl
+	if mask.isUnitsBBox && hasBBox {
+		frac := func(v Value) Fl {
+			if v.U == Perc {
+				return v.V / 100
+			}
+			return v.V
+		}
+		x = bbox.X + frac(mask.x)*bbox.Width
+		y = bbox.Y + frac(mask.y)*bbox.Height
+		width = frac(mask.width) * bbox.Width
+		height = frac(mask.height) * bbox.Height
 	} else {
-		mask.viewbox = &Rectangle{X: x, Y: y, Width: width, Height: height}
+		x = mask.x.Resolve(dims.fontSize, dims.innerWidth)
+		y = mask.y.Resolve(dims.fontSize, dims.innerHeight)
+		width = mask.width.Resolve(dims.fontSize, dims.innerWidth)
+		height = mask.height.Resolve(dims.fontSize, dims.innerHeight)
+	}
+	mask.x, mask.y = Value{x, Px}, Value{y, Px}
+	mask.width, mask.height = Value{width, Px}, Value{height, Px}
+	if mask.isContentBBox && hasBBox {
+		mask.transforms = append([]transform{{kind: customMatrix, args: [6]Value{
+			{bbox.Width, Px}, {}, {}, {bbox.Height, Px}, {bbox.X, Px}, {bbox.Y, Px},
+		}}}, mask.transforms...)
 	}
 
 	alpha := dst.NewGroup(x, y, width, height)
@@ -754,6 +791,9 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 	//	- node used as definition, extracted from the svg tree
 	//	- graphic element to display -> processGraphicNode
 
+	// gopdfgo: definicja bez id nie może być wskazana; źródło zapisywało ją pod kluczem "",
+	// przez co stosowała się do każdego elementu bez clip-path/mask/filter (np. <clipPath> bez id
+	// zawierający <polygon> prowadził do nieskończonej rekursji, test WPT polygon-with-filtered-marker).
 	id := node.attrs["id"]
 	switch node.tag {
 	case "filter":
@@ -761,37 +801,49 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 		if err != nil {
 			return nil, err
 		}
-		defs.filters[id] = filters
+		if id != "" {
+			defs.filters[id] = filters
+		}
 	case "clipPath":
 		cp, err := newClipPath(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.clipPaths[id] = cp
+		if id != "" {
+			defs.clipPaths[id] = cp
+		}
 	case "mask":
 		ma, err := newMask(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.masks[id] = ma
+		if id != "" {
+			defs.masks[id] = ma
+		}
 	case "marker":
 		ma, err := newMarker(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.markers[id] = ma
+		if id != "" {
+			defs.markers[id] = ma
+		}
 	case "linearGradient", "radialGradient":
 		grad, err := newGradient(node)
 		if err != nil {
 			return nil, err
 		}
-		defs.paintServers[id] = grad
+		if id != "" {
+			defs.paintServers[id] = grad
+		}
 	case "pattern":
 		pat, err := newPattern(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.paintServers[id] = pat
+		if id != "" {
+			defs.paintServers[id] = pat
+		}
 	case "use": // special case
 		resolved, err := tree.resolveUse(node, defs)
 		if err != nil {

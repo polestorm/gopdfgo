@@ -3,6 +3,7 @@ package svg
 import (
 	"bytes"
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -78,9 +79,11 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 	out.externalUses = make(utils.Set)
 
 	// may return nil to discard the node
-	var buildTree func(node *html.Node, parentAttrs nodeAttributes) *cascadedNode
+	var buildTree func(node *html.Node, parentAttrs, parentRaw nodeAttributes) *cascadedNode
 
-	buildTree = func(node *html.Node, parentAttrs nodeAttributes) *cascadedNode {
+	// gopdfgo: parentRaw przechowuje wartości właściwości kolorów rodzica sprzed zamiany currentColor;
+	// źródło dziedziczyło kolor już rozwiązany względem rodzica.
+	buildTree = func(node *html.Node, parentAttrs, parentRaw nodeAttributes) *cascadedNode {
 		// text is handled by the parent
 		// style elements are no longer useful
 		if node.Type != html.ElementNode || node.DataAtom == atom.Style {
@@ -88,10 +91,15 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		}
 
 		childAttrs := newNodeAttributes(node.Attr)
+		// gopdfgo: skrót 'marker' nie jest atrybutem prezentacji (SVG 2 § 13.7.2), działa tylko z CSS
+		delete(childAttrs, "marker")
 		// Cascade attributes
 		for key, value := range parentAttrs {
 			if _, isNotInherited := notInheritedAttributes[key]; !isNotInherited {
 				if _, isSet := childAttrs[key]; !isSet {
+					if raw, ok := parentRaw[key]; ok {
+						value = raw
+					}
 					childAttrs[key] = value
 				}
 			}
@@ -100,15 +108,34 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		// Apply style
 		childAttrs.applyStyle(baseURL, (*html.Node)(node), normalMatcher, importantMatcher)
 
-		// Replace 'currentColor' value
-		for key := range colorAttributes {
-			if childAttrs[key] == "currentColor" {
-				if c, has := childAttrs["color"]; has {
-					childAttrs[key] = c
-				} else {
-					childAttrs[key] = "black"
-				}
+		// gopdfgo: wartością obliczoną currentColor jest słowo kluczowe (CSS Color 4 § 6.4), więc
+		// dziedziczy się ono jako słowo i rozwiązuje względem 'color' elementu, który go używa
+		// (np. treść <pattern> z fill="inherit", zastępczy kolor po url(...)). Źródło zamieniało tylko
+		// dokładny zapis "currentColor" i dziedziczyło już rozwiązany kolor rodzica.
+		for key, raw := range parentRaw {
+			if childAttrs[key] == "inherit" {
+				childAttrs[key] = raw
 			}
+		}
+		if c := childAttrs["color"]; c == "inherit" || strings.EqualFold(c, "currentColor") {
+			if pc, has := parentAttrs["color"]; has {
+				childAttrs["color"] = pc
+			} else {
+				delete(childAttrs, "color")
+			}
+		}
+		childRaw := nodeAttributes{}
+		for key := range colorAttributes {
+			v := childAttrs[key]
+			if !currentColorRe.MatchString(v) {
+				continue
+			}
+			childRaw[key] = v
+			c, has := childAttrs["color"]
+			if !has {
+				c = "black"
+			}
+			childAttrs[key] = currentColorRe.ReplaceAllLiteralString(v, c)
 		}
 
 		// Handle 'inherit' values
@@ -133,7 +160,7 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 
 		// recurse
 		for child := node.FirstChild; child != nil && nodeSVG.foreign == nil; child = child.NextSibling {
-			if childSVG := buildTree(child, childAttrs); childSVG != nil {
+			if childSVG := buildTree(child, childAttrs, childRaw); childSVG != nil {
 				nodeSVG.children = append(nodeSVG.children, childSVG)
 			}
 		}
@@ -150,7 +177,7 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		return nodeSVG
 	}
 
-	out.root = buildTree((*html.Node)(svgRoot), nil)
+	out.root = buildTree((*html.Node)(svgRoot), nil, nil)
 
 	out.inheritDefs()
 
@@ -418,7 +445,14 @@ var notInheritedAttributes = utils.NewSet(
 	"requiredFeatures",
 	"systemLanguage",
 	"vector-effect", // gopdfgo: SVG 2 § 13.2, niedziedziczona
+	// gopdfgo: display nie jest dziedziczona (CSS Display 3 § 2); poddrzewo z display: none i tak nie
+	// jest rysowane (drawNode nie schodzi do dzieci), a źródło dziedzicząc ją ukrywało też treść
+	// <marker>, <pattern> i celów <use> leżących w takim poddrzewie (test WPT marker-007)
+	"display",
 )
+
+// currentColorRe znajduje słowo kluczowe currentColor (bez względu na wielkość liter).
+var currentColorRe = regexp.MustCompile(`(?i)\bcurrentcolor\b`)
 
 var colorAttributes = utils.NewSet(
 	"fill",

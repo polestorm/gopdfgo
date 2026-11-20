@@ -15,22 +15,22 @@ func Test_newPainter(t *testing.T) {
 	}{
 		{
 			"red",
-			painter{"", parser.ColorKeywords["red"].RGBA, true},
+			painter{"", parser.ColorKeywords["red"].RGBA, true, 0},
 			false,
 		},
 		{
 			"",
-			painter{"", parser.RGBA{}, false},
+			painter{"", parser.RGBA{}, false, 0},
 			false,
 		},
 		{
 			"none",
-			painter{"", parser.RGBA{}, false},
+			painter{"", parser.RGBA{}, false, 0},
 			false,
 		},
 		{
 			"black",
-			painter{"", parser.RGBA{A: 1}, true},
+			painter{"", parser.RGBA{A: 1}, true, 0},
 			false,
 		},
 		{
@@ -40,12 +40,12 @@ func Test_newPainter(t *testing.T) {
 		},
 		{
 			"url(#myPaint)",
-			painter{"myPaint", parser.RGBA{}, true},
+			painter{"myPaint", parser.RGBA{}, true, 0},
 			false,
 		},
 		{
 			"url(#myPaint)  green",
-			painter{"myPaint", parser.ColorKeywords["green"].RGBA, true},
+			painter{"myPaint", parser.ColorKeywords["green"].RGBA, true, 0},
 			false,
 		},
 	}
