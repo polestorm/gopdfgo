@@ -1363,9 +1363,13 @@ outerLoop:
 	}
 	// gopdfgo: max-width tabeli ogranicza także jej szerokość preferowaną (nie
 	// poniżej szerokości minimalnej treści), żeby kontener kurczący się do
-	// treści miał tę samą szerokość co ułożona tabela
+	// treści miał tę samą szerokość co ułożona tabela. Przy box-sizing: border-box (domyślnym dla tabel
+	// w HTML) max-width obejmuje obramowanie i odstęp wewnętrzny tabeli, a porównujemy go z szerokością
+	// treści, więc najpierw je odejmujemy (CSS Box Sizing 3 § 3, jak adjustBoxSizing w układzie tabeli).
+	tableMaxWidthLimit := pr.Inf
 	if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
-		tableMaxContentWidth = max(tableMinContentWidth, min(tableMaxContentWidth, maxWidth.Value))
+		tableMaxWidthLimit = max(maxWidth.Value-boxSizingFrame(table, true), 0)
+		tableMaxContentWidth = max(tableMinContentWidth, min(tableMaxContentWidth, tableMaxWidthLimit))
 	}
 	// gopdfgo: wkład procentowych kolumn („large/small percentage contribution”) liczymy do szerokości
 	// preferowanej tabeli tylko wtedy, gdy żaden przodek nie jest komórką tabeli, kontenerem flex ani
@@ -1385,9 +1389,7 @@ outerLoop:
 		if hasCaption {
 			intrinsicMaxContentWidth = max(intrinsicMaxContentWidth, captionContentWidth)
 		}
-		if maxWidth := table.Style.GetMaxWidth(); maxWidth.Tag != pr.Auto && maxWidth.Unit == pr.Px && maxWidth.Value != pr.Inf {
-			intrinsicMaxContentWidth = max(tableMinContentWidth, min(intrinsicMaxContentWidth, maxWidth.Value))
-		}
+		intrinsicMaxContentWidth = max(tableMinContentWidth, min(intrinsicMaxContentWidth, tableMaxWidthLimit))
 	}
 	tableOuterMinContentWidth := marginWidth(&table.BoxFields, marginWidth(box, tableMinContentWidth, true, true), true, true)
 	tableOuterMaxContentWidth := marginWidth(&table.BoxFields, marginWidth(box, intrinsicMaxContentWidth, true, true), true, true)

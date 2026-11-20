@@ -100,3 +100,30 @@ func TestSplitCellContinuationWithoutProgress(t *testing.T) {
 			head+stripes(20, 16, 4),
 			tcontBox(0, 0, 40, 90, "green")+tcontBox(0, 90, 50, 10, "red")))
 }
+
+// max-width tabeli ogranicza jej szerokość preferowaną w tym samym box-sizing co szerokość ułożoną
+// (CSS Box Sizing 3 § 3; HTML daje tabelom box-sizing: border-box), więc kontener dopasowujący się do
+// treści (float) ma szerokość tabeli. W źródle max-width porównywany był z szerokością treści: float
+// wychodził szerszy o obramowanie i odstęp tabeli i spod tabeli wystawało jego czerwone tło. Wzorzec
+// to ta sama tabela w bloku o jawnej szerokości (przy content-box szerokość obejmuje 40px ramy).
+func TestTableMaxWidthPreferredBoxSizing(t *testing.T) {
+	dir := t.TempDir()
+	style := `<style>@page { size: 400px 200px; margin: 0 } body { margin: 0 }
+		.c { float: left; clear: left; background: red } .t { border: 10px solid green; padding: 10px;
+		border-spacing: 0; background: green } td, .cell { padding: 0; font-size: 0 } .cell { display: table-cell }
+		.w { display: inline-block; width: 100px; height: 10px; background: blue }</style>`
+	content := `<div style="width:20px;height:10px"></div>`
+	cases := []struct {
+		name, table string
+		width       int
+	}{
+		{"table-max-width-border-box", `<table class="t" style="max-width:200px"><tr><td><span class="w"></span> <span class="w"></span></td></tr></table>`, 200},
+		{"table-max-width-content-box", `<div class="t" style="display:table;box-sizing:content-box;max-width:160px"><div class="cell"><span class="w"></span> <span class="w"></span></div></div>`, 200},
+		{"table-min-width-border-box", `<table class="t" style="min-width:200px"><tr><td>` + content + `</td></tr></table>`, 200},
+		{"table-min-width-content-box", `<div class="t" style="display:table;box-sizing:content-box;min-width:200px"><div class="cell">` + content + `</div></div>`, 240},
+	}
+	for _, c := range cases {
+		tcontSame(t, dir, c.name, style+`<div class="c">`+c.table+`</div>`,
+			style+fmt.Sprintf(`<div class="c" style="width:%dpx">`, c.width)+c.table+`</div>`)
+	}
+}
