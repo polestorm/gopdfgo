@@ -193,13 +193,18 @@ var InitialValues = Properties{
 	PWordSpacing:            TaggedDim{},          // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
-	PTransformOrigin: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}},
+	PTransformOrigin: TransformOrigin{Point: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}}, Z: ZeroPixels}, // gopdfgo: z
 	PTransform:       Transforms{}, // computed value for "none"
 	// gopdfgo: właściwości translate, rotate i scale (CSS Transforms 2 § 5.1) jako listy funkcji
 	// przekształcenia; pusta lista to none
 	PTranslate: Transforms{},
 	PRotate:    Transforms{},
 	PScale:     Transforms{},
+	// gopdfgo: CSS Transforms 2 § 5, § 7, § 8, § 11; perspektywy i preserve-3d nie rysujemy (PDF jest 2D)
+	PBackfaceVisibility: String("visible"),
+	PTransformStyle:     String("flat"),
+	PPerspective:        TaggedDim{Tag: None},
+	PPerspectiveOrigin:  Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}},
 
 	// User Interface 3/4 (REC/WD): https://www.w3.org/TR/css-ui-4/
 	PAppearance:          String("none"),

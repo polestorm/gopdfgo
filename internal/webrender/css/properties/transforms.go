@@ -24,3 +24,11 @@ func HasTransform(style StyleAccessor) bool {
 	return len(style.GetTransform()) != 0 || len(style.GetTranslate()) != 0 ||
 		len(style.GetRotate()) != 0 || len(style.GetScale()) != 0
 }
+
+// EstablishesTransformContext mówi, czy element tworzy kontekst nakładania i blok zawierający dla
+// wszystkich potomków tak jak przekształcony: ma przekształcenie (HasTransform), perspective inne niż
+// none (CSS Transforms 2 § 7) albo transform-style: preserve-3d (§ 5). Perspektywy i kontekstu 3D
+// nie rysujemy, ale te skutki zostają.
+func EstablishesTransformContext(style StyleAccessor) bool {
+	return HasTransform(style) || style.GetPerspective().Tag != None || style.GetTransformStyle() == "preserve-3d"
+}

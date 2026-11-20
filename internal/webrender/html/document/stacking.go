@@ -55,6 +55,15 @@ type StackingContext struct {
 	positiveZContexts []StackingContext
 	blocksAndCells    BoxTree
 	zIndex            int
+	// gopdfgo: parent3D – rodzic pudełka w drzewie ma transform-style: preserve-3d, więc pudełko
+	// należy do jego kontekstu renderowania 3D (CSS Transforms 2 § 6); zob. drawStackingContext
+	parent3D bool
+}
+
+// withParent3D (gopdfgo) zaznacza kontekst pudełka, którego rodzic ma transform-style: preserve-3d.
+func withParent3D(sc StackingContext, in3D bool) StackingContext {
+	sc.parent3D = in3D
+	return sc
 }
 
 func NewStackingContext(box Box, childContexts []StackingContext, blocks []bo.Box, floats []StackingContext, blocksAndCells BoxTree,
@@ -146,14 +155,14 @@ func newStackingContextFromBox(box Box, page *bo.PageBox, childContexts, escape 
 		blocksAndCells = newBoxTree()
 	)
 
-	box = dispatchChildren(box, page, childContexts, escape, &blocks, &floats, blocksAndCells)
+	box = dispatchChildren(box, false, page, childContexts, escape, &blocks, &floats, blocksAndCells)
 	if box.Box().IsTableWrapper {
 		tableBeforeCaptions(box, blocks)
 	}
 	return NewStackingContext(box, children, blocks, floats, blocksAndCells, page)
 }
 
-func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContext,
+func dispatch(box Box, in3D bool, page *bo.PageBox, childContexts, escape *[]StackingContext,
 	blocks *[]Box, floats *[]StackingContext, blocksAndCells BoxTree,
 ) Box {
 	if absPlac, ok := box.(*layout.AbsolutePlaceholder); ok {
@@ -164,8 +173,16 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	style := box.Box().Style
 	position := style.GetPosition().String
 	positioned := position != "static"
-	// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1); źródło patrzyło tylko na transform
-	hasTransform := pr.HasTransform(style) || box.Box().PageScale > 1 // gopdfgo: zob. BoxFields.PageScale
+	// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1), perspective (§ 7) i
+	// transform-style: preserve-3d (§ 5); źródło patrzyło tylko na transform
+	hasTransform := pr.EstablishesTransformContext(style) || box.Box().PageScale > 1 // gopdfgo: zob. BoxFields.PageScale
+	// gopdfgo: dziecko blokowe albo atomowe elementu z transform-style: preserve-3d jest osobną
+	// płaszczyzną jego kontekstu renderowania 3D (CSS Transforms 2 § 6), rysowaną w całości jak
+	// warstwa (tak też przeglądarki); potrzebne do skumulowanej macierzy i backface-visibility
+	if in3D && (bo.BlockLevelT.IsInstance(box) || bo.InlineBlockT.IsInstance(box) || bo.InlineFlexT.IsInstance(box) ||
+		bo.InlineGridT.IsInstance(box) || bo.InlineReplacedT.IsInstance(box)) {
+		hasTransform = true
+	}
 	if escape != nil && (position == "absolute" || position == "fixed") {
 		// bryła zawierająca tego pudełka leży poza przycinającym przodkiem
 		childContexts, escape = escape, nil
@@ -212,13 +229,13 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 		// odtwarzamy (test overflow-scroll-paint-order nadal nie przechodzi).
 		if (box.Box().IsFloated() || (bo.BlockLevelT.IsInstance(box) && box.Box().IsInNormalFlow())) &&
 			!absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned && !hasClipPath {
-			*floats = append(*floats, newStackingContextFromBox(box, page, nil, innerEscape))
+			*floats = append(*floats, withParent3D(newStackingContextFromBox(box, page, nil, innerEscape), in3D))
 			*childContexts = append(*childContexts, escaped...)
 			return nil
 		}
 		// This box defines a new stacking context, remove it
 		// from the "normal" children list.
-		*childContexts = append(*childContexts, newStackingContextFromBox(box, page, nil, innerEscape))
+		*childContexts = append(*childContexts, withParent3D(newStackingContextFromBox(box, page, nil, innerEscape), in3D))
 		*childContexts = append(*childContexts, escaped...)
 	} else {
 		// gopdfgo: wiersz, grupa wierszy albo komórka z position: relative bez własnego kontekstu nakładania
@@ -255,25 +272,25 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 					}
 				}
 			}
-			insertStackingContext(childContexts, index, newStackingContextFromBox(box, page, childContexts, nil))
+			insertStackingContext(childContexts, index, withParent3D(newStackingContextFromBox(box, page, childContexts, nil), in3D))
 		} else if box.Box().IsFloated() || box.Box().IsFlexItem || box.Box().IsGridItem {
 			// gopdfgo: elementy flex i grid są rysowane jak pudełka inline-block, czyli każdy w całości,
 			// w kolejności dokumentu (CSS Flexbox 1 § 5.4, CSS Grid 1 § 9.5). W źródle były rysowane jak
 			// zwykłe bloki (najpierw tła wszystkich, potem treść), więc tekst wcześniejszego elementu
 			// przebijał przez tło późniejszego, który na niego zachodził. Trafiają na tę samą warstwę
 			// co elementy pływające: nad tła bloków, pod treść liniową.
-			*floats = append(*floats, newStackingContextFromBox(box, page, childContexts, innerEscape))
+			*floats = append(*floats, withParent3D(newStackingContextFromBox(box, page, childContexts, innerEscape), in3D))
 		} else if bo.InlineBlockT.IsInstance(box) || bo.InlineFlexT.IsInstance(box) || bo.InlineGridT.IsInstance(box) {
 			// gopdfgo: dodane InlineGridT; rysowanie już je przewidywało, a bez tego kończyło się paniką
 			// Have this fake stacking context be part of the "normal"
 			// box tree, because we need its position in the middle
 			// of a tree of inline boxes.
-			return newStackingContextFromBox(box, page, childContexts, innerEscape)
+			return withParent3D(newStackingContextFromBox(box, page, childContexts, innerEscape), in3D)
 		} else {
 			if bo.BlockLevelT.IsInstance(box) {
 				blocksIndex := len(*blocks)
 				boxBlocksAndCells := newBoxTree()
-				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
+				box = dispatchChildren(box, in3D, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
 				*blocks = slices.Insert(*blocks, blocksIndex, box)
 				if box.Box().IsTableWrapper {
 					tableBeforeCaptions(box, (*blocks)[blocksIndex+1:])
@@ -281,10 +298,10 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 				blocksAndCells.set(box, boxBlocksAndCells)
 			} else if bo.TableCellT.IsInstance(box) {
 				boxBlocksAndCells := newBoxTree()
-				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
+				box = dispatchChildren(box, in3D, page, childContexts, innerEscape, blocks, floats, boxBlocksAndCells)
 				blocksAndCells.set(box, boxBlocksAndCells)
 			} else {
-				box = dispatchChildren(box, page, childContexts, innerEscape, blocks, floats, blocksAndCells)
+				box = dispatchChildren(box, in3D, page, childContexts, innerEscape, blocks, floats, blocksAndCells)
 			}
 
 			return box
@@ -322,7 +339,7 @@ func tableBeforeCaptions(wrapper Box, segment []Box) {
 	copy(segment, moved)
 }
 
-func dispatchChildren(box Box, page *bo.PageBox, childContexts, escape *[]StackingContext,
+func dispatchChildren(box Box, parentIn3D bool, page *bo.PageBox, childContexts, escape *[]StackingContext,
 	blocks *[]Box, floats *[]StackingContext, blocksAndCells BoxTree,
 ) Box {
 	if !bo.ParentT.IsInstance(box) {
@@ -330,8 +347,12 @@ func dispatchChildren(box Box, page *bo.PageBox, childContexts, escape *[]Stacki
 	}
 
 	var newChildren []Box
+	// gopdfgo: dzieci elementu z transform-style: preserve-3d należą do jego kontekstu renderowania 3D
+	// (CSS Transforms 2 § 6), zob. StackingContext.parent3D; pudełko wiersza nie jest elementem, więc
+	// jego dzieci (np. inline-block) należą do kontekstu rodzica
+	in3D := box.Box().Style.GetTransformStyle() == "preserve-3d" || (parentIn3D && bo.LineT.IsInstance(box))
 	for _, child := range box.Box().Children {
-		result := dispatch(child, page, childContexts, escape, blocks, floats, blocksAndCells)
+		result := dispatch(child, in3D, page, childContexts, escape, blocks, floats, blocksAndCells)
 		if result != nil {
 			newChildren = append(newChildren, result)
 		}

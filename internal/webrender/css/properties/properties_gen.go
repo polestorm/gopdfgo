@@ -482,8 +482,10 @@ func (s Properties) SetBlockEllipsis(v TaggedString) { s[PBlockEllipsis] = v }
 func (s Properties) GetBorderSpacing() Point  { return s[PBorderSpacing].(Point) }
 func (s Properties) SetBorderSpacing(v Point) { s[PBorderSpacing] = v }
 
-func (s Properties) GetTransformOrigin() Point  { return s[PTransformOrigin].(Point) }
-func (s Properties) SetTransformOrigin(v Point) { s[PTransformOrigin] = v }
+func (s Properties) GetTransformOrigin() TransformOrigin {
+	return s[PTransformOrigin].(TransformOrigin)
+}
+func (s Properties) SetTransformOrigin(v TransformOrigin) { s[PTransformOrigin] = v }
 
 func (s Properties) GetFontVariant() String  { return s[PFontVariant].(String) }
 func (s Properties) SetFontVariant(v String) { s[PFontVariant] = v }
@@ -649,6 +651,18 @@ func (s Properties) SetRotate(v Transforms) { s[PRotate] = v }
 
 func (s Properties) GetScale() Transforms  { return s[PScale].(Transforms) }
 func (s Properties) SetScale(v Transforms) { s[PScale] = v }
+
+func (s Properties) GetBackfaceVisibility() String  { return s[PBackfaceVisibility].(String) }
+func (s Properties) SetBackfaceVisibility(v String) { s[PBackfaceVisibility] = v }
+
+func (s Properties) GetTransformStyle() String  { return s[PTransformStyle].(String) }
+func (s Properties) SetTransformStyle(v String) { s[PTransformStyle] = v }
+
+func (s Properties) GetPerspective() TaggedDim  { return s[PPerspective].(TaggedDim) }
+func (s Properties) SetPerspective(v TaggedDim) { s[PPerspective] = v }
+
+func (s Properties) GetPerspectiveOrigin() Point  { return s[PPerspectiveOrigin].(Point) }
+func (s Properties) SetPerspectiveOrigin(v Point) { s[PPerspectiveOrigin] = v }
 
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
@@ -1119,8 +1133,8 @@ type StyleAccessor interface {
 	GetBorderSpacing() Point
 	SetBorderSpacing(v Point)
 
-	GetTransformOrigin() Point
-	SetTransformOrigin(v Point)
+	GetTransformOrigin() TransformOrigin
+	SetTransformOrigin(v TransformOrigin)
 
 	GetFontVariant() String
 	SetFontVariant(v String)
@@ -1286,6 +1300,18 @@ type StyleAccessor interface {
 
 	GetScale() Transforms
 	SetScale(v Transforms)
+
+	GetBackfaceVisibility() String
+	SetBackfaceVisibility(v String)
+
+	GetTransformStyle() String
+	SetTransformStyle(v String)
+
+	GetPerspective() TaggedDim
+	SetPerspective(v TaggedDim)
+
+	GetPerspectiveOrigin() Point
+	SetPerspectiveOrigin(v Point)
 }
 
 var propsNames = [...]string{
@@ -1501,6 +1527,10 @@ var propsNames = [...]string{
 	PTranslate:               "translate",
 	PRotate:                  "rotate",
 	PScale:                   "scale",
+	PBackfaceVisibility:      "backface-visibility",
+	PTransformStyle:          "transform-style",
+	PPerspective:             "perspective",
+	PPerspectiveOrigin:       "perspective-origin",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1717,4 +1747,8 @@ var PropsFromNames = map[string]KnownProp{
 	"translate":                  PTranslate,
 	"rotate":                     PRotate,
 	"scale":                      PScale,
+	"backface-visibility":        PBackfaceVisibility,
+	"transform-style":            PTransformStyle,
+	"perspective":                PPerspective,
+	"perspective-origin":         PPerspectiveOrigin,
 }

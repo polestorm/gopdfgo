@@ -274,6 +274,10 @@ const (
 	PTranslate              // gopdfgo: CSS Transforms 2 § 5.1; niedziedziczona
 	PRotate                 // gopdfgo: CSS Transforms 2 § 5.1; niedziedziczona
 	PScale                  // gopdfgo: CSS Transforms 2 § 5.1; niedziedziczona
+	PBackfaceVisibility     // gopdfgo: CSS Transforms 2 § 11; niedziedziczona
+	PTransformStyle         // gopdfgo: CSS Transforms 2 § 5 (preserve-3d działa jak flat); niedziedziczona
+	PPerspective            // gopdfgo: CSS Transforms 2 § 7 (perspektywa pomijana); niedziedziczona
+	PPerspectiveOrigin      // gopdfgo: CSS Transforms 2 § 8 (bez skutku); niedziedziczona
 
 	nbProperties
 )

@@ -33,6 +33,18 @@ func toF(v pr.Dimension) fl { return fl(v.Value) }
 
 // Return the matrix for the CSS transform properties on this box (possibly nil).
 func getMatrix(box_ Box) (mt.Transform, bool) {
+	matrix, ok, _ := getMatrixAndFace(box_)
+	return matrix, ok
+}
+
+// getMatrixAndFace (gopdfgo) zwraca macierz przekształcenia jak getMatrix i dodatkowo pełną macierz
+// 4×4 (jednostkową, gdy przekształcenia nie ma), z której rysowanie sprawdza, czy widać tylną stronę
+// elementu (CSS Transforms 2 § 11). Lista z funkcjami 3D (CSS Transforms 2 § 12) jest
+// składana w macierz 4×4 i spłaszczana raz, na końcu: rzut prostokątny na płaszczyznę rodzica, czyli
+// część 2D macierzy, jak przy transform-style: flat bez perspektywy (§ 6). Spłaszczanie każdej
+// funkcji z osobna nie dałoby tego samego, np. dla rotateX() rotateY(). Macierz nieodwracalna w 3D
+// (np. scaleZ(0)) daje macierz zerową, więc element nie jest rysowany. Źródło znało tylko funkcje 2D.
+func getMatrixAndFace(box_ Box) (_ mt.Transform, _ bool, full mt.Matrix4) {
 	// "Transforms apply to block-level and atomic inline-level elements,
 	//  but do not apply to elements which may be split into
 	//  multiple inline-level boxes."
@@ -48,50 +60,118 @@ func getMatrix(box_ Box) (mt.Transform, bool) {
 		matrix := mt.New(1, 0, 0, 1, originX, originY)
 		matrix.RightMultBy(mt.New(factor, 0, 0, factor, 0, 0))
 		matrix.Translate(-originX, -originY)
-		return matrix, true
+		return matrix, true, mt.FromTransform(matrix)
 	}
 	if len(trans) == 0 || bo.InlineT.IsInstance(box_) {
-		return mt.Transform{}, false
+		return mt.Transform{}, false, mt.Identity4()
 	}
 
 	borderWidth := box.BorderWidth()
 	borderHeight := box.BorderHeight()
 	or := box.Style.GetTransformOrigin()
-	offsetX := pr.ResolvePercentage(or[0].Tagged(), borderWidth).V()
-	offsetY := pr.ResolvePercentage(or[1].Tagged(), borderHeight).V()
+	offsetX := pr.ResolvePercentage(or.Point[0].Tagged(), borderWidth).V()
+	offsetY := pr.ResolvePercentage(or.Point[1].Tagged(), borderHeight).V()
 	originX := fl(box.BorderBoxX() + offsetX)
 	originY := fl(box.BorderBoxY() + offsetY)
 
+	if is3D(trans) {
+		originZ := float64(or.Z.Value)
+		matrix := mt.Translation3D(float64(originX), float64(originY), originZ)
+		for _, t := range trans {
+			args := t.Dimensions
+			var right mt.Matrix4
+			switch t.Kind {
+			case pr.Translate:
+				tz := 0.
+				if len(args) == 3 {
+					tz = float64(args[2].Value)
+				}
+				right = mt.Translation3D(
+					float64(pr.ResolvePercentage(args[0].Tagged(), borderWidth).V()),
+					float64(pr.ResolvePercentage(args[1].Tagged(), borderHeight).V()), tz)
+			case pr.Scale:
+				sz := 1.
+				if len(args) == 3 {
+					sz = float64(args[2].Value)
+				}
+				right = mt.Scaling3D(float64(args[0].Value), float64(args[1].Value), sz)
+			case pr.Rotate3D:
+				right = mt.Rotation3D(float64(args[0].Value), float64(args[1].Value), float64(args[2].Value), float64(args[3].Value))
+			case pr.Matrix3D:
+				var v [16]float64
+				for i := range v {
+					v[i] = float64(args[i].Value)
+				}
+				right = mt.FromColumns(v)
+				// składowe perspektywy (m14, m24, m34) pomijamy jak perspective(); m44 zostaje i dzieli
+				// współrzędne przy spłaszczaniu
+				right[3][0], right[3][1], right[3][2] = 0, 0, 0
+			case pr.Perspective:
+				// perspektywa pominięta (ostrzeżenie przy odczycie stylu): macierz jednostkowa
+				right = mt.Identity4()
+			default:
+				right = mt.FromTransform(transform2D(t, borderWidth, borderHeight))
+			}
+			matrix = mt.Mul4(matrix, right)
+		}
+		matrix = mt.Mul4(matrix, mt.Translation3D(-float64(originX), -float64(originY), -originZ))
+		if !matrix.Invertible() {
+			return mt.Transform{}, true, matrix
+		}
+		return matrix.Flatten(), true, matrix
+	}
+
 	matrix := mt.New(1, 0, 0, 1, originX, originY)
 	for _, t := range trans {
-		name, args := t.Kind, t.Dimensions
-		// The length of args depends on `name`, see package validation for details.
-		rightMat := mt.Identity()
-		switch name {
-		case pr.Scale:
-			sx, sy := toF(args[0]), toF(args[1])
-			rightMat.Scale(sx, sy)
-		case pr.Rotate:
-			angle := toF(args[0])
-			rightMat.Rotate(angle)
-		case pr.Translate:
-			translateX, translateY := args[0], args[1]
-			rightMat.Translate(
-				fl(pr.ResolvePercentage(translateX.Tagged(), borderWidth).V()),
-				fl(pr.ResolvePercentage(translateY.Tagged(), borderHeight).V()),
-			)
-		case pr.Skew:
-			rightMat.Skew(toF(args[0]), toF(args[1]))
-		case pr.Matrix:
-			rightMat = mt.New(toF(args[0]), toF(args[1]), toF(args[2]),
-				toF(args[3]), toF(args[4]), toF(args[5]))
-		default:
-			panic(fmt.Sprintf("unexpected name for CSS transform property : %d", name))
-		}
-		matrix.RightMultBy(rightMat) // same as matrix = mt.Mul(matrix, rightMat)
+		matrix.RightMultBy(transform2D(t, borderWidth, borderHeight)) // same as matrix = mt.Mul(matrix, rightMat)
 	}
 	matrix.Translate(-originX, -originY) // same as matrix = mt.Mul(matrix, mt.New(1, 0, 0, 1, -originX, -originY))
-	return matrix, true
+	// gopdfgo: przekształcenie 2D nie pokazuje tylnej strony (macierz 4×4 do sprawdzenia w rysowaniu)
+	return matrix, true, mt.FromTransform(matrix)
+}
+
+// is3D (gopdfgo) mówi, czy lista ma funkcję 3D (CSS Transforms 2 § 12).
+func is3D(trans pr.Transforms) bool {
+	for _, t := range trans {
+		switch t.Kind {
+		case pr.Matrix3D, pr.Rotate3D, pr.Perspective:
+			return true
+		case pr.Translate, pr.Scale:
+			if len(t.Dimensions) == 3 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// transform2D zwraca macierz funkcji przekształcenia 2D.
+func transform2D(t pr.Transform, borderWidth, borderHeight pr.Float) mt.Transform {
+	name, args := t.Kind, t.Dimensions
+	// The length of args depends on `name`, see package validation for details.
+	rightMat := mt.Identity()
+	switch name {
+	case pr.Scale:
+		sx, sy := toF(args[0]), toF(args[1])
+		rightMat.Scale(sx, sy)
+	case pr.Rotate:
+		angle := toF(args[0])
+		rightMat.Rotate(angle)
+	case pr.Translate:
+		translateX, translateY := args[0], args[1]
+		rightMat.Translate(
+			fl(pr.ResolvePercentage(translateX.Tagged(), borderWidth).V()),
+			fl(pr.ResolvePercentage(translateY.Tagged(), borderHeight).V()),
+		)
+	case pr.Skew:
+		rightMat.Skew(toF(args[0]), toF(args[1]))
+	case pr.Matrix:
+		rightMat = mt.New(toF(args[0]), toF(args[1]), toF(args[2]),
+			toF(args[3]), toF(args[4]), toF(args[5]))
+	default:
+		panic(fmt.Sprintf("unexpected name for CSS transform property : %d", name))
+	}
+	return rightMat
 }
 
 // Apply a transformation matrix to an axis-aligned rectangle

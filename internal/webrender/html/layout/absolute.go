@@ -48,8 +48,9 @@ func establishesFixedContainingBlock(box_ Box) bool {
 	if box.IsForRootElement {
 		return false
 	}
-	// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1); źródło patrzyło tylko na transform
-	if pr.HasTransform(box.Style) {
+	// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1), perspective (§ 7) i
+	// transform-style: preserve-3d (§ 5); źródło patrzyło tylko na transform
+	if pr.EstablishesTransformContext(box.Style) {
 		return true
 	}
 	return bo.HasContainment(box_, "layout") || bo.HasContainment(box_, "paint") ||

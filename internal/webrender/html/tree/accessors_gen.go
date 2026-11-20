@@ -1572,15 +1572,17 @@ func (s *AnonymousStyle) GetBorderSpacing() pr.Point {
 }
 func (s *AnonymousStyle) SetBorderSpacing(v pr.Point) { s.propsCache.setKnown(pr.PBorderSpacing, v) }
 
-func (s *ComputedStyle) GetTransformOrigin() pr.Point {
-	return s.Get(pr.PTransformOrigin.Key()).(pr.Point)
+func (s *ComputedStyle) GetTransformOrigin() pr.TransformOrigin {
+	return s.Get(pr.PTransformOrigin.Key()).(pr.TransformOrigin)
 }
-func (s *ComputedStyle) SetTransformOrigin(v pr.Point) { s.propsCache.setKnown(pr.PTransformOrigin, v) }
+func (s *ComputedStyle) SetTransformOrigin(v pr.TransformOrigin) {
+	s.propsCache.setKnown(pr.PTransformOrigin, v)
+}
 
-func (s *AnonymousStyle) GetTransformOrigin() pr.Point {
-	return s.Get(pr.PTransformOrigin.Key()).(pr.Point)
+func (s *AnonymousStyle) GetTransformOrigin() pr.TransformOrigin {
+	return s.Get(pr.PTransformOrigin.Key()).(pr.TransformOrigin)
 }
-func (s *AnonymousStyle) SetTransformOrigin(v pr.Point) {
+func (s *AnonymousStyle) SetTransformOrigin(v pr.TransformOrigin) {
 	s.propsCache.setKnown(pr.PTransformOrigin, v)
 }
 
@@ -2143,3 +2145,51 @@ func (s *ComputedStyle) SetScale(v pr.Transforms) { s.propsCache.setKnown(pr.PSc
 
 func (s *AnonymousStyle) GetScale() pr.Transforms  { return s.Get(pr.PScale.Key()).(pr.Transforms) }
 func (s *AnonymousStyle) SetScale(v pr.Transforms) { s.propsCache.setKnown(pr.PScale, v) }
+
+func (s *ComputedStyle) GetBackfaceVisibility() pr.String {
+	return s.Get(pr.PBackfaceVisibility.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetBackfaceVisibility(v pr.String) {
+	s.propsCache.setKnown(pr.PBackfaceVisibility, v)
+}
+
+func (s *AnonymousStyle) GetBackfaceVisibility() pr.String {
+	return s.Get(pr.PBackfaceVisibility.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetBackfaceVisibility(v pr.String) {
+	s.propsCache.setKnown(pr.PBackfaceVisibility, v)
+}
+
+func (s *ComputedStyle) GetTransformStyle() pr.String {
+	return s.Get(pr.PTransformStyle.Key()).(pr.String)
+}
+func (s *ComputedStyle) SetTransformStyle(v pr.String) { s.propsCache.setKnown(pr.PTransformStyle, v) }
+
+func (s *AnonymousStyle) GetTransformStyle() pr.String {
+	return s.Get(pr.PTransformStyle.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetTransformStyle(v pr.String) { s.propsCache.setKnown(pr.PTransformStyle, v) }
+
+func (s *ComputedStyle) GetPerspective() pr.TaggedDim {
+	return s.Get(pr.PPerspective.Key()).(pr.TaggedDim)
+}
+func (s *ComputedStyle) SetPerspective(v pr.TaggedDim) { s.propsCache.setKnown(pr.PPerspective, v) }
+
+func (s *AnonymousStyle) GetPerspective() pr.TaggedDim {
+	return s.Get(pr.PPerspective.Key()).(pr.TaggedDim)
+}
+func (s *AnonymousStyle) SetPerspective(v pr.TaggedDim) { s.propsCache.setKnown(pr.PPerspective, v) }
+
+func (s *ComputedStyle) GetPerspectiveOrigin() pr.Point {
+	return s.Get(pr.PPerspectiveOrigin.Key()).(pr.Point)
+}
+func (s *ComputedStyle) SetPerspectiveOrigin(v pr.Point) {
+	s.propsCache.setKnown(pr.PPerspectiveOrigin, v)
+}
+
+func (s *AnonymousStyle) GetPerspectiveOrigin() pr.Point {
+	return s.Get(pr.PPerspectiveOrigin.Key()).(pr.Point)
+}
+func (s *AnonymousStyle) SetPerspectiveOrigin(v pr.Point) {
+	s.propsCache.setKnown(pr.PPerspectiveOrigin, v)
+}

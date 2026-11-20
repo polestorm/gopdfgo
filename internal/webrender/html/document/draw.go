@@ -119,6 +119,17 @@ type drawContext struct {
 	// gopdfgo: borderMask – drawBorder rysuje kształt obramowania na biało, bez obrazu obramowania,
 	// jako maskę dla background-clip: border-area
 	borderMask bool
+
+	// gopdfgo: context3D – kontekst renderowania 3D rodzica z transform-style: preserve-3d (nil poza
+	// nim), zob. drawStackingContext
+	context3D *context3D
+}
+
+// context3D (gopdfgo): skumulowana macierz 3D elementu z transform-style: preserve-3d i macierz 2D
+// nałożona na rysunek od rodzica korzenia kontekstu renderowania 3D (CSS Transforms 2 § 6).
+type context3D struct {
+	full    matrix.Matrix4
+	applied matrix.Transform
 }
 
 func (ctx drawContext) Fonts() text.FontConfiguration { return ctx.fonts }
@@ -212,12 +223,70 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				pr.Fl(box.BorderWidth()), pr.Fl(box.BorderHeight()))
 		}
 
-		if mat, ok := getMatrix(box_); ok {
+		mat, hasMatrix, own3D := getMatrixAndFace(box_)
+		// gopdfgo: kontekst renderowania 3D (CSS Transforms 2 § 6). Element, którego rodzic ma
+		// transform-style: preserve-3d, ma skumulowaną macierz 3D: macierz rodzica razy własną. Bez
+		// perspektywy obraz takiego elementu to rzut prostokątny tej macierzy, więc rysujemy go macierzą
+		// względną: odwrotność macierzy już nałożonej w kontekście razy spłaszczona macierz skumulowana.
+		// Dzięki temu np. dwa rotateX(45deg) w preserve-3d dają rotateX(90deg), a nie iloczyn dwóch
+		// spłaszczeń. Nie odtwarzamy sortowania po głębokości ani przecinania płaszczyzn: kolejność
+		// rysowania zostaje jak w drzewie. W źródle nieznane.
+		accumulated := own3D
+		applied := mat // macierz nałożona przez ten element, licząc od rodzica korzenia kontekstu 3D
+		if !hasMatrix {
+			applied = matrix.Identity()
+		}
+		in3D := stackingContext.parent3D && ctx.context3D != nil
+		if in3D {
+			accumulated = matrix.Mul4(ctx.context3D.full, own3D)
+			applied = accumulated.Flatten()
+			if !accumulated.Invertible() {
+				applied = matrix.Transform{}
+			}
+			parent := ctx.context3D.applied
+			if err := parent.Invert(); err == nil {
+				mat, hasMatrix = matrix.Mul(parent, applied), true
+			}
+		}
+		preserve3D := box.Style.GetTransformStyle() == "preserve-3d"
+		// hideOwn: element nie rysuje własnej treści, ale rysuje uczestników swojego kontekstu 3D
+		hideOwn := false
+		// gopdfgo: backface-visibility: hidden ukrywa element, gdy widać jego tylną stronę według
+		// skumulowanej macierzy 3D (CSS Transforms 2 § 11); w źródle nieznane. Element płaski znika z
+		// potomkami (są spłaszczeni w jego płaszczyźnie), element preserve-3d tylko z własną treścią.
+		if box.Style.GetBackfaceVisibility() == "hidden" && accumulated.BackfaceVisible() {
+			if !preserve3D {
+				return
+			}
+			hideOwn = true
+		}
+		// (wyznacznik bliski zera: cos(90deg) w liczbach zmiennoprzecinkowych nie daje dokładnie zera)
+		if preserve3D && hasMatrix && math.Abs(float64(mat.Determinant())) < 1e-6 && accumulated.Invertible() {
+			// płaszczyzna elementu widoczna z boku (np. rotateX(90deg)): jego treści nie widać, ale
+			// uczestnicy kontekstu 3D mogą mieć macierz odwracalną; nie nakładamy macierzy osobliwej
+			hideOwn, hasMatrix = true, false
+			if ctx.context3D != nil && in3D {
+				applied = ctx.context3D.applied
+			} else {
+				applied = matrix.Identity()
+			}
+		}
+		ctx.context3D = nil
+		if preserve3D {
+			ctx.context3D = &context3D{full: accumulated, applied: applied}
+		}
+		if hasMatrix {
 			if mat.Determinant() != 0 {
 				ctx.dst.State().Transform(mat)
 			} else {
 				logger.WarningLogger.Printf("non invertible transformation matrix %v\n", mat)
 				return
+			}
+		}
+		// gopdfgo: przy hideOwn rysujemy tylko uczestników kontekstu 3D elementu
+		drawChild := func(child StackingContext) {
+			if !hideOwn || child.parent3D {
+				ctx.drawStackingContext(child)
 			}
 		}
 		// gopdfgo: clip-path przycina element razem z potomkami w jego układzie po przekształceniu
@@ -227,9 +296,10 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 		// Point 1 is done in drawPage
 
 		// Point 2
-		if bo.BlockT.IsInstance(box_) || bo.MarginT.IsInstance(box_) ||
+		// gopdfgo: przy hideOwn (zob. wyżej) bez własnej treści elementu
+		if !hideOwn && (bo.BlockT.IsInstance(box_) || bo.MarginT.IsInstance(box_) ||
 			bo.InlineBlockT.IsInstance(box_) || bo.TableCellT.IsInstance(box_) ||
-			bo.FlexContainerT.IsInstance(box_) || bo.GridContainerT.IsInstance(box_) || bo.ReplacedT.IsInstance(box_) {
+			bo.FlexContainerT.IsInstance(box_) || bo.GridContainerT.IsInstance(box_) || bo.ReplacedT.IsInstance(box_)) {
 			ctx.setMaskBorder(box_)
 			// The canvas background was removed by layout_backgrounds.
 			ctx.drawBoxShadows(box_.Box(), false)
@@ -242,6 +312,7 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 		// na pudełku tabeli), rysuje tu swoje tła: własne, kolumn, wierszy i komórek. W źródle tabela
 		// była rysowana tylko jako dziecko cudzego kontekstu, więc w tym przypadku tła komórek ginęły.
 		rootTable, rootIsTable := box_.(bo.TableBoxITF)
+		rootIsTable = rootIsTable && !hideOwn
 		if rootIsTable {
 			ctx.setMaskBorder(box_)
 			ctx.drawTable(rootTable.Table())
@@ -259,7 +330,7 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 
 			// Point 3
 			for _, childContext := range stackingContext.negativeZContexts {
-				ctx.drawStackingContext(childContext)
+				drawChild(childContext)
 			}
 
 			// Point 4
@@ -288,6 +359,9 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				paintRoot = box_
 			}
 			blocks := orderTablePaint(stackingContext.blockLevelBoxes, paintRoot)
+			if hideOwn {
+				blocks = nil
+			}
 			for _, item := range blocks {
 				block := item.box
 				closeTables(block)
@@ -332,32 +406,36 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 
 			// Point 5
 			for _, childContext := range stackingContext.floatContexts {
-				ctx.drawStackingContext(childContext)
+				drawChild(childContext)
 			}
 
 			// Point 6
-			if bo.InlineT.IsInstance(box_) {
+			if bo.InlineT.IsInstance(box_) && !hideOwn {
 				ctx.drawInlineLevel(stackingContext.page, box_, 0, "clip", pr.TaggedString{Tag: pr.None})
 			}
 
 			// Point 7
-			root := newBoxTree()
-			root.set(box_, stackingContext.blocksAndCells)
-			ctx.drawBlockLevel(stackingContext.page, root)
+			if !hideOwn {
+				root := newBoxTree()
+				root.set(box_, stackingContext.blocksAndCells)
+				ctx.drawBlockLevel(stackingContext.page, root)
+			}
 
 			// Point 8
 			for _, childContext := range stackingContext.zeroZContexts {
-				ctx.drawStackingContext(childContext)
+				drawChild(childContext)
 			}
 
 			// Point 9
 			for _, childContext := range stackingContext.positiveZContexts {
-				ctx.drawStackingContext(childContext)
+				drawChild(childContext)
 			}
 		})
 
 		// Point 10
-		ctx.drawOutline(box_)
+		if !hideOwn {
+			ctx.drawOutline(box_)
+		}
 
 		if opacity < 1 {
 			group := ctx.dst

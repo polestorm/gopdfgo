@@ -125,6 +125,12 @@ const (
 	Translate
 	Scale
 	Matrix
+	// gopdfgo: funkcje 3D z CSS Transforms 2 § 12. Translate i Scale mogą mieć trzeci wymiar (z);
+	// Rotate3D ma oś (x, y, z) i kąt w radianach, Matrix3D 16 liczb matrix3d() kolumnami, a
+	// Perspective nie ma argumentów, bo perspektywę pomijamy (macierz jednostkowa).
+	Matrix3D
+	Rotate3D
+	Perspective
 )
 
 type Transform struct {
@@ -223,6 +229,13 @@ type TaggedString struct {
 func (ts TaggedString) IsNone() bool { return ts.S == "" && ts.Tag == 0 }
 
 type Point [2]Dimension
+
+// TransformOrigin (gopdfgo) to wartość transform-origin: punkt w płaszczyźnie elementu i przesunięcie
+// z (CSS Transforms 1 § 7, długość bez procentów). Źródło pomijało składową z.
+type TransformOrigin struct {
+	Point
+	Z Dimension
+}
 
 // PageOrientation (gopdfgo) to wartość size podana samym słowem auto, portrait albo landscape. Odnosi się
 // do rozmiaru arkusza wybranego poza arkuszami autora (arkusz użytkownika, a bez niego A4), więc zostaje

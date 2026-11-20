@@ -269,6 +269,10 @@ var (
 		pr.PPageOrientation:         pageOrientation,
 		pr.PTranslate:               translateProperty, // gopdfgo: CSS Transforms 2 § 5.1
 		pr.PRotate:                  rotateProperty,
+		pr.PBackfaceVisibility:      backfaceVisibility,
+		pr.PTransformStyle:          transformStyle,
+		pr.PPerspective:             perspectiveProperty,
+		pr.PPerspectiveOrigin:       perspectiveOrigin,
 		pr.PScale:                   scaleProperty,
 		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
 		pr.PBackgroundBlendMode:     backgroundBlendMode,
@@ -1022,11 +1026,21 @@ var centerKeywordFakeToken = pa.NewIdent("center", pa.Pos{})
 
 // @validator(unstable=true)
 func transformOrigin(tokens []Token, _ string) pr.CssProperty {
+	// gopdfgo: trzecia wartość to przesunięcie z (<length>, CSS Transforms 1 § 7), potrzebne przy
+	// funkcjach 3D; źródło ją pomijało bez sprawdzania
+	z := pr.ZeroPixels
 	if len(tokens) == 3 {
-		// Ignore third parameter as 3D transforms are ignored.
+		z = getLength(tokens[2], true, false)
+		if z.IsNone() {
+			return nil
+		}
 		tokens = tokens[:2]
 	}
-	return parse2dPosition(tokens)
+	point := parse2dPosition(tokens)
+	if point.IsNone() {
+		return nil
+	}
+	return pr.TransformOrigin{Point: point, Z: z}
 }
 
 // @validator()
@@ -4677,9 +4691,9 @@ func blockEllipsis_(tokens []Token) (out pr.TaggedString, ok bool) {
 
 // gopdfgo: właściwości translate, rotate i scale (CSS Transforms 2 § 5.1), w źródle nieznane.
 // Wartość to jednoelementowa lista funkcji przekształcenia (pusta dla none), składana w macierz
-// razem z transform (zob. pr.IndividualTransforms). Silnik rysuje tylko 2D: składowa z przesunięcia
-// i skali jest sprawdzana, ale pomijana, a obrót wokół dowolnej osi spłaszczany do części 2D
-// macierzy rotate3d() (rzut prostokątny, jak przy transform-style: flat bez perspektywy).
+// razem z transform (zob. pr.EffectiveTransforms). Składowe 3D (z przesunięcia i skali, obrót wokół
+// dowolnej osi) zostają w wartości: całą listę składa w macierz 4×4 i spłaszcza dopiero rysowanie
+// (rzut prostokątny, jak przy transform-style: flat bez perspektywy).
 
 // translate: none | <length-percentage> [ <length-percentage> <length>? ]?
 func translateProperty(tokens []Token, _ string) pr.CssProperty {
@@ -4697,6 +4711,8 @@ func translateProperty(tokens []Token, _ string) pr.CssProperty {
 		}
 		if i < 2 {
 			dims[i] = length
+		} else {
+			dims = append(dims, length)
 		}
 	}
 	return pr.Transforms{{Kind: pr.Translate, Dimensions: dims}}
@@ -4757,20 +4773,13 @@ func rotateProperty(tokens []Token, _ string) pr.CssProperty {
 		// oś zerowa: obrót nie jest stosowany (CSS Transforms 2 § 12, rotate3d()), ale wartość nie jest none
 		return pr.Transforms{{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(0)}}}
 	}
-	x, y, z = x/length, y/length, z/length
 	if x == 0 && y == 0 {
 		// obrót w płaszczyźnie: oś (0, 0, -1) to obrót w przeciwną stronę
-		return pr.Transforms{{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(utils.Fl(z) * angle)}}}
+		return pr.Transforms{{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(utils.Fl(z/length) * angle)}}}
 	}
-	// część 2D macierzy rotate3d() (CSS Transforms 2 § 12): pierwsze dwie kolumny, pierwsze dwa wiersze
-	half := float64(angle) / 2
-	sc, sq := math.Sin(half)*math.Cos(half), math.Sin(half)*math.Sin(half)
-	a := 1 - 2*(y*y+z*z)*sq
-	b := 2 * (x*y*sq + z*sc)
-	c := 2 * (x*y*sq - z*sc)
-	d := 1 - 2*(x*x+z*z)*sq
-	return pr.Transforms{{Kind: pr.Matrix, Dimensions: []pr.Dimension{
-		pr.FToD(utils.Fl(a)), pr.FToD(utils.Fl(b)), pr.FToD(utils.Fl(c)), pr.FToD(utils.Fl(d)), pr.FToD(0), pr.FToD(0),
+	// obrót wokół osi w przestrzeni jak rotate3d() (CSS Transforms 2 § 12)
+	return pr.Transforms{{Kind: pr.Rotate3D, Dimensions: []pr.Dimension{
+		pr.FToD(utils.Fl(x)), pr.FToD(utils.Fl(y)), pr.FToD(utils.Fl(z)), pr.FToD(angle),
 	}}}
 }
 
@@ -4812,79 +4821,172 @@ func scaleProperty(tokens []Token, _ string) pr.CssProperty {
 	if len(factors) == 1 {
 		factors = append(factors, factors[0])
 	}
-	if len(factors) == 3 && factors[2].Value == 0 {
-		// skala z równa zeru daje macierz nieodwracalną i element nie jest rysowany (CSS Transforms 1
-		// § 6, test WPT individual-transform-3); w 2D ten sam skutek daje skala zerowa
-		factors[0], factors[1] = pr.FToD(0), pr.FToD(0)
-	}
-	return pr.Transforms{{Kind: pr.Scale, Dimensions: factors[:2]}}
+	// skala z zostaje: skala z równa zeru daje macierz nieodwracalną i element nie jest rysowany (CSS
+	// Transforms 1 § 6, test WPT individual-transform-3), co sprawdza rysowanie
+	return pr.Transforms{{Kind: pr.Scale, Dimensions: factors}}
 }
 
+// gopdfgo: funkcje przekształcenia według CSS Transforms 1 § 13 i CSS Transforms 2 § 12. Źródło znało
+// tylko funkcje 2D, a kąt zerowy (rotate(0deg), skew(0)) uznawało za błąd, przez co cała deklaracja
+// była pomijana. Dodane: funkcje 3D (translate3d, translateZ, scale3d, scaleZ, rotate3d, rotateX,
+// rotateY, rotateZ, matrix3d), <zero> w miejscu kąta, procenty w funkcjach skali oraz perspective(),
+// którą przyjmujemy, ale pomijamy (rzutu perspektywicznego nie da się zapisać w PDF), z ostrzeżeniem.
+// Funkcje 3D składa w macierz 4×4 i spłaszcza dopiero rysowanie (html/document, getMatrix).
 func transformFunction(token Token) (pr.Transform, error) {
 	name, args := pa.ParseFunction(token)
 	if name == "" {
 		return pr.Transform{}, ErrInvalidValue
 	}
-
-	lengths, values := make([]pr.Dimension, len(args)), make([]pr.Dimension, len(args))
-	isAllNumber, isAllLengths := true, true
-	for index, a := range args {
-		lengths[index] = getLength(a, true, true)
-		isAllLengths = isAllLengths && !lengths[index].IsNone()
-		if aNumber, ok := a.(pa.Number); ok {
-			values[index] = pr.FToD(pr.Fl(aNumber.ValueF))
-		} else {
-			isAllNumber = false
+	// liczby (i procenty, gdy scaleFactors) jako argumenty funkcji
+	numbers := func(args []Token, scaleFactors bool) ([]pr.Dimension, bool) {
+		out := make([]pr.Dimension, len(args))
+		for i, a := range args {
+			switch a := a.(type) {
+			case pa.Number:
+				out[i] = pr.FToD(a.ValueF)
+			case pa.Percentage:
+				if !scaleFactors {
+					return nil, false
+				}
+				out[i] = pr.FToD(a.ValueF / 100)
+			default:
+				return nil, false
+			}
 		}
+		return out, true
+	}
+	angle := func(t Token) (pr.Fl, bool) {
+		if n, ok := t.(pa.Number); ok && n.ValueF == 0 {
+			return 0, true // <zero> w miejscu kąta (CSS Transforms 1 § 13)
+		}
+		return getAngle(t)
+	}
+	lengthPercentage := func(t Token) (pr.Dimension, bool) {
+		d := getLength(t, true, true)
+		return d, !d.IsNone()
+	}
+	length := func(t Token) (pr.Dimension, bool) {
+		d := getLength(t, true, false)
+		return d, !d.IsNone()
+	}
+	rotate3d := func(x, y, z pr.Fl, a pr.Fl) pr.Transform {
+		return pr.Transform{Kind: pr.Rotate3D, Dimensions: []pr.Dimension{pr.FToD(x), pr.FToD(y), pr.FToD(z), pr.FToD(a)}}
 	}
 	switch len(args) {
 	case 1:
-		angle, notNone := getAngle(args[0])
-		length := getLength(args[0], true, true)
 		switch name {
-		case "rotate":
-			if notNone && angle != 0 {
-				return pr.Transform{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(pr.Fl(angle))}}, nil
+		case "rotate", "rotatez":
+			if a, ok := angle(args[0]); ok {
+				return pr.Transform{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(a)}}, nil
+			}
+		case "rotatex":
+			if a, ok := angle(args[0]); ok {
+				return rotate3d(1, 0, 0, a), nil
+			}
+		case "rotatey":
+			if a, ok := angle(args[0]); ok {
+				return rotate3d(0, 1, 0, a), nil
 			}
 		case "skewx", "skew":
-			if notNone && angle != 0 {
-				return pr.Transform{Kind: pr.Skew, Dimensions: []pr.Dimension{pr.FToD(pr.Fl(angle)), pr.ZeroPixels}}, nil
+			if a, ok := angle(args[0]); ok {
+				return pr.Transform{Kind: pr.Skew, Dimensions: []pr.Dimension{pr.FToD(a), pr.ZeroPixels}}, nil
 			}
 		case "skewy":
-			if notNone && angle != 0 {
-				return pr.Transform{Kind: pr.Skew, Dimensions: []pr.Dimension{pr.ZeroPixels, pr.FToD(pr.Fl(angle))}}, nil
+			if a, ok := angle(args[0]); ok {
+				return pr.Transform{Kind: pr.Skew, Dimensions: []pr.Dimension{pr.ZeroPixels, pr.FToD(a)}}, nil
 			}
 		case "translatex", "translate":
-			if !length.IsNone() {
-				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{length, pr.ZeroPixels}}, nil
+			if l, ok := lengthPercentage(args[0]); ok {
+				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{l, pr.ZeroPixels}}, nil
 			}
 		case "translatey":
-			if !length.IsNone() {
-				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{pr.ZeroPixels, length}}, nil
+			if l, ok := lengthPercentage(args[0]); ok {
+				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{pr.ZeroPixels, l}}, nil
 			}
-		case "scalex":
-			if number, ok := args[0].(pa.Number); ok {
-				return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{pr.FToD(number.ValueF), pr.FToD(1.)}}, nil
+		case "translatez":
+			if l, ok := length(args[0]); ok {
+				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{pr.ZeroPixels, pr.ZeroPixels, l}}, nil
 			}
-		case "scaley":
-			if number, ok := args[0].(pa.Number); ok {
-				return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{pr.FToD(1.), pr.FToD(number.ValueF)}}, nil
+		case "scalex", "scaley", "scalez", "scale":
+			if v, ok := numbers(args, true); ok {
+				one := pr.FToD(1)
+				switch name {
+				case "scalex":
+					return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{v[0], one}}, nil
+				case "scaley":
+					return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{one, v[0]}}, nil
+				case "scalez":
+					return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{one, one, v[0]}}, nil
+				}
+				return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{v[0], v[0]}}, nil
 			}
-		case "scale":
-			if number, ok := args[0].(pa.Number); ok {
-				return pr.Transform{Kind: pr.Scale, Dimensions: []pr.Dimension{pr.FToD(number.ValueF), pr.FToD(number.ValueF)}}, nil
+		case "perspective":
+			// perspective(none) to nieskończona odległość, czyli brak perspektywy
+			if getKeyword(args[0]) == "none" {
+				return pr.Transform{Kind: pr.Perspective}, nil
+			}
+			if l := getLength(args[0], false, false); !l.IsNone() {
+				logger.WarningLogger.Printf("Ignored perspective in `transform: %s`, perspective projection is not supported in PDF; drawn without perspective. \n",
+					pa.Serialize([]Token{token}))
+				return pr.Transform{Kind: pr.Perspective}, nil
 			}
 		}
 	case 2:
-		if name == "scale" && isAllNumber {
-			return pr.Transform{Kind: pr.Scale, Dimensions: values}, nil
+		switch name {
+		case "scale":
+			if v, ok := numbers(args, true); ok {
+				return pr.Transform{Kind: pr.Scale, Dimensions: v}, nil
+			}
+		case "translate":
+			x, okX := lengthPercentage(args[0])
+			y, okY := lengthPercentage(args[1])
+			if okX && okY {
+				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{x, y}}, nil
+			}
+		case "skew":
+			x, okX := angle(args[0])
+			y, okY := angle(args[1])
+			if okX && okY {
+				return pr.Transform{Kind: pr.Skew, Dimensions: []pr.Dimension{pr.FToD(x), pr.FToD(y)}}, nil
+			}
 		}
-		if name == "translate" && isAllLengths {
-			return pr.Transform{Kind: pr.Translate, Dimensions: lengths}, nil
+	case 3:
+		switch name {
+		case "translate3d":
+			x, okX := lengthPercentage(args[0])
+			y, okY := lengthPercentage(args[1])
+			z, okZ := length(args[2])
+			if okX && okY && okZ {
+				return pr.Transform{Kind: pr.Translate, Dimensions: []pr.Dimension{x, y, z}}, nil
+			}
+		case "scale3d":
+			if v, ok := numbers(args, true); ok {
+				return pr.Transform{Kind: pr.Scale, Dimensions: v}, nil
+			}
+		}
+	case 4:
+		if name == "rotate3d" {
+			axis, okAxis := numbers(args[:3], false)
+			a, okA := angle(args[3])
+			if okAxis && okA {
+				return rotate3d(pr.Fl(axis[0].Value), pr.Fl(axis[1].Value), pr.Fl(axis[2].Value), a), nil
+			}
 		}
 	case 6:
-		if name == "matrix" && isAllNumber {
-			return pr.Transform{Kind: pr.Matrix, Dimensions: values}, nil
+		if name == "matrix" {
+			if v, ok := numbers(args, false); ok {
+				return pr.Transform{Kind: pr.Matrix, Dimensions: v}, nil
+			}
+		}
+	case 16:
+		if name == "matrix3d" {
+			if v, ok := numbers(args, false); ok {
+				if v[3].Value != 0 || v[7].Value != 0 || v[11].Value != 0 {
+					logger.WarningLogger.Printf("Ignored perspective components of `transform: %s`, perspective projection is not supported in PDF; drawn without perspective. \n",
+						pa.Serialize([]Token{token}))
+				}
+				return pr.Transform{Kind: pr.Matrix3D, Dimensions: v}, nil
+			}
 		}
 	}
 	return pr.Transform{}, ErrInvalidValue

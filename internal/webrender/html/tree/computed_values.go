@@ -44,6 +44,8 @@ var (
 		pr.PBackgroundPosition: backgroundPosition,
 		pr.PObjectPosition:     objectPosition,
 		pr.PTransformOrigin:    transformOrigin,
+		pr.PPerspectiveOrigin:  transformOrigin, // gopdfgo: CSS Transforms 2 § 8
+		pr.PPerspective:        perspective,     // gopdfgo: CSS Transforms 2 § 7
 
 		pr.PBorderSpacing:           borderSpacing,
 		pr.PSize:                    size,
@@ -227,6 +229,11 @@ func objectPosition(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProper
 }
 
 func transformOrigin(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	// gopdfgo: transform-origin niesie też składową z (pr.TransformOrigin)
+	if value, ok := _value.(pr.TransformOrigin); ok {
+		l := _lengthOrPercentageTuple2(computer, []pr.Dimension{value.Point[0], value.Point[1], value.Z})
+		return pr.TransformOrigin{Point: pr.Point{l[0], l[1]}, Z: l[2]}
+	}
 	value := _value.(pr.Point)
 	l := _lengthOrPercentageTuple2(computer, value.ToSlice())
 	return pr.Point{l[0], l[1]}
@@ -1351,4 +1358,13 @@ func wordSpacing(computer *ComputedStyle, name pr.KnownProp, _value pr.CssProper
 		return pr.TaggedDim{}
 	}
 	return length_(computer, value, -1, false)
+}
+
+// perspective (gopdfgo): none albo długość w pikselach (CSS Transforms 2 § 7).
+func perspective(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.TaggedDim)
+	if value.Tag == pr.None {
+		return value
+	}
+	return length_(computer, value, -1, true)
 }
