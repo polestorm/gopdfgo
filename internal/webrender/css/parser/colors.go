@@ -164,6 +164,7 @@ var (
 		"plum":                 {221, 160, 221},
 		"powderblue":           {176, 224, 230},
 		"purple":               {128, 0, 128},
+		"rebeccapurple":        {102, 51, 153}, // gopdfgo: CSS Color 4 § 6.1
 		"red":                  {255, 0, 0},
 		"rosybrown":            {188, 143, 143},
 		"royalblue":            {65, 105, 225},
@@ -267,6 +268,9 @@ const (
 type Color struct {
 	Type ColorType
 	RGBA RGBA
+	// gopdfgo: Deferred – funkcja barwy zależna od currentColor (składnia względna albo color-mix()),
+	// liczona dopiero przez Resolve; tylko przy Type == ColorCurrentColor (zob. colors_relative.go)
+	Deferred *FunctionBlock
 }
 
 func (c Color) IsNone() bool {
@@ -299,10 +303,18 @@ func ParseColorString(color string) Color {
 //   - RGBA color for every other values (including keywords, HSL && HSLA.)
 //     The alpha channel is clipped to [0, 1] but red, green, or blue can be out of range
 //     (eg. “rgb(-10%, 120%, 0%)“ is represented as “(-0.1, 1.2, 0, 1)“.
-func ParseColor(token Token) Color {
+func ParseColor(token Token) Color { return parseColor(token, nil) }
+
+// parseColor (gopdfgo): [current] to kolor elementu, którym zastępujemy currentColor, albo nil, gdy
+// nie jest znany (wynik zależny od currentColor ma wtedy typ ColorCurrentColor).
+func parseColor(token Token, current *RGBA) Color {
 	switch token := token.(type) {
 	case Ident:
-		return ColorKeywords[utils.AsciiLower(token.Value)]
+		c := ColorKeywords[utils.AsciiLower(token.Value)]
+		if c.Type == ColorCurrentColor && current != nil {
+			return Color{Type: ColorRGBA, RGBA: *current}
+		}
+		return c
 	case Hash:
 		for _, hashReg := range hashRegexps {
 			match := hashReg.regexp.FindStringSubmatch(token.Value)
@@ -323,7 +335,18 @@ func ParseColor(token Token) Color {
 		// aliasy. Źródło przyjmowało tylko składnię z przecinkami, całkowite składowe rgb() i hue bez jednostki.
 		name := utils.AsciiLower(token.Name)
 		if name == "color-mix" {
-			return parseColorMix(token.Arguments)
+			return parseColorMix(token, current)
+		}
+		// gopdfgo: składnia względna (CSS Color 5 § 4) i color() (CSS Color 4 § 10)
+		if args := RemoveWhitespace(token.Arguments); name == "color" || (len(args) > 0 && isIdent(args[0], "from")) {
+			switch name {
+			case "rgba", "hsla":
+				name = name[:3]
+			}
+			if _, known := colorModels[name]; !known && name != "color" {
+				return Color{}
+			}
+			return parseModernColor(token, name, current)
 		}
 		switch name {
 		case "rgb", "rgba", "hsl", "hsla", "hwb", "lab", "lch", "oklab", "oklch":
@@ -393,6 +416,14 @@ func ParseColor(token Token) Color {
 				if utils.AsciiLower(v.Value) == "none" && !legacy {
 					return 0, true
 				}
+			case FunctionBlock:
+				// gopdfgo: wyrażenie matematyczne (CSS Values 4 § 10), liczba albo procent
+				if m, ok := evalMath(v, nil); ok && m.kind != mathAngle && !math.IsNaN(m.v) {
+					if m.kind == mathPercent {
+						return utils.Fl(m.v / 100), true
+					}
+					return utils.Fl(m.v) / scale, true
+				}
 			}
 			return 0, false
 		}
@@ -433,6 +464,11 @@ func ParseColor(token Token) Color {
 			case Ident:
 				if utils.AsciiLower(h.Value) == "none" && !legacy {
 					return 0, true
+				}
+			case FunctionBlock:
+				// gopdfgo: wyrażenie matematyczne: liczba albo kąt
+				if m, ok := evalMath(h, nil); ok && m.kind != mathPercent && !math.IsNaN(m.v) {
+					return utils.Fl(m.v), true
 				}
 			}
 			return 0, false
@@ -491,12 +527,13 @@ func ParseColor(token Token) Color {
 					}
 					ca, cb = float64(va*abScale), float64(vb*abScale)
 				}
+				// gopdfgo: przeliczenie wspólne ze składnią względną (colors_relative.go)
+				space := "lab"
 				if ok {
-					r, g, b = oklabToLinearSRGB(lightness, ca, cb)
-				} else {
-					r, g, b = labToLinearSRGB(lightness, ca, cb)
+					space = "oklab"
 				}
-				return Color{Type: ColorRGBA, RGBA: RGBA{R: srgbGamma(r), G: srgbGamma(g), B: srgbGamma(b), A: alpha}}
+				rr, gg, bb := channelsToRGB(space, [3]float64{lightness, ca, cb})
+				return Color{Type: ColorRGBA, RGBA: RGBA{R: rr, G: gg, B: bb, A: alpha}}
 			}
 			return Color{}
 		}
@@ -572,8 +609,11 @@ func labToLinearSRGB(l, a, b float64) (float64, float64, float64) {
 func hslToRgb(_hue utils.Fl, saturation, lightness utils.Fl) (utils.Fl, utils.Fl, utils.Fl) {
 	hue := float64(_hue) / 360
 	hue = hue - math.Floor(hue)
-	saturation = min(1., max(0, saturation/100))
-	lightness = min(1, max(0, lightness/100))
+	// gopdfgo: ujemne nasycenie przycinane do 0, poza tym bez przycinania (CSS Color 4 § 7, test WPT
+	// hsl-009): barwę spoza gamy sRGB przycina kanał po kanale dopiero rysowanie; źródło przycinało
+	// nasycenie i jasność do [0, 100%]
+	saturation = max(0, saturation/100)
+	lightness = lightness / 100
 
 	// Translated from ABC: http://www.w3.org/TR/css3-color/#hsl-color
 	hueToRgb := func(m1, m2, h float64) utils.Fl {
@@ -622,13 +662,15 @@ func srgbToLinear(v utils.Fl) float64 {
 	return math.Pow((f+0.055)/1.055, 2.4)
 }
 
-// parseColorMix (gopdfgo): color-mix(in <przestrzeń>, <barwa> <procent>?, <barwa> <procent>?)
-// z CSS Color 5 § 3. Obsługiwane przestrzenie: srgb, srgb-linear, oklab i oklch (krótsza droga po
-// kącie barwy); pozostałe są odrzucane. currentColor w argumentach nie jest obsługiwany, bo wynik
-// musiałby powstać dopiero przy obliczaniu stylu.
-func parseColorMix(arguments []Token) Color {
+// parseColorMix (gopdfgo): color-mix(in <przestrzeń> [<metoda> hue]?, <barwa> <procent>?, <barwa>
+// <procent>?) z CSS Color 5 § 3. Przestrzenie: wszystkie z colorModels poza rgb (srgb, srgb-linear,
+// display-p3, display-p3-linear, a98-rgb, prophoto-rgb, rec2020, lab, oklab, xyz, xyz-d50, xyz-d65,
+// hsl, hwb, lch, oklch); kąt barwy według metody shorter (domyślnej), longer, increasing albo
+// decreasing (CSS Color 4 § 12.4). Z currentColor w argumentach wynik powstaje dopiero z kolorem
+// elementu (Color.Resolve).
+func parseColorMix(token FunctionBlock, current *RGBA) Color {
 	var parts [][]Token
-	for _, part := range SplitOnComma(RemoveWhitespace(arguments)) {
+	for _, part := range SplitOnComma(RemoveWhitespace(token.Arguments)) {
 		parts = append(parts, RemoveWhitespace(part))
 	}
 	if len(parts) != 3 || len(parts[0]) < 2 {
@@ -644,9 +686,19 @@ func parseColorMix(arguments []Token) Color {
 		return Color{}
 	}
 	space := keyword(parts[0][1])
-	switch {
-	case space == "oklch" && len(parts[0]) == 4 && keyword(parts[0][2]) == "shorter" && keyword(parts[0][3]) == "hue":
-	case len(parts[0]) == 2 && (space == "srgb" || space == "srgb-linear" || space == "oklab" || space == "oklch"):
+	model, known := colorModels[space]
+	if !known || space == "rgb" {
+		return Color{}
+	}
+	hueMethod := "shorter"
+	switch len(parts[0]) {
+	case 2:
+	case 4:
+		hueMethod = keyword(parts[0][2])
+		if model.hue < 0 || keyword(parts[0][3]) != "hue" ||
+			(hueMethod != "shorter" && hueMethod != "longer" && hueMethod != "increasing" && hueMethod != "decreasing") {
+			return Color{}
+		}
 	default:
 		return Color{}
 	}
@@ -663,7 +715,11 @@ func parseColorMix(arguments []Token) Color {
 				weights[i], hasWeight[i] = float64(p.ValueF)/100, true
 				continue
 			}
-			c := ParseColor(t)
+			c := parseColor(t, current)
+			if c.Type == ColorCurrentColor && current == nil && !found {
+				// gopdfgo: currentColor w argumencie: wynik liczony dopiero z kolorem elementu
+				return deferredColor(token)
+			}
 			if c.Type != ColorRGBA || found {
 				return Color{}
 			}
@@ -690,60 +746,66 @@ func parseColorMix(arguments []Token) Color {
 	w0, w1 := weights[0]/sum, weights[1]/sum
 
 	// składowe w przestrzeni mieszania
-	var comps [2][3]float64
-	for i, c := range colors {
-		switch space {
-		case "srgb":
-			comps[i] = [3]float64{float64(c.R), float64(c.G), float64(c.B)}
-		case "srgb-linear":
-			comps[i] = [3]float64{srgbToLinear(c.R), srgbToLinear(c.G), srgbToLinear(c.B)}
-		default:
-			l, a, b := linearSRGBToOKLab(srgbToLinear(c.R), srgbToLinear(c.G), srgbToLinear(c.B))
-			if space == "oklch" {
-				comps[i] = [3]float64{l, math.Hypot(a, b), math.Atan2(b, a)}
-			} else {
-				comps[i] = [3]float64{l, a, b}
-			}
-		}
-	}
+	comps := [2][3]float64{channelsFromRGB(space, colors[0]), channelsFromRGB(space, colors[1])}
 	a0, a1 := float64(colors[0].A), float64(colors[1].A)
 	alpha := a0*w0 + a1*w1
 	var mixed [3]float64
 	if alpha != 0 {
 		for k := range mixed {
-			if space == "oklch" && k == 2 {
-				// kąt barwy: krótsza droga, bez przemnażania przez krycie; barwa bezbarwna przejmuje kąt drugiej
-				h0, h1 := comps[0][2], comps[1][2]
-				if comps[0][1] < 1e-5 {
-					h0 = h1
-				} else if comps[1][1] < 1e-5 {
-					h1 = h0
-				}
-				if h1-h0 > math.Pi {
-					h0 += 2 * math.Pi
-				} else if h1-h0 < -math.Pi {
-					h1 += 2 * math.Pi
-				}
-				mixed[k] = h0*w0 + h1*w1
+			if k == model.hue {
+				mixed[k] = mixHue(comps, model, space, hueMethod, w0, w1)
 				continue
 			}
 			mixed[k] = (comps[0][k]*a0*w0 + comps[1][k]*a1*w1) / alpha
 		}
 	}
-	out := RGBA{A: utils.Fl(alpha * alphaScale)}
-	switch space {
-	case "srgb":
-		clamp := func(v float64) utils.Fl { return utils.Fl(min(1, max(0, v))) }
-		out.R, out.G, out.B = clamp(mixed[0]), clamp(mixed[1]), clamp(mixed[2])
-	case "srgb-linear":
-		out.R, out.G, out.B = srgbGamma(mixed[0]), srgbGamma(mixed[1]), srgbGamma(mixed[2])
-	default:
-		l, a, b := mixed[0], mixed[1], mixed[2]
-		if space == "oklch" {
-			a, b = mixed[1]*math.Cos(mixed[2]), mixed[1]*math.Sin(mixed[2])
+	r, g, b := channelsToRGB(space, mixed)
+	return Color{Type: ColorRGBA, RGBA: RGBA{R: r, G: g, B: b, A: utils.Fl(alpha * alphaScale)}}
+}
+
+// mixHue interpoluje kąt barwy (w stopniach) metodą z CSS Color 4 § 12.4, bez przemnażania przez
+// krycie; barwa bezbarwna (kąt nieistotny) przejmuje kąt drugiej.
+func mixHue(comps [2][3]float64, model colorModel, space, method string, w0, w1 float64) float64 {
+	powerless := func(c [3]float64) bool {
+		switch space {
+		case "hsl":
+			return c[1] < 1e-5
+		case "hwb":
+			return c[1]+c[2] >= 100-1e-5
+		case "lch":
+			return c[1] < 1e-3
+		default: // oklch
+			return c[1] < 1e-5
 		}
-		r, g, bl := oklabToLinearSRGB(l, a, b)
-		out.R, out.G, out.B = srgbGamma(r), srgbGamma(g), srgbGamma(bl)
 	}
-	return Color{Type: ColorRGBA, RGBA: out}
+	h0, h1 := comps[0][model.hue], comps[1][model.hue]
+	if powerless(comps[0]) {
+		h0 = h1
+	} else if powerless(comps[1]) {
+		h1 = h0
+	}
+	h0, h1 = math.Mod(h0+360, 360), math.Mod(h1+360, 360)
+	switch method {
+	case "shorter":
+		if h1-h0 > 180 {
+			h0 += 360
+		} else if h1-h0 < -180 {
+			h1 += 360
+		}
+	case "longer":
+		if 0 < h1-h0 && h1-h0 < 180 {
+			h0 += 360
+		} else if -180 < h1-h0 && h1-h0 <= 0 {
+			h1 += 360
+		}
+	case "increasing":
+		if h1 < h0 {
+			h1 += 360
+		}
+	case "decreasing":
+		if h0 < h1 {
+			h0 += 360
+		}
+	}
+	return h0*w0 + h1*w1
 }

@@ -1258,10 +1258,8 @@ func (a *AnonymousStyle) Get(key pr.PropKey) pr.CssProperty {
 func ResolveColor(style pr.ElementStyle, key pr.KnownProp) pr.Color {
 	// replace Python getColor function
 	value := style.Get(key.Key()).(pr.Color)
-	if value.Type == pa.ColorCurrentColor {
-		return style.GetColor()
-	}
-	return value
+	// gopdfgo: także barwy względne i color-mix() zależne od currentColor (CSS Color 5)
+	return value.ResolveCurrentColor(style.GetColor())
 }
 
 func pageTypeMatch(pageSelectorType pageSelector, pageType utils.PageElement) bool {

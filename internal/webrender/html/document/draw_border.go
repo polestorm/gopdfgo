@@ -3,8 +3,6 @@ package document
 import (
 	"math"
 
-	pa "github.com/polestorm/gopdfgo/internal/webrender/css/parser"
-
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
@@ -214,10 +212,8 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 		if shadow.Inset != inset {
 			continue
 		}
-		color := shadow.Color
-		if color.Type == pa.ColorCurrentColor {
-			color = box.Style.GetColor()
-		}
+		// gopdfgo: także barwy względne zależne od currentColor (CSS Color 5)
+		color := shadow.Color.ResolveCurrentColor(box.Style.GetColor())
 		if color.RGBA.A == 0 {
 			continue
 		}

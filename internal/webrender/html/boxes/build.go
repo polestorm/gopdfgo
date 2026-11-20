@@ -641,9 +641,8 @@ func contentImage(content pr.ContentProperty, style pr.ElementStyle, resolver UR
 	resolveStops := func(stops pr.ColorsStops) pr.ColorsStops {
 		out := append(pr.ColorsStops(nil), stops...)
 		for i, stop := range out {
-			if stop.Color.Type == parser.ColorCurrentColor {
-				out[i].Color = style.GetColor()
-			}
+			// gopdfgo: także barwy względne zależne od currentColor (CSS Color 5)
+			out[i].Color = stop.Color.ResolveCurrentColor(style.GetColor())
 		}
 		return out
 	}

@@ -44,6 +44,7 @@ var (
 		pr.PBackgroundPosition: backgroundPosition,
 		pr.PObjectPosition:     objectPosition,
 		pr.PTransformOrigin:    transformOrigin,
+		pr.PColor:              colorProperty,   // gopdfgo: CSS Color 5 § 4.2
 		pr.PPerspectiveOrigin:  transformOrigin, // gopdfgo: CSS Transforms 2 § 8
 		pr.PPerspective:        perspective,     // gopdfgo: CSS Transforms 2 § 7
 
@@ -1367,4 +1368,18 @@ func perspective(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty)
 		return value
 	}
 	return length_(computer, value, -1, true)
+}
+
+// colorProperty (gopdfgo): barwa względna albo color-mix() z currentColor we właściwości color
+// liczona z koloru rodzica (CSS Color 4 § 6.4, CSS Color 5 § 4.2).
+func colorProperty(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.Color)
+	if value.Type != pr.CurrentColor.Type {
+		return value
+	}
+	parent, _ := pr.InitialValues[pr.PColor].(pr.Color)
+	if computer.parentStyle != nil {
+		parent = computer.parentStyle.GetColor()
+	}
+	return value.ResolveCurrentColor(parent)
 }

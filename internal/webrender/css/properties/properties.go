@@ -193,7 +193,8 @@ var InitialValues = Properties{
 	PWordSpacing:            TaggedDim{},          // computed value for "normal"
 
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
-	PTransformOrigin: TransformOrigin{Point: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}}, Z: ZeroPixels}, // gopdfgo: z
+	// gopdfgo: transform-origin ze składową z
+	PTransformOrigin: TransformOrigin{Point: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}}, Z: ZeroPixels},
 	PTransform:       Transforms{}, // computed value for "none"
 	// gopdfgo: właściwości translate, rotate i scale (CSS Transforms 2 § 5.1) jako listy funkcji
 	// przekształcenia; pusta lista to none

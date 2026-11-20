@@ -48,10 +48,8 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	shadows := textbox.Style.GetTextShadow()
 	for index := len(shadows) - 1; index >= 0; index-- {
 		shadow := shadows[index]
-		shadowColor := shadow.Color.RGBA
-		if shadow.Color.Type == parser.ColorCurrentColor {
-			shadowColor = textbox.Style.GetColor().RGBA
-		}
+		// gopdfgo: także barwy względne zależne od currentColor (CSS Color 5)
+		shadowColor := shadow.Color.ResolveCurrentColor(textbox.Style.GetColor()).RGBA
 		if shadowColor.A == 0 {
 			continue
 		}
@@ -79,10 +77,7 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	// gopdfgo: glify wypełnia -webkit-text-fill-color (Compatibility Standard § 5.2), domyślnie
 	// currentcolor, czyli color
 	fill := textbox.Style.GetWebkitTextFillColor()
-	fillColor := fill.RGBA
-	if fill.Type == parser.ColorCurrentColor {
-		fillColor = textbox.Style.GetColor().RGBA
-	}
+	fillColor := fill.ResolveCurrentColor(textbox.Style.GetColor()).RGBA // gopdfgo: zob. ResolveCurrentColor
 	ctx.dst.State().SetColorRgba(fillColor, false)
 	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y, fillColor)
 

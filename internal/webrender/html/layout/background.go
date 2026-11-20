@@ -50,9 +50,8 @@ func resolveImage(image pr.Image, orientation pr.SBoolFloat, getImageFromUri bo.
 	resolveStops := func(stops []pr.ColorStop) []pr.ColorStop {
 		out := append([]pr.ColorStop(nil), stops...)
 		for i, stop := range out {
-			if stop.Color.Type == parser.ColorCurrentColor {
-				out[i].Color = currentColor
-			}
+			// gopdfgo: także barwy względne zależne od currentColor (CSS Color 5)
+			out[i].Color = stop.Color.ResolveCurrentColor(currentColor)
 		}
 		return out
 	}

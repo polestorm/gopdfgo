@@ -48,6 +48,15 @@ func NewColor(r, g, b, a Fl) Color {
 	return Color{RGBA: parser.RGBA{R: r, G: g, B: b, A: a}, Type: parser.ColorRGBA}
 }
 
+// ResolveCurrentColor (gopdfgo) zwraca kolor z currentColor zastąpionym kolorem elementu [current];
+// liczy też zależne od currentColor barwy względne i color-mix() (CSS Color 5 § 3, § 4).
+func (c Color) ResolveCurrentColor(current Color) Color {
+	if c.Type != parser.ColorCurrentColor {
+		return c
+	}
+	return Color(parser.Color(c).Resolve(current.RGBA))
+}
+
 // Has returns `true` is v is one of the three elements.
 func (d Display) Has(v Keyword) bool {
 	return d.Inside == v || d.Outside == v || d.ListItem == v

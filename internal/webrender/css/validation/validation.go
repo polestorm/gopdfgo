@@ -943,7 +943,9 @@ func color(tokens []Token, _ string) pr.DeclaredValue {
 		// źródło przyjmowało ją jako kolor zerowy i tekst znikał
 		return nil
 	}
-	if result.Type == pa.ColorCurrentColor {
+	// gopdfgo: barwa względna z currentColor (Deferred) nie jest równa inherit: liczy ją obliczanie
+	// stylu z koloru rodzica (CSS Color 5 § 4.2)
+	if result.Type == pa.ColorCurrentColor && result.Deferred == nil {
 		return pr.Inherit
 	} else {
 		return pr.Color(result)
