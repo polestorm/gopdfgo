@@ -12,7 +12,8 @@ import (
 //   - plik SVG bez viewBox, z width i height, rozciąga się do rozmiaru obrazu w <img> i w tle (Chrome
 //     dopisuje viewBox "0 0 width height" i preserveAspectRatio="none"); w <object> i <embed> nie skaluje
 //     się, bo jest osobnym dokumentem; wcześniej był zawsze rysowany w skali 1:1 i ucinany;
-//   - filtr z nieobsługiwanym prymitywem (feGaussianBlur) jest pomijany, a element narysowany w całości;
+//   - filtr z nieobsługiwanym prymitywem (feMorphology; cień z feGaussianBlur jest już rysowany wektorowo,
+//     zob. svgfilter18_test.go) jest pomijany, a element narysowany w całości;
 //     wcześniej feOffset z łańcucha cienia przesuwał cały element;
 //   - gradient w jednostkach objectBoundingBox w prostokącie innym niż kwadrat pokrywa cały kształt;
 //     wcześniej był przesunięty o (a-1)·x.
@@ -21,7 +22,7 @@ func TestSVGCorpusFixes(t *testing.T) {
 	files := map[string]string{
 		"noviewbox.svg": `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="100" height="100" fill="green"/><rect x="100" width="100" height="100" fill="blue"/></svg>`,
 		"filter.svg": `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><defs><filter id="s">` +
-			`<feGaussianBlur in="SourceAlpha" stdDeviation="4"/><feOffset dx="30" dy="30" result="b"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>` +
+			`<feMorphology in="SourceAlpha" radius="4"/><feOffset dx="30" dy="30" result="b"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>` +
 			`<rect x="20" y="20" width="160" height="60" fill="green" filter="url(#s)"/></svg>`,
 		"gradient.svg": `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">` +
 			`<stop offset="0" stop-color="green"/><stop offset="1" stop-color="green"/></linearGradient></defs><rect x="40" y="20" width="140" height="40" fill="url(#g)"/></svg>`,

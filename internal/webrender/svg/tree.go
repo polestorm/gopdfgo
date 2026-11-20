@@ -563,6 +563,10 @@ var notInheritedAttributes = utils.NewSet(
 	// jest rysowane (drawNode nie schodzi do dzieci), a źródło dziedzicząc ją ukrywało też treść
 	// <marker>, <pattern> i celów <use> leżących w takim poddrzewie (test WPT marker-007)
 	"display",
+	// gopdfgo: flood-color, flood-opacity i lighting-color nie są dziedziczone (Filter Effects 1 § 9.13, § 9.22)
+	"flood-color",
+	"flood-opacity",
+	"lighting-color",
 )
 
 // currentColorRe znajduje słowo kluczowe currentColor (bez względu na wielkość liter).
