@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
@@ -111,6 +112,8 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if groupSkipStack != nil {
 				var cellSkipStack tree.ResumeStack
 				skippedRows, cellSkipStack = groupSkipStack.Unpack()
+				// gopdfgo: same dalsze ciągi komórek rozpiętych z poprzednich wierszy nie dzielą wiersza
+				cellSkipStack, _ = splitRowResume(cellSkipStack)
 				if cellSkipStack != nil {
 					splitCells = true
 				}
@@ -149,6 +152,8 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		newGroupChildren := []Box{}
 		// For each row, cells for which this is the last row (with rowspan)
 		endingCellsByRow := make([][]Box, len(group.Children))
+		// gopdfgo: ułożone komórki rozpięte na kilka wierszy i dalsze ciągi takich komórek (zob. spanState)
+		spans := map[Box]spanState{}
 
 		isGroupStart := skipStack == nil
 		skip := 0
@@ -178,7 +183,15 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			var newRowChildren []Box
 			leftBehind := false // komórka z treścią, z której nic nie zostało na tej stronie
 			placedSome := false // inna komórka, z której coś na tej stronie zostało
-			for indexCell, cell_ := range row.Children {
+			// gopdfgo: komórki układane w tym wierszu: własne komórki wiersza i dalsze ciągi komórek
+			// rozpiętych (rowspan) z wierszy, które zostały na poprzedniej stronie (zob. rowCellEntries).
+			entries := rowCellEntries(group, row_, indexRow, skipStack)
+			for _, entry := range entries {
+				cell_ := entry.box
+				indexCell := entry.own
+				if indexCell < 0 {
+					indexCell = len(row.Children) // tylko do komunikatów
+				}
 				cell := cell_.Box()
 				var spannedWidths []pr.Float
 				if cell.GridX < len(columnWidths) {
@@ -196,7 +209,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					// The cell is entierly beyond the grid width, remove it
 					// entierly. Subsequent cells in the same row have greater
 					// gridX, so they are beyond too.
-					ignoredCells := row.Children[indexCell:]
+					ignoredCells := row.Children[min(indexCell, len(row.Children)):]
 					logger.WarningLogger.Printf("This table row has more columns than the table, ignored %d cells: %v",
 						len(ignoredCells), ignoredCells)
 					break
@@ -238,14 +251,13 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					width = max(width, 0)
 				}
 				cell.Width = width
-				var cellSkipStack tree.ResumeStack
-				if len(skipStack) != 0 {
-					if rs, has := skipStack[indexCell]; has {
-						cellSkipStack = rs
-					} else {
-						cellSkipStack = tree.ResumeStack{len(cell.Children): nil}
-					}
-				}
+				cellSkipStack := entry.skip
+				// gopdfgo: komórka rozpięta na dalsze wiersze tej grupy (albo dalszy ciąg takiej komórki)
+				// nie dzieli wiersza, w którym się zaczyna: jej treść dzielona na końcu strony przechodzi do
+				// dalszego ciągu komórki, a kolejne wiersze są układane dalej (CSS Tables 3 § 6, CSS
+				// Fragmentation 3 § 4.4). W źródle podział treści takiej komórki dzielił jej pierwszy wiersz,
+				// a komórka nie miała dalszego ciągu na następnej stronie.
+				spanning := cell.Rowspan > 1 || entry.own < 0
 
 				// Adapt cell and table collapsing borders when a row is split.
 				if cellSkipStack != nil && collapse {
@@ -262,9 +274,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 							}
 							cell.PositionY += max
 						}
-					} else {
+					} else if entry.own >= 0 {
 						// We don’t have a header, we have to skip the
 						// decoration at the top of the table when it’s drawn.
+						// gopdfgo: tylko dla własnych komórek podzielonego wiersza; dalszy ciąg komórki
+						// rozpiętej stoi w wierszu zaczętym na tej stronie, którego górne obramowanie zostaje.
 						table.SkipCellBorderTop = true
 					}
 				}
@@ -314,14 +328,25 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					absoluteBoxes, fixedBoxes, new([]pr.Float), false, -1)
 				cellResumeAt := tmp.resumeAt
 				cell.Style = originalStyle
+				stalled := false // komórka rozpięta, z której treści nic nie zmieściło się na tej stronie
 				if newCell == nil {
-					if cellSkipStack == nil && len(cell.Children) != 0 {
+					if cellSkipStack == nil && len(cell.Children) != 0 && !spanning {
 						leftBehind = true
 					}
 					cell_ = bo.CopyWithChildren(cell_, nil)
 					cell_, _, _ = blockContainerLayout(context, cell_, bottomSpace, cellSkipStack, true,
 						new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float), false, -1)
 					cellResumeAt = tree.ResumeStack{0: nil}
+					// gopdfgo: dalszy ciąg komórki rozpiętej, z którego nic się tu nie zmieściło, wznawia
+					// się w tym samym miejscu, a nie od początku treści (inaczej treść by się powtórzyła);
+					// gdy cała treść już była, nie ma czego wznawiać
+					if spanning && cellSkipStack != nil {
+						cellResumeAt = cellSkipStack
+						if k, _ := cellSkipStack.Unpack(); len(cellSkipStack) == 1 && k >= len(cell.Children) {
+							cellResumeAt = nil
+						}
+					}
+					stalled = spanning && cellResumeAt != nil
 				} else {
 					cell_ = newCell
 				}
@@ -332,7 +357,12 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 				cell = cell_.Box()
 				cell_.RemoveDecoration(cell, cellSkipStack != nil, false)
-				if cellResumeAt != nil {
+				if spanning {
+					// gopdfgo: komórka dzielona między strony nie jest wyrównywana w pionie: jej treść
+					// zaczyna się u góry każdego fragmentu (tak jak treść dzielonego bloku).
+					spans[cell_] = spanState{row: entry.originRow, cell: entry.originCell, own: entry.own,
+						resume: cellResumeAt, top: cellResumeAt != nil || entry.own < 0, stalled: stalled}
+				} else if cellResumeAt != nil {
 					if resumeAt == nil {
 						resumeAt = tree.ResumeStack{indexRow: tree.ResumeStack{}}
 					}
@@ -373,6 +403,55 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				newRowChildren = append(newRowChildren, cell_)
 			}
 
+			// gopdfgo: komórka rozpięta, która kończy się w tym wierszu, a jej treść nie zmieściła się do końca
+			// strony, dzieli ten wiersz: wiersz sięga końca strony, a na następnej ma dalszy ciąg razem
+			// z dalszym ciągiem tej komórki (CSS Fragmentation 3 § 4.4). Własne komórki wiersza dostają wtedy
+			// jawne wznowienie (zwykle „cała treść już była”), żeby ich treść nie powtórzyła się.
+			var pendingEnd []Box
+			stalledEnd := false
+			{
+				for _, cell := range endingCellsByRow[0] {
+					if state, ok := spans[cell]; ok && state.resume != nil {
+						pendingEnd = append(pendingEnd, cell)
+					}
+				}
+				for _, cell := range newRowChildren {
+					if state, ok := spans[cell]; ok && state.own < 0 && state.resume != nil && cell.Box().Rowspan == 1 {
+						pendingEnd = append(pendingEnd, cell)
+					}
+				}
+				if len(pendingEnd) != 0 && resumeAt == nil {
+					resumeAt = tree.ResumeStack{indexRow: tree.ResumeStack{}}
+				}
+				// Komórka, której treść nie zaczęła się na tej stronie, a kończy się w tym wierszu, przenosi
+				// ten wiersz na następną stronę (jak komórka bez treści w leftBehind): podzielony wiersz
+				// bez postępu w treści powtarzałby się w nieskończoność.
+				for _, cell := range pendingEnd {
+					if spans[cell].stalled && !pageIsEmpty {
+						stalledEnd = true
+					}
+				}
+				if resumeAt != nil {
+					own := resumeAt[indexRow]
+					if own == nil {
+						own = tree.ResumeStack{}
+						resumeAt[indexRow] = own
+					}
+					if len(pendingEnd) != 0 {
+						for i, cell := range row.Children {
+							if _, has := own[i]; !has {
+								own[i] = tree.ResumeStack{len(cell.Box().Children): nil}
+							}
+						}
+					}
+					for _, cell := range newRowChildren {
+						if state, ok := spans[cell]; ok && state.own >= 0 && state.resume != nil {
+							own[state.own] = state.resume
+						}
+					}
+				}
+			}
+
 			if resumeAt != nil && !pageIsEmpty {
 				// Avoid break when "break-inside: avoid" is set on row or any
 				// on its cells.
@@ -384,6 +463,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// przeglądarki). W źródle na stronie zostawały komórki jednowierszowe (numer, kwoty),
 				// a nazwa pozycji lądowała na następnej.
 				if leftBehind && placedSome && len(newGroupChildren) != 0 {
+					avoidBreak = true
+				}
+				if stalledEnd {
 					avoidBreak = true
 				}
 				for _, cell := range row.Children {
@@ -413,7 +495,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			for _, cell_ := range row.Children {
 				cell := cell_.Box()
 				verticalAlign := cell.Style.GetVerticalAlign()
-				if verticalAlign.Tag == pr.Top || verticalAlign.Tag == pr.Middle || verticalAlign.Tag == pr.Bottom {
+				if spans[cell_].top {
+					cell.VerticalAlign = pr.Top // fragment komórki rozpiętej dzielonej między strony
+				} else if verticalAlign.Tag == pr.Top || verticalAlign.Tag == pr.Middle || verticalAlign.Tag == pr.Bottom {
 					cell.VerticalAlign = verticalAlign.Tag
 				} else {
 					// Assume "baseline" for any other value
@@ -593,7 +677,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			// Break if one cell was broken.
 			breakCell := false
 			if resumeAt != nil {
-				allEmpty := true
+				// gopdfgo: komórka rozpięta z wcześniejszego wiersza, której treść przechodzi dalej (pendingEnd),
+				// też jest treścią tego wiersza, choć nie jest jego dzieckiem
+				allEmpty := len(pendingEnd) == 0
 				for _, child := range row.Children {
 					if !child.Box().Empty {
 						allEmpty = false
@@ -663,6 +749,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		if abort {
 			removePlaceholders(context, newGroupChildren, absoluteBoxes, fixedBoxes)
 			return nil, nil, nextPage
+		}
+		if resumeAt != nil && len(newGroupChildren) != 0 {
+			resumeAt = continueSpanningCells(context, group, newGroupChildren, spans, resumeAt)
 		}
 
 		group_ = bo.CopyWithChildren(group_, newGroupChildren)
@@ -2071,4 +2160,158 @@ func copyResumeKeys(context *layoutContext, from, to tree.ResumeStack) {
 			m[key] = v
 		}
 	}
+}
+
+// spanResumeKey (gopdfgo) to klucz w stosie wznowienia wiersza, pod którym są dalsze ciągi komórek
+// rozpiętych (rowspan) z wcześniejszych wierszy grupy: wartością jest stos {wiersz: {komórka: wznowienie
+// treści komórki}} z indeksami wiersza, w którym komórka się zaczyna, i komórki w tym wierszu. Indeksy
+// własnych komórek wiersza są nieujemne, a ujemne klucze stosów bloków (tree.RemainderResume, SliceResume)
+// nie występują na poziomie wiersza.
+const spanResumeKey = math.MinInt32 + 1
+
+// spanState (gopdfgo) opisuje ułożoną komórkę rozpiętą na kilka wierszy albo dalszy ciąg takiej komórki.
+type spanState struct {
+	row, cell int              // wiersz, w którym komórka się zaczyna, i jej indeks w tym wierszu
+	own       int              // indeks komórki w bieżącym wierszu albo -1 dla dalszego ciągu
+	resume    tree.ResumeStack // wznowienie treści, gdy nie zmieściła się do końca strony
+	top       bool             // fragment komórki dzielonej: bez wyrównania w pionie
+	stalled   bool             // z treści nic nie zmieściło się na tej stronie
+}
+
+// cellEntry (gopdfgo) to komórka układana w wierszu: własna (own ≥ 0) albo dalszy ciąg komórki rozpiętej
+// z wcześniejszego wiersza (own = -1).
+type cellEntry struct {
+	box                   Box
+	own                   int
+	originRow, originCell int
+	skip                  tree.ResumeStack
+}
+
+// splitRowResume (gopdfgo) rozdziela stos wznowienia wiersza na wznowienia własnych komórek (nil, gdy
+// wiersz nie jest dzielony) i dalsze ciągi komórek rozpiętych z wcześniejszych wierszy (zob. spanResumeKey).
+func splitRowResume(stack tree.ResumeStack) (own, spanning tree.ResumeStack) {
+	spanning, has := stack[spanResumeKey]
+	if !has {
+		return stack, nil
+	}
+	for k, v := range stack {
+		if k != spanResumeKey {
+			if own == nil {
+				own = tree.ResumeStack{}
+			}
+			own[k] = v
+		}
+	}
+	return own, spanning
+}
+
+// rowCellEntries (gopdfgo) zwraca komórki do ułożenia w wierszu row_ o indeksie indexRow: jego własne
+// komórki ze wznowieniem z rowStack oraz, na początku strony, dalsze ciągi komórek rozpiętych z wierszy
+// ułożonych na poprzednich stronach. Dalszy ciąg to kopia komórki źródłowej z rowspan zmniejszonym do
+// wierszy, które zostały; komórki są uporządkowane według kolumn.
+func rowCellEntries(group *bo.BoxFields, row_ Box, indexRow int, rowStack tree.ResumeStack) []cellEntry {
+	own, spanning := splitRowResume(rowStack)
+	row := row_.Box()
+	entries := make([]cellEntry, 0, len(row.Children))
+	for i, cell := range row.Children {
+		entry := cellEntry{box: cell, own: i, originRow: indexRow, originCell: i}
+		if len(own) != 0 {
+			if rs, has := own[i]; has {
+				entry.skip = rs
+			} else {
+				entry.skip = tree.ResumeStack{len(cell.Box().Children): nil}
+			}
+		}
+		entries = append(entries, entry)
+	}
+	if len(spanning) == 0 {
+		return entries
+	}
+	for _, p := range slices.Sorted(maps.Keys(spanning)) {
+		if p < 0 || p >= indexRow || p >= len(group.Children) {
+			continue
+		}
+		origin := group.Children[p].Box()
+		for _, c := range slices.Sorted(maps.Keys(spanning[p])) {
+			if c < 0 || c >= len(origin.Children) {
+				continue
+			}
+			source := origin.Children[c]
+			remaining := p + source.Box().Rowspan - indexRow
+			if remaining < 1 {
+				continue
+			}
+			continuation := source.Copy()
+			continuation.Box().Rowspan = remaining
+			skip := spanning[p][c]
+			if skip == nil {
+				skip = tree.ResumeStack{len(source.Box().Children): nil}
+			}
+			entries = append(entries, cellEntry{box: continuation, own: -1, originRow: p, originCell: c, skip: skip})
+		}
+	}
+	slices.SortStableFunc(entries, func(a, b cellEntry) int { return a.box.Box().GridX - b.box.Box().GridX })
+	return entries
+}
+
+// continueSpanningCells (gopdfgo): komórka rozpięta na wiersze, z których część przechodzi na następną
+// stronę, jest dzielona razem z nimi (CSS Tables 3 § 6, CSS Fragmentation 3 § 5.4): jej fragment na tej
+// stronie sięga dołu ostatniego ułożonego wiersza, bez dolnego obramowania i odstępu (box-decoration-break:
+// slice), a do stosu wznowienia wiersza, od którego zaczyna się następna strona, trafia jej dalszy ciąg
+// z wznowieniem treści (zob. spanResumeKey). W źródle komórka miała tylko wysokość swojej treści, a na
+// następnej stronie znikała, razem z treścią, która nie zmieściła się na tej.
+func continueSpanningCells(context *layoutContext, group *bo.BoxFields, rows []Box, spans map[Box]spanState, resumeAt tree.ResumeStack) tree.ResumeStack {
+	if len(spans) == 0 || len(resumeAt) != 1 {
+		return resumeAt
+	}
+	nextRow, rowStack := resumeAt.Unpack()
+	last := rows[len(rows)-1].Box()
+	bottom := last.PositionY + last.Height.V()
+	for _, row_ := range rows {
+		for _, cell_ := range row_.Box().Children {
+			state, ok := spans[cell_]
+			cell := cell_.Box()
+			if !ok || row_.Box().Index+cell.Rowspan-1 < nextRow {
+				continue
+			}
+			if state.row < nextRow {
+				resume := state.resume
+				if resume == nil {
+					resume = tree.ResumeStack{len(group.Children[state.row].Box().Children[state.cell].Box().Children): nil}
+					// komórka o podanej wysokości: fragment kończy się z wierszami, reszta wysokości przechodzi dalej
+					if computed, ok := cell.ComputedHeight.(pr.Float); ok && cell.Height.V() > cell.ContentHeight {
+						if used := max(cell.ContentHeight, bottom-cell.ContentBoxY()); used < cell.Height.V() {
+							cell.Height = used
+							if remaining := computed - used; remaining > 0 {
+								if context.cellHeightRemaining == nil {
+									context.cellHeightRemaining = map[uintptr]pr.Float{}
+								}
+								context.cellHeightRemaining[resumeKey(resume)] = remaining
+							}
+						}
+					}
+				}
+				if rowStack == nil {
+					rowStack = tree.ResumeStack{}
+					resumeAt[nextRow] = rowStack
+				}
+				spanning := rowStack[spanResumeKey]
+				if spanning == nil {
+					spanning = tree.ResumeStack{}
+					rowStack[spanResumeKey] = spanning
+				}
+				if spanning[state.row] == nil {
+					spanning[state.row] = tree.ResumeStack{}
+				}
+				spanning[state.row][state.cell] = resume
+			}
+			if !cell.RemoveDecorationSides[bo.SBottom] {
+				cell_.RemoveDecoration(cell, false, true)
+			}
+			if extra := bottom - (cell.PositionY + cell.BorderHeight()); extra > 0 {
+				cell.PaddingBottom = cell.PaddingBottom.V() + extra
+			}
+		}
+	}
+	return resumeAt
 }
