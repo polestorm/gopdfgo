@@ -40,6 +40,28 @@ var entityDeclaration = regexp.MustCompile(`<!ENTITY\s+([A-Za-z_][\w.-]*)\s+(?:"
 // parseXMLTree buduje drzewo html.Node z dokumentu XML; błąd, gdy dokument nie jest poprawny albo nie ma
 // elementu svg.
 func parseXMLTree(data []byte) (*html.Node, error) {
+	document, foundSVG, err := parseXMLNodes(data)
+	if err != nil {
+		return nil, err
+	}
+	if !foundSVG {
+		return nil, errNoSVGRoot
+	}
+	return document, nil
+}
+
+// parseExternalDocument czyta dokument wskazany przez <use> z innego pliku (SVG 2 § 5.6): XML z dowolnym
+// elementem głównym (element SVG może leżeć np. w <nonsvgroot>), a gdy nie jest poprawnym XML-em,
+// parserem HTML5 (dokument HTML z osadzonym <svg>).
+func parseExternalDocument(data []byte) (*html.Node, error) {
+	if document, _, err := parseXMLNodes(data); err == nil {
+		return document, nil
+	}
+	return html.Parse(bytes.NewReader(data))
+}
+
+// parseXMLNodes buduje drzewo i mówi, czy zawiera element svg z przestrzeni nazw SVG.
+func parseXMLNodes(data []byte) (*html.Node, bool, error) {
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	entities := make(map[string]string, len(xml.HTMLEntity)+4)
 	for name, value := range xml.HTMLEntity { // tolerancja dla plików z encjami HTML, jak przeglądarki nie robią,
@@ -57,7 +79,7 @@ func parseXMLTree(data []byte) (*html.Node, error) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		switch t := token.(type) {
 		case xml.Directive:
@@ -99,10 +121,7 @@ func parseXMLTree(data []byte) (*html.Node, error) {
 			}
 		}
 	}
-	if !foundSVG {
-		return nil, errNoSVGRoot
-	}
-	return document, nil
+	return document, foundSVG, nil
 }
 
 type xmlError string

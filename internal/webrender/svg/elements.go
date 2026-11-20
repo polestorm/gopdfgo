@@ -2,13 +2,18 @@ package svg
 
 import (
 	"fmt"
+	"io"
 	"math"
+	"net/url"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
+	"github.com/polestorm/gopdfgo/internal/webrender/css/selector"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 	"github.com/polestorm/gopdfgo/internal/webrender/matrix"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
 type drawable interface {
@@ -303,7 +308,16 @@ func (s svg) draw(dst backend.Canvas, attrs *attributes, img *SVGImage, dims dra
 	dst.State().Transform(matrix.Translation(x, y))
 	width, height := dims.concreteWidth, dims.concreteHeight
 	if !s.isRoot {
-		width, height = dims.point(attrs.width, attrs.height)
+		// gopdfgo: brak width/height zagnieżdżonego <svg> (także <symbol> i <svg> z <use>) to auto,
+		// czyli 100% (SVG 2 § 8.2, § 5.6); źródło brało 0 i przycinało całą treść
+		w, h := attrs.width, attrs.height
+		if w.U == 0 {
+			w = Value{100, Perc}
+		}
+		if h.U == 0 {
+			h = Value{100, Perc}
+		}
+		width, height = dims.point(w, h)
 	}
 
 	// gopdfgo: korzeń bez viewBox nie jest skalowany: obszarem widoku jest konkretny rozmiar obrazu,
@@ -366,7 +380,12 @@ func (img image) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims
 	width, height := dims.point(attrs.width, attrs.height)
 	intrinsicWidth, intrinsicHeight, intrinsicRatio := img.img.GetIntrinsicSize(1, pr.Float(dims.fontSize))
 	if intrinsicWidth == nil && intrinsicHeight == nil {
-		if intrinsicRatio == nil || (width == 0 && height == 0) {
+		if intrinsicRatio == nil && width != 0 && height != 0 {
+			// gopdfgo: obraz bez rozmiaru i proporcji (SVG bez width, height i viewBox) wypełnia
+			// obszar elementu <image> (SVG 2 § 5.7, CSS Images 3 § 5.2: rozmiar domyślny obiektu);
+			// źródło rysowało go w rozmiarze 300x150 pomniejszonym do obszaru
+			intrinsicWidth, intrinsicHeight = pr.Float(width), pr.Float(height)
+		} else if intrinsicRatio == nil || (width == 0 && height == 0) {
 			intrinsicWidth, intrinsicHeight = pr.Float(300), pr.Float(150)
 		} else if width == 0 {
 			intrinsicWidth, intrinsicHeight = intrinsicRatio.V()*pr.Float(height), pr.Float(height)
@@ -431,6 +450,7 @@ func (context *svgContext) resolveUse(node *cascadedNode, defs definitions) (*sv
 	}
 	sameOrigin := href.Path == "" || href.Path == svgURL.Path
 	var useTarget cascadedNode
+	processContext := context // gopdfgo: kontekst dokumentu, z którego pochodzi cel
 	if ID := href.Fragment; ID != "" && sameOrigin {
 		if context.inUseIDs.Has(ID) {
 			return nil, fmt.Errorf("invalid recursive <use>")
@@ -449,25 +469,19 @@ func (context *svgContext) resolveUse(node *cascadedNode, defs definitions) (*sv
 		// inner child
 		useTarget = context.defs[ID].copy()
 	} else {
-		// remote child : fetch the url
-		url := href.String()
-		url, err = utils.SafeUrljoin(context.baseURL, url, true)
-		if err != nil {
-			return nil, err
-		}
-		content, err := context.urlFetcher(url)
-		if err != nil {
-			logger.WarningLogger.Printf("SVG: fetching <use> content: %s", err)
+		// gopdfgo: cel z innego pliku (SVG 2 § 5.6). Źródło brało zawsze pierwszy <svg> dokumentu,
+		// pomijając fragment adresu, i przetwarzało go w kontekście bieżącego dokumentu (adresy względne
+		// i odwołania wewnątrz celu rozwiązywały się względem złego pliku). Teraz cel to element o id
+		// z fragmentu (bez fragmentu: element <svg> dokumentu), z kaskadą i :target pliku docelowego,
+		// przetwarzany w jego kontekście; cykl między plikami jest przerywany.
+		external, target, key := context.fetchExternalUse(href)
+		if target == nil {
 			return nil, nil
 		}
-
-		parsedTarget, err := newSVGContextReader(content.Content, url, context.urlFetcher)
-		if err != nil {
-			logger.WarningLogger.Printf("SVG: parsing <use> content: %s", err)
-			return nil, nil
-		}
-
-		useTarget = *parsedTarget.root
+		context.externalUses.Add(key)
+		defer delete(context.externalUses, key)
+		useTarget = target.copy()
+		processContext = external
 	}
 
 	if useTarget.tag == "svg" || useTarget.tag == "symbol" {
@@ -492,7 +506,7 @@ func (context *svgContext) resolveUse(node *cascadedNode, defs definitions) (*sv
 		}
 	}
 
-	target, err := context.processNode(&useTarget, defs)
+	target, err := processContext.processNode(&useTarget, defs)
 	if err != nil {
 		return nil, err
 	}
@@ -502,6 +516,88 @@ func (context *svgContext) resolveUse(node *cascadedNode, defs definitions) (*sv
 	}
 	err = node.attrs.parseCommonAttributes(&out.attributes)
 	return out, err
+}
+
+// fetchExternalUse (gopdfgo) pobiera dokument wskazany przez <use> z innego pliku (przez urlFetcher,
+// czyli tylko zasoby dopuszczone przez wywołującego) i zwraca jego kontekst, element docelowy oraz
+// klucz adresu do ochrony przed cyklem; nil, gdy celu nie ma.
+func (context *svgContext) fetchExternalUse(href *url.URL) (*svgContext, *cascadedNode, string) {
+	id := href.Fragment
+	document := *href
+	document.Fragment = ""
+	docURL, err := utils.SafeUrljoin(context.baseURL, document.String(), true)
+	if err != nil {
+		logger.WarningLogger.Printf("SVG: invalid <use> url: %s", err)
+		return nil, nil, ""
+	}
+	key := docURL + "#" + id
+	if context.externalUses.Has(key) {
+		logger.WarningLogger.Printf("SVG: recursive <use> of %s", key)
+		return nil, nil, ""
+	}
+	if context.urlFetcher == nil {
+		return nil, nil, ""
+	}
+	content, err := context.urlFetcher(docURL)
+	if err != nil {
+		logger.WarningLogger.Printf("SVG: fetching <use> content: %s", err)
+		return nil, nil, ""
+	}
+	data, err := io.ReadAll(content.Content)
+	if err != nil {
+		return nil, nil, ""
+	}
+	root, err := parseExternalDocument(data)
+	if err != nil {
+		logger.WarningLogger.Printf("SVG: parsing <use> content: %s", err)
+		return nil, nil, ""
+	}
+
+	var element *html.Node // element główny kontekstu
+	if id == "" {
+		// bez fragmentu: element <svg> dokumentu (test WPT use-external-svg-resource-no-fragment-id)
+		iter := utils.NewHtmlIterator(root, atom.Svg)
+		if !iter.HasNext() {
+			return nil, nil, ""
+		}
+		element = (*html.Node)(iter.Next())
+	} else {
+		// cały dokument, aby kaskada i :root działały jak w nim samym; cel pasuje do :target
+		var found bool
+		for n := root.FirstChild; n != nil; n = n.NextSibling {
+			if n.Type == html.ElementNode {
+				element = n
+				break
+			}
+		}
+		if element == nil {
+			return nil, nil, ""
+		}
+		iter := (*utils.HTMLNode)(element).Iter()
+		for iter.HasNext() {
+			if n := iter.Next(); n.Get("id") == id {
+				n.Attr = append(n.Attr, html.Attribute{Key: selector.TargetAttribute})
+				found = true
+				break
+			}
+		}
+		if !found {
+			logger.WarningLogger.Printf("SVG: <use> target %s not found", key)
+			return nil, nil, ""
+		}
+	}
+
+	external := buildSVGContext(element, docURL, context.urlFetcher)
+	external.imageLoader = context.imageLoader
+	external.externalUses = context.externalUses
+	if id == "" {
+		return external, external.root, key
+	}
+	target := external.defs[id]
+	if target == nil {
+		return nil, nil, ""
+	}
+	return external, target, key
 }
 
 func (use) boundingBox(attrs *attributes, dims drawingDims) (Rectangle, bool) {

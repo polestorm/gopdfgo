@@ -3,7 +3,6 @@ package svg
 import (
 	"bytes"
 	"errors"
-	"io"
 	"strconv"
 	"strings"
 
@@ -30,19 +29,12 @@ type svgContext struct {
 	// to prevent infinite recursion
 	inUseIDs utils.Set
 
+	// externalUses (gopdfgo): adresy (z fragmentem) celów <use> z innych plików, które są właśnie
+	// rozwijane; wspólne dla wszystkich dokumentów jednego obrazu, chroni przed cyklem między plikami
+	externalUses utils.Set
+
 	// cache
 	pathParser pathParser
-}
-
-// newSVGContextReader parses the html [rootText]
-// and call newSVGContext
-func newSVGContextReader(rootText io.Reader, baseURL string, urlFetcher utils.UrlFetcher) (*svgContext, error) {
-	root, err := parseSVGDocument(rootText) // gopdfgo: XML, zob. parseSVGDocument
-	if err != nil {
-		return nil, err
-	}
-
-	return newSVGContext(root, baseURL, urlFetcher)
 }
 
 // newSVGContext converts from the html representation to an internal,
@@ -59,9 +51,13 @@ func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher)
 	if !iter.HasNext() {
 		return nil, errors.New("missing <svg> element")
 	}
-	svgRoot := iter.Next()
+	return buildSVGContext((*html.Node)(iter.Next()), baseURL, urlFetcher), nil
+}
 
-	stylesheets, trefs := fetchStyleAndTextRefs(svgRoot)
+// buildSVGContext (gopdfgo) to dalsza część newSVGContext dla podanego elementu głównego, który nie
+// musi być elementem <svg> (dokument wskazany przez <use> z innego pliku, zob. fetchExternalUse).
+func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFetcher) *svgContext {
+	stylesheets, trefs := fetchStyleAndTextRefs((*utils.HTMLNode)(svgRoot))
 	normalMatcher, importantMatcher := parseStylesheets(stylesheets, baseURL)
 
 	// build the SVG tree and apply style attribute
@@ -70,6 +66,7 @@ func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher)
 	out.urlFetcher = urlFetcher
 	out.defs = make(map[string]*cascadedNode)
 	out.inUseIDs = make(utils.Set)
+	out.externalUses = make(utils.Set)
 
 	// may return nil to discard the node
 	var buildTree func(node *html.Node, parentAttrs nodeAttributes) *cascadedNode
@@ -141,7 +138,7 @@ func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher)
 
 	out.inheritDefs()
 
-	return &out, nil
+	return &out
 }
 
 // Handle inheritance of different defined elements lists.
