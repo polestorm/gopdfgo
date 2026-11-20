@@ -61,7 +61,7 @@ fail	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page
 pass	float-fragmentation	css/css-break/float-with-large-margin-bottom-cross-page-002-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/alignment-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/auto-margins-001-print.html	
-fail	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	strona 1: różne piksele 39689
+pass	margin-boxes	css/css-page/margin-boxes/auto-margins-002-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/auto-margins-003-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/content-002-print.html	
@@ -89,7 +89,7 @@ pass	margin-boxes	css/css-page/margin-boxes/dimensions-011-print.html
 pass	margin-boxes	css/css-page/margin-boxes/dimensions-012-print.html	
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-013-print.html	strona 1: różne piksele 60287
 fail	margin-boxes	css/css-page/margin-boxes/dimensions-014-print.html	strona 1: różne piksele 59263
-fail	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	strony 19 vs 1
+pass	margin-boxes	css/css-page/margin-boxes/dimensions-015-print.tentative.html	
 pass	margin-boxes	css/css-page/margin-boxes/inapplicable-properties-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/overconstrained-001-print.html	
 pass	margin-boxes	css/css-page/margin-boxes/paint-order-001-print.html	
@@ -116,8 +116,8 @@ pass	monolithic-overflow	css/css-page/monolithic-overflow-012-print.html
 pass	monolithic-overflow	css/css-page/monolithic-overflow-013-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-014-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-015-print.html	
-fail	monolithic-overflow	css/css-page/monolithic-overflow-016-print.html	strony 5 vs 4
-fail	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	strona 3: różne piksele 1920
+pass	monolithic-overflow	css/css-page/monolithic-overflow-016-print.html	
+pass	monolithic-overflow	css/css-page/monolithic-overflow-017-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-018-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-019-print.html	
 pass	monolithic-overflow	css/css-page/monolithic-overflow-020-print.html	
@@ -255,17 +255,17 @@ pass	page-size	css/css-page/page-size-003-print.html
 pass	page-size	css/css-page/page-size-004-print.html	
 pass	page-size	css/css-page/page-size-005-print.html	
 pass	page-size	css/css-page/page-size-006-print.html	
-fail	page-size	css/css-page/page-size-007-print.html	strona 2: różne piksele 12780
-fail	page-size	css/css-page/page-size-008-print.html	strona 2: różne piksele 116860
+pass	page-size	css/css-page/page-size-007-print.html	
+pass	page-size	css/css-page/page-size-008-print.html	
 pass	page-size	css/css-page/page-size-009-print.html	
 pass	page-size	css/css-page/page-size-010-print.html	
 pass	page-size	css/css-page/page-size-011-print.html	
 fail	page-size	css/css-page/page-size-012-print.html	strona 1: różne piksele 204084
 pass	page-size	css/css-page/page-size-013-print.html	
 pass	page-size	css/css-page/page-size-014-print.html	
-fail	page-size	css/css-page/page-size-015-print.tentative.html	strony 9 vs 1
-fail	page-size	css/css-page/page-size-016-print.tentative.html	strony 16 vs 1
-fail	page-size	css/css-page/page-size-017-print.tentative.html	strony 27 vs 1
+pass	page-size	css/css-page/page-size-015-print.tentative.html	
+pass	page-size	css/css-page/page-size-016-print.tentative.html	
+pass	page-size	css/css-page/page-size-017-print.tentative.html	
 pass	page-size	css/css-page/subpixel-page-size-001-print.html	
 pass	page-size	css/css-page/subpixel-page-size-002-print.html	
 pass	positioned	css/css-break/abspos-001-print.html	
@@ -338,4 +338,4 @@ pass	table-fragmentation	css/css-break/table/table-row-group-break-inside-avoid-
 pass	table-fragmentation	css/css-tables/collapsed-border-fragmentation-001-print.html	
 pass	table-fragmentation	css/css-tables/collapsed-border-fragmentation-002-print.html	
 fail	table-fragmentation	css/css-tables/table-cell-percent-height-row-groups-print.html	strona 1: różne piksele 2680
-fail	table-fragmentation	css/css-tables/table-cell-percent-height-rowspan-fragmented-print.html	strona 1: różne piksele 2000
+pass	table-fragmentation	css/css-tables/table-cell-percent-height-rowspan-fragmented-print.html	

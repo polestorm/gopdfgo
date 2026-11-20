@@ -919,6 +919,54 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- komórka z `rowspan` przez strony, 2026-11-20 (praca pomocnika; `layout/tables.go`): komórka z rowspan, której
+  wiersze przechodzą na następną stronę lub do następnej kolumny, jest dzielona razem z nimi (CSS Tables 3 § 6,
+  CSS Fragmentation 3 § 4.4 i § 5.4). Fragment sięga dołu ostatniego wiersza strony, bez dolnego obramowania
+  i odstępu (box-decoration-break: slice). Dalszy ciąg (kopia komórki z rowspan zmniejszonym do pozostałych
+  wierszy) stoi w pierwszym wierszu następnej strony, a wznowienie jego treści niesie stos wznowienia wiersza
+  pod kluczem `spanResumeKey`. Podział treści takiej komórki nie dzieli już jej pierwszego wiersza: wiersz,
+  w którym komórka się kończy, sięga końca strony i ma dalszy ciąg. Fragmenty komórki dzielonej są wyrównane
+  do góry. Dalszy ciąg, z którego nic się nie zmieściło, wznawia się w tym samym miejscu i przenosi swój ostatni
+  wiersz. W źródle komórka miała tylko wysokość swojej treści, na następnej stronie znikała, a podział jej treści
+  dzielił pierwszy wiersz. Ograniczenia: tło dalszego ciągu pochodzi z wiersza, w którym stoi; komórka o podanej
+  wysokości bez treści, wyższa niż strona, nie jest dzielona;
+- element pływający za wymuszonym podziałem i rozmiary wewnętrzne przy `box-sizing`, 2026-11-20 (praca pomocnika):
+  - `layout/block.go` (`forcedBreakBeforeOutOfFlow`): element pływający i pudełko absolute w pozycji statycznej
+    (top i bottom auto) stojące za wymuszonym podziałem zaczynają się na następnej stronie (break-after
+    poprzedniego dziecka w przepływie; przy elemencie pływającym także jego break-before, CSS 2.1 § 13.3.1).
+    W źródle podział sprawdzało dopiero następne dziecko w przepływie, więc element pływający zostawał na stronie
+    przed podziałem, a element pływający na końcu kontenera znosił break-after ostatniego bloku
+    (CSS Fragmentation 3 § 4; wzorce WPT css-page/page-size-007/008-print);
+  - `layout/preferred.go` (`boxSizingFrame`), `layout/grid.go`: `minMax` porównuje min-width i max-width (oraz
+    min-height i max-height przeniesione przez proporcje) z szerokością treści po odjęciu obramowania i odstępu;
+    to samo dla podanej szerokości i wysokości elementu zastępowanego oraz szerokości kontenera flex i siatki.
+    W źródle te wartości brane były wprost jako rozmiar treści, więc inline-block, element pływający, absolute,
+    ścieżka siatki i komórka tabeli wokół takiego dziecka wychodziły szersze o jego obramowanie i odstęp,
+    a max-width nie przycinał (CSS Box Sizing 3 § 3, CSS Sizing 3 § 5.2). Ograniczenie szerokości tabeli przez
+    jej własne max-width (`tableMaxContentWidth`) nadal bez `box-sizing` (do sprawdzenia z `tables.go`);
+- jednostki okna w `@page` i szerokość wewnętrzna przy `box-sizing`, 2026-11-19 (praca pomocnika):
+  - `html/tree/media_query.go` (`SetDefaultPageBox`), `html/tree/computed_values.go`, `html/tree/style.go`
+    (`StyleFor.PageBox`), `html/layout/layout.go` (`PageArea` zwraca też rozmiar arkusza), `render.go`: jednostki
+    vw, vh, vmin i vmax w kontekście `@page` i pól marginesów odnoszą się do arkusza domyślnego (A4 w pionie albo
+    `size` z arkusza użytkownika), a nie do strony, którą same wyznaczają (Chromium issue 380860850, CSSWG #5437,
+    testy WPT css-page/page-size-015..017 i margin-boxes/dimensions-015, oznaczone jako tentative). W źródle
+    dawały w tym kontekście zero. W dokumencie vw i vh dalej odnoszą się do obszaru pierwszej strony;
+  - `html/layout/preferred.go` (`blockContentWidth`): szerokość wewnętrzna bloku o stałej szerokości
+    z `box-sizing: border-box` (`padding-box`) to `width` pomniejszone o obramowanie i odstęp wewnętrzny, które
+    `adjust` dolicza potem (CSS Box Sizing 3 § 3, CSS Sizing 3 § 5.2). Źródło liczyło je dwa razy, więc
+    inline-block, element pływający albo kontener flex wokół takiego dziecka wychodził szerszy o obramowanie
+    i odstęp dziecka (wzorzec WPT css-page/margin-boxes/auto-margins-002). `min-width` i `max-width` w `minMax`
+    nadal nie uwzględniają `box-sizing`;
+- tabele, treść niepodzielna pod powtarzanym nagłówkiem i stopką, 2026-11-19 (praca pomocnika; `layout/tables.go`
+  `overflowUnderRepeatedParts`, `mapMonolithicRemainders`; `document/draw.go` `orderTablePaint`; pole
+  `boxes.TableBox.PartsOverOverflow`): treść niepodzielna (contain: size) wyższa niż strona, krojona w komórce
+  tabeli z powtarzanym nagłówkiem lub stopką, wylewa się pod nie jak w Chromium. Wycinek na stronie, na której
+  treść się urywa, sięga do dołu strony pod stopką, a na stronie z dalszym ciągiem zaczyna się u góry fragmentu
+  tabeli pod nagłówkiem; reszta wysokości w stosie wznowienia zmniejsza się o tę część. W takim fragmencie
+  nagłówek, a za nim stopka, są malowane po blokach pozostałych grup wierszy, każde razem z blokami w swoich
+  komórkach (CSS Break 3 § 4.4 i CSS Tables 3 § 6.2 tego nie rozstrzygają). W pozostałych przypadkach malowanie
+  zostaje jak w CSS 2.1 dodatek E.2: tła wszystkich części tabeli przed blokami w komórkach. Zastępuje mechanizm
+  `overflowBehindHeader`. Testy WPT css-page/monolithic-overflow-016, -017, -023;
 - pudełka absolute przy liczeniu wierszy i tabela z treścią niepodzielną, 2026-11-19 (praca pomocnika):
   - `layout/inline.go`, `absolute.go`: wiersze liczone przy podziale strony dla widows
     (`lineBoxeIterator.consume`) są układane próbnie (`trial`, który przywraca teraz także `lateBoxes`); w źródle

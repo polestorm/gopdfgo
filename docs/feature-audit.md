@@ -2134,3 +2134,27 @@ Chromium według wpt.fyi też tego nie robi). Pełny model Chromium dla nagłów
 Zgłoszone przez pomocnika jako znikający nagłówek tabeli (nagłówek 40 px na stronie 100 px nie powtarza się na
 stronie 2): to reguła ćwiartki strony z pomiaru w Chrome (nagłówek wyższy niż 1/4 strony nie jest powtarzany),
 nie błąd.
+
+## Czternasta i piętnasta paczka: tabele, model strony, element pływający za podziałem (2026-11-19/20)
+
+Reftesty druku 300 → 310 z 340 (ściśle 308, krawędziowo 2), sondaż ekranowy 9502 bez zmian, korpus bez zmian
+(22 dokumenty). Pozostałe 30 niezaliczonych: głównie pismo pionowe (poza zakresem), testy wymagające iframe,
+decyzje (ADR 0004, 0019, 0020), `fixedpos-010` (sprzeczny z CSS 2.1 § 9.6.1), testy tentative.
+
+Zmiany ważne dla zwykłych dokumentów:
+- **komórka z `rowspan` przez strony** jest dzielona razem ze swoimi wierszami; wcześniej miała tylko wysokość
+  treści, a na następnej stronie znikała (z tłem i obramowaniem). Ograniczenie: tło dalszego ciągu pochodzi
+  z wiersza, w którym stoi (przy zebrze może mieć zły kolor);
+- **element pływający za `break-after: page`** zaczyna się na następnej stronie; wcześniej zostawał przed
+  podziałem, a element pływający na końcu kontenera znosił podział;
+- **`box-sizing: border-box`** w szerokościach wewnętrznych (inline-block, element pływający, absolute, flex,
+  siatka, komórka wokół dziecka o stałej szerokości albo z `min-width`/`max-width`): koniec podwójnego liczenia
+  obramowania i odstępu;
+- **powtarzany nagłówek i stopka tabeli nad treścią niepodzielną** (jak Chromium), malowanie grup wierszy
+  w takim fragmencie po treści pozostałych grup;
+- jednostki `vw`/`vh` w `@page` i polach marginesów liczone od arkusza domyślnego (wcześniej zero).
+
+Otwarte: tło dalszego ciągu komórki `rowspan`; komórka o podanej wysokości wyższa niż strona nie jest dzielona;
+zwykła komórka, z której dalszego ciągu nic się nie zmieściło, zaczyna treść od nowa (możliwe powtórzenie);
+`max-width` samej tabeli bez `box-sizing` (`tableMaxContentWidth`); górny margines elementu flex przy podziale
+strony (`multi-line-row-flex-fragmentation-064`, `flex.go`).

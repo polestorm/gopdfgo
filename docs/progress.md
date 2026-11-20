@@ -32,7 +32,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 |---|---|---|
 | Sondaż ekranowy W3C | **7835 z 9123 (85,9%)** | ściśle 7430, krawędziowo 405; tryb ciągły; od 17.11 zestaw większy o 13 testów |
 | Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1667 z 1839 (90,6%)** | ściśle 1613, krawędziowo 54; `css-text` 810 z 909, `css-backgrounds` 572 z 603, `css-fonts` 285 z 327 (od 18.11 z fontami CSSTest, ADR 0018); od 17.11 zestaw większy o 71 testów |
-| Reftesty druku W3C | **300 z 340 (88,2%)** | ściśle 298, krawędziowo 2 |
+| Reftesty druku W3C | **310 z 340 (91,2%)** | ściśle 308, krawędziowo 2 |
 | Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
 | Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
 | Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
@@ -120,6 +120,7 @@ Reftesty druku (z 340):
 19.11  287  ██████████████████████████████████████████▏84,4%
 19.11  296  ███████████████████████████████████████████▌87,1%
 19.11  300  ████████████████████████████████████████████ 88,2%
+20.11  310  █████████████████████████████████████████████▌91,2%
 ```
 
 ## Poprawki według obszarów
