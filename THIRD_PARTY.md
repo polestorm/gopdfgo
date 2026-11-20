@@ -919,6 +919,13 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- trwałe klucze stosów wznowienia, 2026-11-21 (praca pomocnika; `html/layout/block.go` `keepResumeKey`,
+  zapisy w `block.go`, `column.go`, `flex.go`, `tables.go`):
+  - mapy `fixedHeightRemaining`, `minHeightRemaining`, `cellHeightRemaining` i `flexPushOffset` są
+    kluczowane adresem stosu wznowienia (`uintptr`), który nie chroni stosu przed odśmiecaniem; po
+    zwolnieniu stosu ten sam adres mógł dostać nowy stos i odczytać cudzy wpis, więc wynik zależał od
+    chwili odśmiecania (css-multicol/multicol-span-all-children-height-013 raz na ~150 przebiegów, przy
+    GOGC=1 w większości); teraz stos z wpisem żyje do końca układu;
 - rysowanie stron w trakcie układu, 2026-11-20 (praca pomocnika; ADR 0027; `html/layout/stream.go`,
   `html/layout/layout.go` `layoutDocument`, `html/layout/pages.go` `makeAllPages`, `html/document/stream.go`,
   `html/document/draw.go` `drawStackingContext`, `backend/document.go` `ResumablePage`,
@@ -940,6 +947,12 @@ Wspólne dla obu katalogów:
     cechami w `tests/streamdraw18_test.go`); szczyt pamięci: książka 0,75 → 0,56–0,63 GB, książka ×4
     (1021 stron) 1,34–1,36 → 0,90–0,96 GB; ostrzeżenia o brakujących kotwicach są teraz wypisywane po
     ostrzeżeniach z rysowania;
+  - słowo kluczowe `start` w `string()` i `element()` (`resolveKeyword`) sprawdza `string-set` pudełek na
+    ścieżce od strony przez kolejne pierwsze dzieci; źródło przechodziło tę ścieżkę przy układaniu pól
+    marginesowych, a przy rysowaniu w trakcie układu drzewo strony jest już wtedy zwolnione, więc
+    `pageDone` zapamiętuje ścieżkę (`startChain`, `layoutContext.startChains`) przed zwolnieniem
+    (css-gcpm/using-strings-003: nagłówek strony 2 „Section One” zamiast „Section Two”; błąd wykryło
+    porównanie bajtowe całego korpusu W3C, 2026-11-21);
 - zwalnianie narysowanych stron, 2026-11-20 (`html/document/document.go` `ReleaseDrawnPages`, `render.go`):
   - źródło trzymało drzewa pudełek wszystkich stron do końca zapisu PDF, choć po narysowaniu strony nic ich
     nie czyta (odnośniki, kotwice i zakładki są zbierane wcześniej); teraz `Write` zwalnia stronę zaraz po

@@ -66,6 +66,10 @@ Warunek: wynik ma być bajt w bajt taki sam jak dotąd.
    miejsca. Pole o ujemnym z-index wychodzi dopiero na końcu, czyli kosztem całego przebiegu.
 7. `document.StreamingDisabled` wyłącza rysowanie w trakcie układu, a `document.OnStream` podaje przeszkodę.
    Oba służą testom i pomiarom. API publiczne się nie zmienia.
+8. Wszystko, co pola marginesowe czytają z drzewa strony (słowo `start` w `string()` i `element()`),
+   jest zapamiętywane przed zwolnieniem drzewa. Poprawność sprawdzamy porównaniem bajtowym z silnikiem
+   sprzed zmiany na całym korpusie W3C (11 689 dokumentów w trybie stronicowanym i w trybie sondażu), bo
+   liczba zaliczeń nie widzi testów bez wzorca; tak wykryto błąd słowa `start` (2026-11-21).
 
 ## Wyniki
 
