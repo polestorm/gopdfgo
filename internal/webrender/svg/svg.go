@@ -754,6 +754,9 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 	//	- node used as definition, extracted from the svg tree
 	//	- graphic element to display -> processGraphicNode
 
+	// gopdfgo: definicja bez id nie może być wskazana; źródło zapisywało ją pod kluczem "",
+	// przez co stosowała się do każdego elementu bez clip-path/mask/filter (np. <clipPath> bez id
+	// zawierający <polygon> prowadził do nieskończonej rekursji, test WPT polygon-with-filtered-marker).
 	id := node.attrs["id"]
 	switch node.tag {
 	case "filter":
@@ -761,37 +764,49 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 		if err != nil {
 			return nil, err
 		}
-		defs.filters[id] = filters
+		if id != "" {
+			defs.filters[id] = filters
+		}
 	case "clipPath":
 		cp, err := newClipPath(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.clipPaths[id] = cp
+		if id != "" {
+			defs.clipPaths[id] = cp
+		}
 	case "mask":
 		ma, err := newMask(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.masks[id] = ma
+		if id != "" {
+			defs.masks[id] = ma
+		}
 	case "marker":
 		ma, err := newMarker(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.markers[id] = ma
+		if id != "" {
+			defs.markers[id] = ma
+		}
 	case "linearGradient", "radialGradient":
 		grad, err := newGradient(node)
 		if err != nil {
 			return nil, err
 		}
-		defs.paintServers[id] = grad
+		if id != "" {
+			defs.paintServers[id] = grad
+		}
 	case "pattern":
 		pat, err := newPattern(node, children)
 		if err != nil {
 			return nil, err
 		}
-		defs.paintServers[id] = pat
+		if id != "" {
+			defs.paintServers[id] = pat
+		}
 	case "use": // special case
 		resolved, err := tree.resolveUse(node, defs)
 		if err != nil {
