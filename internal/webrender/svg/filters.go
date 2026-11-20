@@ -16,7 +16,7 @@ import (
 // z których każda jest albo samym elementem (SourceGraphic), albo jego sylwetką w jednym kolorze,
 // albo jednolitym wypełnieniem obszaru, z przesunięciem i odchyleniem standardowym rozmycia. Takie
 // warstwy da się narysować wektorowo: sylwetka to element użyty jako maska miękka alfa, a rozmycie
-// to suma przesuniętych kopii tej maski (zob. gaussianTaps). Graf, którego nie da się tak opisać
+// to suma przesuniętych kopii tej maski (zob. newBlurKernel). Graf, którego nie da się tak opisać
 // (feTurbulence, feMorphology, feImage, macierz koloru na samym elemencie itd.), jest pomijany w całości
 // z ostrzeżeniem, a element rysowany bez filtra, jak przed tą zmianą.
 
@@ -876,40 +876,35 @@ func (ct componentTransfer) apply(c parser.RGBA, linear bool) parser.RGBA {
 
 // rysowanie
 
-// blurDensity to łączna „gęstość optyczna” U kopii rozmytej sylwetki: kopie o wagach g_k (Σ g_k = 1)
-// nakładane zwykłym składaniem z kryciem w_k = 1 − exp(−U·g_k) dają w masce alfę L = 1 − exp(−U·Σ g_k·c_k),
-// gdzie c_k ∈ {0, 1} mówi, czy kopia k pokrywa punkt. Funkcja przejścia maski f(L) = −ln(1 − L)/U
-// odtwarza z tego dokładnie sumę Σ g_k·c_k, czyli splot sylwetki z dyskretnym jądrem Gaussa. Małe U
-// trzyma L z dala od 1 (dokładność masek 8-bitowych), U = 1 daje L ≤ 0,632.
-const blurDensity = 1.0
-
-// blurTransfer: próbki funkcji przejścia f(L) = min(1, −ln(1 − L)/U); między próbkami czytnik
-// interpoluje liniowo, a przy 64 próbkach błąd interpolacji jest poniżej 0,001
-var blurTransfer = func() []Fl {
-	out := make([]Fl, 64)
-	for i := range out {
-		l := float64(i) / float64(len(out)-1)
-		v := 1.0
-		if l < 1 {
-			v = min(1, -math.Log(1-l)/blurDensity)
-		}
-		out[i] = Fl(v)
-	}
-	return out
-}()
+// Rozmycie sylwetki. Kopie o wagach g_k (Σ g_k = 1) nakładane zwykłym składaniem z kryciem
+// w_k = 1 − exp(−U·g_k) dają w masce alfę L = 1 − exp(−Σ d_k·c_k), gdzie d_k = −ln(1 − w_k), a c_k ∈ {0, 1}
+// mówi, czy kopia k pokrywa punkt. Funkcja przejścia maski f(L) = −ln(1 − L)/D, D = Σ d_k, odtwarza
+// z tego sumę Σ d_k·c_k / D, czyli splot sylwetki z dyskretnym jądrem Gaussa, a środek dużego kształtu
+// dostaje pełne krycie. Czytniki składają maski w 8 bitach i krycie kopii obcinają do k/255, więc
+// krycia są od razu kwantowane do pełnych kroków (k + 1/4)/255, a D liczone z tych kroków; kopie
+// o kryciu poniżej 3/255 traciłyby zbyt wiele, dlatego zewnętrzne pierścienie mają mniej kopii.
+// U = 1,5 trzyma L ≤ 0,78 (stromość funkcji przejścia przy 8-bitowej masce).
+const blurDensity = 1.5
 
 // invertTransfer: f(L) = 1 − L (wycięcie kształtu elementu)
 var invertTransfer = []Fl{1, 0}
 
 type kernelTap struct{ x, y, w Fl }
 
-// gaussianTaps rozkłada dwuwymiarowy rozkład Gaussa o σ = 1 na punkty: środek i pierścienie co `step`
+// blurKernel to punkty jądra z kryciem kopii i funkcją przejścia maski.
+type blurKernel struct {
+	taps     []kernelTap
+	alphas   []Fl // krycie kopii
+	transfer []Fl // próbki f(L) = min(1, −ln(1 − L)/D)
+}
+
+// newBlurKernel rozkłada dwuwymiarowy rozkład Gaussa o σ = 1 na punkty: środek i pierścienie co `step`
 // (w jednostkach σ) do promienia około 2,5σ; waga pierścienia to masa rozkładu w jego paśmie
 // (z dystrybuanty radialnej 1 − exp(−r²/2)), a ogon za ostatnim pasmem dokładamy do ostatniego
-// pierścienia, więc wagi sumują się do 1 i środek dużego kształtu ma pełne krycie. Promień pierścienia
-// to średni promień w paśmie, liczba kopii rośnie z obwodem (odstęp około 1,5·step), a kolejne pierścienie
+// pierścienia. Promień pierścienia to średni promień w paśmie, liczba kopii rośnie z obwodem (odstęp
+// około 1,5·step), ograniczona tak, żeby krycie kopii nie spadło poniżej 3/255, a kolejne pierścienie
 // są obrócone o pół kroku, żeby krawędzie kopii nie układały się w promienie.
-func gaussianTaps(step Fl) []kernelTap {
+func newBlurKernel(step Fl) blurKernel {
 	cdf := func(r float64) float64 { return 1 - math.Exp(-r*r/2) }
 	meanRadius := func(a, b float64) float64 {
 		const n = 64
@@ -922,9 +917,18 @@ func gaussianTaps(step Fl) []kernelTap {
 		}
 		return num / den
 	}
+	minDensity := -math.Log(1-3.0/255) / blurDensity // najmniejsza waga kopii
+	var out blurKernel
+	var total float64
+	add := func(x, y, mass float64) {
+		k := math.Max(1, math.Round(255*(1-math.Exp(-blurDensity*mass))))
+		out.taps = append(out.taps, kernelTap{Fl(x), Fl(y), Fl(mass)})
+		out.alphas = append(out.alphas, Fl((k+0.25)/255))
+		total += -math.Log(1 - k/255)
+	}
 	s := float64(step)
 	rings := max(1, int(math.Round(2.5/s)))
-	taps := []kernelTap{{0, 0, Fl(cdf(s / 2))}}
+	add(0, 0, cdf(s/2))
 	for j := 1; j <= rings; j++ {
 		a, b := (float64(j)-0.5)*s, (float64(j)+0.5)*s
 		mass := cdf(b) - cdf(a)
@@ -933,13 +937,25 @@ func gaussianTaps(step Fl) []kernelTap {
 			b = a + 4
 		}
 		r := meanRadius(a, b)
-		n := max(6, int(math.Ceil(2*math.Pi*r/(1.5*s))))
+		n := int(math.Ceil(2 * math.Pi * r / (1.5 * s)))
+		n = max(4, min(n, int(mass/minDensity)))
 		for k := 0; k < n; k++ {
 			angle := 2 * math.Pi * (float64(k) + 0.5*float64(j%2)) / float64(n)
-			taps = append(taps, kernelTap{Fl(r * math.Cos(angle)), Fl(r * math.Sin(angle)), Fl(mass / float64(n))})
+			add(r*math.Cos(angle), r*math.Sin(angle), mass/float64(n))
 		}
 	}
-	return taps
+	// funkcja przejścia; między próbkami czytnik interpoluje liniowo, a przy 64 próbkach błąd
+	// interpolacji jest poniżej 0,001
+	out.transfer = make([]Fl, 64)
+	for i := range out.transfer {
+		l := float64(i) / float64(len(out.transfer)-1)
+		v := 1.0
+		if l < 1 {
+			v = min(1, -math.Log(1-l)/total)
+		}
+		out.transfer[i] = Fl(v)
+	}
+	return out
 }
 
 // blurStep dobiera odstęp pierścieni (w σ) do wielkości rozmycia w pikselach gospodarza: co pół σ,
@@ -1050,26 +1066,46 @@ func drawFilterLayer(dst backend.Canvas, l filterLayer, source backend.Canvas, r
 		// obszar filtra w układzie przesuniętej warstwy
 		area := Rectangle{region.X - l.dx, region.Y - l.dy, region.Width, region.Height}
 
-		var taps []kernelTap
-		if l.blurred() {
-			taps = gaussianTaps(blurStep(max(l.sx, l.sy) * hostScale))
-		}
-		// copies rysuje kopie elementu w punktach jądra z podanym kryciem
-		copies := func(target backend.Canvas, taps []kernelTap, opacity func(kernelTap) Fl) {
+		// copies rysuje kopie grupy src w punktach jądra (w jednostkach σ = sx, sy) z kryciem alpha(i)
+		copies := func(target, src backend.Canvas, taps []kernelTap, sx, sy Fl, alpha func(int) Fl) {
 			tfc := target.(backend.FilterCanvas)
 			tfc.WithoutText(func() {
-				for _, tap := range taps {
+				for i, tap := range taps {
 					target.OnNewStack(func() {
-						target.State().Transform(matrix.Translation(tap.x*l.sx, tap.y*l.sy))
-						tfc.DrawSharedGroup(opacity(tap), source)
+						target.State().Transform(matrix.Translation(tap.x*sx, tap.y*sy))
+						tfc.DrawSharedGroup(alpha(i), src)
 					})
 				}
 			})
 		}
-		blurMask := func() backend.Canvas {
+		// blurMask buduje maskę alfa rozmytej sylwetki (z funkcją przejścia). Przy dużym rozmyciu
+		// (σ powyżej 5 px gospodarza) kopie ostrych sylwetek co pół σ dawałyby widoczne schodki, więc
+		// rozmycie jest dwustopniowe: najpierw sylwetka rozmyta z σ₁ = σ/√5 (grupa z własną maską), potem
+		// kopie tej miękkiej sylwetki z σ₂ = 2σ/√5 (σ₁² + σ₂² = σ², a krok drugiego jądra jest równy σ₁,
+		// więc schodki się wygładzają). Kopie o ułamkowym pokryciu składają się prawie addytywnie, bo
+		// krycie każdej jest małe.
+		blurMask := func() (backend.Canvas, []Fl) {
+			src, sx, sy := source, l.sx, l.sy
+			if max(sx, sy)*hostScale > 5 {
+				const k1, k2 = 0.4472136, 0.8944272 // 1/√5, 2/√5
+				s1x, s1y := sx*k1, sy*k1
+				sx, sy = sx*k2, sy*k2
+				pad := 3 * max(sx, sy)
+				ext := Rectangle{area.X - pad, area.Y - pad, area.Width + 2*pad, area.Height + 2*pad}
+				kernel := newBlurKernel(blurStep(max(s1x, s1y) * hostScale))
+				inner := dst.NewGroup(ext.X, ext.Y, ext.Width, ext.Height)
+				copies(inner, source, kernel.taps, s1x, s1y, func(i int) Fl { return kernel.alphas[i] })
+				soft := dst.NewGroup(ext.X, ext.Y, ext.Width, ext.Height)
+				soft.(backend.FilterCanvas).SetSoftMask(inner, true, kernel.transfer)
+				soft.Rectangle(ext.X, ext.Y, ext.Width, ext.Height)
+				soft.State().SetColorRgba(parser.RGBA{A: 1}, false)
+				soft.Paint(backend.FillNonZero)
+				src = soft
+			}
+			kernel := newBlurKernel(blurStep(max(sx, sy) * hostScale))
 			mask := dst.NewGroup(area.X, area.Y, area.Width, area.Height)
-			copies(mask, taps, func(t kernelTap) Fl { return Fl(1 - math.Exp(-blurDensity*float64(t.w))) })
-			return mask
+			copies(mask, src, kernel.taps, sx, sy, func(i int) Fl { return kernel.alphas[i] })
+			return mask, kernel.transfer
 		}
 
 		switch {
@@ -1079,16 +1115,19 @@ func drawFilterLayer(dst backend.Canvas, l filterLayer, source backend.Canvas, r
 			// kolor: kopie nieprzezroczyste od zewnętrznego pierścienia do środka (na wierzchu kopie
 			// najbliższe położenia elementu), krycie: rozmyta maska
 			colors := dst.NewGroup(area.X, area.Y, area.Width, area.Height)
+			taps := newBlurKernel(blurStep(max(l.sx, l.sy) * hostScale)).taps
 			reversed := make([]kernelTap, len(taps))
 			for i, t := range taps {
 				reversed[len(taps)-1-i] = t
 			}
-			copies(colors, reversed, func(kernelTap) Fl { return 1 })
-			fc.SetSoftMask(blurMask(), true, blurTransfer)
+			copies(colors, source, reversed, l.sx, l.sy, func(int) Fl { return 1 })
+			mask, transfer := blurMask()
+			fc.SetSoftMask(mask, true, transfer)
 			dst.DrawWithOpacity(l.color.A, colors)
 		default: // sylwetka
 			if l.blurred() {
-				fc.SetSoftMask(blurMask(), true, blurTransfer)
+				mask, transfer := blurMask()
+				fc.SetSoftMask(mask, true, transfer)
 			} else {
 				mask := dst.NewGroup(area.X, area.Y, area.Width, area.Height)
 				mfc := mask.(backend.FilterCanvas)
