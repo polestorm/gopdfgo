@@ -86,6 +86,10 @@ licences (list in `docs/overview.md`).
 - Vertical writing and right-to-left/bidirectional text.
 - Tagged PDF (PDF/UA), PDF/A-3, file attachments.
 - `subgrid`, `grid-lanes`, `column-height`.
+- SVG: filters other than `feOffset` and `feBlend`, `foreignObject`, `vector-effect: non-scaling-stroke`,
+  `<use>` pointing to another file, spatial media fragments (`#xywh=`); SVG files are read with the HTML5
+  parser, so XHTML elements inside an SVG file (e.g. in `<metadata>`) break the drawing. Details in
+  `docs/overview.md`.
 - Individual transform properties (`translate`, `rotate`, `scale`), relative colours (`rgb(from …)`) and
   `round()`. These are skipped with a warning.
 

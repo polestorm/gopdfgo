@@ -126,6 +126,53 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
   et, fr, gl, it, lt, mn, nb, nl, nn, pl, pt, sk, sl, sq, te, uk. Other languages need a dictionary passed in
   `Options.Hyphenation` (ADR 0024).
 
+## SVG
+
+Checked 2026-11-20 in the code (`internal/webrender/svg`) and on the W3C `svg/` reftests.
+
+Supported:
+- shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`;
+- `g`, nested `svg`, `use` and `symbol` within the same document, `defs`, `a`, `image` (raster and SVG);
+- `viewBox`, `preserveAspectRatio`, `transform`;
+- fill and stroke with opacity, dash arrays, line caps and joins;
+- paint servers: `linearGradient`, `radialGradient`, `pattern`;
+- `clipPath`, `mask`, `marker`;
+- text: `text`, `tspan`, `textPath`, `text-anchor`, `dominant-baseline`, `letter-spacing`;
+- `<style>` and `style` attributes, CSS selectors inside SVG;
+- inline `<svg>` in HTML and SVG files as images (`img`, `object`, `embed`, CSS `background-image`).
+
+Not supported or incomplete:
+- filters: only `feOffset` and `feBlend`; other primitives (`feGaussianBlur`, `feColorMatrix`, `feFlood`,
+  `feComposite` …) are skipped with a warning, so the element is drawn without the filter;
+- `foreignObject`;
+- `vector-effect: non-scaling-stroke`;
+- `<use>` pointing to another file;
+- spatial media fragments in image URLs (`image.svg#xywh=…`);
+- the `transform` attribute on the outermost `<svg>` (SVG 2);
+- `rx`/`ry` set to `auto` on `ellipse`, `context-fill`/`context-stroke` in markers;
+- animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope;
+- SVG files are parsed with the HTML5 parser, not as XML. An XHTML element inside an SVG file (for example
+  `<meta>` or `<p>` in `<metadata>` or `<desc>`) ends the SVG content, and the rest of the drawing is lost.
+  SVG exported by drawing programs usually has RDF metadata without such elements, so it is unaffected.
+
+W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
+or have no reference. Of those 235, 83 pass (80 exactly, 3 within anti-aliasing edges).
+
+To measure SVG files as stand-alone documents, each `.svg` test was drawn through `<img>`. A copy without
+`<metadata>` was used, to keep the parser problem above from hiding the other results.
+
+Failures by cause (151):
+- CSS Linked Parameters: 23;
+- SVG text, among others text shadows, `text-transform`, combining marks: 15;
+- `foreignObject`: 13;
+- media fragments: 12;
+- `non-scaling-stroke`: 10;
+- external `<use>`: 9;
+- `transform` on the outer `<svg>`: 7;
+- `ellipse` with `auto` radii: 6;
+- masks, clipping, markers, `currentColor` in paint servers, outer `<svg>` sizing: 3–4 each;
+- other single cases: 37.
+
 ## Requirements
 
 - Go 1.26 or newer (`go.mod`: `go 1.26.0`); built and tested with go1.26.6.
