@@ -132,8 +132,26 @@ func (dims drawingDims) resolveDashes(dashArray []Value, dashOffset Value) ([]Fl
 	return dashes, offset
 }
 
+// directGradientFill (gopdfgo) zwraca rysowanie wypełnienia gradientem bez wzorca (zob.
+// gradient.directFill) albo nil, gdy wypełnienie elementu nie jest takim gradientem.
+func (svg *SVGImage) directGradientFill(node *svgNode, dims drawingDims) func(dst backend.Canvas) {
+	fill, fillNode := svg.resolveContextPainter(node.fill)
+	if !fill.valid {
+		return nil
+	}
+	if fillNode == nil {
+		fillNode = node
+	}
+	gr, ok := svg.definitions.paintServers[fill.refID].(gradient)
+	if !ok {
+		return nil
+	}
+	return gr.directFill(fillNode, node.fillOpacity, dims)
+}
+
 // apply fill and stroke painters
-func (svg *SVGImage) applyPainters(dst backend.Canvas, node *svgNode, dims drawingDims) (doFill, doStroke bool) {
+// gopdfgo: skipFill pomija wypełnienie, narysowane już przez directGradientFill
+func (svg *SVGImage) applyPainters(dst backend.Canvas, node *svgNode, dims drawingDims, skipFill bool) (doFill, doStroke bool) {
 	strokeWidth := dims.length(node.strokeWidth)
 	fill, fillNode := svg.resolveContextPainter(node.fill)
 	stroke, strokeNode := svg.resolveContextPainter(node.stroke)
@@ -143,7 +161,7 @@ func (svg *SVGImage) applyPainters(dst backend.Canvas, node *svgNode, dims drawi
 	if strokeNode == nil {
 		strokeNode = node
 	}
-	doFill = fill.valid
+	doFill = fill.valid && !skipFill
 	doStroke = stroke.valid && strokeWidth > 0
 
 	// fill
@@ -398,13 +416,34 @@ func (gr gradient) paint(dst backend.Canvas, node *svgNode, opacity Fl, dims dra
 		return true
 	}
 
-	bbox, ok := node.resolveBoundingBox(dims, stroke)
+	laidOutGradient, mt, width, height, ok := gr.layout(node, dims, stroke)
 	if !ok {
 		return false
 	}
 
+	if laidOutGradient.Kind == "solid" {
+		dst.Rectangle(0, 0, width, height)
+		dst.State().SetColorRgba(laidOutGradient.Colors[0], false)
+		dst.Paint(backend.FillNonZero)
+		return true
+	}
+
+	pattern := dst.NewGroup(0, 0, width, height)
+	pattern.DrawGradient(laidOutGradient, dims.concreteWidth, dims.concreteHeight)
+	dst.State().SetColorPattern(pattern, width, height, mt, stroke)
+	return true
+}
+
+// layout (gopdfgo, wydzielone z paint) rozkłada gradient dla elementu node: zwraca układ gradientu,
+// jego położenie mt w bieżącym układzie użytkownika i rozmiar komórki (width, height).
+func (gr gradient) layout(node *svgNode, dims drawingDims, stroke bool) (laidOutGradient backend.GradientLayout, mt matrix.Transform, width, height Fl, ok bool) {
+	bbox, ok := node.resolveBoundingBox(dims, stroke)
+	if !ok {
+		return laidOutGradient, mt, 0, 0, false
+	}
+
 	x, y := bbox.X, bbox.Y
-	width, height := bbox.Width, bbox.Height
+	width, height = bbox.Width, bbox.Height
 	if gr.isUnitsUserSpace {
 		width, height = dims.innerWidth, dims.innerHeight
 	}
@@ -447,8 +486,7 @@ func (gr gradient) paint(dst backend.Canvas, node *svgNode, opacity Fl, dims dra
 		}
 	}
 
-	var laidOutGradient backend.GradientLayout
-	mt := matrix.Translation(x, y)
+	mt = matrix.Translation(x, y)
 	switch kind := gr.kind.(type) {
 	case gradientLinear:
 		x1 := kind.x1.Resolve(dims.fontSize, 1)
@@ -529,18 +567,29 @@ func (gr gradient) paint(dst backend.Canvas, node *svgNode, opacity Fl, dims dra
 		mat := aggregateTransforms(trs, dims.fontSize, dims.normalizedDiagonal)
 		mt.LeftMultBy(mat)
 	}
+	return laidOutGradient, mt, width, height, true
+}
 
-	if laidOutGradient.Kind == "solid" {
-		dst.Rectangle(0, 0, width, height)
-		dst.State().SetColorRgba(laidOutGradient.Colors[0], false)
-		dst.Paint(backend.FillNonZero)
-		return true
+// directFill (gopdfgo) przygotowuje wypełnienie kształtu gradientem bez wzorca kafelkowego: zwraca
+// funkcję, która rysuje gradient w bieżącej ścieżce przycinania, albo nil, gdy wypełnienie trzeba
+// ustawić jak dotąd przez paint (gradient pusty, jednobarwny, bez prostokąta otaczającego).
+// Gradient SVG pokrywa całą płaszczyznę (SVG 1.1 § 13.2), więc rysowanie cieniowania w przycięciu
+// do kształtu daje ten sam obraz co wzorzec, a nie zależy od odczytu macierzy wzorca przez
+// przeglądarkę PDF (zob. internal/goweasyprint/pdf/placement.go). fill-opacity działa na
+// wypełnienie serwerem farby jak na kolor (SVG 2 § 13.4); w źródle wzorzec je pomijał.
+func (gr gradient) directFill(node *svgNode, opacity Fl, dims drawingDims) func(dst backend.Canvas) {
+	if len(gr.colors) < 2 {
+		return nil
 	}
-
-	pattern := dst.NewGroup(0, 0, width, height)
-	pattern.DrawGradient(laidOutGradient, dims.concreteWidth, dims.concreteHeight)
-	dst.State().SetColorPattern(pattern, width, height, mt, stroke)
-	return true
+	laidOutGradient, mt, _, _, ok := gr.layout(node, dims, false)
+	if !ok || laidOutGradient.Kind == "solid" {
+		return nil
+	}
+	return func(dst backend.Canvas) {
+		dst.State().Transform(mt)
+		dst.State().SetAlpha(opacity, false)
+		dst.DrawGradient(laidOutGradient, dims.concreteWidth, dims.concreteHeight)
+	}
 }
 
 // pattern is a container for shapes to be used as

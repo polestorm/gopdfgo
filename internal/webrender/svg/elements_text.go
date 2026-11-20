@@ -176,7 +176,7 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 	if len(t.drawings) == 0 {
 		return nil
 	}
-	doFill, doStroke := svg.applyPainters(dst, &svgNode{graphicContent: t, attributes: *attrs}, dims)
+	doFill, doStroke := svg.applyPainters(dst, &svgNode{graphicContent: t, attributes: *attrs}, dims, false)
 	// gopdfgo: bez wypełnienia i obrysu tekst tylko zajmuje miejsce (zob. drawNode, visibility)
 	if !doFill && !doStroke {
 		return nil

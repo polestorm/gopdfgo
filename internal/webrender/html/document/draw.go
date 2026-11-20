@@ -811,6 +811,36 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 		repeatHeight = utils.Maxs(repeatHeight, paintingHeight+pr.Fl(math.Abs(float64(Y-paintingY)))+imageHeight)
 	}
 
+	// gopdfgo: gdy w obszarze malowania widać najwyżej jedną kopię obrazu w każdej osi (najczęstszy
+	// przypadek: gradient albo obraz na całe pudełko), rysujemy ją wprost, przycinając do obszaru
+	// malowania i do pola obrazu, bez wzorca kafelkowego. Wynik jest ten sam (CSS Backgrounds 3
+	// § 3.4), plik mniejszy, a obraz nie zależy od tego, jak przeglądarka PDF odczytuje macierz
+	// wzorca w grupie przezroczystości (zob. internal/goweasyprint/pdf/placement.go). Źródło
+	// zawsze używało wzorca.
+	areaX, areaY, areaW, areaH := paintingX, paintingY, paintingWidth, paintingHeight
+	if layer.Unbounded {
+		x1, y1, x2, y2 := ctx.dst.GetBoundingBox()
+		areaX, areaY, areaW, areaH = x1, y1, x2-x1, y2-y1
+	}
+	kx, nx := visibleTiles(X, repeatWidth, imageWidth, areaX, areaW)
+	ky, ny := visibleTiles(Y, repeatHeight, imageHeight, areaY, areaH)
+	if nx == 0 || ny == 0 {
+		return
+	}
+	if nx == 1 && ny == 1 {
+		ctx.dst.OnNewStack(func() {
+			ctx.dst.Rectangle(areaX, areaY, areaW, areaH)
+			ctx.dst.State().Clip(false)
+			ctx.dst.State().Transform(matrix.New(1, 0, 0, 1, X+kx*repeatWidth, Y+ky*repeatHeight))
+			ctx.dst.Rectangle(0, 0, imageWidth, imageHeight)
+			ctx.dst.State().Clip(false)
+			// obraz tła ma własną przezroczystość, jak w SetColorPattern
+			ctx.dst.State().SetAlpha(1, false)
+			layer.Image.Draw(ctx.dst, ctx, imageWidth, imageHeight, string(imageRendering))
+		})
+		return
+	}
+
 	// draw the image on a pattern
 	patttern := ctx.dst.NewGroup(0, 0, repeatWidth, repeatHeight)
 	layer.Image.Draw(patttern, ctx, imageWidth, imageHeight, string(imageRendering))
@@ -1279,5 +1309,32 @@ func (ctx *drawContext) drawBlockLevel(page *bo.PageBox, blocksAndCells BoxTree)
 			}
 		}
 		ctx.drawBlockLevel(page, innerBlocksAndCells)
+	}
+}
+
+// visibleTiles (gopdfgo) zwraca numer pierwszej kopii obrazu (kopia k zaczyna się w origin+k·step
+// i ma długość size) przecinającej odcinek [start, start+length] dodatnią długością oraz liczbę
+// takich kopii (2 oznacza „co najmniej dwie”).
+func visibleTiles(origin, step, size, start, length pr.Fl) (first pr.Fl, count int) {
+	const eps = 1e-3
+	if step <= 0 || size <= 0 || length <= 0 {
+		return 0, 0
+	}
+	kMin := pr.Fl(math.Ceil(float64((start-origin-size)/step + eps)))
+	kMax := pr.Fl(math.Floor(float64((start+length-origin)/step - eps)))
+	// kopia kMin może kończyć się przed początkiem odcinka, gdy size < step (odstępy przy space)
+	for kMin <= kMax && origin+kMin*step+size <= start+eps {
+		kMin++
+	}
+	for kMin <= kMax && origin+kMax*step >= start+length-eps {
+		kMax--
+	}
+	switch {
+	case kMax < kMin:
+		return 0, 0
+	case kMax == kMin:
+		return kMin, 1
+	default:
+		return kMin, 2
 	}
 }

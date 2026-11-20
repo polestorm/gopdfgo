@@ -205,13 +205,29 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			// 	2) apply the path operation
 			// 	3) conclude by calling Paint
 
-			doFill, doStroke := svg.applyPainters(dst, node, dims)
+			// gopdfgo: wypełnienie gradientem rysujemy bez wzorca kafelkowego: ścieżka kształtu staje się
+			// przycięciem, w którym malujemy cieniowanie, a obrys (jeśli jest) rysujemy po nim drugą kopią
+			// ścieżki, jak w kolejności malowania SVG (fill, potem stroke). Zob. gradient.directFill.
+			var directFill func(dst backend.Canvas)
+			if paint && visible && isPlainShape(node.graphicContent) {
+				directFill = svg.directGradientFill(node, dims)
+			}
 
 			var vertices []vertex
+			if directFill != nil {
+				dst.OnNewStack(func() {
+					vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
+					dst.State().Clip(node.isFillEvenOdd)
+					directFill(dst)
+				})
+			}
+
+			doFill, doStroke := svg.applyPainters(dst, node, dims, directFill != nil)
+
 			// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce w składzie (layoutText),
 			// więc dalsze fragmenty stoją tam, gdzie powinny (SVG 2 § 11.8, test WPT
 			// text-visibility-hidden-tspan-visible)
-			if visible && node.graphicContent != nil {
+			if visible && node.graphicContent != nil && (directFill == nil || doStroke) {
 				vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
 			}
 
@@ -231,7 +247,7 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 
 			// do the actual painting :
 			// paint by filling and stroking the given node onto the graphic target
-			if paint && !isText {
+			if paint && !isText && (directFill == nil || doStroke) {
 				dst.Paint(newPaintOp(doFill, doStroke, node.isFillEvenOdd))
 			}
 
@@ -1034,4 +1050,14 @@ func (na nodeAttributes) parseCommonAttributesForText(out *attributes) error {
 
 	err = na.parseSharedAttributes(out)
 	return err
+}
+
+// isPlainShape (gopdfgo) mówi, czy element jest kształtem (rect, circle, ellipse, line, polyline,
+// polygon, path), którego ścieżkę można narysować drugi raz bez skutków ubocznych.
+func isPlainShape(d drawable) bool {
+	switch d.(type) {
+	case rect, *rect, line, *line, polyline, *polyline, ellipse, *ellipse, path, *path:
+		return true
+	}
+	return false
 }
