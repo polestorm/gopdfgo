@@ -476,7 +476,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		if context.flexPushOffset == nil {
 			context.flexPushOffset = map[uintptr]pr.Float{}
 		}
-		context.flexPushOffset[resumeKey(marker)] = max(top-pageEdge, 0)
+		context.flexPushOffset[context.keepResumeKey(marker)] = max(top-pageEdge, 0)
 		pushed[index] = marker
 	}
 
@@ -2378,12 +2378,12 @@ restartCollapsed:
 				if context.fixedHeightRemaining == nil {
 					context.fixedHeightRemaining = map[uintptr]pr.Float{}
 				}
-				context.fixedHeightRemaining[resumeKey(resumeAt)] = max(fixedUsed-available, 0)
+				context.fixedHeightRemaining[context.keepResumeKey(resumeAt)] = max(fixedUsed-available, 0)
 			} else if fixedUsed < 0 && minUsed > 0 {
 				if context.minHeightRemaining == nil {
 					context.minHeightRemaining = map[uintptr]pr.Float{}
 				}
-				context.minHeightRemaining[resumeKey(resumeAt)] = max(minUsed-available, 0)
+				context.minHeightRemaining[context.keepResumeKey(resumeAt)] = max(minUsed-available, 0)
 			}
 		}
 		if resumeAt == nil && !is_start && fixedUsed >= 0 {
