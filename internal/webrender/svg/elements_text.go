@@ -264,7 +264,8 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 		for i := range text.Runs {
 			text.Runs[i].BoldStroke = 0
 		}
-		if len(text.Runs) != 0 { // do not draw empty content
+		// gopdfgo: bez wypełnienia i obrysu tekst tylko przesuwa pozycję (zob. drawNode, visibility)
+		if len(text.Runs) != 0 && (doFill || doStroke) { // do not draw empty content
 			texts = append(texts, text)
 		}
 		i = clusterEnd - 1

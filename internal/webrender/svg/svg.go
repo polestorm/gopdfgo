@@ -201,6 +201,13 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 		var vertices []vertex
 		if visible && node.graphicContent != nil {
 			vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
+		} else if isText && display {
+			// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce i przesuwa pozycję
+			// bieżącą dla widocznych tspan (SVG 2 § 11.8, test WPT text-visibility-hidden-tspan-visible);
+			// źródło go pomijało, więc dalsze fragmenty zaczynały w punkcie (0, 0)
+			hidden := node.attributes
+			hidden.fill, hidden.stroke = painter{}, painter{}
+			text.draw(dst, &hidden, svg, dims)
 		}
 
 		// then recurse
