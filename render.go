@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/polestorm/gopdfgo/internal/htmlinput"
 	"io"
 	"log"
 	"math"
@@ -266,7 +267,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		}, nil
 	}
 
-	parsed, err := tree.NewHTML(utils.InputString(expandSelfClosing(decodeByteOrderMark(html))), opts.BaseURL, fetch, "print")
+	parsed, err := tree.NewHTML(utils.InputString(htmlinput.ExpandSelfClosing(htmlinput.DecodeByteOrderMark(html))), opts.BaseURL, fetch, "print")
 	if err != nil {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}

@@ -2221,7 +2221,7 @@ Z `go.mod`, licencje z plików `LICENSE` w pamięci modułów (sprawdzone 2026-1
 
 `go test ./...`: 7 testów przejętego kodu nie przechodzi stale i jeden losowo (te same co przed zmianami;
 stan potwierdzony 2026-11-13 po naprawie kompilacji testów pakietu `html/layout`);
-testy własne w korzeniu modułu przechodzą wszystkie.
+testy własne (od 2026-11-20 w katalogu `tests/`) przechodzą wszystkie.
 
 - `internal/goweasyprint/pdf`: 2 z 415 testów pikselowych (`TestRoundedRect`, `TestTextSubsetComposite`: jeden
   piksel inny niż we wzorcu; przyczyna nieustalona). Testy rasteryzują PDF programem `gs` (AGPL, narzędzie
@@ -2232,7 +2232,7 @@ testy własne w korzeniu modułu przechodzą wszystkie.
 - `internal/webrender/css/selector`: `TestSelectors`, `TestMatchers`: inna kolejność atrybutów w wypisywanym HTML,
   prawdopodobnie przez nowszy `golang.org/x/net` (0.62 wobec 0.42 w źródle).
 - `internal/webrender/matrix`: `TestTranslate` używał losowych macierzy z dokładnym porównaniem i prawie zawsze padał; od 2026-11-18 porównuje z tolerancją i przechodzi.
-- testy własne w korzeniu (`corpus_test.go`, `robustness_test.go`, `render_test.go`), wszystkie przez
+- testy własne (od 2026-11-20 w katalogu `tests/`; `corpus_test.go`, `robustness_test.go`, `render_test.go`), wszystkie przez
   `gopdfgo.Render`: 18 dokumentów renderuje się, liczby stron zgodne (2 różnice opisane w teście), tekst daje się
   wyodrębnić, dwa przebiegi dają identyczne bajty; 726 plików WPT (testy druku i wzorce) renderuje się bez paniki
   i deterministycznie; 400 poziomów zagnieżdżenia poniżej 2 s.

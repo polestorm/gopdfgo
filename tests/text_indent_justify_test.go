@@ -1,0 +1,110 @@
+package tests
+
+import (
+	"context"
+	"github.com/polestorm/gopdfgo"
+	"os"
+	"testing"
+)
+
+// Testy właściwości tekstu z CSS Text 3 i 4: text-justify, text-indent (each-line, hanging),
+// word-spacing w procentach, text-wrap-mode. Każdy przypadek porównuje stronę z wzorcem
+// ułożonym bez badanej właściwości.
+
+// ahemComparer zwraca funkcję, która renderuje test i wzorzec fontem Ahem i zgłasza różnicę pikseli.
+func ahemComparer(t *testing.T) func(name, test, reference string) {
+	t.Helper()
+	ahem, err := os.ReadFile("../testdata/wpt/fonts/Ahem.ttf")
+	if err != nil {
+		t.Skip("brak fontu Ahem")
+	}
+	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } div { font: 20px/20px Ahem; color: green }</style>`
+	dir := t.TempDir()
+	page := func(name, body string) []byte {
+		t.Helper()
+		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := rasterize(t, result.PDF, dir, name)
+		if len(pages) != 1 {
+			t.Fatalf("%s: %d stron", name, len(pages))
+		}
+		return pages[0]
+	}
+	return func(name, test, reference string) {
+		t.Helper()
+		if n := differentPixels(page(name, test), page(name+"-ref", reference)); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+}
+
+func TestTextJustifyNone(t *testing.T) {
+	same := ahemComparer(t)
+	// cały akapit bez miejsc justowania: wiersze zostają przy lewej krawędzi
+	same("none", `<div style="width:230px;text-align:justify;text-justify:none">XXX XXX XXX XXX XXX</div>`,
+		`<div>XXX XXX XXX<br>XXX XXX</div>`)
+	// właściwość działa na pudełku liniowym: spacja w <span> się nie rozciąga, pozostałe biorą całą resztę
+	same("inline", `<div style="width:220px;text-align:justify">X <span style="text-justify:none">X X</span> X XXXXXXXXXXX</div>`,
+		`<div style="white-space:pre">X   X X   X<br>XXXXXXXXXXX</div>`)
+	// inter-word justuje jak auto
+	same("inter-word", `<div style="width:220px;text-align:justify;text-justify:inter-word">X X X XXXXXXXXXXX</div>`,
+		`<div style="white-space:pre">X    X    X<br>XXXXXXXXXXX</div>`)
+}
+
+func TestTextIndentHangingEachLine(t *testing.T) {
+	same := ahemComparer(t)
+	indented := `<span style="padding-left:40px">XX</span>`
+	// samo wcięcie: tylko pierwszy wiersz, nie wiersz po <br>
+	same("plain", `<div style="text-indent:40px">XX<br>XX</div>`, `<div>`+indented+`<br>XX</div>`)
+	// each-line: wiersz po wymuszonym złamaniu tak, po miękkim nie
+	same("each-line", `<div style="width:100px;text-indent:40px each-line">XX XX<br>XX</div>`,
+		`<div>`+indented+`<br>XX<br>`+indented+`</div>`)
+	// hanging: wszystkie wiersze poza pierwszym; kolejność części wartości jest dowolna
+	same("hanging", `<div style="width:100px;text-indent:hanging 40px">XXXX XX<br>XX</div>`,
+		`<div>XXXX<br>`+indented+`<br>`+indented+`</div>`)
+	// oba słowa: wcięte są tylko wiersze po miękkim złamaniu
+	same("each-line-hanging", `<div style="width:100px;text-indent:40px each-line hanging">XXXX XX<br>XX</div>`,
+		`<div>XXXX<br>`+indented+`<br>XX</div>`)
+	// tekst po pudełku blokowym nie jest pierwszym sformatowanym wierszem kontenera...
+	block := `<div style="height:10px;background:blue"></div>`
+	same("after-block", `<div style="text-indent:40px">XX`+block+`XX</div>`, `<div>`+indented+block+`XX</div>`)
+	// ...ale z each-line pudełko blokowe liczy się jak wymuszone złamanie
+	same("each-line-after-block", `<div style="text-indent:40px each-line">XX`+block+`XX</div>`,
+		`<div>`+indented+block+indented+`</div>`)
+	// hanging powiększa szerokość max-content wierszy po wymuszonym złamaniu
+	same("hanging-max-content", `<div style="float:left;background:blue;text-indent:40px hanging">XX<br>XX</div>`,
+		`<div style="float:left;background:blue">XX<br>`+indented+`</div>`)
+}
+
+func TestWordSpacingPercentage(t *testing.T) {
+	same := ahemComparer(t)
+	// procent liczy się od szerokości spacji w foncie elementu (w Ahem 1em, tu 20px)
+	same("percent", `<div style="word-spacing:100%">X X X</div>`, `<div style="white-space:pre">X  X  X</div>`)
+	same("negative", `<div style="word-spacing:-100%">X X X</div>`, `<div>XXX</div>`)
+	// procent z długością w calc()
+	same("calc", `<div style="word-spacing:calc(100% + 1em)">X X X</div>`, `<div style="white-space:pre">X   X   X</div>`)
+	// wartość dziedziczy się jako procent i liczy od fontu potomka
+	same("inherited", `<div style="word-spacing:200%"><span style="font-size:10px">X X</span></div>`,
+		`<div><span style="font-size:10px;white-space:pre">X   X</span></div>`)
+}
+
+func TestTextWrapMode(t *testing.T) {
+	same := ahemComparer(t)
+	wrapped, single := `<div>XX<br>XX</div>`, `<div>XX XX</div>`
+	// nowrap wyłącza miękkie łamanie, spacje zwijają się jak dotąd
+	same("mode-nowrap", `<div style="width:60px;text-wrap-mode:nowrap">XX   XX</div>`, single)
+	same("shorthand-nowrap", `<div style="width:60px;text-wrap:nowrap">XX XX</div>`, single)
+	// pre-wrap bez zawijania zachowuje spacje
+	same("pre-wrap-nowrap", `<div style="width:60px;white-space:pre-wrap;text-wrap-mode:nowrap">XX  XX</div>`,
+		`<div style="white-space:pre">XX  XX</div>`)
+	// potomek przywraca zawijanie: text-wrap-mode: wrap znosi odziedziczone white-space: nowrap i odwrotnie
+	same("child-wrap", `<div style="width:60px;white-space:nowrap"><span style="text-wrap-mode:wrap">XX XX</span></div>`, wrapped)
+	same("child-white-space", `<div style="width:60px;text-wrap-mode:nowrap"><span style="white-space:normal">XX XX</span></div>`, wrapped)
+	// późniejsza deklaracja white-space znosi wcześniejsze text-wrap-mode
+	same("cascade", `<div style="width:60px;text-wrap-mode:nowrap;white-space:normal">XX XX</div>`, wrapped)
+	// text-wrap: balance i pozostałe wartości stylu nie zmieniają zawijania tego jednowierszowego tekstu
+	same("balance", `<div style="width:60px;text-wrap:balance">XX XX</div>`, wrapped)
+}

@@ -1,10 +1,9 @@
 package gopdfgo
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"regexp"
+	"github.com/polestorm/gopdfgo/internal/pdfa"
 	"time"
 
 	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
@@ -89,33 +88,13 @@ func backendAttachments(list []Attachment) ([]backend.Attachment, error) {
 	return out, nil
 }
 
-// pdfaPart matches the PDF/A part declared in an unfiltered XMP packet, in element or attribute form.
-var pdfaPart = regexp.MustCompile(`pdfaid:part\s*(?:>\s*|=\s*["'])([0-9])`)
-
-// declaresPDFA12 rozstrzyga, czy plik jest plikiem PDF/A-1 albo PDF/A-2 w rozumieniu ISO 19005-2 § 6.8:
-// zaczyna się nagłówkiem PDF i deklaruje w metadanych XMP część 1 albo 2. PDF/A wymaga, żeby strumień
-// metadanych nie był filtrowany (ISO 19005-1 § 6.7.2, ISO 19005-2 § 6.6.2.1), więc deklarację da się
-// znaleźć w surowych bajtach. To sprawdzenie deklaracji, nie walidacja: zgodność samego załącznika
-// pozostaje odpowiedzialnością wywołującego.
-func declaresPDFA12(data []byte) bool {
-	if !bytes.HasPrefix(data, []byte("%PDF-")) {
-		return false
-	}
-	for _, match := range pdfaPart.FindAllSubmatch(data, -1) {
-		if part := string(match[1]); part == "1" || part == "2" {
-			return true
-		}
-	}
-	return false
-}
-
 // checkAttachments zwraca błąd, gdy wybrana norma nie dopuszcza któregoś z osadzonych plików.
 func checkAttachments(files []pdf.EmbeddedFile, conformance Conformance) error {
 	if conformance != PDFA2b {
 		return nil
 	}
 	for _, file := range files {
-		if !declaresPDFA12(file.Data) {
+		if !pdfa.DeclaresPDFA12(file.Data) {
 			return fmt.Errorf("%w: %q", ErrAttachmentNotPDFA, file.Name)
 		}
 	}
