@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"math"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
@@ -386,6 +387,7 @@ func parsePreserveAspectRatio(s string) (out preserveAspectRatio) {
 // the angle is expressed in degrees
 // the empty is matched to a 0 angle
 func parseOrientation(attr string) (Value, error) {
+	attr = strings.TrimSpace(attr)
 	switch attr {
 	case "":
 		return Value{}, nil
@@ -394,8 +396,19 @@ func parseOrientation(attr string) (Value, error) {
 	case "auto-start-reverse":
 		return Value{U: autoStartReverse}, nil
 	default:
-		f, err := strconv.ParseFloat(attr, 32)
-		return Value{V: Fl(f)}, err
+		// gopdfgo: orient przyjmuje <angle> z jednostką (SVG 2 § 13.7.2); źródło znało tylko liczbę
+		factor := 1.
+		for _, u := range [...]struct {
+			suffix string
+			factor float64
+		}{{"deg", 1}, {"grad", 0.9}, {"rad", 180 / math.Pi}, {"turn", 360}} {
+			if strings.HasSuffix(attr, u.suffix) {
+				attr, factor = strings.TrimSuffix(attr, u.suffix), u.factor
+				break
+			}
+		}
+		f, err := strconv.ParseFloat(strings.TrimSpace(attr), 32)
+		return Value{V: Fl(f * factor)}, err
 	}
 }
 

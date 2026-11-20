@@ -29,6 +29,9 @@ type point struct {
 type pathItem struct {
 	op   pathOperation
 	args [3]point // (x, y) up to three arguments
+	// gopdfgo: joined oznacza dalszy kawałek tego samego odcinka (łuk przybliżony kilkoma
+	// krzywymi) — nie tworzy wierzchołka znacznika
+	joined bool
 }
 
 type pathOperation uint8
@@ -251,7 +254,9 @@ func (c *pathParser) addSeg(segString []byte) error {
 		if L != 0 {
 			return errParamMismatch(op)
 		}
-		if c.inPath {
+		// gopdfgo: Z po Z zamyka niejawną podścieżkę zerowej długości (SVG 2 § 9.3.4), która ma
+		// własny wierzchołek znacznika; źródło pomijało Z poza podścieżką
+		if c.inPath || len(c.path) != 0 {
 			c.close()
 			c.currentX = c.pathStartX
 			c.currentY = c.pathStartY
@@ -468,6 +473,7 @@ func (p *pathParser) addArc(points []Fl, cx, cy, px, py Fl) (lx, ly Fl) {
 		}
 		dx, dy := ellipsePrime(float64(points[0]), float64(points[1]), sinTheta, cosTheta, eta)
 		p.cubicTo(lx+alpha*ldx, ly+alpha*ldy, px-alpha*dx, py-alpha*dy, px, py)
+		p.path[len(p.path)-1].joined = i > 1
 		lx, ly, ldx, ldy = px, py, dx, dy
 	}
 	return lx, ly

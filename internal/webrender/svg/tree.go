@@ -91,6 +91,8 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		}
 
 		childAttrs := newNodeAttributes(node.Attr)
+		// gopdfgo: skrót 'marker' nie jest atrybutem prezentacji (SVG 2 § 13.7.2), działa tylko z CSS
+		delete(childAttrs, "marker")
 		// Cascade attributes
 		for key, value := range parentAttrs {
 			if _, isNotInherited := notInheritedAttributes[key]; !isNotInherited {
@@ -443,6 +445,10 @@ var notInheritedAttributes = utils.NewSet(
 	"requiredFeatures",
 	"systemLanguage",
 	"vector-effect", // gopdfgo: SVG 2 § 13.2, niedziedziczona
+	// gopdfgo: display nie jest dziedziczona (CSS Display 3 § 2); poddrzewo z display: none i tak nie
+	// jest rysowane (drawNode nie schodzi do dzieci), a źródło dziedzicząc ją ukrywało też treść
+	// <marker>, <pattern> i celów <use> leżących w takim poddrzewie (test WPT marker-007)
+	"display",
 )
 
 // currentColorRe znajduje słowo kluczowe currentColor (bez względu na wielkość liter).

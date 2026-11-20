@@ -332,6 +332,14 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 		// scale
 		if !marker.isUnitsUserSpace {
 			scale := dims.length(node.attributes.strokeWidth)
+			// gopdfgo: przy vector-effect: non-scaling-stroke markerUnits="strokeWidth" bierze grubość
+			// obrysu w układzie użytkownika, czyli podzieloną przez skalę względem gospodarza
+			// (SVG 2 § 13.7.2, test WPT marker-units-strokewidth-non-scaling-stroke)
+			if node.nonScalingStroke {
+				if hs := svg.hostScale(dst); hs > 0 {
+					scale /= hs
+				}
+			}
 			scaleX *= scale
 			scaleY *= scale
 		}
@@ -348,7 +356,13 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 		// draw marker path
 		for _, child := range marker.children {
 			dst.OnNewStack(func() {
-				dst.State().Transform(matrix.Transform{A: scaleX, D: scaleY, E: vertex.x, F: vertex.y})
+				// gopdfgo: źródło wyznaczało kąt, ale go nie stosowało; układ znacznika to
+				// translate(wierzchołek) · rotate(kąt) · scale (SVG 2 § 13.7.3)
+				dst.State().Transform(matrix.Translation(vertex.x, vertex.y))
+				if angle != 0 {
+					dst.State().Transform(matrix.Rotation(angle))
+				}
+				dst.State().Transform(matrix.Scaling(scaleX, scaleY))
 				dst.State().Transform(matrix.Translation(-translateX, -translateY))
 
 				overflow := marker.overflow
