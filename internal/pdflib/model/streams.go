@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/benoitkugler/pdf/reader/parser/filters"
 )
@@ -100,11 +101,30 @@ type Stream struct {
 	Content []byte // such as read/writen, not decoded
 }
 
+// compressionLevel (gopdfgo) to stopień kompresji zlib strumieni zapisywanych przez NewCompressedStream
+// i obrazów (contentstream); ustawia go gopdfgo.Render na czas renderowania (renderowania idą po kolei).
+// Źródło kompresowało zawsze z zlib.BestSpeed.
+var compressionLevel atomic.Int32
+
+func init() { compressionLevel.Store(zlib.DefaultCompression) }
+
+// SetCompressionLevel (gopdfgo) ustawia stopień kompresji: od zlib.NoCompression (strumienie bez filtra,
+// do diagnostyki) do zlib.BestCompression.
+func SetCompressionLevel(level int) { compressionLevel.Store(int32(level)) }
+
+// CompressionLevel (gopdfgo) zwraca stopień ustawiony przez SetCompressionLevel.
+func CompressionLevel() int { return int(compressionLevel.Load()) }
+
 // NewCompressedStream compress the given content using
 // zlib, and return the corresponding Stream.
+// gopdfgo: przy zlib.NoCompression strumień zostaje bez filtra.
 func NewCompressedStream(content []byte) Stream {
+	level := CompressionLevel()
+	if level == zlib.NoCompression {
+		return Stream{Content: content}
+	}
 	var buf bytes.Buffer
-	cmp, _ := zlib.NewWriterLevel(&buf, zlib.BestSpeed)
+	cmp, _ := zlib.NewWriterLevel(&buf, level)
 	cmp.Write(content)
 	cmp.Close()
 	return Stream{

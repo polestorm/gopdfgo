@@ -17,6 +17,8 @@ var (
 	locaTag = ot.MustNewTag("loca")
 	glyfTag = ot.MustNewTag("glyf")
 	postTag = ot.MustNewTag("post")
+	headTag = ot.MustNewTag("head")
+	nameTag = ot.MustNewTag("name")
 
 	fvarTag = ot.MustNewTag("fvar")
 	avarTag = ot.MustNewTag("avar")
@@ -99,7 +101,7 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 		return nil, fmt.Errorf("subsetting failed: %s", err)
 	}
 
-	var glyfNew, locaNew, postNew []byte
+	var glyfNew, locaNew, postNew, headNew, nameNew []byte
 	maxGlyphs := 0 // liczba glifów po ucięciu tabeli loca
 	if ld.HasTable(locaTag) && ld.HasTable(glyfTag) {
 		// load 'locaT' and 'glyf' tables
@@ -127,8 +129,23 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 		handleComposite(glyphs, glyf)
 
 		loca, glyfNew = subsetGlyf(loca, glyfRaw, glyphs)
+		// gopdfgo: podzbiór mieści się zwykle w krótkim formacie loca (2 bajty na glif zamiast 4)
+		if isLong {
+			if shortLoca, shortGlyf, ok := toShortLoca(loca, glyfNew); ok {
+				if head, err := ld.RawTable(headTag); err == nil && len(head) >= 54 {
+					loca, glyfNew, isLong = shortLoca, shortGlyf, false
+					headNew = append([]byte{}, head...)
+					binary.BigEndian.PutUint16(headNew[50:], 0) // indexToLocFormat: krótki
+				}
+			}
+		}
 		locaNew = writeLoca(loca, isLong)
 		maxGlyphs = len(loca) - 1
+	}
+	if ld.HasTable(nameTag) {
+		if raw, err := ld.RawTable(nameTag); err == nil {
+			nameNew = minimalName(raw)
+		}
 	}
 	if ld.HasTable(postTag) {
 		raw, err := ld.RawTable(postTag)
@@ -146,7 +163,7 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 	var trimmed map[ot.Tag][]byte
 	if locaNew != nil {
 		// font o nietypowych tabelach zostaje przy samym podzbiorze konturów
-		trimmed, _ = trimGlyphIndexedTables(ld, maxp, maxGlyphs)
+		trimmed, _ = trimGlyphIndexedTables(ld, maxp, maxGlyphs, glyphs)
 		if trimmed != nil {
 			trimmed[ot.MustNewTag("cmap")] = buildCmap(keptChars(ld, glyphs))
 		}
@@ -169,6 +186,10 @@ func subset(input ot.Resource, glyphs glyphSet) ([]byte, error) {
 			table.Content = locaNew
 		} else if tag == postTag && postNew != nil {
 			table.Content = postNew
+		} else if tag == headTag && headNew != nil {
+			table.Content = headNew
+		} else if tag == nameTag && nameNew != nil {
+			table.Content = nameNew
 		} else {
 			table.Content, err = ld.RawTable(tag)
 			if err != nil {
@@ -242,6 +263,72 @@ func writeLoca(offsets []uint32, isLong bool) []byte {
 		}
 		return out
 	}
+}
+
+// toShortLoca (gopdfgo) przepisuje glify tak, żeby każdy zaczynał się pod parzystym przesunięciem, i zwraca
+// je z przesunięciami do krótkiego formatu loca (przesunięcie/2 w 16 bitach); ok jest false, gdy podzbiór
+// jest na to za duży (OpenType, tabela loca). Źródło zostawiało format fontu, a Noto Sans ma format długi:
+// w fakturze tabela loca miała 6,6 kB zamiast 3,3 kB.
+func toShortLoca(loca []uint32, glyf []byte) ([]uint32, []byte, bool) {
+	newLoca := make([]uint32, len(loca))
+	out := make([]byte, 0, len(glyf)+len(loca))
+	for i := 0; i+1 < len(loca); i++ {
+		newLoca[i] = uint32(len(out))
+		out = append(out, glyf[loca[i]:loca[i+1]]...)
+		if len(out)%2 == 1 {
+			out = append(out, 0)
+		}
+	}
+	newLoca[len(loca)-1] = uint32(len(out))
+	if len(out) > 0x1FFFE {
+		return nil, nil, false
+	}
+	return newLoca, out, true
+}
+
+// minimalName (gopdfgo) zostawia w tabeli name tylko rekordy o numerach 0-6 (prawa autorskie, rodzina,
+// odmiana, identyfikator, pełna nazwa, wersja, nazwa PostScript), tak jak podzbiory Chromium. PDF nie
+// czyta z niej nic (ISO 32000-1 § 9.9 nie wymaga tej tabeli), a pełna tabela Noto Sans zajmowała w każdym
+// foncie ok. 1,5 kB. Zwraca nil, gdy tabela jest nieczytelna (wtedy zostaje oryginał).
+func minimalName(raw []byte) []byte {
+	if len(raw) < 6 {
+		return nil
+	}
+	count, storage := int(binary.BigEndian.Uint16(raw[2:])), int(binary.BigEndian.Uint16(raw[4:]))
+	if 6+12*count > len(raw) || storage > len(raw) {
+		return nil
+	}
+	type record struct {
+		head [8]byte // platformID, encodingID, languageID, nameID
+		text []byte
+	}
+	var kept []record
+	for i := 0; i < count; i++ {
+		r := raw[6+12*i : 18+12*i]
+		if binary.BigEndian.Uint16(r[6:]) > 6 {
+			continue
+		}
+		length, offset := int(binary.BigEndian.Uint16(r[8:])), int(binary.BigEndian.Uint16(r[10:]))
+		if storage+offset+length > len(raw) {
+			return nil
+		}
+		var rec record
+		copy(rec.head[:], r[:8])
+		rec.text = raw[storage+offset : storage+offset+length]
+		kept = append(kept, rec)
+	}
+	start := 6 + 12*len(kept)
+	out := make([]byte, start)
+	binary.BigEndian.PutUint16(out[2:], uint16(len(kept)))
+	binary.BigEndian.PutUint16(out[4:], uint16(start))
+	for i, rec := range kept {
+		r := out[6+12*i:]
+		copy(r, rec.head[:])
+		binary.BigEndian.PutUint16(r[8:], uint16(len(rec.text)))
+		binary.BigEndian.PutUint16(r[10:], uint16(len(out)-start))
+		out = append(out, rec.text...)
+	}
+	return out
 }
 
 func writePost(src []byte) []byte {
@@ -325,7 +412,10 @@ func buildCmap(chars map[rune]ot.GID) []byte {
 }
 
 // trimGlyphIndexedTables zwraca nowe maxp, hhea i hmtx dla fontu uciętego do numGlyphs glifów.
-func trimGlyphIndexedTables(ld *ot.Loader, maxp []byte, numGlyphs int) (map[ot.Tag][]byte, error) {
+// gopdfgo: metryki glifów spoza podzbioru (poza glifem 0) są zerowane, jak w podzbiorach Chromium; PDF
+// bierze szerokości z /W, a ciąg zer kompresuje się prawie do niczego (w fakturze 1655 wpisów, z czego
+// używanych 83).
+func trimGlyphIndexedTables(ld *ot.Loader, maxp []byte, numGlyphs int, used glyphSet) (map[ot.Tag][]byte, error) {
 	hheaTag, hmtxTag := ot.MustNewTag("hhea"), ot.MustNewTag("hmtx")
 	hhea, err := ld.RawTable(hheaTag)
 	if err != nil {
@@ -348,6 +438,17 @@ func trimGlyphIndexedTables(ld *ot.Loader, maxp []byte, numGlyphs int) (map[ot.T
 	newHmtx := append([]byte{}, hmtx[:4*newMetrics]...)
 	if numGlyphs > newMetrics {
 		newHmtx = append(newHmtx, hmtx[4*oldMetrics:4*oldMetrics+2*(numGlyphs-newMetrics)]...)
+	}
+	for gid := 1; gid < numGlyphs; gid++ {
+		if _, ok := used[ot.GID(gid)]; ok {
+			continue
+		}
+		if gid < newMetrics {
+			clear(newHmtx[4*gid : 4*gid+4])
+		} else {
+			at := 4*newMetrics + 2*(gid-newMetrics)
+			clear(newHmtx[at : at+2])
+		}
 	}
 	newMaxp := append([]byte{}, maxp...)
 	binary.BigEndian.PutUint16(newMaxp[4:], uint16(numGlyphs))

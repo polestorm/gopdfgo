@@ -3,6 +3,7 @@ package gopdfgo
 import (
 	"bufio"
 	"bytes"
+	"compress/zlib"
 	"context"
 	"errors"
 	"fmt"
@@ -116,6 +117,10 @@ type Options struct {
 	// (ADR 0016). W trybie PDF/A plik dostaje metadane XMP, profil sRGB i identyfikator wyliczony
 	// z treści; układ i wygląd stron się nie zmieniają.
 	Conformance Conformance
+	// Uncompressed zapisuje strumienie treści stron, fontów i map ToUnicode bez kompresji, żeby dało się je
+	// czytać w edytorze tekstu (diagnostyka). Obrazy zostają skompresowane bezstratnie stopniem 0, bo ich
+	// filtr jest częścią formatu. Domyślnie (false) wszystko jest kompresowane zlib w stopniu 6.
+	Uncompressed bool
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -177,6 +182,15 @@ func render(html []byte, opts Options) (result Result, err error) {
 			err = fmt.Errorf("%w: %v\n%s", ErrEngine, r, debug.Stack())
 		}
 	}()
+
+	// Stopień 6 (domyślny zlib): pomiar 2026-11-20 na fakturze i dwóch sprawozdaniach e-SF dał pliki
+	// o 9-32% mniejsze niż stopień 1 kosztem ok. 3% czasu; stopień 9 zmniejszał je o dalsze 0-2%,
+	// ale wydłużał renderowanie o kolejne 8-13%.
+	level := 6
+	if opts.Uncompressed {
+		level = zlib.NoCompression
+	}
+	pdfmodel.SetCompressionLevel(level)
 
 	var warnings bytes.Buffer
 	previousWarnings, previousProgress := logger.WarningLogger.Writer(), logger.ProgressLogger.Writer()

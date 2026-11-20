@@ -31,6 +31,7 @@ func main() {
 	userCSS := flag.String("css", "", "arkusz użytkownika, np. \"@page { size: A4 }\"")
 	quiet := flag.Bool("quiet", false, "nie wypisuj ostrzeżeń")
 	continuous := flag.Bool("continuous", false, "bez podziału na strony: jedna strona rosnąca do wysokości treści")
+	uncompressed := flag.Bool("uncompressed", false, "strumienie treści, fontów i ToUnicode bez kompresji (diagnostyka)")
 	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b (PDF/A-2b); domyślnie zwykły PDF")
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
@@ -53,6 +54,7 @@ func main() {
 	}
 	flag.Parse()
 	continuousMode = *continuous
+	uncompressedMode = *uncompressed
 	switch *pdfa {
 	case "":
 	case "2b", "2B":
@@ -71,10 +73,12 @@ func main() {
 	}
 }
 
-// conformance to zgodność wybrana flagą -pdfa, continuousMode to flaga -continuous.
+// conformance to zgodność wybrana flagą -pdfa, continuousMode to flaga -continuous,
+// uncompressedMode to flaga -uncompressed.
 var (
-	conformance    gopdfgo.Conformance
-	continuousMode bool
+	conformance      gopdfgo.Conformance
+	continuousMode   bool
+	uncompressedMode bool
 )
 
 func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, maxShrink float64, monospaceSize float64, timeout time.Duration, quiet bool) error {
@@ -139,7 +143,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	defer cancel()
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
-		Conformance: conformance, Continuous: continuousMode})
+		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode})
 	if err != nil {
 		return err
 	}

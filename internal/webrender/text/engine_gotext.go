@@ -923,7 +923,7 @@ func (fc *FontConfigurationGotext) CanBreakText(t []rune) pr.MaybeBool {
 	if len(t) < 2 {
 		return nil
 	}
-	fc.unicodeSeg.Init(t)
+	fc.unicodeSeg.Init(hyphensBeforeDigits(t)) // gopdfgo: zob. hyphensBeforeDigits
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -951,7 +951,7 @@ func (fc *FontConfigurationGotext) wordBoundaries(t []rune) *[2]int {
 
 // return -1 if not found
 func (fc *FontConfigurationGotext) getNextBreakPoint(text []rune) int {
-	fc.unicodeSeg.Init(text)
+	fc.unicodeSeg.Init(hyphensBeforeDigits(text)) // gopdfgo: zob. hyphensBeforeDigits
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -1524,6 +1524,32 @@ func joinersAfterSpaces(text []rune) []rune {
 	return out
 }
 
+// hyphensBeforeDigits (gopdfgo) zwraca tekst do wyznaczania miejsc podziału, w którym dywiz-minus
+// (U+002D) stojący po literze albo cyfrze i przed cyfrą jest zamieniony na dywiz U+2010.
+//
+// UAX #14 (rewizja 57) zabrania łamania między dywizem-minusem a cyfrą (LB25 „HY × NU”), bo ten znak
+// bywa minusem („-5”), i zaznacza, że odróżnienie dywizu od minusa wymaga analizy kontekstu; CSS Text 3
+// § 5.1 pozwala dostosować reguły UAX #14. Chromium (ICU) uznaje znak po literze albo cyfrze za dywiz
+// i łamie po nim: „03-|228”, „555-|1234”, „2020-|2021”, „a-|1”; minusa na początku („-5”) ani znaku
+// po nawiasie („(1)-2”) nie łamie (pomiar w Chrome 157, 2026-11-20). Po U+2010 (klasa HH) UAX #14 łamać
+// pozwala, a LB21 dalej zabrania łamania przed nim. Kształty i szerokości biorą się z tekstu oryginalnego.
+func hyphensBeforeDigits(text []rune) []rune {
+	out := text
+	for i := 1; i+1 < len(text); i++ {
+		if text[i] != '-' || !unicode.Is(unicode.Nd, text[i+1]) {
+			continue
+		}
+		if prev := text[i-1]; !unicode.IsLetter(prev) && !unicode.Is(unicode.Nd, prev) {
+			continue
+		}
+		if &out[0] == &text[0] {
+			out = slices.Clone(text)
+		}
+		out[i] = '\u2010'
+	}
+	return out
+}
+
 func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs shaping.Line, maxWidth pr.Float, allowWordBreak bool) (usedMaxWidth fixed.Int26_6, _ shaping.WrappedLine, _ bool) {
 	dir := di.DirectionLTR
 	if style.Direction == pr.Rtl {
@@ -1560,6 +1586,7 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 		breakText = unifyWhiteSpaceRuns(text, !spaceCollapse)
 	}
 	breakText = joinersAfterSpaces(breakText)
+	breakText = hyphensBeforeDigits(breakText)
 	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
 		fc.lineWrapper.Prepare(config, breakText, shaping.NewSliceIterator(runs))
 		line, done := fc.lineWrapper.WrapNextLineF(limit)

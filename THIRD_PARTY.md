@@ -919,6 +919,23 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- mniejsze pliki PDF, 2026-11-20 (ADR 0023):
+  - `pdflib/model/streams.go`, `pdflib/contentstream/images.go`: stopień kompresji zlib ustawiany przez
+    `SetCompressionLevel` (źródło: zawsze `BestSpeed`); `gopdfgo.Render` ustawia 6, a przy
+    `Options.Uncompressed` zero, wtedy `NewCompressedStream` zostawia strumień bez filtra;
+  - `goweasyprint/pdf/text_font_subset.go`:
+    - podzbiór fontu w krótkim formacie `loca`, gdy się mieści (`toShortLoca`, glify wyrównane do parzystych
+      przesunięć, `head.indexToLocFormat` = 0);
+    - tabela `name` tylko z rekordami 0–6 (`minimalName`);
+    - metryki `hmtx` glifów spoza podzbioru wyzerowane (`trimGlyphIndexedTables`);
+  - `goweasyprint/pdf/text.go`: znacznik podzbioru to sześć wielkich liter (ISO 32000-1 § 9.6.4); źródło
+    wstawiało 32 znaki szesnastkowe, przez co czytniki nie rozpoznawały fontu jako podzbioru.
+
+  Faktura KSeF: 32,1 → 24,8 kB (Chrome 26,8 kB). Sprawozdania e-SF: −32 do −37%. PDF/A-2b: 22 z 22
+  dokumentów korpusu zgodnych według veraPDF;
+- podział po dywizie przed cyfrą, 2026-11-20 (`text/engine_gotext.go` `hyphensBeforeDigits`, ADR 0022):
+  dywiz-minus po literze albo cyfrze i przed cyfrą jest przy wyznaczaniu miejsc podziału traktowany jak
+  U+2010, więc „03-228” dzieli się po dywizie jak w Chromium. Źródło stosowało domyślne LB25 z UAX #14;
 - szerokości tekstu jak w Chromium, 2026-11-20 (`text/engine_gotext.go` `shapeAtSize`, `text/style.go`
   `chromiumFontSize`, `tree/style.go` `SnapsLengths`):
   - kształtowanie w rozmiarze dokładnym do 1/4096 px. Szerokości z siatki 1/64 px są przeliczane liniowo,

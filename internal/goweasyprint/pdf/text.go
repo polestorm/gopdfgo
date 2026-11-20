@@ -3,7 +3,6 @@ package pdf
 import (
 	"bytes"
 	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"math"
@@ -138,7 +137,13 @@ func (f pdfFont) newFontDescriptor(font backend.Font, content *model.FontFile) m
 	desc := font.Description()
 
 	hash_ := md5.Sum(fmt.Append(nil, desc.Family, desc.Style, desc.Weight, desc.Size))
-	hash := string(hex.EncodeToString(hash_[:]))
+	// gopdfgo: znacznik podzbioru to sześć wielkich liter (ISO 32000-1 § 9.6.4); źródło wstawiało
+	// 32 znaki szesnastkowe, przez co czytniki nie rozpoznawały fontu jako podzbioru
+	var tag [6]byte
+	for i := range tag {
+		tag[i] = 'A' + hash_[i]%26
+	}
+	hash := string(tag[:])
 
 	flags := model.Symbolic // since we use a custom char set
 	if desc.Style != text.FSty_Normal {
