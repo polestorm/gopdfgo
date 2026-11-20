@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 800 400" font-family="sans-serif">
+  <rect width="800" height="400" fill="#fafafa"/>
+  <g transform="translate(60,20) scale(2,1)">
+    <polyline points="0,300 50,220 100,240 150,120 200,160 250,60 300,90 350,20" fill="none" stroke="#1f77b4" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <polyline points="0,320 50,300 100,260 150,270 200,210 250,220 300,170 350,150" fill="none" stroke="#ff7f0e" stroke-width="2" stroke-dasharray="8 4" vector-effect="non-scaling-stroke"/>
+    <line x1="0" y1="340" x2="350" y2="340" stroke="#333" stroke-width="1" vector-effect="non-scaling-stroke"/>
+  </g>
+  <g font-size="22"><rect x="600" y="330" width="16" height="16" fill="#1f77b4"/><text x="624" y="345">Przychody</text>
+  <rect x="600" y="360" width="16" height="16" fill="#ff7f0e"/><text x="624" y="375">Koszty</text></g>
+</svg>

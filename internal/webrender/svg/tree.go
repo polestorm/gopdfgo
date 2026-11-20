@@ -37,7 +37,7 @@ type svgContext struct {
 // newSVGContextReader parses the html [rootText]
 // and call newSVGContext
 func newSVGContextReader(rootText io.Reader, baseURL string, urlFetcher utils.UrlFetcher) (*svgContext, error) {
-	root, err := html.Parse(rootText)
+	root, err := parseSVGDocument(rootText) // gopdfgo: XML, zob. parseSVGDocument
 	if err != nil {
 		return nil, err
 	}

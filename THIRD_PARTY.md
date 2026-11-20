@@ -919,6 +919,23 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- funkcje skokowe i osobne przekształcenia, 2026-11-20 (praca pomocnika; `css/validation/calc.go`,
+  `css/properties/calc.go`, `css/properties/transforms.go`, `html/document/document.go`, `stacking.go`,
+  `layout/absolute.go`, `background.go`, `column.go`, `svg/parser.go`, `boxes/boxes_tree.go`):
+  - `round()` (strategie nearest, up, down, to-zero), `mod()` i `rem()` w calc() (CSS Values 4 § 10.3, § 10.4),
+    z przypadkami szczególnymi (krok zerowy i nieskończony, NaN) i procentem liczonym w układzie;
+  - stała NaN, a NaN wyrażenia najwyższego poziomu daje 0 (§ 10.9); poprawka: `infinity * <długość>` dawało
+    procent NaN;
+  - właściwości `translate`, `rotate` i `scale` (CSS Transforms 2 § 5.1) składane z `transform` w kolejności
+    z § 6 (`pr.EffectiveTransforms`). Kontekst nakładania, blok zawierający dla fixed, `background-attachment`
+    i `column-span` sprawdzają je przez `pr.HasTransform`;
+  - części 3D spłaszczane do 2D: oś obrotu inna niż z daje część 2D macierzy rotate3d(), składowa z przesunięcia
+    jest pomijana, skala z = 0 działa jak macierz nieodwracalna;
+  - w SVG działają `translate` i `scale`, bez `rotate`, które w SVG jest atrybutem tekstu;
+  - przekształcenia w polach marginesowych są pomijane (CSS Page 3, lista właściwości pól marginesowych);
+    źródło stosowało tam `transform`;
+  - strata w sondażu: `flexbox-safe-overflow-position-006` przechodził przypadkiem. Pomijane `translate`
+    znosiło brak obsługi `-webkit-box-align`;
 - załączniki i PDF/A-3, 2026-11-20 (praca pomocnika; ADR 0026):
   - `webrender/backend/document.go`: `Attachment` ma pola `MediaType`, `Relationship` i `ModTime`;
   - `webrender/html/document/document.go`: `fetchAttachment` pobiera zasób wprost przez `urlFetcher`, bez

@@ -102,11 +102,13 @@ Where the specifications leave a choice, gopdfgo follows Chromium; each such cas
 ## Not supported in this version
 
 Out of scope by design:
-- JavaScript and everything that depends on it; `iframe`, `video`, `audio`, `canvas`, `object`, `embed`;
+- JavaScript and everything that depends on it; `video`, `audio`; `canvas` stays empty. Documents embedded
+  with `iframe`, `object` and `embed` are printed at the size of the element, clipped, as Chromium prints them;
 - system fonts: only the fonts supplied by the caller are used, so the output is reproducible;
 - vertical writing (`writing-mode`) and bidirectional or right-to-left text (ADR 0010);
 - state pseudo-classes (`:hover` and similar), `@container`, `@property`, `::selection`;
-- tagged PDF (PDF/UA, PDF/A-2a), PDF/A-3, file attachments in PDF;
+- tagged PDF (PDF/UA, PDF/A-2a, PDF/A-3a). PDF/A-2b, PDF/A-3b and file attachments are supported
+  (ADR 0016, 0026); the XMP extension schema that Factur-X/ZUGFeRD require is not written;
 - PNG or SVG output: the output is PDF only.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),
@@ -116,8 +118,9 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 - `subgrid`;
 - baseline alignment in grid and flex (`last baseline`, column axis);
 - some cases of positioned grid items and nested multi-column layout;
-- properties and values that are skipped with a warning: `translate`, `rotate`, `scale`, `rgb(from …)`,
-  `round()`;
+- functions that are skipped with a warning: 3D transform functions (`rotate3d()`, `scale3d()`,
+  `translate3d()`; the individual `translate`, `rotate`, `scale` properties work and are flattened to 2D),
+  relative colours (`rgb(from …)`), `<angle>` values inside `calc()`;
 - the colour of `-webkit-text-stroke`;
 - a box with `overflow: hidden` and a fixed height, or with `contain: size`, taller than a page is clipped
   at the page edge;

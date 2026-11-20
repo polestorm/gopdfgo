@@ -17,7 +17,8 @@ Comparison with Chromium, the list of what is not supported, and requirements:
 ## What it does
 
 - HTML5 parsing and the CSS cascade: selectors level 4 including `:is()`, `:where()`, `:not()`; custom
-  properties; `calc()`, `min()`, `max()`, `clamp()`; colour functions.
+  properties; `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`; colour functions;
+  `transform` and the individual `translate`, `rotate`, `scale` properties (2D).
 - Layout:
   - block, inline, floats and positioning;
   - tables, including spanning cells split across pages;
@@ -27,11 +28,14 @@ Comparison with Chromium, the list of what is not supported, and requirements:
   running elements, named pages, footnotes, `leader()`, `target-counter()`.
 - Text: OpenType shaping (go-text/HarfBuzz port), font fallback, `@font-face`, font features,
   `hyphens: auto`, `text-transform`, justification, `white-space`, `word-break`, `overflow-wrap`.
-- SVG, PNG, JPEG and GIF images.
+- SVG, PNG, JPEG and GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
+  are printed at the size of the element.
 - PDF output:
   - font subsets;
   - internal and external links, bookmarks from headings;
-  - PDF/A-2b on request (`Options.Conformance`).
+  - PDF/A-2b and PDF/A-3b on request (`Options.Conformance`);
+  - file attachments (`Options.Attachments`, `<link rel="attachment">`), with MIME type and
+    `AFRelationship`, e.g. the XML of an e-invoice inside a PDF/A-3 file.
 - Output is deterministic: the same input gives the same bytes.
 
 Where the specifications leave a choice, gopdfgo prints like Chromium, so documents designed in a browser
@@ -81,17 +85,17 @@ licences (list in `docs/overview.md`).
 
 ## Not supported
 
-- JavaScript, `iframe`, `video`, `audio`, `canvas`, `object`, `embed`.
+- JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
 - System fonts.
 - Vertical writing and right-to-left/bidirectional text.
-- Tagged PDF (PDF/UA), PDF/A-3, file attachments.
+- Tagged PDF (PDF/UA, PDF/A-2a, PDF/A-3a); the XMP extension schema of Factur-X/ZUGFeRD.
 - `subgrid`, `grid-lanes`, `column-height`.
 - SVG: filters other than `feOffset` and `feBlend`, `foreignObject`, `vector-effect: non-scaling-stroke`,
   `<use>` pointing to another file, spatial media fragments (`#xywh=`); SVG files are read with the HTML5
   parser, so XHTML elements inside an SVG file (e.g. in `<metadata>`) break the drawing. Details in
   `docs/overview.md`.
-- Individual transform properties (`translate`, `rotate`, `scale`), relative colours (`rgb(from …)`) and
-  `round()`. These are skipped with a warning.
+- 3D transform functions (`rotate3d()`, `scale3d()`, `translate3d()`), relative colours (`rgb(from …)`).
+  These are skipped with a warning.
 
 The full list with its status is in `docs/overview.md` and `docs/progress.md`.
 

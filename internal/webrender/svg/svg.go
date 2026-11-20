@@ -488,7 +488,7 @@ type ImageLoader = func(url string) (backend.Image, error)
 // `urlFetcher` is required to handle linked SVG documents like in <use> tags.
 // `imageLoader` is required to handle inner images.
 func Parse(svg io.Reader, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher) (*SVGImage, error) {
-	root, err := html.Parse(svg)
+	root, err := parseSVGDocument(svg) // gopdfgo: XML, zob. parseSVGDocument
 	if err != nil {
 		return nil, err
 	}
