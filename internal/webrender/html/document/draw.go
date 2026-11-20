@@ -828,12 +828,18 @@ func (ctx drawContext) drawBackgroundImage(layer bo.BackgroundLayer, imageRender
 		return
 	}
 	if nx == 1 && ny == 1 {
+		x0, y0 := X+kx*repeatWidth, Y+ky*repeatHeight
+		// przycięcie do części wspólnej obszaru malowania i pola obrazu, liczonej tutaj: pole obrazu
+		// bywa ogromne (cover dla skrajnych proporcji), a takich współrzędnych nie piszemy do PDF
+		clipX0, clipY0 := max(areaX, x0), max(areaY, y0)
+		clipX1, clipY1 := min(areaX+areaW, x0+imageWidth), min(areaY+areaH, y0+imageHeight)
+		if clipX1 <= clipX0 || clipY1 <= clipY0 {
+			return
+		}
 		ctx.dst.OnNewStack(func() {
-			ctx.dst.Rectangle(areaX, areaY, areaW, areaH)
+			ctx.dst.Rectangle(clipX0, clipY0, clipX1-clipX0, clipY1-clipY0)
 			ctx.dst.State().Clip(false)
-			ctx.dst.State().Transform(matrix.New(1, 0, 0, 1, X+kx*repeatWidth, Y+ky*repeatHeight))
-			ctx.dst.Rectangle(0, 0, imageWidth, imageHeight)
-			ctx.dst.State().Clip(false)
+			ctx.dst.State().Transform(matrix.New(1, 0, 0, 1, x0, y0))
 			// obraz tła ma własną przezroczystość, jak w SetColorPattern
 			ctx.dst.State().SetAlpha(1, false)
 			layer.Image.Draw(ctx.dst, ctx, imageWidth, imageHeight, string(imageRendering))
@@ -1320,21 +1326,23 @@ func visibleTiles(origin, step, size, start, length pr.Fl) (first pr.Fl, count i
 	if step <= 0 || size <= 0 || length <= 0 {
 		return 0, 0
 	}
-	kMin := pr.Fl(math.Ceil(float64((start-origin-size)/step + eps)))
-	kMax := pr.Fl(math.Floor(float64((start+length-origin)/step - eps)))
+	// tolerancja w jednostkach długości (nie w ułamku kroku: krok bywa ogromny)
+	o, st, sz, a, b := float64(origin), float64(step), float64(size), float64(start)+eps, float64(start+length)-eps
+	kMin := math.Ceil((a - o - sz) / st)
+	kMax := math.Floor((b - o) / st)
 	// kopia kMin może kończyć się przed początkiem odcinka, gdy size < step (odstępy przy space)
-	for kMin <= kMax && origin+kMin*step+size <= start+eps {
+	for kMin <= kMax && o+kMin*st+sz <= a {
 		kMin++
 	}
-	for kMin <= kMax && origin+kMax*step >= start+length-eps {
+	for kMin <= kMax && o+kMax*st >= b {
 		kMax--
 	}
 	switch {
 	case kMax < kMin:
 		return 0, 0
 	case kMax == kMin:
-		return kMin, 1
+		return pr.Fl(kMin), 1
 	default:
-		return kMin, 2
+		return pr.Fl(kMin), 2
 	}
 }
