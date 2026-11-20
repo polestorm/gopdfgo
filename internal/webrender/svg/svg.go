@@ -55,9 +55,6 @@ type SVGImage struct {
 
 	definitions definitions
 
-	// needed to draw text
-	cursorPosition, cursorDPosition point
-
 	// synthesizedViewBox (gopdfgo): viewBox dopisany przez synthesizeViewBox; DrawAsDocument rysuje bez niego
 	synthesizedViewBox bool
 	// hostBaseScale (gopdfgo): skala z układu bieżącego strumienia (strony albo grupy) do układu
@@ -136,6 +133,13 @@ func (svg *SVGImage) draw(dst backend.Canvas, width, height Fl, textContext text
 func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDims, paint bool) {
 	dims.fontSize = node.attributes.fontSize.Resolve(dims.fontSize, dims.fontSize)
 
+	// gopdfgo: element <text> jest składany w całości przed rysowaniem (zob. text_layout.go): jego
+	// potomkowie dostają gotowe ciągi glifów, a prostokąt otaczający jest znany od razu (wypełnienie
+	// objectBoundingBox, filtry, maski)
+	if t, ok := node.graphicContent.(*textSpan); ok && t.isText {
+		svg.layoutText(dst, node, dims)
+	}
+
 	paintTask := func() {
 		// apply filters
 		if filters := svg.definitions.filters[node.filterID]; filters != nil {
@@ -147,7 +151,7 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 
 		// create sub group for opacity
 		opacity := node.attributes.opacity
-		var originalDst1, originalDst2 backend.Canvas
+		var originalDst1 backend.Canvas
 		if paint && 0 <= opacity && opacity < 1 {
 			var x, y, width, height Fl = 0, 0, dims.innerWidth, dims.innerHeight
 			if box, ok := node.resolveBoundingBox(dims, true); ok {
@@ -173,25 +177,9 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			svg.applyMask(dst, ma, node, dims)
 		}
 
-		// Handle text anchor
+		// gopdfgo: text-anchor działa na każdy fragment tekstu osobno już przy składzie (layoutText);
+		// źródło przesuwało tu całą grupę elementu <text> o szerokość jego prostokąta otaczającego
 		text, isText := node.graphicContent.(*textSpan)
-		var textAnchor anchor
-		if isText && text.isText {
-			textAnchor = text.textAnchor
-			if len(node.children) != 0 && text.text == "" {
-				child, _ := node.children[0].graphicContent.(*textSpan)
-				textAnchor = child.textAnchor
-			}
-
-			if textAnchor == middle || textAnchor == end {
-				originalDst2 = dst
-				// gopdfgo: jak wyżej przy grupie przezroczystości
-				savedHostBase := svg.hostBaseScale
-				svg.hostBaseScale *= transformScale(dst.State().GetTransform())
-				defer func() { svg.hostBaseScale = savedHostBase }()
-				dst = dst.NewGroup(0, 0, 0, 0) // BBox set after drawing
-			}
-		}
 
 		// manage display and visibility
 		display := node.attributes.display
@@ -205,15 +193,11 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 		doFill, doStroke := svg.applyPainters(dst, node, dims)
 
 		var vertices []vertex
+		// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce w składzie (layoutText),
+		// więc dalsze fragmenty stoją tam, gdzie powinny (SVG 2 § 11.8, test WPT
+		// text-visibility-hidden-tspan-visible)
 		if visible && node.graphicContent != nil {
 			vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
-		} else if isText && display {
-			// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce i przesuwa pozycję
-			// bieżącą dla widocznych tspan (SVG 2 § 11.8, test WPT text-visibility-hidden-tspan-visible);
-			// źródło go pomijało, więc dalsze fragmenty zaczynały w punkcie (0, 0)
-			hidden := node.attributes
-			hidden.fill, hidden.stroke = painter{}, painter{}
-			text.draw(dst, &hidden, svg, dims)
 		}
 
 		// then recurse
@@ -228,27 +212,6 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 					}
 				}
 			}
-		}
-
-		// Handle text anchor
-		if isText && text.isText && (textAnchor == middle || textAnchor == end) {
-			// pop stream
-			group := dst
-			dst = originalDst2
-
-			dst.OnNewStack(func() {
-				if bbox := text.textBoundingBox; bbox != emptyBbox {
-					x, y, width, height := bbox.X, bbox.Y, bbox.Width, bbox.Height
-					// Add extra space to include ink extents
-					group.SetBoundingBox(x-dims.fontSize, y-dims.fontSize, x+width+dims.fontSize, y+height+dims.fontSize)
-					xAlign := width
-					if textAnchor == middle {
-						xAlign = width / 2
-					}
-					dst.State().Transform(matrix.Translation(-xAlign, 0))
-				}
-				dst.DrawWithOpacity(1, group)
-			})
 		}
 
 		// do the actual painting :
