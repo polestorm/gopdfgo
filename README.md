@@ -94,8 +94,9 @@ licences (list in `docs/overview.md`).
 - SVG filters other than `feOffset` and `feBlend` (a blur or drop shadow is dropped, the element is still
   drawn), spatial media fragments (`#xywh=`), page stylesheets inside inline `<svg>`. Details in
   `docs/overview.md`.
-- 3D transform functions (`rotate3d()`, `scale3d()`, `translate3d()`), relative colours (`rgb(from …)`).
-  These are skipped with a warning.
+- 3D transform functions (`rotate3d()`, `rotateX()`, `scale3d()`, `translate3d()`, `matrix3d()`,
+  `perspective()` …) and relative colours (`rgb(from …)`, `hsl(from …)` …). The declaration is skipped with
+  a warning.
 
 The full list with its status is in `docs/overview.md` and `docs/progress.md`.
 

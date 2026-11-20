@@ -118,9 +118,12 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 - `subgrid`;
 - baseline alignment in grid and flex (`last baseline`, column axis);
 - some cases of positioned grid items and nested multi-column layout;
-- functions that are skipped with a warning: 3D transform functions (`rotate3d()`, `scale3d()`,
-  `translate3d()`; the individual `translate`, `rotate`, `scale` properties work and are flattened to 2D),
-  relative colours (`rgb(from …)`), `<angle>` values inside `calc()`;
+- functions that make the whole declaration skipped with a warning (checked 2026-11-20):
+  - all 3D transform functions: `rotate3d()`, `rotateX()`, `rotateY()`, `scale3d()`, `translate3d()`,
+    `matrix3d()`, `perspective()`; the individual `translate`, `rotate`, `scale` properties work and
+    are flattened to 2D;
+  - relative colours in any form (`rgb(from …)`, `hsl(from …)` …); `color-mix()` works;
+  - `<angle>` values inside `calc()`;
 - the colour of `-webkit-text-stroke`;
 - a box with `overflow: hidden` and a fixed height, or with `contain: size`, taller than a page is clipped
   at the page edge;
