@@ -158,8 +158,28 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 			nodeSVG.foreign = node
 		}
 
+		// gopdfgo: w elementach tekstu treść stoi w kolejności dokumentu (SVG 2 § 11.8.2): tekst
+		// za elementem potomnym staje się anonimowym fragmentem po nim. Źródło łączyło cały tekst
+		// elementu przed potomkami, więc „A<tspan>B</tspan>C” dawało „ACB”.
+		textContent := isTextContentTag(node.Data)
+		if textContent {
+			nodeSVG.text = nil
+		}
+		seenElement := false
+
 		// recurse
 		for child := node.FirstChild; child != nil && nodeSVG.foreign == nil; child = child.NextSibling {
+			if textContent && child.Type == html.TextNode {
+				if !seenElement {
+					nodeSVG.text = append(nodeSVG.text, child.Data...)
+				} else {
+					nodeSVG.children = append(nodeSVG.children, anonymousTextNode([]byte(child.Data), childAttrs))
+				}
+				continue
+			}
+			if child.Type == html.ElementNode {
+				seenElement = true
+			}
 			if childSVG := buildTree(child, childAttrs, childRaw); childSVG != nil {
 				nodeSVG.children = append(nodeSVG.children, childSVG)
 			}
@@ -248,6 +268,13 @@ type nodeAttributes map[string]string
 func newNodeAttributes(attrs []html.Attribute) nodeAttributes {
 	out := make(nodeAttributes, len(attrs))
 	for _, attr := range attrs {
+		// gopdfgo: href bez przestrzeni nazw ma pierwszeństwo przed xlink:href (SVG 2 § 16.1.3,
+		// test WPT href-textPath-element); źródło brało ten z atrybutów, który stał później
+		if attr.Key == "href" && attr.Namespace == "xlink" {
+			if _, has := out["href"]; has {
+				continue
+			}
+		}
 		out[attr.Key] = attr.Val
 	}
 	return out
@@ -396,9 +423,9 @@ func handleText(node *cascadedNode, trailingSpace, textRoot bool, trefs map[stri
 		if child.tag == "tref" {
 			// Retrieve the referenced node and get its flattened text
 			// and remove the node children.
+			// gopdfgo: tekst tref stoi w miejscu elementu, jako anonimowy fragment z jego stylem
 			id := parseURLFragment(child.attrs["href"])
-			node.text = append(node.text, trefs[id]...)
-			continue
+			child = anonymousTextNode(trefs[id], child.attrs)
 		}
 
 		trailingSpace = handleText(child, trailingSpace, false, trefs)
@@ -406,13 +433,48 @@ func handleText(node *cascadedNode, trailingSpace, textRoot bool, trefs map[stri
 		newChildren = append(newChildren, child)
 	}
 
-	if textRoot && len(newChildren) == 0 && !preserve {
-		node.text = bytes.TrimRight(node.text, " ")
-	}
-
 	node.children = newChildren
 
+	// gopdfgo: spacja na końcu całego tekstu znika także wtedy, gdy stoi w ostatnim potomku
+	// (tekst za ostatnim tspan jest teraz anonimowym fragmentem); źródło obcinało ją tylko w
+	// elemencie bez potomków
+	if textRoot {
+		if last := lastTextNode(node); last != nil && !last.attrs.spacePreserve() {
+			last.text = bytes.TrimRight(last.text, " ")
+		}
+	}
+
 	return trailingSpace
+}
+
+// lastTextNode (gopdfgo) zwraca ostatni w kolejności dokumentu element z niepustym tekstem.
+func lastTextNode(node *cascadedNode) *cascadedNode {
+	for i := len(node.children) - 1; i >= 0; i-- {
+		if last := lastTextNode(node.children[i]); last != nil {
+			return last
+		}
+	}
+	if len(node.text) != 0 {
+		return node
+	}
+	return nil
+}
+
+// isTextContentTag (gopdfgo) mówi, czy element jest elementem treści tekstu (SVG 2 § 11.2).
+func isTextContentTag(tag string) bool {
+	return tag == "text" || tag == "tspan" || tag == "textPath" || tag == "a" || tag == "tref"
+}
+
+// anonymousTextNode (gopdfgo) tworzy anonimowy fragment tekstu z dziedziczonymi właściwościami
+// rodzica (bez atrybutów pozycji i innych niedziedziczonych).
+func anonymousTextNode(text []byte, parentAttrs nodeAttributes) *cascadedNode {
+	attrs := nodeAttributes{}
+	for key, value := range parentAttrs {
+		if _, isNotInherited := notInheritedAttributes[key]; !isNotInherited {
+			attrs[key] = value
+		}
+	}
+	return &cascadedNode{tag: "tspan", text: append([]byte(nil), text...), attrs: attrs}
 }
 
 // these attributes are not cascaded
@@ -445,6 +507,12 @@ var notInheritedAttributes = utils.NewSet(
 	"requiredFeatures",
 	"systemLanguage",
 	"vector-effect", // gopdfgo: SVG 2 § 13.2, niedziedziczona
+	// gopdfgo: atrybuty textLength, lengthAdjust i atrybuty textPath dotyczą tylko swojego elementu
+	// (SVG 2 § 11.10.3, 11.11); dziedziczone rozciągały każdy tspan osobno
+	"textLength",
+	"lengthAdjust",
+	"path",
+	"startOffset",
 	// gopdfgo: display nie jest dziedziczona (CSS Display 3 § 2); poddrzewo z display: none i tak nie
 	// jest rysowane (drawNode nie schodzi do dzieci), a źródło dziedzicząc ją ukrywało też treść
 	// <marker>, <pattern> i celów <use> leżących w takim poddrzewie (test WPT marker-007)

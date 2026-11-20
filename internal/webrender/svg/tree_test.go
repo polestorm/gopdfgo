@@ -176,12 +176,37 @@ func TestTrefs(t *testing.T) {
 		t.Fatalf("unexpected text %s", t1.text)
 	}
 
+	// gopdfgo: tekst tref stoi w miejscu elementu jako anonimowy fragment (zob. handleText)
 	t2 := img.root.children[2]
-	if len(t2.children) != 0 {
-		t.Fatalf("unexpected children %v", img.root.children)
+	if got := flattenedText(t2); got != "Referenced character data" {
+		t.Fatalf("unexpected text %q", got)
 	}
-	if string(t2.text) != "Referenced character data" {
-		t.Fatalf("unexpected text %s", t2.text)
+}
+
+func flattenedText(node *cascadedNode) string {
+	out := string(node.text)
+	for _, child := range node.children {
+		out += flattenedText(child)
+	}
+	return out
+}
+
+func TestTextTails(t *testing.T) {
+	input := `<svg xmlns="http://www.w3.org/2000/svg"><text x="1">A <tspan x="5">B</tspan> C <tspan>D</tspan>E </text></svg>`
+	root, err := html.Parse(strings.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := newSVGContext(root, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := img.root.children[0]
+	if got := flattenedText(text); got != "A B C DE" {
+		t.Fatalf("unexpected text %q", got)
+	}
+	if len(text.children) != 4 || text.children[1].attrs["x"] != "" {
+		t.Fatalf("unexpected children %v", text.children)
 	}
 }
 
