@@ -563,6 +563,17 @@ type Declaration struct {
 type KeyedDeclarations struct {
 	Selector     selector.SelectorGroup
 	Declarations []Declaration
+	// Raw (gopdfgo) to wszystkie deklaracje reguły w postaci nieprzetworzonej, także te, których
+	// walidacja HTML nie zna (fill, stroke…). Korzysta z nich kaskada SVG osadzonego w HTML (SVG 2 § 6:
+	// arkusze dokumentu dotyczą elementów SVG), która operuje na wartościach tekstowych.
+	Raw []pa.Declaration
+}
+
+// RawDeclaration (gopdfgo) to deklaracja z arkusza dokumentu w postaci tekstowej, przekazywana
+// kaskadzie SVG osadzonego w HTML; User mówi, że pochodzi z arkusza użytkownika (nie autora).
+type RawDeclaration struct {
+	Name, Value     string
+	Important, User bool
 }
 
 var (
@@ -614,6 +625,7 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 	var (
 		out      []KeyedDeclarations
 		ownDecls []Declaration
+		rawDecls []pa.Declaration
 	)
 	for _, declaration := range expandLogical(declarations) {
 		if errToken, ok := declaration.(pa.ParseError); ok {
@@ -661,6 +673,9 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 		declaration, ok := declaration.(pa.Declaration)
 		if !ok {
 			continue
+		}
+		if prelude != nil {
+			rawDecls = append(rawDecls, declaration)
 		}
 
 		name := declaration.Name
@@ -750,7 +765,7 @@ func PreprocessDeclarationsPrelude(baseURL string, declarations []pa.Compound, p
 		}
 	}
 
-	out = append(out, KeyedDeclarations{selectors, ownDecls})
+	out = append(out, KeyedDeclarations{Selector: selectors, Declarations: ownDecls, Raw: rawDecls})
 
 	return out, nil
 }

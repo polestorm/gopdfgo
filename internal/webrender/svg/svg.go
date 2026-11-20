@@ -65,6 +65,9 @@ type SVGImage struct {
 	hostBaseScale Fl
 	// paintContext (gopdfgo): bieżący element kontekstu dla context-fill/context-stroke
 	paintContext *paintContext
+	// parentFontSize (gopdfgo): rozmiar pisma rodzica HTML osadzonego <svg>, do którego odnoszą się
+	// względne font-size elementu głównego (em, %); 0 dla dokumentu samodzielnego (rozmiar domyślny)
+	parentFontSize Fl
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -110,6 +113,9 @@ func (svg *SVGImage) draw(dst backend.Canvas, width, height Fl, textContext text
 	}
 
 	dims.fontSize = defaultFontSize
+	if svg.parentFontSize > 0 {
+		dims.fontSize = svg.parentFontSize
+	}
 
 	dims.setupDiagonal()
 
@@ -567,19 +573,25 @@ func Parse(svg io.Reader, baseURL string, imageLoader ImageLoader, urlFetcher ut
 		return nil, err
 	}
 
-	return parseNode(root, baseURL, imageLoader, urlFetcher, true)
+	return parseNode(root, baseURL, imageLoader, urlFetcher, true, nil)
 }
 
 // ParseNode is the same as Parse but works with an already parsed
 // svg input.
 func ParseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher) (*SVGImage, error) {
-	return parseNode(root, baseURL, imageLoader, urlFetcher, false)
+	return parseNode(root, baseURL, imageLoader, urlFetcher, false, nil)
+}
+
+// ParseInlineNode (gopdfgo) to ParseNode dla elementu <svg> osadzonego w dokumencie HTML, stylowanego
+// kaskadą tego dokumentu (zob. DocumentStyle); doc == nil działa jak ParseNode.
+func ParseInlineNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher, doc *DocumentStyle) (*SVGImage, error) {
+	return parseNode(root, baseURL, imageLoader, urlFetcher, false, doc)
 }
 
 // parseNode: standalone (gopdfgo) mówi, że SVG jest osobnym dokumentem (obrazem), a nie elementem
 // osadzonym w HTML, którego tło rysuje układ HTML.
-func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher, standalone bool) (*SVGImage, error) {
-	tree, err := newSVGContext(root, baseURL, urlFetcher)
+func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetcher utils.UrlFetcher, standalone bool, doc *DocumentStyle) (*SVGImage, error) {
+	tree, err := newSVGContext(root, baseURL, urlFetcher, doc)
 	if err != nil {
 		return nil, err
 	}
@@ -587,6 +599,9 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 	tree.imageLoader = imageLoader
 
 	var out SVGImage
+	if doc != nil && doc.FontSize > 0 {
+		out.parentFontSize = doc.FontSize
+	}
 	out.definitions = newDefinitions()
 	if standalone {
 		out.background = rootBackground(tree.root)

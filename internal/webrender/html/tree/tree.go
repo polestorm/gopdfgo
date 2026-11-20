@@ -226,6 +226,8 @@ func (c CSS) IsNone() bool {
 type match struct {
 	selector     selector.SelectorGroup
 	declarations []validation.Declaration
+	// gopdfgo: deklaracje reguły bez walidacji, dla kaskady SVG (zob. StyleFor.SVGDeclarations)
+	raw []parser.Declaration
 	// gopdfgo: pełna nazwa warstwy kaskady (@layer), w której stoi reguła;
 	// pusta poza warstwami. Wpis bez selektora tylko ogłasza warstwę.
 	layer string
@@ -244,13 +246,14 @@ type matchResult struct {
 	payload     []validation.Declaration
 	specificity selector.Specificity
 	layer       string
+	raw         []parser.Declaration
 }
 
 func (m matcher) match(element *html.Node) (out []matchResult) {
 	for _, mat := range m {
 		for _, sel := range mat.selector {
 			if sel.Match(element) {
-				out = append(out, matchResult{specificity: sel.Specificity(), pseudoType: sel.PseudoElement(), payload: mat.declarations, layer: mat.layer})
+				out = append(out, matchResult{specificity: sel.Specificity(), pseudoType: sel.PseudoElement(), payload: mat.declarations, layer: mat.layer, raw: mat.raw})
 			}
 		}
 	}

@@ -198,7 +198,8 @@ func NewSVGImage(svgData io.Reader, baseURL string, urlFetcher utils.UrlFetcher)
 	return SVGImage{icon: icon}, nil
 }
 
-func NewSVGImageFromNode(node *html.Node, baseURL string, urlFetcher utils.UrlFetcher) (SVGImage, error) {
+// doc (gopdfgo) to kaskada dokumentu HTML, w którym leży element (zob. svg.DocumentStyle); może być nil.
+func NewSVGImageFromNode(node *html.Node, baseURL string, urlFetcher utils.UrlFetcher, doc *svg.DocumentStyle) (SVGImage, error) {
 	// don’t pass data URIs: they are useless for relative URIs anyway.
 	if strings.HasPrefix(strings.ToLower(baseURL), "data:") {
 		baseURL = ""
@@ -209,7 +210,7 @@ func NewSVGImageFromNode(node *html.Node, baseURL string, urlFetcher utils.UrlFe
 	}
 
 	var err error
-	icon, err := svg.ParseNode(node, baseURL, imageLoader, urlFetcher)
+	icon, err := svg.ParseInlineNode(node, baseURL, imageLoader, urlFetcher, doc)
 	if err != nil {
 		return SVGImage{}, imageLoadingError(err)
 	}

@@ -416,6 +416,9 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 		return box.Box().Children
 	}
 	// Specific handling for the element. (eg. replaced element)
+	if cascade, ok := styleFor.(svgCascade); ok && box.Box().ElementTag() == "svg" {
+		return handleInlineSVG(element, box, resolver, baseUrl, cascade)
+	}
 	return handleElement(element, box, resolver, baseUrl)
 }
 

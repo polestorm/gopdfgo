@@ -619,7 +619,7 @@ func (context *svgContext) fetchExternalUse(href *url.URL) (*svgContext, *cascad
 		}
 	}
 
-	external := buildSVGContext(element, docURL, context.urlFetcher)
+	external := buildSVGContext(element, docURL, context.urlFetcher, nil)
 	external.imageLoader = context.imageLoader
 	external.externalUses = context.externalUses
 	if id == "" {

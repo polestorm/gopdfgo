@@ -68,6 +68,10 @@ type StyleFor struct {
 	root            *utils.HTMLNode
 	baseUrl         string
 	targetCollector *TargetCollector
+
+	// gopdfgo: reguły arkuszy autora i użytkownika dopasowane do elementów SVG osadzonych w HTML,
+	// z deklaracjami surowymi (zob. svg_cascade.go)
+	svgMatches map[*utils.HTMLNode][]svgMatch
 }
 
 // viewport liczy leniwie obszar pierwszej strony (rozmiar strony bez marginesów), do którego odnoszą się
@@ -269,6 +273,9 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 			for _, sel := range matched {
 				signature = sel.appendSignature(signature, i)
 			}
+		}
+		if element.Namespace == "svg" {
+			out.recordSVGMatches(element, matches)
 		}
 		if !hasOwnDeclarations {
 			if shared, ok := sharedCascades[string(signature)]; ok {
@@ -2178,7 +2185,7 @@ func preprocessLayer(deviceMediaType, baseUrl string, stylesheetRules []pa.Compo
 						logger.WarningLogger.Println(err)
 						continue
 					}
-					*matcher = append(*matcher, match{selector: item.Selector, declarations: item.Declarations, layer: layer})
+					*matcher = append(*matcher, match{selector: item.Selector, declarations: item.Declarations, layer: layer, raw: item.Raw})
 					ignoreImports = true
 				}
 			} else {

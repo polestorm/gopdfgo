@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
+	"github.com/polestorm/gopdfgo/internal/webrender/css/validation"
 	"github.com/polestorm/gopdfgo/internal/webrender/images"
+	"github.com/polestorm/gopdfgo/internal/webrender/svg"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
@@ -247,7 +249,25 @@ func handleCol(_ *utils.HTMLNode, box Box, _ URLResolver, _ string) []Box {
 // handle the inline <svg> elements
 // Return either an image or the fallback content.
 func handleSVG(element *utils.HTMLNode, box Box, resolver URLResolver, baseUrl string) []Box {
-	img, err := images.NewSVGImageFromNode((*html.Node)(element), baseUrl, resolver.Fetch)
+	return handleInlineSVG(element, box, resolver, baseUrl, nil)
+}
+
+// svgCascade (gopdfgo) to kaskada dokumentu dla SVG osadzonego w HTML (tree.StyleFor).
+type svgCascade interface {
+	SVGDeclarations(element *html.Node) []validation.RawDeclaration
+	SVGInherited(svgElement *html.Node) (map[string]string, float64)
+}
+
+// handleInlineSVG (gopdfgo) to handleSVG z kaskadą dokumentu: arkusze strony i arkusz użytkownika
+// dotyczą elementów osadzonego <svg>, a jego element główny dziedziczy po rodzicu HTML (SVG 2 § 6).
+// Źródło stylowało osadzone SVG tylko jego własnymi elementami <style>.
+func handleInlineSVG(element *utils.HTMLNode, box Box, resolver URLResolver, baseUrl string, cascade svgCascade) []Box {
+	var doc *svg.DocumentStyle
+	if cascade != nil {
+		inherited, fontSize := cascade.SVGInherited((*html.Node)(element))
+		doc = &svg.DocumentStyle{Declarations: cascade.SVGDeclarations, Inherited: inherited, FontSize: svg.Fl(fontSize)}
+	}
+	img, err := images.NewSVGImageFromNode((*html.Node)(element), baseUrl, resolver.Fetch, doc)
 	if err != nil {
 		logger.WarningLogger.Printf("Failed to load inline SVG: %s", err)
 		return nil

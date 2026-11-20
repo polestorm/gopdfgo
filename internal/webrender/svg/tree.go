@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
+	"github.com/polestorm/gopdfgo/internal/webrender/css/validation"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -50,21 +51,39 @@ type svgContext struct {
 // of the CSS properties begin stored as attributes.
 //
 // Inheritable attributes are cascaded and 'inherit' special values are resolved.
-func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher) (*svgContext, error) {
+func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher, doc *DocumentStyle) (*svgContext, error) {
 	// extract the root svg node, which is not
 	// always the first one
 	iter := utils.NewHtmlIterator(root, atom.Svg)
 	if !iter.HasNext() {
 		return nil, errors.New("missing <svg> element")
 	}
-	return buildSVGContext((*html.Node)(iter.Next()), baseURL, urlFetcher), nil
+	return buildSVGContext((*html.Node)(iter.Next()), baseURL, urlFetcher, doc), nil
+}
+
+// DocumentStyle (gopdfgo) to kaskada dokumentu HTML, w którym leży osadzony element <svg>. Elementy
+// SVG w HTML są częścią dokumentu, więc dotyczą ich wszystkie jego arkusze (autora, w tym <style>
+// wewnątrz <svg>, i użytkownika; SVG 2 § 6.1, § 6.3), a element główny dziedziczy po rodzicu HTML
+// (CSS Cascade 4 § 7.2). Źródło stosowało tylko elementy <style> leżące wewnątrz <svg>. Dokument SVG
+// rysowany jako obraz jest osobnym dokumentem i tej kaskady nie dostaje.
+type DocumentStyle struct {
+	// Declarations zwraca deklaracje arkuszy dokumentu pasujące do elementu, w rosnącej kolejności
+	// kaskady (bez atrybutu style)
+	Declarations func(element *html.Node) []validation.RawDeclaration
+	// Inherited to wartości właściwości dziedziczonych od rodzica HTML elementu <svg>
+	Inherited map[string]string
+	// FontSize to obliczony rozmiar pisma rodzica w px (0: domyślny)
+	FontSize Fl
 }
 
 // buildSVGContext (gopdfgo) to dalsza część newSVGContext dla podanego elementu głównego, który nie
 // musi być elementem <svg> (dokument wskazany przez <use> z innego pliku, zob. fetchExternalUse).
-func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFetcher) *svgContext {
+func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFetcher, doc *DocumentStyle) *svgContext {
 	stylesheets, trefs := fetchStyleAndTextRefs((*utils.HTMLNode)(svgRoot))
-	normalMatcher, importantMatcher := parseStylesheets(stylesheets, baseURL)
+	var normalMatcher, importantMatcher matcher
+	if doc == nil {
+		normalMatcher, importantMatcher = parseStylesheets(stylesheets, baseURL)
+	}
 
 	// build the SVG tree and apply style attribute
 	var out svgContext
@@ -93,6 +112,13 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		childAttrs := newNodeAttributes(node.Attr)
 		// gopdfgo: skrót 'marker' nie jest atrybutem prezentacji (SVG 2 § 13.7.2), działa tylko z CSS
 		delete(childAttrs, "marker")
+		var presentation nodeAttributes
+		if doc != nil {
+			presentation = make(nodeAttributes, len(childAttrs))
+			for k := range childAttrs {
+				presentation[k] = ""
+			}
+		}
 		// Cascade attributes
 		for key, value := range parentAttrs {
 			if _, isNotInherited := notInheritedAttributes[key]; !isNotInherited {
@@ -100,13 +126,23 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 					if raw, ok := parentRaw[key]; ok {
 						value = raw
 					}
+					// gopdfgo: dziedziczy się wartość obliczona font-size (CSS Fonts 4 § 2.5), czyli
+					// rozmiar rodzica; zapis względny rodzica („2em”) odniesiony drugi raz mnożył rozmiar
+					// na każdym poziomie. drawNode liczy rozmiar z rozmiaru rodzica, więc wystarcza 1em.
+					if key == "font-size" {
+						value = "1em"
+					}
 					childAttrs[key] = value
 				}
 			}
 		}
 
 		// Apply style
-		childAttrs.applyStyle(baseURL, (*html.Node)(node), normalMatcher, importantMatcher)
+		if doc != nil {
+			childAttrs.applyDocumentStyle(doc.Declarations(node), presentation, node == svgRoot)
+		} else {
+			childAttrs.applyStyle(baseURL, (*html.Node)(node), normalMatcher, importantMatcher)
+		}
 
 		// gopdfgo: wartością obliczoną currentColor jest słowo kluczowe (CSS Color 4 § 6.4), więc
 		// dziedziczy się ono jako słowo i rozwiązuje względem 'color' elementu, który go używa
@@ -142,6 +178,9 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		for key, value := range childAttrs {
 			if value == "inherit" {
 				childAttrs[key] = parentAttrs[key]
+				if key == "font-size" { // gopdfgo: zob. wyżej
+					childAttrs[key] = "1em"
+				}
 			}
 		}
 
@@ -177,7 +216,14 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		return nodeSVG
 	}
 
-	out.root = buildTree((*html.Node)(svgRoot), nil, nil)
+	var rootParent nodeAttributes
+	if doc != nil && len(doc.Inherited) != 0 {
+		rootParent = make(nodeAttributes, len(doc.Inherited))
+		for k, v := range doc.Inherited {
+			rootParent[k] = v
+		}
+	}
+	out.root = buildTree((*html.Node)(svgRoot), rootParent, nil)
 
 	out.inheritDefs()
 
