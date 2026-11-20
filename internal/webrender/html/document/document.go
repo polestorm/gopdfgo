@@ -339,6 +339,7 @@ func (d Page) Paint(dst backend.Page, fc text.FontConfiguration, leftX, topY, sc
 			fonts:             fc,
 			hyphenCache:       make(map[text.HyphenDictKey]hyphen.Hyphener),
 			strutLayoutsCache: make(map[text.StrutLayoutKey][2]pr.Float),
+			filteredImages:    make(map[string]*filteredImage), // gopdfgo: zob. filterRasterImage
 		}
 		ctx.drawPage(d.pageBox)
 	})

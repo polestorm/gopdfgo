@@ -131,6 +131,7 @@ var (
 		pr.PBoxShadow:     boxShadows,
 		pr.PTextShadow:    boxShadows,
 		pr.PClipPath:      clipPath,
+		pr.PFilter:        filters,
 		pr.PVerticalAlign: verticalAlign,
 		pr.PWordSpacing:   wordSpacing,
 		pr.PTextAlignAll:  textAlignAll,
@@ -1285,6 +1286,29 @@ func boxShadows(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) 
 			*d = length_(computer, d.Tagged(), -1, true).Dimension
 		}
 		result[index] = shadow
+	}
+	return result
+}
+
+// gopdfgo: długości funkcji filtra (blur(), drop-shadow()) sprowadzone do pikseli (Filter Effects 1 § 5:
+// wartość obliczona to lista z długościami bezwzględnymi); kolor cienia zostaje, currentColor
+// rozwiązuje rysowanie.
+func filters(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
+	value := _value.(pr.Filters)
+	if len(value) == 0 {
+		return value
+	}
+	result := make(pr.Filters, len(value))
+	for index, f := range value {
+		switch f.Name {
+		case "blur":
+			f.Length = length_(computer, f.Length.Tagged(), -1, true).Dimension
+		case "drop-shadow":
+			for _, d := range [...]*pr.Dimension{&f.Shadow.X, &f.Shadow.Y, &f.Shadow.Blur} {
+				*d = length_(computer, d.Tagged(), -1, true).Dimension
+			}
+		}
+		result[index] = f
 	}
 	return result
 }

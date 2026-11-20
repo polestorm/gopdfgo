@@ -71,6 +71,10 @@ func NewGraphicStream(bbox model.Rectangle) GraphicStream {
 	}
 }
 
+// OpsLen (gopdfgo) zwraca liczbę operacji zapisanych dotąd w strumieniu; pozwala rozpoznać, że
+// strumień się nie zmienił od ostatniego ToXFormObject.
+func (ap GraphicStream) OpsLen() int { return len(ap.ops) }
+
 // ToXFormObject write the appearance to a new object,
 // and associate it the resources, which are shallow copied.
 // The content is optionaly compressed with the Flater filter.

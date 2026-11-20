@@ -664,6 +664,9 @@ func (s Properties) SetPerspective(v TaggedDim) { s[PPerspective] = v }
 func (s Properties) GetPerspectiveOrigin() Point  { return s[PPerspectiveOrigin].(Point) }
 func (s Properties) SetPerspectiveOrigin(v Point) { s[PPerspectiveOrigin] = v }
 
+func (s Properties) GetFilter() Filters  { return s[PFilter].(Filters) }
+func (s Properties) SetFilter(v Filters) { s[PFilter] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1312,6 +1315,9 @@ type StyleAccessor interface {
 
 	GetPerspectiveOrigin() Point
 	SetPerspectiveOrigin(v Point)
+
+	GetFilter() Filters
+	SetFilter(v Filters)
 }
 
 var propsNames = [...]string{
@@ -1531,6 +1537,7 @@ var propsNames = [...]string{
 	PTransformStyle:          "transform-style",
 	PPerspective:             "perspective",
 	PPerspectiveOrigin:       "perspective-origin",
+	PFilter:                  "filter",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1751,4 +1758,5 @@ var PropsFromNames = map[string]KnownProp{
 	"transform-style":            PTransformStyle,
 	"perspective":                PPerspective,
 	"perspective-origin":         PPerspectiveOrigin,
+	"filter":                     PFilter,
 }

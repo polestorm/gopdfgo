@@ -277,6 +277,7 @@ var (
 		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
 		pr.PBackgroundBlendMode:     backgroundBlendMode,
 		pr.PClipPath:                clipPath,
+		pr.PFilter:                  filter,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextAutospace:           textAutospace,

@@ -2198,10 +2198,24 @@ func inheritInlineStacking(block, inline Box) {
 	zIndex := inlineStyle.GetZIndex()
 	positioned := inlineStyle.GetPosition().String != "static"
 	stacksZ := positioned && zIndex.String != "auto"
-	if opacity >= 1 && !stacksZ {
+	filters := inlineStyle.GetFilter()
+	if opacity >= 1 && !stacksZ && len(filters) == 0 {
 		return
 	}
 	style := block.Box().Style.Copy()
+	// gopdfgo: filtr pudełka liniowego obejmuje też wydzielony z niego blok (Filter Effects 1 § 5: filter
+	// dotyczy wszystkich elementów; test WPT filtered-inline-applies-to-block): funkcje pudełka liniowego
+	// stosujemy po własnych funkcjach bloku, a currentColor w drop-shadow() bierzemy z pudełka liniowego
+	if len(filters) != 0 {
+		merged := append(pr.Filters(nil), style.GetFilter()...)
+		for _, f := range filters {
+			if f.Name == "drop-shadow" {
+				f.Shadow.Color = f.Shadow.Color.ResolveCurrentColor(inlineStyle.GetColor())
+			}
+			merged = append(merged, f)
+		}
+		style.SetFilter(merged)
+	}
 	if opacity < 1 {
 		style.SetOpacity(style.GetOpacity() * opacity)
 	}

@@ -278,6 +278,7 @@ const (
 	PTransformStyle         // gopdfgo: CSS Transforms 2 § 5 (preserve-3d działa jak flat); niedziedziczona
 	PPerspective            // gopdfgo: CSS Transforms 2 § 7 (perspektywa pomijana); niedziedziczona
 	PPerspectiveOrigin      // gopdfgo: CSS Transforms 2 § 8 (bez skutku); niedziedziczona
+	PFilter                 // gopdfgo: Filter Effects 1 § 5; niedziedziczona
 
 	nbProperties
 )
