@@ -197,7 +197,7 @@ func TestTextTails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	img, err := newSVGContext(root, "", nil)
+	img, err := newSVGContext(root, "", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

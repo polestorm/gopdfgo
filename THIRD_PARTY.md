@@ -919,6 +919,50 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- tekst SVG, 2026-11-20 (praca pomocnika; nowy `svg/text_layout.go`, `svg/elements_text.go`, `svg/svg.go`, `svg/tree.go`):
+  - źródło:
+    - rysowało każdy znak osobno, bez kształtowania (brak kerningu, ligatur i form kontekstowych, szerokości
+      inne niż w przeglądarkach, osobny operator tekstu dla każdego znaku);
+    - przesuwało cały element `<text>` o szerokość jego prostokąta zamiast każdego fragmentu (`text-anchor`);
+    - nie znało `textPath`;
+    - łączyło tekst elementu przed potomkami (`A<tspan>B</tspan>C` dawało „ACB”);
+    - dziedziczyło `textLength` na każdy `tspan`;
+    - obracało znaki (`rotate`) w złą stronę;
+    - przy `letter-spacing: normal` odrzucało cały obraz;
+  - teraz cały element `<text>` jest składany naraz (SVG 2 § 11.8):
+    - listy x/y/dx/dy/rotate obejmują znaki potomków;
+    - każdy kawałek do najbliższej pozycji bezwzględnej jest kształtowany tym samym silnikiem co HTML
+      (właściwości fontu z kaskady SVG, letter-spacing, word-spacing), a pozycje dostają skupienia znaków;
+    - `textLength`, `text-anchor` (dla każdego fragmentu) i `textPath` (href albo atrybut path, startOffset,
+      przekształcenie ścieżki) liczą się z przesunięć kształtowania;
+    - tekst jest kształtowany w skali gospodarza, jak w Chromium;
+  - glify jednej linii bazowej idą do PDF jednym ciągiem TJ, więc tekst daje się zaznaczać i wyszukiwać
+    (`own-chart-bars`: 45 → 10 operatorów TJ, 18,4 → 14,0 kB);
+  - tekst za elementem potomnym jest anonimowym fragmentem w kolejności dokumentu; `href` ma pierwszeństwo
+    przed `xlink:href`; `textLength`, `lengthAdjust`, `path` i `startOffset` nie są dziedziczone;
+  - przejęte testy `TestTrefs` (inna kolejność tekstu) i wywołanie `newSVGContext` w `tree_test.go`
+    dostosowane;
+  - w porównaniu z Chrome przy tym samym foncie różnica pikseli spadła z 14 179 do 8000 (wygładzanie krawędzi);
+- kaskada SVG osadzonego w HTML, 2026-11-20 (praca pomocnika; `html/tree/svg_cascade.go`, `svg/css.go`
+  `applyDocumentStyle`, `svg/tree.go` `DocumentStyle`, `boxes/html.go` `handleInlineSVG`, `css/validation`
+  `KeyedDeclarations.Raw`):
+  - źródło stosowało do elementów `<svg>` w HTML tylko elementy `<style>` wewnątrz `<svg>`, w kolejności
+    źródła, bez specyficzności; arkusze strony, `<link rel=stylesheet>` i arkusz użytkownika nie docierały do
+    elementów SVG, a element główny nie dziedziczył po rodzicu HTML;
+  - kaskada HTML zapamiętuje dla elementów SVG dopasowane reguły arkuszy autora i użytkownika z deklaracjami
+    w postaci surowej (właściwości SVG są nieznane walidacji HTML); pakiet svg stosuje je w kolejności kaskady:
+    zwykłe reguły użytkownika < atrybuty prezentacyjne < reguły autora < atrybut style < `!important` autora
+    < `!important` atrybutu style < `!important` użytkownika (CSS Cascade 4 § 6, SVG 2 § 6.1–6.3), z warstwami,
+    `@media` i `var()` jak w HTML;
+  - element główny dziedziczy kolor, pismo, odstępy i visibility ze stylu obliczonego rodzica HTML,
+    a dziedziczone właściwości SVG (fill, stroke…) z reguł przodków; na elemencie głównym reguły dla width,
+    height, x, y, przekształceń, opacity, filter, clip-path, mask i mix-blend-mode są pomijane, bo stosuje je
+    pudełko CSS; SVG jako obraz (osobny dokument) bez zmian;
+  - przy okazji: dziedziczony font-size był zapisem rodzica, więc „2em” mnożyło się na każdym poziomie; teraz
+    dziedziczy się wartość obliczona (CSS Fonts 4 § 2.5);
+  - testy W3C `svg/`: 136 → 138 z 235; `non-scaling-stroke-006` z pass do edge, `use-element-animations`
+    z pass do fail; oba przechodziły wcześniej przypadkiem, bo test i wzorzec pomijały CSS strony;
+    `03-report-svg-chart` bliżej Chromium (słowa ponad 3 pt: 2 → 0);
 - przekształcenia 3D i barwy, 2026-11-20 (praca pomocnika):
   - `css/validation` (`transformFunction`, `transformOrigin`, właściwości `translate`/`rotate`/`scale`, nowy plik
     `transforms3d.go`): funkcje 3D z CSS Transforms 2 § 12 (`translate3d`, `translateZ`, `scale3d`, `scaleZ`,
