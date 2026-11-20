@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -14,10 +13,11 @@ import (
 )
 
 // Gradienty i wzorce w grupach przezroczystości (opacity, filtry, maski) nie mogą zależeć od tego,
-// jak przeglądarka PDF odczytuje macierz wzorca w formie XObject: Apple PDFKit odnosi ją do układu
-// strony, a nie formy (zob. internal/goweasyprint/pdf/placement.go). Zwykłe wypełnienia gradientem
-// rysujemy bez wzorca kafelkowego, a wzorce, które zostają (kafle tła, obrys gradientem), mają
-// macierz względem układu strony, bo grupa jest wywoływana pod jednostkowym CTM.
+// jak przeglądarka PDF odczytuje macierz wzorca w formie XObject: Apple PDFKit odnosi macierz wzorca
+// z zasobów grupy przezroczystości do układu strony, a nie formy (zob.
+// contentstream.ToGroupXFormObject). Zwykłe wypełnienia gradientem rysujemy bez wzorca kafelkowego,
+// a wzorce, które zostają (kafle tła, obrys gradientem), leżą w zasobach zwykłej formy zagnieżdżonej
+// w grupie, nigdy w zasobach samej grupy.
 func TestPatternsInTransparencyGroups(t *testing.T) {
 	fonts := testFonts(t)
 	dir := t.TempDir()
@@ -88,11 +88,10 @@ func TestPatternsInTransparencyGroups(t *testing.T) {
 		background:linear-gradient(135deg,#4f8ef7,#1b3f8f)"></div>`)
 	noTiling("css-filter", pdf)
 
-	// Kafle tła zostają wzorcem; jego macierz musi odnosić się do układu strony (skala 0.75 i odbicie
-	// osi y z przekształcenia strony), a nie do układu grupy.
+	// Kafle tła zostają wzorcem, ale nie w zasobach grupy przezroczystości.
 	pdf, ppm = render("tiles-opacity", `<div style="width:200px;height:50px;margin:20px;opacity:.8;
 		background:linear-gradient(90deg,#c00 50%,#00c 50%) 0 0/20px 20px"></div>`)
-	checkPageSpacePatterns(t, "tiles-opacity", pdf)
+	checkNoPatternsInGroups(t, "tiles-opacity", pdf)
 	red, blue := [3]float64{0.8*0xcc + 51, 51, 51}, [3]float64{51, 51, 0.8*0xcc + 51}
 	for _, x := range []int{25, 45, 125, 205} {
 		check("tiles-opacity", ppm, x, 30, red)
@@ -104,7 +103,7 @@ func TestPatternsInTransparencyGroups(t *testing.T) {
 		`<stop offset='0.5' stop-color='%23c00'/><stop offset='0.5' stop-color='%2300c'/></linearGradient></defs>` +
 		`<g opacity='0.8'><rect x='30' y='30' width='200' height='80' fill='none' stroke='url(%23g)' stroke-width='20'/></g></svg>`
 	pdf, ppm = render("svg-stroke", `<img style="display:block" src="data:image/svg+xml,`+stroke+`">`)
-	checkPageSpacePatterns(t, "svg-stroke", pdf)
+	checkNoPatternsInGroups(t, "svg-stroke", pdf)
 	// prostokąt otaczający obrysu: x od 20 do 240, połowa w x = 130
 	check("svg-stroke", ppm, 40, 30, red)
 	check("svg-stroke", ppm, 220, 30, blue)
@@ -112,27 +111,19 @@ func TestPatternsInTransparencyGroups(t *testing.T) {
 	check("svg-stroke", ppm, 140, 110, blue)
 }
 
-var patternMatrix = regexp.MustCompile(`/Matrix \[([^\]]*)\][^>]*/PatternType 1`)
+var pdfObject = regexp.MustCompile(`(?s)\d+ 0 obj\s*(<<.*?)(?:stream\r?\n|endobj)`)
 
-// checkPageSpacePatterns sprawdza, że w pliku jest wzorzec kafelkowy i każdy ma macierz z przekształceniem
-// strony (px → pt: w osi y skala 0.75 z odwróceniem), czyli odnosi się do układu strony, a nie grupy.
-func checkPageSpacePatterns(t *testing.T, name string, pdf []byte) {
+// checkNoPatternsInGroups sprawdza, że w pliku jest wzorzec kafelkowy, ale żadna grupa przezroczystości
+// (forma z /Group /Transparency, także grupa maski miękkiej) nie ma wzorców we własnych zasobach.
+func checkNoPatternsInGroups(t *testing.T, name string, pdf []byte) {
 	t.Helper()
-	matches := patternMatrix.FindAllSubmatch(pdf, -1)
-	if len(matches) == 0 {
+	if !bytes.Contains(pdf, []byte("/PatternType 1")) {
 		t.Errorf("%s: brak wzorca kafelkowego", name)
-		return
 	}
-	for _, m := range matches {
-		f := strings.Fields(string(m[1]))
-		if len(f) != 6 {
-			t.Errorf("%s: macierz wzorca %q", name, m[1])
-			continue
-		}
-		// (skala w x bywa inna: gradient objectBoundingBox rozciąga się do proporcji prostokąta)
-		d, _ := strconv.ParseFloat(f[3], 64)
-		if math.Abs(d+0.75) > 1e-3 {
-			t.Errorf("%s: macierz wzorca [%s] nie odnosi się do układu strony", name, m[1])
+	for _, m := range pdfObject.FindAllSubmatch(pdf, -1) {
+		dict := m[1]
+		if bytes.Contains(dict, []byte("/Transparency")) && bytes.Contains(dict, []byte("/Pattern")) {
+			t.Errorf("%s: grupa przezroczystości ze wzorcem we własnych zasobach: %.200s", name, dict)
 		}
 	}
 }

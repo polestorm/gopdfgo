@@ -154,7 +154,7 @@ func (g *group) transparencyGroup() *model.XObjectTransparencyGroup {
 	if g.form != nil && g.formLen == g.stream.OpsLen() {
 		return g.form
 	}
-	content := g.stream.ToXFormObject(compressStreams)
+	content := g.stream.ToGroupXFormObject(compressStreams) // gopdfgo: wzorce w formie pośredniej (zob. ToGroupXFormObject)
 	g.form = &model.XObjectTransparencyGroup{
 		XObjectForm: *content,
 		Group:       model.TransparencyGroup{CS: model.ColorSpaceRGB, I: true},
@@ -374,7 +374,7 @@ func (g *group) DrawCopyWithOpacity(opacity fl, gr backend.Canvas) {
 }
 
 func (g *group) drawMask(app *cs.GraphicStream) {
-	transparency := app.ToXFormObject(compressStreams)
+	transparency := app.ToGroupXFormObject(compressStreams) // gopdfgo: jw.
 	g.stream.SetAlphaMask(transparency)
 }
 

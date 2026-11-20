@@ -19,7 +19,7 @@ var _ backend.FilterCanvas = (*group)(nil)
 func (g *group) DrawSharedGroup(opacity fl, gr backend.Canvas) {
 	other := gr.(*group)
 	if other.shared == nil {
-		content := other.stream.ToXFormObject(compressStreams)
+		content := other.stream.ToGroupXFormObject(compressStreams) // gopdfgo: wzorce w formie pośredniej (zob. ToGroupXFormObject)
 		other.shared = &model.XObjectTransparencyGroup{
 			XObjectForm: *content,
 			Group:       model.TransparencyGroup{CS: model.ColorSpaceRGB, I: true},
@@ -34,7 +34,7 @@ func (g *group) DrawSharedGroup(opacity fl, gr backend.Canvas) {
 // SetSoftMask ustawia maskę miękką /Alpha albo /Luminosity z funkcją przejścia /TR zapisaną jako
 // funkcja próbkowana typu 0 (8 bitów na próbkę, PDF 32000-1 § 7.10.2, § 11.6.5.2).
 func (g *group) SetSoftMask(mask backend.Canvas, alpha bool, transfer []fl) {
-	form := mask.(*group).stream.ToXFormObject(compressStreams)
+	form := mask.(*group).stream.ToGroupXFormObject(compressStreams) // gopdfgo: jw.
 	kind := "Luminosity"
 	if alpha {
 		kind = "Alpha"

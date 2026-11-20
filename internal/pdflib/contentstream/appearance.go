@@ -89,6 +89,32 @@ func (ap GraphicStream) ToXFormObject(compress bool) *model.XObjectForm {
 	return out
 }
 
+// ToGroupXFormObject (gopdfgo) działa jak ToXFormObject dla formy, która będzie grupą przezroczystości
+// (także grupą maski miękkiej). Gdy treść używa wzorców, zamyka ją w zagnieżdżonej zwykłej formie
+// (bez /Group), a forma zewnętrzna zawiera tylko `/XI0 Do`.
+//
+// Macierz wzorca odwzorowuje przestrzeń wzorca na domyślny układ strumienia, w którym go użyto
+// (ISO 32000-1 § 8.7.3.1), czyli na układ formy. Apple PDFKit (Podgląd, Quick Look, Safari) dla
+// wzorca z zasobów grupy przezroczystości bierze zamiast tego domyślny układ strony, pomijając CTM
+// przy Do i /Matrix formy; wzorzec z zasobów zwykłej formy, także zagnieżdżonej w grupie, odczytuje
+// poprawnie (sprawdzone na ręcznie zbudowanych plikach, 2026-11-20). Forma pośrednia ma ten sam
+// układ co grupa, więc wynik według normy się nie zmienia, a ta sama grupa może być rysowana w wielu
+// miejscach (kopie rozmycia filtra).
+func (ap GraphicStream) ToGroupXFormObject(compress bool) *model.XObjectForm {
+	if len(ap.resources.Pattern) == 0 {
+		return ap.ToXFormObject(compress)
+	}
+	inner := ap.ToXFormObject(compress)
+	out := new(model.XObjectForm)
+	out.BBox = ap.BoundingBox
+	out.Resources = model.ResourcesDict{XObject: map[model.ObjName]model.XObject{"XI0": inner}}
+	out.Content = WriteOperations(OpXObject{XObject: "XI0"})
+	if compress {
+		out.Stream = model.NewCompressedStream(out.Content)
+	}
+	return out
+}
+
 // ApplyToPageObject update the given page with a single Content,
 // build from the appearance.
 // The content is optionaly compressed with the Flater filter.
