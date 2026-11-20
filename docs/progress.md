@@ -194,7 +194,7 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 | Kolumny: kolumny zagnieżdżone (ok. 45 testów), podział elementu rozpinającego między kolumny zewnętrzne, elementy pozycjonowane po elemencie rozpinającym, kolumny w komórce tabeli | 129 testów `css-multicol`; zwykłe kolumny na wielu stronach zgadzają się z Chromium (`22-multicol-pagination`) | duży, po kawałku |
 | Elementy pozycjonowane w siatce | 62 testy `css-grid/abspos`, większość z pismem pionowym, `rtl` albo `last baseline` | średni |
 | Elementy pływające: przypadki brzegowe z `clear` i marginesami | 58 testów CSS 2 | średni |
-| Nieobsługiwane właściwości z ostrzeżeniem: `conic-gradient`, `clip-path`, `translate/rotate/scale`, `text-wrap`, `rgb(from …)`, `round()` | lista z audytu | mały każda |
+| Nieobsługiwane właściwości z ostrzeżeniem: `translate`, `rotate`, `scale`, `rgb(from …)`, `round()` (`conic-gradient` i `clip-path` działają; sprawdzone 2026-11-20) | lista z audytu | mały każda |
 
 ### Niska: eksperymentalne albo poza zakresem
 

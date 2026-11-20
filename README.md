@@ -86,25 +86,24 @@ licences (list in `docs/overview.md`).
 - Vertical writing and right-to-left/bidirectional text.
 - Tagged PDF (PDF/UA), PDF/A-3, file attachments.
 - `subgrid`, `grid-lanes`, `column-height`.
-- `conic-gradient`, `clip-path`, individual transform properties. These are skipped with a warning.
+- Individual transform properties (`translate`, `rotate`, `scale`), relative colours (`rgb(from …)`) and
+  `round()`. These are skipped with a warning.
 
 The full list with its status is in `docs/overview.md` and `docs/progress.md`.
 
 ## Documentation
 
-Project documentation is in Polish:
-
 | File | Contents |
 |---|---|
-| `docs/overview.md` | comparison with Chromium, unsupported features, requirements (English) |
-| `docs/progress.md` | progress in numbers, what is left and how important it is |
-| `docs/vision.md` | goals and trade-offs |
-| `docs/architecture.md` | pipeline and interfaces |
-| `docs/feature-audit.md` | feature status, measurements, work log by batch |
-| `docs/chromium-comparison.md` | measurements on KSeF invoices and e-SF statements in xml.pro (version `4eca5e5`) |
-| `docs/adr/` | architecture decision records |
-| `testdata/README.md` | test corpus: own documents, WeasyPrint samples, W3C print tests |
-| `THIRD_PARTY.md` | origin of the code in `internal/` and every change made to it |
+| `docs/overview.md` | comparison with Chromium, unsupported features, requirements |
+| `docs/progress.md` | progress in numbers, what is left and how important it is (Polish) |
+| `docs/vision.md` | goals and trade-offs (Polish) |
+| `docs/architecture.md` | pipeline and interfaces (Polish) |
+| `docs/feature-audit.md` | feature status, measurements, work log by batch (Polish) |
+| `docs/chromium-comparison.md` | measurements on KSeF invoices and e-SF statements in xml.pro (version `4eca5e5`) (Polish) |
+| `docs/adr/` | architecture decision records (Polish) |
+| `testdata/README.md` | test corpus: own documents, WeasyPrint samples, W3C print tests (Polish) |
+| `THIRD_PARTY.md` | origin of the code in `internal/` and every change made to it (Polish) |
 
 ## Licence
 

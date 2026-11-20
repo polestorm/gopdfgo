@@ -116,8 +116,8 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 - `subgrid`;
 - baseline alignment in grid and flex (`last baseline`, column axis);
 - some cases of positioned grid items and nested multi-column layout;
-- properties that are skipped with a warning: `conic-gradient`, `clip-path`, `translate`, `rotate`,
-  `scale`, `text-wrap`, `rgb(from …)`, `round()`;
+- properties and values that are skipped with a warning: `translate`, `rotate`, `scale`, `rgb(from …)`,
+  `round()`;
 - the colour of `-webkit-text-stroke`;
 - a box with `overflow: hidden` and a fixed height, or with `contain: size`, taller than a page is clipped
   at the page edge;
