@@ -362,6 +362,13 @@ type Document struct {
 	// Contains information that does not belong to a specific page
 	// but to the whole document.
 	Metadata utils.DocumentMetadata
+
+	// ReleaseDrawnPages (gopdfgo): Write zwalnia drzewo pudełek strony zaraz po jej narysowaniu.
+	// Złożone strony żyją inaczej do końca zapisu, a po narysowaniu nic ich nie czyta (odnośniki,
+	// kotwice i zakładki są zebrane wcześniej w newPage i resolveLinks). Przy 1021 stronach z
+	// ilustracjami szczyt pamięci spada o około jedną trzecią. Dokumentu nie da się potem narysować
+	// drugi raz, dlatego to opcja, a nie zachowanie domyślne.
+	ReleaseDrawnPages bool
 }
 
 // Render performs the layout of the whole document and returns a document
@@ -618,6 +625,9 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 			case "rotate-left":
 				rotatable.SetRotation(270)
 			}
+		}
+		if d.ReleaseDrawnPages {
+			d.Pages[i].pageBox = nil // gopdfgo: zob. ReleaseDrawnPages
 		}
 	}
 

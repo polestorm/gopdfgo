@@ -317,6 +317,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	laidOut := document.Render(parsed, sheets, true, fontConfig)
 	pdfmodel.NonFiniteNumbers.Store(0)
 	output := pdf.NewOutput()
+	laidOut.ReleaseDrawnPages = true // strony zwalniane zaraz po narysowaniu, zob. document.Document
 	laidOut.Write(output, 1, attachments)
 	if opts.Conformance != ConformanceNone {
 		output.DisableImageInterpolation() // ISO 19005-2 § 6.2.8

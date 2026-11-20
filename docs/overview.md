@@ -74,7 +74,7 @@ whole process including program or browser start.
 |---|---|---|
 | pages | 253 | 256 |
 | time | 2.13–2.47 s | 1.54–1.58 s |
-| peak memory | 1672–1701 MB (all browser processes) | 842–874 MB |
+| peak memory | 1672–1701 MB (all browser processes) | 748–755 MB |
 | PDF size | 27.58 MB (tagged PDF) | 26.25 MB |
 | of which images | 25.21 MB (171 image objects) | 24.76 MB (164 image objects) |
 | of which text, pages, fonts and structure | 2.37 MB | 1.49 MB |
@@ -110,15 +110,16 @@ The Go garbage collector lets the heap grow to about twice the live size before 
 which gives the peak of about 1 GB for the book. With `GOGC=50` the peak was 740 MB and with `GOGC=25`
 660 MB; wall time stays about the same, CPU time grows by 25% and 70%.
 
-The table was measured before two optimisations, which give byte-identical output:
+The table was measured before three optimisations, which give byte-identical output:
 
 - laid-out lines keep their glyphs in a compact form (44 B per glyph instead of the 80 B record of the
   go-text shaper);
 - justification stores only the changed glyphs instead of copying each justified line (190 MB of copies
-  for the 1021-page book).
+  for the 1021-page book);
+- each page's boxes are released right after the page is drawn.
 
-Peak memory after them: book 0.92–1.07 → 0.84–0.87 GB, book ×4 (1021 pages, 4.7 s, Chromium 2.44 GB)
-2.25–2.31 → 1.83 GB.
+Peak memory after them: book 0.92–1.07 → 0.75 GB, book ×4 (1021 pages, 4.6 s, Chromium 2.44 GB)
+2.25–2.31 → 1.34–1.36 GB.
 
 Drawing each page right after its layout would bound memory by the input (191 MB live for 1021 pages)
 instead of by the laid-out document; that is a larger change and has not been started.

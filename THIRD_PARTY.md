@@ -919,6 +919,13 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- zwalnianie narysowanych stron, 2026-11-20 (`html/document/document.go` `ReleaseDrawnPages`, `render.go`):
+  - źródło trzymało drzewa pudełek wszystkich stron do końca zapisu PDF, choć po narysowaniu strony nic ich
+    nie czyta (odnośniki, kotwice i zakładki są zbierane wcześniej); teraz `Write` zwalnia stronę zaraz po
+    narysowaniu, gdy `ReleaseDrawnPages` jest ustawione (ustawia je `render.go`; przejęty test rysuje ten sam
+    dokument dwa razy, więc to opcja);
+  - wynik bajt w bajt taki sam (książka, jej czterokrotność, 45 plików korpusu); szczyt pamięci: książka
+    0,84–0,87 → 0,75 GB, książka ×4 (1021 stron) 1,83 → 1,34–1,36 GB;
 - zwarta postać złożonych wierszy i justowanie bez kopii wiersza, 2026-11-20 (`text/compact_line.go`,
   `text/engine_gotext.go`, odczyty w `text/draw`, `svg/text_layout.go`, `text/family_names.go`):
   - złożony wiersz żyje do narysowania strony; źródło trzymało go jako rekordy kształtowania go-text
