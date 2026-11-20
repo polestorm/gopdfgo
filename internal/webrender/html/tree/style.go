@@ -72,6 +72,8 @@ type StyleFor struct {
 	// gopdfgo: reguły arkuszy autora i użytkownika dopasowane do elementów SVG osadzonych w HTML,
 	// z deklaracjami surowymi (zob. svg_cascade.go)
 	svgMatches map[*utils.HTMLNode][]svgMatch
+	// gopdfgo: zapamiętane właściwości SVG dziedziczone przez elementy HTML (zob. svgOnlyInheritedOf)
+	svgInheritCache map[*utils.HTMLNode]map[string]string
 }
 
 // viewport liczy leniwie obszar pierwszej strony (rozmiar strony bez marginesów), do którego odnoszą się
@@ -221,6 +223,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		root:            html.Root,
 		baseUrl:         html.BaseUrl,
 		targetCollector: targetColllector,
+		svgInheritCache: map[*utils.HTMLNode]map[string]string{},
 	}
 
 	out.viewport.styleFor = &out

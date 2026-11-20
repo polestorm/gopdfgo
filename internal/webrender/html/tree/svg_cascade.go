@@ -174,48 +174,8 @@ func (s StyleFor) SVGInherited(svgElement *html.Node) (values map[string]string,
 		return nil, 0
 	}
 	values = map[string]string{}
-	// właściwości SVG: od korzenia w dół, później przodek wygrywa
-	var chain []*utils.HTMLNode
-	for n := parent; n != nil; n = n.Parent {
-		if n.Type == html.ElementNode {
-			chain = append(chain, (*utils.HTMLNode)(n))
-		}
-	}
-	for i := len(chain) - 1; i >= 0; i-- {
-		node := chain[i]
-		own := map[string]string{}
-		var important []validation.RawDeclaration
-		for _, d := range s.sortedRawDeclarations(node, s.matchSVGRules(node)) {
-			if svgOnlyInherited.Has(d.Name) {
-				if d.Important {
-					important = append(important, d)
-				} else {
-					own[d.Name] = d.Value
-				}
-			}
-		}
-		if style := node.Get("style"); style != "" {
-			for _, decl := range pa.ParseBlocksContents(pa.Tokenize([]byte(style), false), false) {
-				if decl, ok := decl.(pa.Declaration); ok && !decl.Important {
-					if name := utils.AsciiLower(decl.Name); svgOnlyInherited.Has(name) {
-						own[name] = strings.TrimSpace(pa.Serialize(decl.Value))
-					}
-				}
-			}
-		}
-		for _, d := range important {
-			own[d.Name] = d.Value
-		}
-		for name, value := range own {
-			switch strings.ToLower(value) {
-			case "inherit", "unset":
-				continue
-			case "initial":
-				delete(values, name)
-				continue
-			}
-			values[name] = value
-		}
+	for name, value := range s.svgOnlyInheritedOf((*utils.HTMLNode)(parent)) {
+		values[name] = value
 	}
 
 	style := s.computedStyles[(*utils.HTMLNode)(parent).ToKey("")]
@@ -256,4 +216,65 @@ func (s StyleFor) SVGInherited(svgElement *html.Node) (values map[string]string,
 		values["visibility"] = string(v)
 	}
 	return values, fontSize
+}
+
+// svgOnlyInheritedOf zwraca wartości właściwości z svgOnlyInherited, które element HTML ma
+// ustawione albo odziedziczone (od korzenia w dół). Wynik jest zapamiętywany dla każdego elementu,
+// żeby wiele osadzonych <svg> (np. ikon) nie dopasowywało reguł do tych samych przodków.
+func (s StyleFor) svgOnlyInheritedOf(node *utils.HTMLNode) map[string]string {
+	if s.svgInheritCache == nil {
+		return nil
+	}
+	if cached, ok := s.svgInheritCache[node]; ok {
+		return cached
+	}
+	var inherited map[string]string
+	for n := node.Parent; n != nil; n = n.Parent {
+		if n.Type == html.ElementNode {
+			inherited = s.svgOnlyInheritedOf((*utils.HTMLNode)(n))
+			break
+		}
+	}
+	own := map[string]string{}
+	var important []validation.RawDeclaration
+	for _, d := range s.sortedRawDeclarations(node, s.matchSVGRules(node)) {
+		if svgOnlyInherited.Has(d.Name) {
+			if d.Important {
+				important = append(important, d)
+			} else {
+				own[d.Name] = d.Value
+			}
+		}
+	}
+	if style := node.Get("style"); style != "" {
+		for _, decl := range pa.ParseBlocksContents(pa.Tokenize([]byte(style), false), false) {
+			if decl, ok := decl.(pa.Declaration); ok && !decl.Important {
+				if name := utils.AsciiLower(decl.Name); svgOnlyInherited.Has(name) {
+					own[name] = strings.TrimSpace(pa.Serialize(decl.Value))
+				}
+			}
+		}
+	}
+	for _, d := range important {
+		own[d.Name] = d.Value
+	}
+	out := inherited
+	if len(own) != 0 {
+		out = make(map[string]string, len(inherited)+len(own))
+		for name, value := range inherited {
+			out[name] = value
+		}
+		for name, value := range own {
+			switch strings.ToLower(value) {
+			case "inherit", "unset":
+				continue
+			case "initial":
+				delete(out, name)
+				continue
+			}
+			out[name] = value
+		}
+	}
+	s.svgInheritCache[node] = out
+	return out
 }
