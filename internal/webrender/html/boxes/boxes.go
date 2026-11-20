@@ -312,6 +312,12 @@ type BoxFields struct {
 
 	Colspan int
 	Rowspan int
+	// gopdfgo: SpanOriginRow: dalszy ciąg komórki rozpiętej (rowspan) na następnej stronie stoi w pierwszym
+	// wierszu tej strony, ale należy do wiersza, w którym komórka się zaczyna; tu jest ten wiersz (ze stylu
+	// bierze się tło malowane pod dalszym ciągiem, CSS 2.1 § 17.5.1), a SpanRowBackground to to tło
+	// ułożone w obszarze komórki. Dla zwykłych komórek nil.
+	SpanOriginRow     Box
+	SpanRowBackground *Background
 
 	GridX int
 	Index int

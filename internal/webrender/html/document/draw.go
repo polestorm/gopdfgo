@@ -797,6 +797,9 @@ func (ctx drawContext) drawTableGroupBackgrounds(table *bo.TableBox, rowGroup Bo
 			cell := cell.Box()
 			if table.Style.GetBorderCollapse() == "collapse" ||
 				cell.Style.GetEmptyCells() == "show" || !cell.Empty {
+				// gopdfgo: pod dalszym ciągiem komórki rozpiętej tło wiersza, w którym się zaczyna
+				// (zob. bo.BoxFields.SpanOriginRow)
+				ctx.drawBackgroundDefaut(cell.SpanRowBackground)
 				ctx.drawBoxShadows(cell, false)
 				ctx.drawBackgroundDefaut(cell.Background)
 				ctx.drawBoxShadows(cell, true)

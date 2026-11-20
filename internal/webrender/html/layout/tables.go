@@ -2243,6 +2243,7 @@ func rowCellEntries(group *bo.BoxFields, row_ Box, indexRow int, rowStack tree.R
 			}
 			continuation := source.Copy()
 			continuation.Box().Rowspan = remaining
+			continuation.Box().SpanOriginRow = group.Children[p]
 			skip := spanning[p][c]
 			if skip == nil {
 				skip = tree.ResumeStack{len(source.Box().Children): nil}

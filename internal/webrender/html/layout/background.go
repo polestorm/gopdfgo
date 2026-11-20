@@ -124,6 +124,15 @@ func layoutBoxBackgroundsIn(page *bo.PageBox, box_ Box, getImageFromUri bo.Image
 		}
 	}
 
+	// gopdfgo: tło wiersza źródłowego pod dalszym ciągiem komórki rozpiętej (zob. bo.BoxFields.SpanOriginRow):
+	// ułożone jak tło samej komórki, w jej obszarze, ze stylu wiersza
+	if origin := box.SpanOriginRow; origin != nil && style == nil {
+		own, border, mask := box.Background, box.BorderImage, box.MaskBorderImage
+		layoutBoxBackgroundsIn(page, box_, getImageFromUri, false, origin.Box().Style, nil, inTransform)
+		box.SpanRowBackground, box.Background = box.Background, own
+		box.BorderImage, box.MaskBorderImage = border, mask
+	}
+
 	if style == nil {
 		style = box.Style
 	}
@@ -274,7 +283,12 @@ func layoutBackgroundLayer(box_ Box, page *bo.PageBox, positioningBox *bo.BoxFie
 			clippedBoxes = nil
 			var max pr.Float
 			for _, cell := range box.Children {
-				clippedBoxes = append(clippedBoxes, cell.Box().RoundedBorderBox())
+				// gopdfgo: dalszy ciąg komórki rozpiętej z wiersza z poprzedniej strony nie należy do tego
+				// wiersza i nie dostaje jego tła (CSS 2.1 § 17.5.1); maluje się pod nim tło wiersza, w którym
+				// się zaczyna (SpanRowBackground)
+				if cell.Box().SpanOriginRow == nil {
+					clippedBoxes = append(clippedBoxes, cell.Box().RoundedBorderBox())
+				}
 				if v := cell.Box().BorderHeight(); v > max {
 					max = v
 				}
