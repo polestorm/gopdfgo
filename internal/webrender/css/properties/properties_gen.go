@@ -641,6 +641,15 @@ func (s Properties) SetTextAutospace(v String) { s[PTextAutospace] = v }
 func (s Properties) GetPageOrientation() String  { return s[PPageOrientation].(String) }
 func (s Properties) SetPageOrientation(v String) { s[PPageOrientation] = v }
 
+func (s Properties) GetTranslate() Transforms  { return s[PTranslate].(Transforms) }
+func (s Properties) SetTranslate(v Transforms) { s[PTranslate] = v }
+
+func (s Properties) GetRotate() Transforms  { return s[PRotate].(Transforms) }
+func (s Properties) SetRotate(v Transforms) { s[PRotate] = v }
+
+func (s Properties) GetScale() Transforms  { return s[PScale].(Transforms) }
+func (s Properties) SetScale(v Transforms) { s[PScale] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1268,6 +1277,15 @@ type StyleAccessor interface {
 
 	GetPageOrientation() String
 	SetPageOrientation(v String)
+
+	GetTranslate() Transforms
+	SetTranslate(v Transforms)
+
+	GetRotate() Transforms
+	SetRotate(v Transforms)
+
+	GetScale() Transforms
+	SetScale(v Transforms)
 }
 
 var propsNames = [...]string{
@@ -1480,6 +1498,9 @@ var propsNames = [...]string{
 	PBoxOrient:               "box-orient",
 	PTextAutospace:           "text-autospace",
 	PPageOrientation:         "page-orientation",
+	PTranslate:               "translate",
+	PRotate:                  "rotate",
+	PScale:                   "scale",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1693,4 +1714,7 @@ var PropsFromNames = map[string]KnownProp{
 	"box-orient":                 PBoxOrient,
 	"text-autospace":             PTextAutospace,
 	"page-orientation":           PPageOrientation,
+	"translate":                  PTranslate,
+	"rotate":                     PRotate,
+	"scale":                      PScale,
 }

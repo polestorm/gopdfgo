@@ -111,8 +111,9 @@ func ResolvePercentage(value TaggedDim, referTo Float) MaybeFloat {
 			panic(fmt.Sprintf("expected percentage, got %d", value.Unit))
 		}
 		if value.Calc != nil {
-			// gopdfgo: min(), max() albo clamp() z procentem, policzone przy znanej podstawie
-			return value.Calc.Evaluate(referTo)
+			// gopdfgo: min(), max(), clamp(), round(), mod() albo rem() z procentem, policzone przy
+			// znanej podstawie; NaN wyrażenia najwyższego poziomu to 0 (CSS Values 4 § 10.9)
+			return value.Calc.Evaluate(referTo).NaNToZero()
 		}
 		return referTo*value.Value/100. + value.Offset
 	}

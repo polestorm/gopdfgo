@@ -233,6 +233,9 @@ var (
 		PTop,
 		PTransform,
 		PTransformOrigin,
+		PTranslate, // gopdfgo: CSS Transforms 2 § 5.1, jak transform
+		PRotate,
+		PScale,
 		PVerticalAlign,
 		PZIndex,
 		// gopdfgo: właściwości elementu flex i grid dotyczą pudełka opakowującego tabelę, bo to ono jest

@@ -2121,3 +2121,25 @@ func (s *AnonymousStyle) GetPageOrientation() pr.String {
 func (s *AnonymousStyle) SetPageOrientation(v pr.String) {
 	s.propsCache.setKnown(pr.PPageOrientation, v)
 }
+
+func (s *ComputedStyle) GetTranslate() pr.Transforms {
+	return s.Get(pr.PTranslate.Key()).(pr.Transforms)
+}
+func (s *ComputedStyle) SetTranslate(v pr.Transforms) { s.propsCache.setKnown(pr.PTranslate, v) }
+
+func (s *AnonymousStyle) GetTranslate() pr.Transforms {
+	return s.Get(pr.PTranslate.Key()).(pr.Transforms)
+}
+func (s *AnonymousStyle) SetTranslate(v pr.Transforms) { s.propsCache.setKnown(pr.PTranslate, v) }
+
+func (s *ComputedStyle) GetRotate() pr.Transforms  { return s.Get(pr.PRotate.Key()).(pr.Transforms) }
+func (s *ComputedStyle) SetRotate(v pr.Transforms) { s.propsCache.setKnown(pr.PRotate, v) }
+
+func (s *AnonymousStyle) GetRotate() pr.Transforms  { return s.Get(pr.PRotate.Key()).(pr.Transforms) }
+func (s *AnonymousStyle) SetRotate(v pr.Transforms) { s.propsCache.setKnown(pr.PRotate, v) }
+
+func (s *ComputedStyle) GetScale() pr.Transforms  { return s.Get(pr.PScale.Key()).(pr.Transforms) }
+func (s *ComputedStyle) SetScale(v pr.Transforms) { s.propsCache.setKnown(pr.PScale, v) }
+
+func (s *AnonymousStyle) GetScale() pr.Transforms  { return s.Get(pr.PScale.Key()).(pr.Transforms) }
+func (s *AnonymousStyle) SetScale(v pr.Transforms) { s.propsCache.setKnown(pr.PScale, v) }

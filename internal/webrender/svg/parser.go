@@ -330,6 +330,39 @@ func parseTransform(attr string) (out []transform, err error) {
 	return out, nil
 }
 
+// individualTransforms czyta właściwości translate i scale (CSS Transforms 2 § 5.1), w tej kolejności.
+// Procenty translate liczone są jak w atrybucie transform (SVG nie zna transform-box), składowa z
+// jest pomijana, a wartość niepoprawna ignorowana. Właściwości rotate nie czytamy, bo atrybut rotate
+// elementu text ma w SVG inne znaczenie (obrót znaków).
+func (na nodeAttributes) individualTransforms() (out []transform) {
+	if values, err := parseValues(na["translate"]); err == nil && len(values) >= 1 && len(values) <= 3 {
+		tr := transform{kind: translate}
+		tr.args[0] = values[0]
+		tr.args[1] = Value{0, Px}
+		if len(values) >= 2 {
+			tr.args[1] = values[1]
+		}
+		out = append(out, tr)
+	}
+	if values, err := parseValues(na["scale"]); err == nil && len(values) >= 1 && len(values) <= 3 {
+		tr := transform{kind: scale}
+		for i, v := range values {
+			if v.U == Perc {
+				values[i] = Value{v.V / 100, Px}
+			}
+		}
+		tr.args[0], tr.args[1] = values[0], values[0]
+		if len(values) >= 2 {
+			tr.args[1] = values[1]
+		}
+		if len(values) == 3 && values[2].V == 0 {
+			tr.args[0], tr.args[1] = Value{0, Px}, Value{0, Px} // macierz nieodwracalna: element nie jest rysowany
+		}
+		out = append(out, tr)
+	}
+	return out
+}
+
 type preserveAspectRatio struct {
 	xPosition, yPosition string
 	none                 bool // align == "none"

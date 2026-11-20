@@ -267,6 +267,9 @@ var (
 		pr.PWrapInside:              wrapInside,
 		pr.PBoxOrient:               boxOrient,
 		pr.PPageOrientation:         pageOrientation,
+		pr.PTranslate:               translateProperty, // gopdfgo: CSS Transforms 2 § 5.1
+		pr.PRotate:                  rotateProperty,
+		pr.PScale:                   scaleProperty,
 		pr.PWhiteSpaceTrim:          whiteSpaceTrim,
 		pr.PBackgroundBlendMode:     backgroundBlendMode,
 		pr.PClipPath:                clipPath,
@@ -2389,10 +2392,11 @@ func fontSizeAdjust(tokens []Token, _ string) pr.CssProperty {
 			return nil
 		}
 		result, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v })
-		if err != nil || !result.IsNumber || math.IsNaN(float64(result.Pixels)) {
+		if err != nil || !result.IsNumber {
 			return nil
 		}
-		out.Float = pr.Fl(max(0, result.Pixels))
+		// gopdfgo: NaN najwyższego poziomu działa jak 0 (CSS Values 4 § 10.9)
+		out.Float = pr.Fl(max(0, result.Pixels.NaNToZero()))
 		return out
 	default:
 		switch getKeyword(token) {
@@ -3531,10 +3535,11 @@ func _flexGrowShrink(tokens []Token) (pr.Fl, bool) {
 			return 0, false
 		}
 		result, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v })
-		if err != nil || !result.IsNumber || math.IsNaN(float64(result.Pixels)) {
+		if err != nil || !result.IsNumber {
 			return 0, false
 		}
-		value := max(0, float64(result.Pixels))
+		// gopdfgo: NaN najwyższego poziomu działa jak 0 (CSS Values 4 § 10.9)
+		value := max(0, float64(result.Pixels.NaNToZero()))
 		if math.IsInf(value, 1) {
 			value = math.MaxFloat32
 		}
@@ -4668,6 +4673,151 @@ func blockEllipsis_(tokens []Token) (out pr.TaggedString, ok bool) {
 		return pr.TaggedString{Tag: pr.Auto}, true
 	}
 	return
+}
+
+// gopdfgo: właściwości translate, rotate i scale (CSS Transforms 2 § 5.1), w źródle nieznane.
+// Wartość to jednoelementowa lista funkcji przekształcenia (pusta dla none), składana w macierz
+// razem z transform (zob. pr.IndividualTransforms). Silnik rysuje tylko 2D: składowa z przesunięcia
+// i skali jest sprawdzana, ale pomijana, a obrót wokół dowolnej osi spłaszczany do części 2D
+// macierzy rotate3d() (rzut prostokątny, jak przy transform-style: flat bez perspektywy).
+
+// translate: none | <length-percentage> [ <length-percentage> <length>? ]?
+func translateProperty(tokens []Token, _ string) pr.CssProperty {
+	if getSingleKeyword(tokens) == "none" {
+		return pr.Transforms{}
+	}
+	if len(tokens) == 0 || len(tokens) > 3 {
+		return nil
+	}
+	dims := []pr.Dimension{pr.ZeroPixels, pr.ZeroPixels}
+	for i, token := range tokens {
+		length := getLength(token, true, i < 2)
+		if length.IsNone() {
+			return nil
+		}
+		if i < 2 {
+			dims[i] = length
+		}
+	}
+	return pr.Transforms{{Kind: pr.Translate, Dimensions: dims}}
+}
+
+// rotate: none | <angle> | [ x | y | z | <number>{3} ] && <angle>
+func rotateProperty(tokens []Token, _ string) pr.CssProperty {
+	if getSingleKeyword(tokens) == "none" {
+		return pr.Transforms{}
+	}
+	var (
+		angle    utils.Fl
+		hasAngle bool
+		axis     []Token
+		x, y, z  = 0., 0., 1.
+	)
+	switch len(tokens) {
+	case 1:
+		angle, hasAngle = getAngle(tokens[0])
+	case 2, 4:
+		// kąt na początku albo na końcu
+		if a, ok := getAngle(tokens[0]); ok {
+			angle, hasAngle, axis = a, true, tokens[1:]
+		} else if a, ok := getAngle(tokens[len(tokens)-1]); ok {
+			angle, hasAngle, axis = a, true, tokens[:len(tokens)-1]
+		}
+	}
+	if !hasAngle {
+		return nil
+	}
+	switch len(axis) {
+	case 0:
+	case 1:
+		switch getKeyword(axis[0]) {
+		case "x":
+			x, y, z = 1, 0, 0
+		case "y":
+			x, y, z = 0, 1, 0
+		case "z":
+		default:
+			return nil
+		}
+	case 3:
+		var vector [3]float64
+		for i, token := range axis {
+			number, ok := token.(pa.Number)
+			if !ok {
+				return nil
+			}
+			vector[i] = float64(number.ValueF)
+		}
+		x, y, z = vector[0], vector[1], vector[2]
+	default:
+		return nil
+	}
+	length := math.Sqrt(x*x + y*y + z*z)
+	if length == 0 {
+		// oś zerowa: obrót nie jest stosowany (CSS Transforms 2 § 12, rotate3d()), ale wartość nie jest none
+		return pr.Transforms{{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(0)}}}
+	}
+	x, y, z = x/length, y/length, z/length
+	if x == 0 && y == 0 {
+		// obrót w płaszczyźnie: oś (0, 0, -1) to obrót w przeciwną stronę
+		return pr.Transforms{{Kind: pr.Rotate, Dimensions: []pr.Dimension{pr.FToD(utils.Fl(z) * angle)}}}
+	}
+	// część 2D macierzy rotate3d() (CSS Transforms 2 § 12): pierwsze dwie kolumny, pierwsze dwa wiersze
+	half := float64(angle) / 2
+	sc, sq := math.Sin(half)*math.Cos(half), math.Sin(half)*math.Sin(half)
+	a := 1 - 2*(y*y+z*z)*sq
+	b := 2 * (x*y*sq + z*sc)
+	c := 2 * (x*y*sq - z*sc)
+	d := 1 - 2*(x*x+z*z)*sq
+	return pr.Transforms{{Kind: pr.Matrix, Dimensions: []pr.Dimension{
+		pr.FToD(utils.Fl(a)), pr.FToD(utils.Fl(b)), pr.FToD(utils.Fl(c)), pr.FToD(utils.Fl(d)), pr.FToD(0), pr.FToD(0),
+	}}}
+}
+
+// scale: none | [ <number> | <percentage> ]{1,3}
+func scaleProperty(tokens []Token, _ string) pr.CssProperty {
+	if getSingleKeyword(tokens) == "none" {
+		return pr.Transforms{}
+	}
+	if len(tokens) == 0 || len(tokens) > 3 {
+		return nil
+	}
+	factors := make([]pr.Dimension, len(tokens))
+	for i, token := range tokens {
+		var factor pr.Fl
+		switch token := token.(type) {
+		case pa.Number:
+			factor = token.ValueF
+		case pa.Percentage:
+			factor = token.ValueF / 100
+		case pa.FunctionBlock:
+			node := parseCalcFunction(token)
+			if node == nil {
+				return nil
+			}
+			result, err := node.Resolve(func(v pr.Float, _ pr.Unit) pr.Float { return v })
+			if err != nil || (!result.IsNumber && (result.Pixels != 0 || node.HasPercentage() == false)) {
+				return nil
+			}
+			if result.IsNumber {
+				factor = pr.Fl(result.Pixels.NaNToZero())
+			} else {
+				factor = pr.Fl(result.Percent.NaNToZero()) / 100
+			}
+		default:
+			return nil
+		}
+		factors[i] = pr.FToD(factor)
+	}
+	if len(factors) == 1 {
+		factors = append(factors, factors[0])
+	}
+	if len(factors) == 3 && factors[2].Value == 0 {
+		// skala z równa zeru daje macierz nieodwracalną i element nie jest rysowany (CSS Transforms 1
+		// § 6, test WPT individual-transform-3); w 2D ten sam skutek daje skala zerowa
+		factors[0], factors[1] = pr.FToD(0), pr.FToD(0)
+	}
+	return pr.Transforms{{Kind: pr.Scale, Dimensions: factors[:2]}}
 }
 
 func transformFunction(token Token) (pr.Transform, error) {

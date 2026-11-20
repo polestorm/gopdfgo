@@ -816,6 +816,9 @@ func (na nodeAttributes) parseSharedAttributes(out *attributes) error {
 	if err != nil {
 		return err
 	}
+	// gopdfgo: właściwości translate i scale (CSS Transforms 2 § 5.1) przed transform (§ 6); źródło
+	// ich nie znało
+	out.transforms = append(na.individualTransforms(), out.transforms...)
 
 	out.stroke, err = newPainter(na["stroke"])
 	if err != nil {

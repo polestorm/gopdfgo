@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 
+	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/layout"
 )
@@ -163,7 +164,8 @@ func dispatch(box Box, page *bo.PageBox, childContexts, escape *[]StackingContex
 	style := box.Box().Style
 	position := style.GetPosition().String
 	positioned := position != "static"
-	hasTransform := len(style.GetTransform()) != 0 || box.Box().PageScale > 1 // gopdfgo: zob. BoxFields.PageScale
+	// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1); źródło patrzyło tylko na transform
+	hasTransform := pr.HasTransform(style) || box.Box().PageScale > 1 // gopdfgo: zob. BoxFields.PageScale
 	if escape != nil && (position == "absolute" || position == "fixed") {
 		// bryła zawierająca tego pudełka leży poza przycinającym przodkiem
 		childContexts, escape = escape, nil

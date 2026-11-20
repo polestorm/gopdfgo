@@ -463,6 +463,14 @@ func (b *PageBox) String() string {
 }
 
 func NewMarginBox(atKeyword string, style pr.ElementStyle) *MarginBox {
+	// gopdfgo: przekształcenia nie należą do właściwości pól marginesowych (CSS Page 3,
+	// #margin-property-list), więc są pomijane; źródło stosowało transform
+	if pr.HasTransform(style) {
+		style.SetTransform(pr.Transforms{})
+		style.SetTranslate(pr.Transforms{})
+		style.SetRotate(pr.Transforms{})
+		style.SetScale(pr.Transforms{})
+	}
 	fields := newBoxFields(style, nil, "", nil)
 	out := MarginBox{BoxFields: fields, AtKeyword: atKeyword}
 	return &out

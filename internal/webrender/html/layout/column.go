@@ -1043,7 +1043,8 @@ func mayHoldSpanner(child Box) bool {
 	}
 	// przekształcenie też zatrzymuje element rozpinający (jak w przeglądarkach; test WPT
 	// multicol-span-all-010)
-	if bo.EstablishesFormattingContext(child) || len(box.Style.GetTransform()) != 0 {
+	// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1); źródło patrzyło tylko na transform
+	if bo.EstablishesFormattingContext(child) || pr.HasTransform(box.Style) {
 		return false
 	}
 	return box.Style.GetColumnWidth().Tag == pr.Auto && box.Style.GetColumnCount().String == "auto"

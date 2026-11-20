@@ -118,7 +118,8 @@ func layoutBoxBackgroundsIn(page *bo.PageBox, box_ Box, getImageFromUri bo.Image
 	resolveRadiiPercentages(box)
 
 	if layoutChildren {
-		childInTransform := inTransform || len(box_.Box().Style.GetTransform()) != 0
+		// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1); źródło patrzyło tylko na transform
+		childInTransform := inTransform || pr.HasTransform(box_.Box().Style)
 		for _, child := range box_.AllChildren() {
 			layoutBoxBackgroundsIn(page, child, getImageFromUri, true, nil, nil, childInTransform)
 		}
@@ -187,7 +188,8 @@ func layoutBoxBackgroundsIn(page *bo.PageBox, box_ Box, getImageFromUri bo.Image
 	layers := make([]bo.BackgroundLayer, len(images_))
 	for i, img := range images_ {
 		attachment := attachments[cycle(i, attachmentsN)]
-		if attachment == "fixed" && (inTransform || (len(box.Style.GetTransform()) != 0 && !box.IsForRootElement)) {
+		// gopdfgo: także translate, rotate i scale (CSS Transforms 2 § 5.1); źródło patrzyło tylko na transform
+		if attachment == "fixed" && (inTransform || (pr.HasTransform(box.Style) && !box.IsForRootElement)) {
 			attachment = "scroll"
 		}
 		layers[i] = layoutBackgroundLayer(box_, page, positioningBox, ir, img,
