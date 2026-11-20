@@ -223,8 +223,10 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 		originalDst := ctx.dst
 		opacity := fl(box.Style.GetOpacity())
 		if opacity < 1 { // we draw all the following to a separate group
-			ctx.dst = ctx.dst.NewGroup(pr.Fl(box.BorderBoxX()), pr.Fl(box.BorderBoxY()),
-				pr.Fl(box.BorderWidth()), pr.Fl(box.BorderHeight()))
+			// gopdfgo: grupa krycia nie przycina treści do pudełka obramowania: opacity dotyczy elementu
+			// razem z potomkami wystającymi poza niego (CSS Color 4 § 15.1); źródło dawało grupie ramkę
+			// pudełka obramowania, więc wystające potomki i cienie znikały
+			ctx.dst = newFilterGroup(ctx.dst)
 		}
 
 		mat, hasMatrix, own3D := getMatrixAndFace(box_)
