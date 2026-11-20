@@ -34,6 +34,7 @@ type foreignObject struct {
 	content     string // dzieci foreignObject zserializowane jako HTML
 	hasFontSize bool   // font-size ustawione w kontekście SVG; wartość liczona przy rysowaniu
 	clip        bool   // overflow inny niż visible/auto
+	blendMode   string // mix-blend-mode inne niż normal (Compositing 1 § 3.2)
 	baseURL     string
 	fetch       utils.UrlFetcher
 }
@@ -77,7 +78,13 @@ func newForeignObject(node *cascadedNode, tree *svgContext) (drawable, error) {
 		}
 		out.content = content.String()
 	}
+	// efekty elementu SVG (przezroczystość, maska, przycięcie, przekształcenie, mieszanie) nakłada
+	// rysowanie SVG; w dokumencie zastępczym nie mogą zadziałać drugi raz na <body>
+	style.WriteString(";opacity:1;mask:none;clip-path:none;filter:none;transform:none;mix-blend-mode:normal")
 	out.bodyStyle = style.String()
+	if mode := strings.TrimSpace(node.attrs["mix-blend-mode"]); blendModes.Has(mode) {
+		out.blendMode = mode
+	}
 	// SVG 2 § 13.7.4 (UA: foreignObject { overflow: hidden }); auto jest w SVG równoważne visible
 	switch node.attrs["overflow"] {
 	case "visible", "auto":
@@ -115,12 +122,33 @@ func (fo *foreignObject) draw(dst backend.Canvas, attrs *attributes, svg *SVGIma
 		return nil
 	}
 	source := fo.document(dims.fontSize)
+	// maskę drawNode nakłada dopiero po narysowaniu treści elementu, przed końcowym wypełnieniem,
+	// więc treść foreignObject (rysowana tutaj) by jej nie podlegała
+	if ma, has := svg.definitions.masks[attrs.maskID]; has {
+		svg.applyMask(dst, ma, &svgNode{attributes: *attrs}, dims)
+	}
+	paint := func(dst backend.Canvas) {
+		dst.OnNewStack(func() {
+			dst.State().Transform(matrix.Translation(x, y))
+			ForeignDocument(dst, svg.textContext.Fonts(), source, fo.baseURL, fo.fetch, width, height, fo.clip)
+		})
+	}
+	if fo.blendMode == "" {
+		paint(dst)
+		return nil
+	}
+	// mix-blend-mode: treść rysowana w grupie, a grupa mieszana z tłem (Compositing 1 § 3.2)
+	group := dst.NewGroup(x, y, width, height)
+	paint(group)
 	dst.OnNewStack(func() {
-		dst.State().Transform(matrix.Translation(x, y))
-		ForeignDocument(dst, svg.textContext.Fonts(), source, fo.baseURL, fo.fetch, width, height, fo.clip)
+		dst.State().SetBlendingMode(fo.blendMode)
+		dst.DrawWithOpacity(1, group)
 	})
 	return nil
 }
+
+var blendModes = utils.NewSet("multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn",
+	"hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity")
 
 func (fo *foreignObject) boundingBox(attrs *attributes, dims drawingDims) (Rectangle, bool) {
 	x, y := dims.point(attrs.x, attrs.y)

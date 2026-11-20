@@ -478,6 +478,14 @@ func (svg *SVGImage) applyMask(dst backend.Canvas, mask mask, node *svgNode, dim
 	}
 
 	alpha := dst.NewGroup(x, y, width, height)
+	// gopdfgo: tam, gdzie maska nic nie rysuje, jej luminancja wynosi 0 i element jest ukryty (CSS
+	// Masking 1 § 7.1); pusta grupa maski bywała w PDF traktowana jak brak maski (poppler), więc
+	// obszar maski wypełniamy najpierw czernią (test WPT symbol-in-mask)
+	alpha.OnNewStack(func() {
+		alpha.Rectangle(x, y, width, height)
+		alpha.State().SetColorRgba(parser.RGBA{A: 1}, false)
+		alpha.Paint(backend.FillNonZero)
+	})
 	svg.drawNode(alpha, &mask.svgNode, dims, true)
 	dst.State().SetAlphaMask(alpha)
 }
@@ -667,7 +675,9 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 		// gopdfgo: element z niespełnionym atrybutem warunkowym nie jest rysowany (SVG 2 § 5.8.1), choć
 		// pozostaje w definicjach; <switch> rysuje tylko pierwsze dziecko, którego warunki są spełnione
 		// (SVG 2 § 5.8.2), z pominięciem elementów opisowych. Źródło rysowało wszystkie dzieci.
-		if !conditionsPass(c) || (node.tag == "switch" && (len(children) != 0 || isDescriptive(c.tag))) {
+		// <symbol> nie jest rysowany wprost, tylko przez <use> (SVG 2 § 5.5; resolveUse zamienia go
+		// na svg), a źródło rysowało go jak grupę (test WPT symbol-in-mask).
+		if c.tag == "symbol" || !conditionsPass(c) || (node.tag == "switch" && (len(children) != 0 || isDescriptive(c.tag))) {
 			continue
 		}
 		children = append(children, child)
