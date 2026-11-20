@@ -127,6 +127,11 @@ type drawContext struct {
 	// gopdfgo: context3D – kontekst renderowania 3D rodzica z transform-style: preserve-3d (nil poza
 	// nim), zob. drawStackingContext
 	context3D *context3D
+
+	// gopdfgo: pageMark – wywoływane w kontekście nakładania strony po narysowaniu wszystkich jego
+	// dzieci, przed zamknięciem stanów; tam rysowanie w trakcie układu dorysowuje pola marginesowe
+	// (ADR 0027, zob. streamSink)
+	pageMark func(ctx drawContext)
 }
 
 // context3D (gopdfgo): skumulowana macierz 3D elementu z transform-style: preserve-3d i macierz 2D
@@ -440,6 +445,11 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				// Point 9
 				for _, childContext := range stackingContext.positiveZContexts {
 					drawChild(childContext)
+				}
+
+				// gopdfgo: miejsce na pola marginesowe dorysowywane po ułożeniu wszystkich stron (ADR 0027)
+				if ctx.pageMark != nil && bo.PageT.IsInstance(box_) {
+					ctx.pageMark(ctx)
 				}
 			})
 

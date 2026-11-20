@@ -218,132 +218,24 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 		}
 	}
 
-	// Calculate string-sets and bookmark-label containing page based counters
-	// when pagination is finished. No need to do that (maybe multiple times) in
-	// makePage because they dont create boxes, only appear in MarginBoxes and
-	// in the final PDF.
-
-	// Prevent repetition of bookmarks (see #1145).
-	watchElements, watchElementsBefore, watchElementsAfter := map[*html.Node]bool{}, map[*html.Node]bool{}, map[*html.Node]bool{}
-
+	// gopdfgo: dalsza obróbka stron (zakładki, liczniki stron w string-set i bookmark-label, pudełka
+	// fixed, pola marginesowe, tła) jest w pageFinisher (stream.go), wspólnym z rysowaniem w trakcie
+	// układu (ADR 0027); kolejność kroków jest taka jak w źródle.
+	finisher := newPageFinisher(context)
 	for i, page := range pages {
-		// We need the updated pageCounterValues
-		pageCounterValues := context.pageMaker[i+1].PageState.CounterValues
-
-		for _, child := range bo.Descendants(page) {
-			childBox := child.Box()
-			// Only one bookmark per original box
-			if childBox.BookmarkLabel != "" {
-				var checklist map[*html.Node]bool
-				if childBox.PseudoType == "before" {
-					checklist = watchElementsBefore
-				} else if childBox.PseudoType == "after" {
-					checklist = watchElementsAfter
-				} else {
-					checklist = watchElements
-				}
-
-				if checklist[childBox.Element] {
-					childBox.BookmarkLabel = ""
-				} else {
-					checklist[childBox.Element] = true
-				}
-			}
-
-			if mLink := child.MissingLink(); mLink != nil {
-				for key, item := range context.TargetCollector.CounterLookupItems {
-					box, cssToken := key.SourceBox, key.CssToken
-					if mLink == box && cssToken != "content" {
-						if cssToken == "bookmark-label" && childBox.BookmarkLabel == "" {
-							// don't refill it!
-							continue
-						}
-
-						item.ParseAgain(pageCounterValues)
-
-						if cssToken == "bookmark-label" {
-							childBox.BookmarkLabel = box.GetBookmarkLabel()
-						}
-					}
-				}
-			}
-			// Collect the stringSets in the LayoutContext
-			stringSets := childBox.StringSet
-			for _, stringSet := range stringSets {
-				stringName, text := stringSet.Type, string(stringSet.Content.(pr.String))
-				dict := context.stringSet[stringName]
-				if dict == nil {
-					dict = make(map[int][]string)
-				}
-				dict[i+1] = append(dict[i+1], text)
-				context.stringSet[stringName] = dict
-			}
-		}
+		finisher.collect(i, page)
 	}
 
 	attachLateBoxes(context, pages)
 
 	out := make([]*bo.PageBox, len(pages))
 	// Add margin boxes
-	var (
-		firstRoot    *bo.BoxFields // element główny z pierwszej strony: początek tła płótna
-		canvasOffset pr.Float      // łączna wysokość obszarów poprzednich stron
-	)
 	for i, page := range pages {
-		var rootChildren []Box
-		root, footnoteArea := page.Box().Children[0], page.Box().Children[1]
-		// gopdfgo: za widziane uznajemy pudełka fixed obecne w drzewie tej strony; page.FixedBoxes zawiera też
-		// rejestracje z odrzuconych układów próbnych (np. wiersze przeniesione przez orphans), których na stronie
-		// nie ma (przejęty TestFixedInInline)
-		seen := map[fixedKey]bool{}
-		collectFixedKeys(root, seen)
-		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[:i], page, seen)...)
-		rootChildren = append(rootChildren, root.Box().Children...)
-		rootChildren = append(rootChildren, layoutFixedBoxes(context, pages[i+1:], page, seen)...)
-		root.Box().Children = rootChildren
-		context.currentPage = i + 1 // pageNumber starts at 1
-
-		// pageMaker's pageState is ready for the MarginBoxes
-		state := context.pageMaker[context.currentPage].PageState
-		scaledHeight := page.Height.V()
-		if scale := context.contentScale; scale > 1 {
-			// treść strony jest ułożona na powiększonym obszarze; sama strona, jej marginesy i pola
-			// marginesów wracają do rozmiaru z arkusza, a treść będzie rysowana w skali 1/scale
-			page.Width, page.Height = page.Width.V()/scale, page.Height.V()/scale
-			for _, content := range []Box{root, footnoteArea} {
-				content.Box().PageScale = scale
-				content.Box().PageScaleOriginX, content.Box().PageScaleOriginY = page.ContentBoxX(), page.ContentBoxY()
-			}
-		}
-		page.Children = []Box{root}
-		if len(footnoteArea.Box().Children) != 0 {
-			page.Children = append(page.Children, footnoteArea)
-		}
-		if g, ok := context.exactPageGeometry[i+1]; ok {
-			// gopdfgo: zaokrąglenie do pikseli (ADR 0021) dotyczy obszaru treści; pola marginesów układamy
-			// według marginesów dokładnie takich, jak w arkuszu, a potem strona wraca do zaokrąglonych (dalsze
-			// kroki, m.in. rysowanie i powtórny układ, czytają geometrię, na której ułożono treść). W trybie
-			// ciągłym (ADR 0017) wysokość strony urosła już do wysokości treści i zostaje.
-			rounded := [5]pr.Float{page.Width.V(), page.Height.V(), page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V()}
-			page.Width, page.MarginLeft, page.MarginRight = g[0], g[2], g[3]
-			if !context.behavior.Continuous {
-				page.Height, page.MarginBottom = g[1], g[4]
-			}
-			page.Children = append(page.Children, makeMarginBoxes(context, page, state)...)
-			page.Width, page.Height, page.MarginLeft, page.MarginRight, page.MarginBottom = rounded[0], rounded[1], rounded[2], rounded[3], rounded[4]
-		} else {
-			page.Children = append(page.Children, makeMarginBoxes(context, page, state)...)
-		}
-		if firstRoot == nil {
-			copied := *root.Box()
-			firstRoot = &copied
-		}
-		canvasOrigin := *firstRoot
-		canvasOrigin.PositionY -= canvasOffset
-		layoutBackgrounds(page, context.resolver.FetchImage, &canvasOrigin)
-		canvasOffset += scaledHeight
+		finisher.placeFixedBoxes(pages[:i], pages[i+1:], page)
+		scaledHeight := finisher.prepare(i, page)
+		page.Children = append(page.Children, finisher.marginBoxes(i, page)...)
+		finisher.backgrounds(i, page, scaledHeight)
 		out[i] = page
-		warnContentBelowPage(page, root, i+1)
 
 		if traceMode {
 			traceLogger.DumpTree(page, fmt.Sprintf("Final page %d", i))
@@ -502,6 +394,10 @@ type layoutContext struct {
 	// gopdfgo: dokładne wymiary obszaru strony i marginesy z arkusza sprzed zaokrąglenia do pikseli
 	// (ADR 0021), według numeru strony; pola marginesów układamy według nich
 	exactPageGeometry map[int][5]pr.Float
+
+	// gopdfgo: pageDone, gdy nie jest nil, makeAllPages wywołuje po ułożeniu każdej strony; false
+	// przerywa układ (rysowanie w trakcie układu, ADR 0027, zob. streamer.pageDone)
+	pageDone func(index int, pages []*bo.PageBox) bool
 
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)

@@ -40,6 +40,19 @@ type RotatablePage interface {
 	SetRotation(degrees int)
 }
 
+// ResumablePage (gopdfgo) to strona, do której treści można wrócić po narysowaniu innych stron
+// (ADR 0027): MarkContent zapamiętuje bieżące miejsce w treści, a ResumeContent, wywołane po
+// zamknięciu wszystkich stanów graficznych strony, wraca do niego. Operacje rysowane potem trafiają
+// w zapamiętane miejsce, a finish odtwarza zamknięcia stanów, które były za nim. ok = false, gdy za
+// zapamiętanym miejscem było coś więcej niż zamknięcia stanów; strona zostaje wtedy bez zmian.
+// FlushContent zapisuje treść sprzed miejsca mark (całą, gdy mark jest nil) w postaci zwartej; wynik
+// się nie zmienia, a strona czekająca na pola marginesowe zajmuje mniej pamięci.
+type ResumablePage interface {
+	MarkContent() any
+	ResumeContent(mark any) (finish func(), ok bool)
+	FlushContent(mark any)
+}
+
 // Document is the main target to whole the laid out document,
 // consisting in pages, metadata and embedded files.
 type Document interface {

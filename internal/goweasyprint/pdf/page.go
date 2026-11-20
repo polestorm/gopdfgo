@@ -289,6 +289,49 @@ func (cp *outputPage) AddFileAnnotation(xMin, yMin, xMax, yMax fl, fileID string
 	cp.page.Annots = append(cp.page.Annots, &an)
 }
 
+// pageMark (gopdfgo): miejsce w treści strony (backend.ResumablePage) i granica form masek tej strony.
+type pageMark struct {
+	stream    cs.StreamMark
+	maskLimit [2]fl
+}
+
+// MarkContent (gopdfgo) zapamiętuje bieżące miejsce w treści strony (backend.ResumablePage).
+func (cp *outputPage) MarkContent() any {
+	return pageMark{stream: cp.stream.Mark(), maskLimit: *cp.cache.maskLimit}
+}
+
+// ResumeContent (gopdfgo) wraca do miejsca zapamiętanego przez MarkContent (backend.ResumablePage).
+// Granica form masek miękkich zależy od rozmiaru strony (zob. AddPage), więc na czas dorysowania
+// wraca do wartości tej strony; finish przywraca wartość bieżącą.
+func (cp *outputPage) ResumeContent(mark any) (finish func(), ok bool) {
+	m, isMark := mark.(pageMark)
+	if !isMark {
+		return nil, false
+	}
+	restores, ok := cp.stream.ResumeAt(m.stream)
+	if !ok {
+		return nil, false
+	}
+	current := *cp.cache.maskLimit
+	*cp.cache.maskLimit = m.maskLimit
+	return func() {
+		for range restores {
+			_ = cp.stream.RestoreState() // stan zapisany w Mark, więc wywołania są zrównoważone
+		}
+		*cp.cache.maskLimit = current
+	}, true
+}
+
+// FlushContent (gopdfgo) zapisuje treść strony sprzed miejsca mark (całą, gdy mark jest nil) w postaci
+// skompresowanej (backend.ResumablePage, zob. contentstream.GraphicStream.Flush).
+func (cp *outputPage) FlushContent(mark any) {
+	n := -1
+	if m, isMark := mark.(pageMark); isMark {
+		n = m.stream.Offset() - cp.stream.Flushed()
+	}
+	cp.stream.Flush(n)
+}
+
 // Adjust the media boxes
 func (cp *outputPage) SetMediaBox(left fl, top fl, right fl, bottom fl) {
 	cp.customMediaBox = &model.Rectangle{Llx: left, Lly: top, Urx: right, Ury: bottom}

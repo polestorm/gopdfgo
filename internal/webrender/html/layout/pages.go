@@ -1477,6 +1477,10 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		} else {
 			stalledPages, outOfFlowPages = 0, 0
 		}
+		// gopdfgo: strona gotowa do rysowania w trakcie układu (ADR 0027)
+		if context.pageDone != nil && !context.pageDone(i-1, out) {
+			return out
+		}
 		if resumeAt == nil && len(reportedFootnotes) == 0 {
 			// Throw away obsolete pages and content
 			context.pageMaker = context.pageMaker[:i+1]

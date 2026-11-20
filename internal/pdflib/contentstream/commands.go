@@ -26,15 +26,22 @@ type Operation interface {
 // WriteOperations concatenate the given operations.
 func WriteOperations(ops ...Operation) []byte {
 	var out bytes.Buffer
-	for i, op := range ops {
-		op.Add(&out)
-		if i%10 == 0 {
+	writeOperationsAt(&out, 0, ops)
+	return out.Bytes()
+}
+
+// writeOperationsAt (gopdfgo) dopisuje operacje tak, jak WriteOperations zapisałoby je od pozycji first
+// (separator po operacji zależy od jej numeru), żeby treść zapisana w częściach była taka sama jak
+// zapisana naraz (zob. GraphicStream.Flush).
+func writeOperationsAt(out *bytes.Buffer, first int, ops []Operation) {
+	for j, op := range ops {
+		op.Add(out)
+		if (first+j)%10 == 0 {
 			out.WriteByte('\n')
 		} else {
 			out.WriteByte(' ')
 		}
 	}
-	return out.Bytes()
 }
 
 // PropertyList should be either a Name (refering to the resources dict)

@@ -1,6 +1,8 @@
 package contentstream
 
 import (
+	"bytes"
+	"compress/zlib"
 	"errors"
 	"fmt"
 	"image/color"
@@ -43,6 +45,11 @@ type GraphicStream struct {
 
 	ops []Operation
 
+	// gopdfgo: flushed – operacje sprzed ops zapisane już jako tekst strumienia i skompresowane
+	// (Flush), flushedOps – ich liczba; treść strumienia to flushed po rozpakowaniu, a za nią ops
+	flushed    []byte
+	flushedOps int
+
 	stateList []GraphicState
 	State     GraphicState
 
@@ -73,7 +80,97 @@ func NewGraphicStream(bbox model.Rectangle) GraphicStream {
 
 // OpsLen (gopdfgo) zwraca liczbę operacji zapisanych dotąd w strumieniu; pozwala rozpoznać, że
 // strumień się nie zmienił od ostatniego ToXFormObject.
-func (ap GraphicStream) OpsLen() int { return len(ap.ops) }
+func (ap GraphicStream) OpsLen() int { return ap.flushedOps + len(ap.ops) }
+
+// content (gopdfgo) zwraca tekst strumienia: część zapisaną przez Flush i dalsze operacje, z tymi samymi
+// odstępami, co WriteOperations dla wszystkich operacji naraz.
+func (ap GraphicStream) content() []byte {
+	if ap.flushedOps == 0 {
+		return WriteOperations(ap.ops...)
+	}
+	reader, err := zlib.NewReader(bytes.NewReader(ap.flushed))
+	if err != nil {
+		panic(fmt.Sprintf("contentstream: flushed content: %v", err))
+	}
+	var out bytes.Buffer
+	if _, err := out.ReadFrom(reader); err != nil {
+		panic(fmt.Sprintf("contentstream: flushed content: %v", err))
+	}
+	writeOperationsAt(&out, ap.flushedOps, ap.ops)
+	return out.Bytes()
+}
+
+// Flush (gopdfgo) zapisuje pierwsze n operacji (wszystkie, gdy n < 0) jako tekst strumienia, skompresowany
+// szybkim stopniem zlib, i zwalnia je. Treść strumienia (ToXFormObject) się nie zmienia; operacje
+// zajmują w pamięci kilkanaście razy więcej niż ich skompresowany zapis. Służy rysowaniu w trakcie
+// układu (ADR 0027): strona narysowana czeka w tej postaci na koniec dokumentu.
+func (ap *GraphicStream) Flush(n int) {
+	if n < 0 || n > len(ap.ops) {
+		n = len(ap.ops)
+	}
+	if n == 0 {
+		return
+	}
+	var plain bytes.Buffer
+	if ap.flushedOps != 0 {
+		reader, err := zlib.NewReader(bytes.NewReader(ap.flushed))
+		if err != nil {
+			panic(fmt.Sprintf("contentstream: flushed content: %v", err))
+		}
+		if _, err := plain.ReadFrom(reader); err != nil {
+			panic(fmt.Sprintf("contentstream: flushed content: %v", err))
+		}
+	}
+	writeOperationsAt(&plain, ap.flushedOps, ap.ops[:n])
+	var packed bytes.Buffer
+	w, _ := zlib.NewWriterLevel(&packed, zlib.BestSpeed)
+	w.Write(plain.Bytes())
+	w.Close()
+	ap.flushed = packed.Bytes()
+	ap.flushedOps += n
+	ap.ops = append([]Operation(nil), ap.ops[n:]...)
+}
+
+// StreamMark (gopdfgo) to zapamiętane miejsce w strumieniu: liczba operacji, stan graficzny i stos
+// stanów w chwili Mark (zob. ResumeAt).
+type StreamMark struct {
+	ops   int
+	state GraphicState
+	stack []GraphicState
+}
+
+// Offset (gopdfgo) zwraca numer operacji, przed którą leży miejsce m.
+func (m StreamMark) Offset() int { return m.ops }
+
+// Flushed (gopdfgo) zwraca liczbę operacji zapisanych przez Flush.
+func (ap GraphicStream) Flushed() int { return ap.flushedOps }
+
+// Mark (gopdfgo) zapamiętuje bieżące miejsce w strumieniu, żeby można było później dopisać w nim
+// operacje (ResumeAt). Służy rysowaniu pól marginesowych strony po ułożeniu wszystkich stron (ADR 0027).
+func (ap *GraphicStream) Mark() StreamMark {
+	return StreamMark{ops: ap.flushedOps + len(ap.ops), state: ap.State, stack: append([]GraphicState(nil), ap.stateList...)}
+}
+
+// ResumeAt (gopdfgo) wraca do miejsca m: operacje dopisane po nim zdejmuje, a stan graficzny i stos
+// przywraca. Działa tylko wtedy, gdy po m strumień już tylko zamykał zapisane stany (same Q) i stos
+// jest pusty; zwraca wtedy liczbę zamknięć, które trzeba odtworzyć przez RestoreState po dopisaniu
+// operacji. W przeciwnym razie nic nie zmienia i zwraca ok = false.
+func (ap *GraphicStream) ResumeAt(m StreamMark) (restores int, ok bool) {
+	at := m.ops - ap.flushedOps // miejsce w ops (część wcześniejsza mogła zostać zapisana przez Flush)
+	if at < 0 || at > len(ap.ops) || len(ap.stateList) != 0 || len(ap.ops)-at != len(m.stack) {
+		return 0, false
+	}
+	for _, op := range ap.ops[at:] {
+		if _, isRestore := op.(OpRestore); !isRestore {
+			return 0, false
+		}
+	}
+	restores = len(ap.ops) - at
+	ap.ops = ap.ops[:at]
+	ap.State = m.state
+	ap.stateList = append(ap.stateList[:0], m.stack...)
+	return restores, true
+}
 
 // ToXFormObject write the appearance to a new object,
 // and associate it the resources, which are shallow copied.
@@ -82,7 +179,7 @@ func (ap GraphicStream) ToXFormObject(compress bool) *model.XObjectForm {
 	out := new(model.XObjectForm)
 	out.BBox = ap.BoundingBox
 	out.Resources = ap.resources.ShallowCopy()
-	out.Content = WriteOperations(ap.ops...)
+	out.Content = ap.content()
 	if compress {
 		out.Stream = model.NewCompressedStream(out.Content)
 	}
@@ -130,7 +227,7 @@ func (ap GraphicStream) ApplyToPageObject(page *model.PageObject, compress bool)
 func (ap GraphicStream) ApplyToTilling(pattern *model.PatternTiling) {
 	pattern.BBox = ap.BoundingBox
 	pattern.Resources = ap.resources.ShallowCopy()
-	pattern.ContentStream.Content = WriteOperations(ap.ops...)
+	pattern.ContentStream.Content = ap.content()
 }
 
 // Ops adds one or more graphic command. Some commands usually need

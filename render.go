@@ -19,6 +19,7 @@ import (
 	"github.com/go-text/typesetting/fontscan"
 	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
 	pdfmodel "github.com/polestorm/gopdfgo/internal/pdflib/model"
+	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/layout"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
@@ -314,11 +315,37 @@ func render(html []byte, opts Options) (result Result, err error) {
 	// Atrybuty prezentacyjne HTML (width i height na img, bgcolor, align, border na table itd.) są
 	// stosowane: standard HTML definiuje je jako wskazówki prezentacyjne, które renderer ma uwzględniać
 	// (WHATWG HTML, sekcja Rendering). W silniku źródłowym to opcja domyślnie wyłączona.
-	laidOut := document.Render(parsed, sheets, true, fontConfig)
-	pdfmodel.NonFiniteNumbers.Store(0)
-	output := pdf.NewOutput()
-	laidOut.ReleaseDrawnPages = true // strony zwalniane zaraz po narysowaniu, zob. document.Document
-	laidOut.Write(output, 1, attachments)
+	//
+	// Strony są rysowane zaraz po ułożeniu (ADR 0027); gdy wynik różniłby się od rysowania po ułożeniu
+	// całego dokumentu, wszystko, co narysowano, idzie do kosza, a dokument jest układany jeszcze raz
+	// i rysowany po ułożeniu wszystkich stron. Ostrzeżenia z odrzuconego przebiegu też odrzucamy.
+	var (
+		output *pdf.Output
+		pages  int
+	)
+	fallback := "streaming disabled"
+	if !document.StreamingDisabled {
+		warningsBefore := warnings.Len()
+		pages, fallback = document.Stream(parsed, sheets, true, fontConfig, func() backend.Document {
+			pdfmodel.NonFiniteNumbers.Store(0)
+			output = pdf.NewOutput()
+			return output
+		}, 1, attachments)
+		if fallback != "" {
+			warnings.Truncate(warningsBefore)
+		}
+	}
+	if fallback != "" {
+		laidOut := document.Render(parsed, sheets, true, fontConfig)
+		pdfmodel.NonFiniteNumbers.Store(0)
+		output = pdf.NewOutput()
+		laidOut.ReleaseDrawnPages = true // strony zwalniane zaraz po narysowaniu, zob. document.Document
+		laidOut.Write(output, 1, attachments)
+		pages = len(laidOut.Pages)
+	}
+	if document.OnStream != nil {
+		document.OnStream(fallback)
+	}
 	if opts.Conformance != ConformanceNone {
 		output.DisableImageInterpolation() // ISO 19005-2 § 6.2.8
 	}
@@ -336,7 +363,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
 
-	result = Result{PDF: out.Bytes(), Pages: len(laidOut.Pages), EngineName: EngineName, EngineVersion: EngineVersion}
+	result = Result{PDF: out.Bytes(), Pages: pages, EngineName: EngineName, EngineVersion: EngineVersion}
 	// Wartość nieskończona albo NaN w rysunku oznacza błąd układu: zapisujemy ją jako 0, żeby plik
 	// pozostał poprawny składniowo, i zgłaszamy, bo fragment strony może leżeć nie tam, gdzie powinien.
 	if count := pdfmodel.NonFiniteNumbers.Load(); count > 0 {
