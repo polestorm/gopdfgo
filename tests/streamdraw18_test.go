@@ -80,7 +80,7 @@ func paragraphs(n int, text string) string {
 func streamCases(t *testing.T) []struct{ name, html, want string } {
 	lorem := strings.Repeat("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. ", 6)
 	img := pngDataURL(t)
-	return []struct{ name, html, want string }{
+	cases := []struct{ name, html, want string }{
 		{"counter-pages-margin", `<style>@page { size: A6; @bottom-center { content: "Strona " counter(page) " z " counter(pages) }
 			@top-right { content: "Nagłówek"; opacity: .5 } }</style>` + paragraphs(30, lorem), ""},
 		{"running-string-set", `<style>@page { size: A6; @top-center { content: element(head) } @bottom-left { content: string(chapter) } }
@@ -115,6 +115,35 @@ func streamCases(t *testing.T) []struct{ name, html, want string } {
 			<div class="a"></div>` + paragraphs(10, lorem), ""},
 		{"continuous", `<p>jedna strona</p>` + paragraphs(5, lorem), ""},
 	}
+	return append(cases, pageKeywordCases(lorem)...)
+}
+
+// pageKeywordCases: string() i element() ze słowami kluczowymi start, first, last i first-except przy
+// przypisaniu na początku strony, w środku strony i na stronie bez przypisania. Słowo start czyta drzewo
+// strony (pierwsze dzieci), które przy rysowaniu w trakcie układu jest zwalniane przed polami marginesów.
+func pageKeywordCases(lorem string) []struct{ name, html, want string } {
+	var out []struct{ name, html, want string }
+	for _, keyword := range []string{"start", "first", "last", "first-except"} {
+		// strona 1: przypisanie jako pierwsze pudełko strony i drugie w środku; strona 2 (i dalsze) bez
+		// przypisania; potem przypisanie na początku strony po wymuszonym podziale i w środku następnej
+		body := func(heading func(attrs, text string) string) string {
+			return heading("", "Sekcja 1") + paragraphs(1, lorem) + heading("", "Sekcja 1b") + paragraphs(6, lorem) +
+				heading(` style="break-before: page"`, "Sekcja 2") + paragraphs(2, lorem) + heading("", "Sekcja 3") + paragraphs(3, lorem)
+		}
+		out = append(out, struct{ name, html, want string }{"string-" + keyword,
+			`<style>@page { size: A6; @top-center { content: string(section, ` + keyword + `) } }
+			h2 { string-set: section content() }</style>` + body(func(attrs, text string) string {
+				return "<h2" + attrs + ">" + text + "</h2>"
+			}), ""})
+		// element() ze słowem start też sprawdza string-set o tej nazwie na ścieżce pierwszych dzieci
+		// strony, więc nagłówek w przepływie nosi string-set head, a element biegnący jest w nim
+		out = append(out, struct{ name, html, want string }{"running-" + keyword,
+			`<style>@page { size: A6; @top-center { content: element(head, ` + keyword + `) } }
+			h2 { string-set: head content() } .head { position: running(head) }</style>` + body(func(attrs, text string) string {
+				return "<h2" + attrs + `><span class="head">Biegnący: ` + text + "</span>" + text + "</h2>"
+			}), ""})
+	}
+	return out
 }
 
 func TestStreamDrawingByteIdentity(t *testing.T) {
