@@ -449,8 +449,12 @@ func (svg *SVGImage) applyClipPath(dst backend.Canvas, clipPath *clipPath, node 
 	dst.Rectangle(0, 0, 0, 0)
 	dst.State().Clip(false)
 	newCtm := dst.State().GetTransform()
+	// gopdfgo: Transform dokłada macierz po prawej stronie (CTM' = CTM × M, zob. matrix.Mul3), więc
+	// powrót do oldCtm wymaga M = newCtm⁻¹ × oldCtm; źródło mnożyło w odwrotnej kolejności, co przy
+	// clipPathUnits="objectBoundingBox" przesuwało i skalowało dalsze rysowanie elementu (zwykle poza
+	// obszar przycięcia).
 	if err := newCtm.Invert(); err == nil {
-		dst.State().Transform(matrix.Mul(oldCtm, newCtm))
+		dst.State().Transform(matrix.Mul(newCtm, oldCtm))
 	}
 }
 
@@ -477,6 +481,14 @@ func (svg *SVGImage) applyMask(dst backend.Canvas, mask mask, node *svgNode, dim
 	}
 
 	alpha := dst.NewGroup(x, y, width, height)
+	// gopdfgo: tam, gdzie maska nic nie rysuje, jej luminancja wynosi 0 i element jest ukryty (CSS
+	// Masking 1 § 7.1); pusta grupa maski bywała w PDF traktowana jak brak maski (poppler), więc
+	// obszar maski wypełniamy najpierw czernią (test WPT symbol-in-mask)
+	alpha.OnNewStack(func() {
+		alpha.Rectangle(x, y, width, height)
+		alpha.State().SetColorRgba(parser.RGBA{A: 1}, false)
+		alpha.Paint(backend.FillNonZero)
+	})
 	svg.drawNode(alpha, &mask.svgNode, dims, true)
 	dst.State().SetAlphaMask(alpha)
 }
@@ -695,6 +707,14 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 		if child == nil {
 			continue // do not add useless node to the tree
 		}
+		// gopdfgo: element z niespełnionym atrybutem warunkowym nie jest rysowany (SVG 2 § 5.8.1), choć
+		// pozostaje w definicjach; <switch> rysuje tylko pierwsze dziecko, którego warunki są spełnione
+		// (SVG 2 § 5.8.2), z pominięciem elementów opisowych. Źródło rysowało wszystkie dzieci.
+		// <symbol> nie jest rysowany wprost, tylko przez <use> (SVG 2 § 5.5; resolveUse zamienia go
+		// na svg), a źródło rysowało go jak grupę (test WPT symbol-in-mask).
+		if c.tag == "symbol" || !conditionsPass(c) || (node.tag == "switch" && (len(children) != 0 || isDescriptive(c.tag))) {
+			continue
+		}
 		children = append(children, child)
 	}
 
@@ -792,6 +812,8 @@ func (tree *svgContext) processGraphicNode(node *cascadedNode, children []*svgNo
 	case "a", "text", "textPath", "tspan":
 		out.graphicContent, err = newTextSpan(node)
 		isText = true
+	case "foreignObject": // gopdfgo: SVG 2 § 23.2, zob. foreign.go
+		out.graphicContent, err = newForeignObject(node, tree)
 	}
 
 	if err != nil {
@@ -806,6 +828,23 @@ func (tree *svgContext) processGraphicNode(node *cascadedNode, children []*svgNo
 
 	if err != nil {
 		return nil, err
+	}
+	if node.tag == "svg" && node != tree.root {
+		// gopdfgo: width i height zagnieżdżonego <svg> (także <symbol> wstawionego przez <use>) mają
+		// wartość auto, czyli 100% (SVG 2 § 5.1.2 i § 5.6); źródło liczyło brak atrybutu jako 0, więc
+		// symbol bez rozmiaru na <use> był w całości przycinany
+		if out.width.U == 0 {
+			out.width = Value{100, Perc}
+		}
+		if out.height.U == 0 {
+			out.height = Value{100, Perc}
+		}
+	}
+	if node.tag == "foreignObject" {
+		// gopdfgo: visibility: hidden na foreignObject ukrywa tylko jego własne pudełko; potomkowie
+		// z visibility: visible są rysowani (CSS Display 3 § 5.1), więc o widoczności treści decyduje
+		// dokument HTML, któremu przekazujemy visibility (zob. inheritedForeignProperties)
+		out.visible = out.display
 	}
 
 	return &out, nil
