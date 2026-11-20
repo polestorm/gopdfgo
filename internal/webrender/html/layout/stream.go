@@ -352,6 +352,11 @@ func (s *streamer) pageDone(i int, pages []*bo.PageBox) bool {
 	if !s.measuring {
 		s.sink.Area(i, page)
 	}
+	// słowo kluczowe start w string() i element() czyta drzewo strony przy układaniu pól marginesowych
+	if context.startChains == nil {
+		context.startChains = map[int][]pr.StringSet{}
+	}
+	context.startChains[i+1] = startChain(page)
 	page.Children = nil
 	return true
 }

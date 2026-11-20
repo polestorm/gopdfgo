@@ -327,8 +327,10 @@ type layoutContext struct {
 	// caches
 	stringSet       map[string]map[int][]string
 	runningElements map[string]map[int][]Box
-	strutLayouts    map[text.StrutLayoutKey][2]pr.Float
-	tables          map[*bo.TableBox]map[bool]tableContentWidths
+	// gopdfgo: startChains[n]: startChain strony n zapamiętany przed zwolnieniem jej drzewa (ADR 0027)
+	startChains  map[int][]pr.StringSet
+	strutLayouts map[text.StrutLayoutKey][2]pr.Float
+	tables       map[*bo.TableBox]map[bool]tableContentWidths
 
 	resolver            bo.URLResolver
 	fontConfig          text.FontConfiguration
@@ -597,25 +599,19 @@ func (l *layoutContext) finishFlexFormattingContext(_ Box) {
 	}
 }
 
-func resolveKeyword(keyword, name string, page Box) string {
+func resolveKeyword(keyword, name string, startChain []pr.StringSet) string {
 	switch keyword {
 	case "first":
 		return "first"
 	case "start":
-		element := page
-		for element != nil {
-			if element.Box().Style.GetStringSet().String != "none" {
-				for _, v := range element.Box().Style.GetStringSet().Contents {
+		for _, stringSet := range startChain {
+			if stringSet.String != "none" {
+				for _, v := range stringSet.Contents {
 					if v.String == name {
 						return "first"
 					}
 				}
 			}
-			if len(element.Box().Children) > 0 {
-				element = element.Box().Children[0]
-				continue
-			}
-			break
 		}
 	case "last":
 		return "last"
@@ -623,6 +619,31 @@ func resolveKeyword(keyword, name string, page Box) string {
 		return "return"
 	}
 	return ""
+}
+
+// startChain (gopdfgo) zbiera wartości string-set pudełek na ścieżce od strony przez kolejne pierwsze
+// dzieci, czyli to, co czyta słowo kluczowe start. Źródło przechodziło tę ścieżkę w resolveKeyword, przy
+// układaniu pól marginesowych; przy rysowaniu w trakcie układu (ADR 0027) drzewo strony jest już wtedy
+// zwolnione, więc ścieżkę zapamiętujemy wcześniej (pageFinisher.rememberStart).
+func startChain(page Box) []pr.StringSet {
+	var chain []pr.StringSet
+	for element := page; element != nil; {
+		chain = append(chain, element.Box().Style.GetStringSet())
+		if len(element.Box().Children) == 0 {
+			break
+		}
+		element = element.Box().Children[0]
+	}
+	return chain
+}
+
+// pageStartChain zwraca ścieżkę start strony bieżącej: zapamiętaną, jeśli drzewo strony zwolniono,
+// a w przeciwnym razie liczoną z drzewa.
+func (lc *layoutContext) pageStartChain(page Box) []pr.StringSet {
+	if chain, ok := lc.startChains[lc.currentPage]; ok {
+		return chain
+	}
+	return startChain(page)
 }
 
 // Resolve value of string function (as set by string set).
@@ -643,7 +664,7 @@ func resolveKeyword(keyword, name string, page Box) string {
 func (lc *layoutContext) GetStringSetFor(page Box, name, keyword string) string {
 	if currentS, in := lc.stringSet[name][lc.currentPage]; in {
 		// A value was assigned on this page
-		switch resolveKeyword(keyword, name, page) {
+		switch resolveKeyword(keyword, name, lc.pageStartChain(page)) {
 		case "first":
 			return currentS[0]
 		case "last":
@@ -664,7 +685,7 @@ func (lc *layoutContext) GetStringSetFor(page Box, name, keyword string) string 
 func (lc *layoutContext) GetRunningElementFor(page Box, name, keyword string) Box {
 	if currentS, in := lc.runningElements[name][lc.currentPage]; in {
 		// A value was assigned on this page
-		switch resolveKeyword(keyword, name, page) {
+		switch resolveKeyword(keyword, name, lc.pageStartChain(page)) {
 		case "first":
 			return currentS[0]
 		case "last":
