@@ -21,6 +21,7 @@ czy sforkować. Szczegóły w `docs/landscape.md` i `docs/adr/open-questions.md`
 | `docs/estimates.md` | Rozmiar binarki, pamięć, pracochłonność dla trzech strategii; ocena wariantu „tylko PDF” | szacujesz koszt |
 | `docs/engine-fit.md` | Które pozycje „musi” obsługuje każdy z trzech silników Go (ocena z czytania kodu) | wybierasz strategię po korpusie |
 | `testdata/README.md` | Korpus: 22 dokumenty własne, próbki WeasyPrint, testy druku z WPT; format oczekiwań | uruchamiasz albo rozszerzasz testy |
+| `docs/chromium-comparison.md` | gopdfgo a Chromium w xml.pro: rozmiar, szybkość, jakość i pliki PDF na fakturach KSeF i e-SF (wersja `4eca5e5`) | porównujesz z przeglądarką |
 | `docs/benchmark.md` | Wyniki forka webrender na korpusie: dokumenty, próbki, reftesty WPT, wady warstwy PDF | oceniasz, co trzeba naprawić |
 | `docs/feature-audit.md` | Stan funkcji: rozmiar w binarce, sondaż 9135 reftestów, paniki, ocena grid; poprawić, zostawić czy wyłączyć | decydujesz, czym zająć się dalej |
 | `cmd/gopdfgo` | Polecenie: plik HTML → PDF | chcesz wyrenderować dokument z wiersza poleceń |
