@@ -238,7 +238,6 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			})
 		}
 
-
 		// do the actual painting :
 		// paint by filling and stroking the given node onto the graphic target
 		if paint && !isText {

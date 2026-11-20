@@ -3,6 +3,7 @@ package svg
 import (
 	"math"
 	"strings"
+	"unicode"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -32,7 +33,7 @@ type textSpan struct {
 func newTextSpan(node *cascadedNode) (drawable, error) {
 	var out textSpan
 
-	out.text = string(node.text)
+	out.text = applyTextTransform(string(node.text), node.attrs["text-transform"])
 	out.style = pr.InitialValues.Copy()
 
 	family := "sans-serif"
@@ -191,7 +192,16 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 		texts  []backend.TextDrawing
 		drawer = drawText.Context{Output: dst, Fonts: svg.textContext.Fonts()}
 	)
-	for i, r := range chars {
+	// gopdfgo: znaki łączące (Mn, Me, Mc), łączniki ZWJ/ZWNJ i selektory wariantu należą do znaku
+	// bazowego: rysujemy je razem z nim, a ich wartości x/y/dx/dy/rotate są pomijane (SVG 2 § 11.8.1,
+	// znaki adresowalne; testy WPT text-positioning-list-combining-marks*). Źródło rysowało każdy
+	// znak osobno, więc znak łączący dostawał własną pozycję.
+	for i := 0; i < len(chars); i++ {
+		clusterEnd := i + 1
+		for clusterEnd < len(chars) && isClusterContinuation(chars[clusterEnd]) {
+			clusterEnd++
+		}
+		cluster := chars[i:clusterEnd]
 		hasX, hasY := i < len(xs), i < len(ys)
 
 		var angle Fl // en radians
@@ -214,7 +224,7 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 			svg.cursorDPosition.y += dys[i]
 		}
 
-		splitted := text.SplitFirstLine([]rune{r}, t.style, svg.textContext, pr.Inf, false, true)
+		splitted := text.SplitFirstLine(cluster, t.style, svg.textContext, pr.Inf, false, true)
 		layout := splitted.Layout
 		width, height = Fl(splitted.Width), Fl(splitted.Height)
 
@@ -257,6 +267,7 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 		if len(text.Runs) != 0 { // do not draw empty content
 			texts = append(texts, text)
 		}
+		i = clusterEnd - 1
 	}
 
 	dst.OnNewStack(func() {
@@ -266,4 +277,37 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 	t.textBoundingBox = bbox
 
 	return nil
+}
+
+// isClusterContinuation (gopdfgo) mówi, czy znak dołącza do poprzedniego znaku adresowalnego.
+func isClusterContinuation(r rune) bool {
+	return unicode.In(r, unicode.Mn, unicode.Me, unicode.Mc) || r == 0x200C || r == 0x200D ||
+		unicode.Is(unicode.Variation_Selector, r)
+}
+
+// applyTextTransform (gopdfgo) stosuje text-transform (CSS Text 3 § 2.1) do treści tekstu SVG;
+// źródło tę właściwość pomijało. capitalize zmienia pierwszą literę każdego słowa (słowo kończy
+// znak niebędący literą, cyfrą ani znakiem łączącym), w granicach jednego węzła tekstu.
+func applyTextTransform(s, transform string) string {
+	switch strings.TrimSpace(transform) {
+	case "uppercase":
+		return strings.ToUpper(s)
+	case "lowercase":
+		return strings.ToLower(s)
+	case "capitalize":
+		var (
+			b      strings.Builder
+			inWord bool
+		)
+		for _, r := range s {
+			isWordChar := unicode.IsLetter(r) || unicode.IsDigit(r) || isClusterContinuation(r)
+			if isWordChar && !inWord && unicode.IsLetter(r) {
+				r = unicode.ToTitle(r)
+			}
+			inWord = isWordChar
+			b.WriteRune(r)
+		}
+		return b.String()
+	}
+	return s
 }

@@ -2,9 +2,9 @@ package svg
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
-	"math"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
