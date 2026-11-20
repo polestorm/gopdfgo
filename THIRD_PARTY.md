@@ -919,6 +919,17 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- dalszy ciąg komórek tabeli, 2026-11-20 (praca pomocnika; `layout/tables.go`, `background.go`, `preferred.go`,
+  `document/draw.go`, `boxes/boxes.go`): dalszy ciąg komórki rozpiętej (rowspan) na następnej stronie ma pod sobą
+  tło wiersza, w którym się zaczyna (pola `BoxFields.SpanOriginRow` i `SpanRowBackground`; CSS 2.1 § 17.5.1),
+  a wiersz, w którym stoi, nie maluje pod nim swojego tła. Dalszy ciąg zwykłej komórki podzielonego wiersza,
+  z którego nic nie zmieściło się na stronie, wznawia się w tym samym miejscu; źródło wznawiało go od {0: nil}
+  i treść się powtarzała. max-width tabeli ogranicza jej szerokość preferowaną po odjęciu obramowania i odstępu
+  przy box-sizing: border-box, tak jak w układzie (`tableMaxWidthLimit`). Komórka o podanej wysokości większej niż
+  miejsce do końca strony, w wierszu na początku strony, jest dzielona według tej wysokości (CSS Fragmentation 3
+  § 5.1); źródło zostawiało wiersz wystający poza stronę. Zmienione testy przejęte: `TestTablePageBreaks`
+  (wiersz 300 px dzielony na trzy strony), `TestTablePageBreaksComplex1` (wiersze 4 i 5 dzielone między
+  powtarzanym nagłówkiem a stopką), `TestTableEmptyBody` (grupy wyższe niż strona dzielone);
 - komórka z `rowspan` przez strony, 2026-11-20 (praca pomocnika; `layout/tables.go`): komórka z rowspan, której
   wiersze przechodzą na następną stronę lub do następnej kolumny, jest dzielona razem z nimi (CSS Tables 3 § 6,
   CSS Fragmentation 3 § 4.4 i § 5.4). Fragment sięga dołu ostatniego wiersza strony, bez dolnego obramowania
