@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/polestorm/gopdfgo/internal/webrender/css/parser"
 )
 
 func TestHandleText(t *testing.T) {
@@ -49,8 +51,8 @@ func TestHandleText(t *testing.T) {
 	}
 }
 
-// gopdfgo: filtr z nieobsługiwanym prymitywem (tu feGaussianBlur) jest pomijany w całości, a filtr
-// z samymi obsługiwanymi prymitywami działa jak dotąd; źródło wykonywało część łańcucha
+// gopdfgo: graf prymitywów jest oceniany do listy warstw (filters.go); źródło wykonywało tylko feOffset
+// i feBlend, a resztę łańcucha pomijało
 func TestFilter(t *testing.T) {
 	input := `
 	<svg width="230" height="120" xmlns="http://www.w3.org/2000/svg">
@@ -73,14 +75,24 @@ func TestFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.definitions.filters["blurMe"]) != 0 {
-		t.Fatalf("filtr z feGaussianBlur powinien być pominięty: %v", out.definitions.filters["blurMe"])
+	run := func(id string) filterResult {
+		f := out.definitions.filters[id]
+		if f == nil {
+			t.Fatalf("brak filtra %s", id)
+		}
+		ev := filterEval{filter: f, region: Rectangle{0, 0, 230, 120}}
+		res, ok := ev.run()
+		if !ok {
+			t.Fatalf("filtr %s odrzucony: %s", id, ev.reason)
+		}
+		return res
 	}
-	if !reflect.DeepEqual(out.definitions.filters["shift"], []filter{
-		filterBlend("multiply"),
-		filterOffset{dx: Value{60, Px}, dy: Value{60, Px}, isUnitsBBox: false},
-	}) {
-		t.Fatal(out.definitions.filters)
+	source := parser.RGBA{A: 1}
+	if got := run("shift"); !reflect.DeepEqual(got, filterResult{{kind: layerSource, color: source, dx: 60, dy: 60}}) {
+		t.Fatalf("shift: %+v", got)
+	}
+	if got := run("blurMe"); !reflect.DeepEqual(got, filterResult{{kind: layerSource, color: source, dx: 60, dy: 60, sx: 5, sy: 5}}) {
+		t.Fatalf("blurMe: %+v", got)
 	}
 }
 

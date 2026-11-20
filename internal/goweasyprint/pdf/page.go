@@ -137,6 +137,10 @@ type group struct {
 	cache
 
 	stream cs.GraphicStream
+
+	// shared (gopdfgo): obiekt grupy zapisany przez DrawSharedGroup, wskazywany przy każdym kolejnym
+	// rysowaniu (zob. backend.FilterCanvas)
+	shared *model.XObjectTransparencyGroup
 }
 
 func newGroup(cache cache,

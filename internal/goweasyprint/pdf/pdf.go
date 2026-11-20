@@ -38,6 +38,10 @@ type cache struct {
 	// The same face may be used at different sizes
 	// and we don't want to duplicate the font file
 	fontFiles map[text.FontOrigin]fontContent
+
+	// transfers (gopdfgo): funkcje przejścia masek miękkich według próbek (zob. SetSoftMask), żeby
+	// ta sama funkcja była zapisana w pliku raz
+	transfers map[string]*model.FunctionDict
 }
 
 func newCache() cache {
@@ -45,6 +49,7 @@ func newCache() cache {
 		images:    make(map[int]*model.XObjectImage),
 		fonts:     make(map[backend.Font]pdfFont),
 		fontFiles: make(map[text.FontOrigin]fontContent),
+		transfers: make(map[string]*model.FunctionDict),
 	}
 }
 

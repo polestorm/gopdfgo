@@ -23,7 +23,7 @@ import (
 // nodes that are not directly draw but may be referenced by ID
 // from other nodes
 type definitions struct {
-	filters      map[string][]filter
+	filters      map[string]*svgFilter
 	clipPaths    map[string]*clipPath
 	masks        map[string]mask
 	paintServers map[string]paintServer
@@ -33,7 +33,7 @@ type definitions struct {
 
 func newDefinitions() definitions {
 	return definitions{
-		filters:      make(map[string][]filter),
+		filters:      make(map[string]*svgFilter),
 		clipPaths:    make(map[string]*clipPath),
 		masks:        make(map[string]mask),
 		paintServers: make(map[string]paintServer),
@@ -141,9 +141,12 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 	}
 
 	paintTask := func() {
-		// apply filters
-		if filters := svg.definitions.filters[node.filterID]; filters != nil {
-			applyFilters(dst, filters, node, dims)
+		// gopdfgo: filtr działa w układzie użytkownika elementu, czyli po jego przekształceniu, a przed
+		// przycięciem, maską i kryciem (Filter Effects 1 § 5, CSS Masking 1 § 3); źródło przesuwało
+		// (feOffset) cały element przed przekształceniem
+		effect := svg.definitions.filters[node.filterID]
+		if !paint {
+			effect = nil
 		}
 
 		// apply transform attribute
@@ -156,6 +159,14 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			var x, y, width, height Fl = 0, 0, dims.innerWidth, dims.innerHeight
 			if box, ok := node.resolveBoundingBox(dims, true); ok {
 				x, y, width, height = box.X, box.Y, box.Width, box.Height
+			}
+			// gopdfgo: wynik filtra (np. cień) wychodzi poza ramkę elementu: grupa krycia obejmuje
+			// cały obszar filtra
+			if effect != nil {
+				bbox, hasBBox := objectBoundingBox(node, dims)
+				if region, ok := effect.resolveRegion(bbox, hasBBox, dims); ok {
+					x, y, width, height = region.X, region.Y, region.Width, region.Height
+				}
 			}
 			originalDst1 = dst
 			// gopdfgo: grupa zaczyna od tożsamości, a jest rysowana w bieżącym układzie (hostScale)
@@ -177,52 +188,58 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			svg.applyMask(dst, ma, node, dims)
 		}
 
-		// gopdfgo: text-anchor działa na każdy fragment tekstu osobno już przy składzie (layoutText);
-		// źródło przesuwało tu całą grupę elementu <text> o szerokość jego prostokąta otaczającego
-		text, isText := node.graphicContent.(*textSpan)
+		// gopdfgo: treść elementu rysowana na podanym płótnie: wprost albo do grupy źródłowej filtra
+		content := func(dst backend.Canvas) {
+			// gopdfgo: text-anchor działa na każdy fragment tekstu osobno już przy składzie (layoutText);
+			// źródło przesuwało tu całą grupę elementu <text> o szerokość jego prostokąta otaczającego
+			text, isText := node.graphicContent.(*textSpan)
 
-		// manage display and visibility
-		display := node.attributes.display
-		visible := node.attributes.visible
+			// manage display and visibility
+			display := node.attributes.display
+			visible := node.attributes.visible
 
-		// draw the node itself : it is done in three steps
-		// 	1) resolve paint options and apply it
-		// 	2) apply the path operation
-		// 	3) conclude by calling Paint
+			// draw the node itself : it is done in three steps
+			// 	1) resolve paint options and apply it
+			// 	2) apply the path operation
+			// 	3) conclude by calling Paint
 
-		doFill, doStroke := svg.applyPainters(dst, node, dims)
+			doFill, doStroke := svg.applyPainters(dst, node, dims)
 
-		var vertices []vertex
-		// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce w składzie (layoutText),
-		// więc dalsze fragmenty stoją tam, gdzie powinny (SVG 2 § 11.8, test WPT
-		// text-visibility-hidden-tspan-visible)
-		if visible && node.graphicContent != nil {
-			vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
-		}
+			var vertices []vertex
+			// gopdfgo: niewidoczny tekst (visibility: hidden) nadal zajmuje miejsce w składzie (layoutText),
+			// więc dalsze fragmenty stoją tam, gdzie powinny (SVG 2 § 11.8, test WPT
+			// text-visibility-hidden-tspan-visible)
+			if visible && node.graphicContent != nil {
+				vertices = node.graphicContent.draw(dst, &node.attributes, svg, dims)
+			}
 
-		// then recurse
-		if display {
-			for _, child := range node.children {
-				svg.drawNode(dst, child, dims, paint)
+			// then recurse
+			if display {
+				for _, child := range node.children {
+					svg.drawNode(dst, child, dims, paint)
 
-				childText, isChildText := child.graphicContent.(*textSpan)
-				if visibleTextChild := (isText && isChildText && child.visible); visibleTextChild {
-					if bb := childText.textBoundingBox; bb != emptyBbox {
-						text.textBoundingBox.union(bb)
+					childText, isChildText := child.graphicContent.(*textSpan)
+					if visibleTextChild := (isText && isChildText && child.visible); visibleTextChild {
+						if bb := childText.textBoundingBox; bb != emptyBbox {
+							text.textBoundingBox.union(bb)
+						}
 					}
 				}
 			}
-		}
 
-		// do the actual painting :
-		// paint by filling and stroking the given node onto the graphic target
-		if paint && !isText {
-			dst.Paint(newPaintOp(doFill, doStroke, node.isFillEvenOdd))
-		}
+			// do the actual painting :
+			// paint by filling and stroking the given node onto the graphic target
+			if paint && !isText {
+				dst.Paint(newPaintOp(doFill, doStroke, node.isFillEvenOdd))
+			}
 
-		// draw markers
-		if len(vertices) != 0 {
-			svg.drawMarkers(dst, vertices, node, dims, paint)
+			// draw markers
+			if len(vertices) != 0 {
+				svg.drawMarkers(dst, vertices, node, dims, paint)
+			}
+		}
+		if effect == nil || !svg.drawFiltered(dst, effect, node, dims, content) {
+			content(dst)
 		}
 
 		// apply opacity group and restore original target
@@ -428,25 +445,6 @@ func applyTransform(dst backend.Canvas, transforms []transform, dims drawingDims
 	mat := aggregateTransforms(transforms, dims.fontSize, dims.innerDiagonal)
 	if mat.Determinant() != 0 {
 		dst.State().Transform(mat)
-	}
-}
-
-func applyFilters(dst backend.Canvas, filters []filter, node *svgNode, dims drawingDims) {
-	for _, filter := range filters {
-		switch filter := filter.(type) {
-		case filterOffset:
-			var dx, dy Fl
-			if filter.isUnitsBBox {
-				bbox, _ := node.resolveBoundingBox(dims, true)
-				dx = filter.dx.Resolve(dims.fontSize, 1) * bbox.Width
-				dy = filter.dy.Resolve(dims.fontSize, 1) * bbox.Height
-			} else {
-				dx, dy = dims.point(filter.dx, filter.dy)
-			}
-			dst.State().Transform(matrix.New(1, 0, 0, 1, dx, dy))
-		case filterBlend:
-			dst.State().SetBlendingMode(string(filter))
-		}
 	}
 }
 

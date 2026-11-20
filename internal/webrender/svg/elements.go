@@ -655,63 +655,6 @@ func (u use) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims dra
 
 // definitions
 
-type filter interface {
-	isFilter()
-}
-
-func (filterOffset) isFilter() {}
-func (filterBlend) isFilter()  {}
-
-type filterOffset struct {
-	dx, dy      Value
-	isUnitsBBox bool
-}
-
-type filterBlend string
-
-// parse a <filter> node
-//
-// gopdfgo: filtr z prymitywem, którego silnik nie obsługuje, albo z feOffset działającym na czymś innym niż
-// sam element (in="SourceAlpha", wynik poprzedniego prymitywu), jest pomijany w całości: element jest
-// rysowany bez filtra (Filter Effects 1 § 7.1 wymaga wtedy, żeby element nie był rysowany wcale, ale
-// w druku brak cienia jest mniejszą szkodą niż brak logo). Źródło stosowało same obsługiwane prymitywy
-// z łańcucha: przy cieniu (feGaussianBlur, feOffset, feMerge) przesuwało cały element zamiast cienia.
-func newFilter(node *cascadedNode) (out []filter, err error) {
-	for _, child := range node.children {
-		in := child.attrs["in"]
-		if child.tag == "feOffset" && in != "" && in != "SourceGraphic" {
-			logger.WarningLogger.Printf("unsupported filter input %q of feOffset: filter skipped", in)
-			return nil, nil
-		}
-		switch child.tag {
-		case "feOffset":
-			fi := filterOffset{
-				isUnitsBBox: node.attrs["primitiveUnits"] == "objectBoundingBox",
-			}
-			fi.dx, err = parseValue(child.attrs["dx"])
-			if err != nil {
-				return nil, err
-			}
-			fi.dy, err = parseValue(child.attrs["dy"])
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, fi)
-		case "feBlend":
-			fi := filterBlend("normal")
-			if mode, has := child.attrs["mode"]; has {
-				fi = filterBlend(mode)
-			}
-			out = append(out, fi)
-		default:
-			logger.WarningLogger.Printf("unsupported filter element: %s: filter skipped", child.tag)
-			return nil, nil
-		}
-	}
-
-	return out, nil
-}
-
 // clipPath is a container for
 // graphic nodes, which will use as clipping path,
 // that is drawn but not stroked nor filled.
