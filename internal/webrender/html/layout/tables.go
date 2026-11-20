@@ -480,7 +480,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 						if context.cellHeightRemaining == nil {
 							context.cellHeightRemaining = map[uintptr]pr.Float{}
 						}
-						context.cellHeightRemaining[resumeKey(cellResumeAt)] = remaining
+						context.cellHeightRemaining[context.keepResumeKey(cellResumeAt)] = remaining
 					}
 					cell.Height = used
 				} else if cell.ComputedHeight != pr.AutoF {
@@ -692,7 +692,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 						if context.cellHeightRemaining == nil {
 							context.cellHeightRemaining = map[uintptr]pr.Float{}
 						}
-						context.cellHeightRemaining[resumeKey(own)] = remaining
+						context.cellHeightRemaining[context.keepResumeKey(own)] = remaining
 					}
 					row.Height = limit - row.PositionY
 					rowBottomY = limit
@@ -2290,7 +2290,7 @@ func mapMonolithicRemainders(context *layoutContext, box Box, stack tree.ResumeS
 
 // copyResumeKeys przenosi na kopię to stosu from wpisy kontekstu kluczowane tożsamością stosu.
 func copyResumeKeys(context *layoutContext, from, to tree.ResumeStack) {
-	old, key := resumeKey(from), resumeKey(to)
+	old, key := resumeKey(from), context.keepResumeKey(to)
 	for _, m := range []map[uintptr]pr.Float{context.fixedHeightRemaining, context.minHeightRemaining,
 		context.cellHeightRemaining, context.flexPushOffset} {
 		if v, ok := m[old]; ok {
@@ -2424,7 +2424,7 @@ func continueSpanningCells(context *layoutContext, group *bo.BoxFields, rows []B
 								if context.cellHeightRemaining == nil {
 									context.cellHeightRemaining = map[uintptr]pr.Float{}
 								}
-								context.cellHeightRemaining[resumeKey(resume)] = remaining
+								context.cellHeightRemaining[context.keepResumeKey(resume)] = remaining
 							}
 						}
 					}

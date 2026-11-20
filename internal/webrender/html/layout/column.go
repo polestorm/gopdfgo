@@ -981,13 +981,13 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		if context.minHeightRemaining == nil {
 			context.minHeightRemaining = map[uintptr]pr.Float{}
 		}
-		context.minHeightRemaining[resumeKey(skipStack)] = max(0, minHeight-box.Height.V())
+		context.minHeightRemaining[context.keepResumeKey(skipStack)] = max(0, minHeight-box.Height.V())
 	}
 	if fragmentedFixed && skipStack != nil {
 		if context.fixedHeightRemaining == nil {
 			context.fixedHeightRemaining = map[uintptr]pr.Float{}
 		}
-		context.fixedHeightRemaining[resumeKey(skipStack)] = fixedHeight - box.Height.V()
+		context.fixedHeightRemaining[context.keepResumeKey(skipStack)] = fixedHeight - box.Height.V()
 	}
 
 	// Update page bottom according to the new footnotes

@@ -1471,7 +1471,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				if context.fixedHeightRemaining == nil {
 					context.fixedHeightRemaining = map[uintptr]pr.Float{}
 				}
-				context.fixedHeightRemaining[resumeKey(resumeAt)] = used - available
+				context.fixedHeightRemaining[context.keepResumeKey(resumeAt)] = used - available
 				fixedFragment = true
 			}
 		}
@@ -1491,7 +1491,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			if context.minHeightRemaining == nil {
 				context.minHeightRemaining = map[uintptr]pr.Float{}
 			}
-			context.minHeightRemaining[resumeKey(resumeAt)] = max(minHeight-newBox.Height.V(), 0)
+			context.minHeightRemaining[context.keepResumeKey(resumeAt)] = max(minHeight-newBox.Height.V(), 0)
 		}
 	}
 
@@ -2749,6 +2749,18 @@ func resumeKey(stack tree.ResumeStack) uintptr {
 		return 0
 	}
 	return reflect.ValueOf(stack).Pointer()
+}
+
+// keepResumeKey (gopdfgo) zwraca resumeKey(stack) do zapisu wpisu w mapie kluczowanej tożsamością stosu
+// i trzyma stos przy życiu do końca układu. Sam adres w kluczu (uintptr) nie chroni stosu przed GC; po
+// zwolnieniu stosu ten sam adres mógł dostać nowy, niezwiązany stos, który wtedy odczytywał cudzy wpis,
+// a ponieważ chwila odśmiecania jest przypadkowa, wynik układu bywał różny między uruchomieniami
+// (np. css-multicol/multicol-span-all-children-height-013 raz na ~150 przebiegów).
+func (context *layoutContext) keepResumeKey(stack tree.ResumeStack) uintptr {
+	if stack != nil {
+		context.keptResumeStacks = append(context.keptResumeStacks, stack)
+	}
+	return resumeKey(stack)
 }
 
 // isEmptyLinebox (gopdfgo): wiersz bez treści i bez pudełek wyjętych z przepływu. Wiersz z samym elementem

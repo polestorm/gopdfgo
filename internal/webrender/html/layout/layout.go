@@ -420,6 +420,8 @@ type layoutContext struct {
 	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
 	// klucz to znacznik w stanie wznowienia linii (resumeKey)
 	flexPushOffset map[uintptr]pr.Float
+	// gopdfgo: stosy wznowienia, pod których adresami są wpisy w mapach powyżej (zob. keepResumeKey)
+	keptResumeStacks []tree.ResumeStack
 	// gopdfgo: pudełka, które dostają clearance, bo bez niego pociągnęłyby za sobą przylegające elementy
 	// pływające (zob. inFlowLayout); ich obramowanie staje pod najniższym z oczyszczanych elementów
 	forcedClearance map[*bo.BoxFields]bool
