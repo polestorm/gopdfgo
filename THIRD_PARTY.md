@@ -919,6 +919,21 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- załączniki i PDF/A-3, 2026-11-20 (praca pomocnika; ADR 0026):
+  - `webrender/backend/document.go`: `Attachment` ma pola `MediaType`, `Relationship` i `ModTime`;
+  - `webrender/html/document/document.go`: `fetchAttachment` pobiera zasób wprost przez `urlFetcher`, bez
+    dekodowania tekstu, zachowuje typ MIME i ustawia związek `Unspecified`; atrybut `title` elementu
+    `<link rel=attachment>` jest opisem pliku (źródło go gubiło);
+  - `goweasyprint/pdf/pdf.go`: kluczem w drzewie `/EmbeddedFiles` jest nazwa pliku zamiast `attachement_N`;
+    specyfikacja pliku ma `/AFRelationship`, strumień pliku `/Subtype` (domyślnie `application/octet-stream`)
+    i `/ModDate`, gdy data jest podana; nowa metoda `EmbeddedFiles`;
+  - `goweasyprint/pdf/page.go`: wygląd adnotacji pliku zapisany jako pusty strumień, a nie słownik
+    (ISO 19005-3 § 6.3.3); adnotacja pliku, którego nie pobrano, jest pomijana (źródło kończyło się paniką
+    na wskaźniku nil);
+  - `pdflib/model/files.go`: `FileSpec.AFRelationship`, `EmbeddedFileStream.Subtype` i `EncodeName` (nazwy PDF
+    z kodowaniem `#XX`, ISO 32000-1 § 7.3.5); `pdflib/model/model.go`: `Catalog.AF`;
+    `pdflib/model/trees.go`: korzeń drzewa `/EmbeddedFiles` bez `/Limits` (ISO 32000-1 § 7.9.6, tabela 36);
+  - testy przejętego kodu bez zmian w wynikach (`TestEmbeddedFilesAttachments`, `TestAttachmentsData` przechodzą);
 - dokumenty osadzone, 2026-11-20 (`html/boxes/html.go`, `html/document/nested.go`, `images/drawn.go`):
   `<iframe>` (najpierw `srcdoc`, potem `src`), `<object>` i `<embed>` z dokumentem HTML drukują jego treść
   (HTML § 4.8.5–4.8.7). Dokument jest układany przy rysowaniu, w rozmiarze elementu, w trybie ciągłym bez

@@ -17,6 +17,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | 0023 | Strumienie PDF kompresowane zlib w stopniu 6 (pomiar: stopień 9 wolniejszy o 8-13% za 0-2% rozmiaru); `Options.Uncompressed` do diagnostyki | przyjęta |
 | 0024 | Słowniki dzielenia wyrazów tylko z hyph-utf8 na MIT, BSD, Unlicense, FSF all-permissive (24 języki); pozostałe przez `Options.Hyphenation` | przyjęta |
 | 0025 | Licencja projektu Apache-2.0 z `NOTICE` (atrybucja: Michał Głębowski) i `THIRD_PARTY_NOTICES`; repozytorium na razie prywatne | przyjęta |
+| 0026 | PDF/A-3b (`PDFA3b`, `-pdfa 3b`) i załączniki dokumentu (`Options.Attachments`, `/AFRelationship`, katalog `/AF`); w PDF/A-2b załącznik spoza PDF/A jest błędem | przyjęta |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
 | 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page` | zastąpiona przez ADR 0019 |
 | 0011 | Element wiersza flex, który nie mieści się na stronie, przechodzi na następną sam (jak w przeglądarkach); gdy nie mieści się żaden, przechodzi cała linia | przyjęta |
