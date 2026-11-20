@@ -226,7 +226,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	splitsHeight := bottomSpace > -pr.Inf && context.flexMeasuring == 0 && context.pageBottom != pr.Inf &&
 		context.clipDepth == 0 && box.Style.GetOverflow() == "visible" && !box.IsForRootElement
 	var fixedUsed, minUsed pr.Float = -1, 0
-	remainderOnly := false
+	remainderOnly, resumedFixedHeight := false, false
 	if remaining, ok := skipStack.Remainder(); ok {
 		// także w układach próbnych (flexMeasuring): taki stos nie wskazuje żadnego dziecka
 		remainderOnly = true
@@ -252,6 +252,7 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 			// elementów jest takie jak w układzie bez podziału
 			box.Height, box.MinHeight, box.MaxHeight = remaining, pr.Float(0), pr.Inf
 			fixedUsed = remaining
+			resumedFixedHeight = true
 		} else if remaining, ok := context.minHeightRemaining[resumeKey(skipStack)]; ok {
 			box.MinHeight = remaining
 			minUsed = remaining
@@ -342,6 +343,11 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 	// tu do wysokości ze stylu, czyli auto.
 	if height, ok := box.Height.(pr.Float); ok && parentBox.Height == pr.AutoF && !box.IndefiniteHeight {
 		parentBox.Height = height
+	}
+	// gopdfgo: dalszy ciąg kontenera o podanej wysokości ma w algorytmie resztę tej wysokości (zob.
+	// splitsHeight): od niej zależą rozmiar linii i rozciąganie elementów
+	if resumedFixedHeight || remainderOnly {
+		parentBox.Height = box.Height
 	}
 	blockLevelWidth(parentBox_, nil, containingBlock)
 	// gopdfgo: szerokość nadana kontenerowi z zewnątrz (rozmiar główny elementu flex wiersza, rozciągnięcie
@@ -456,6 +462,15 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		return inLine && resume != nil && len(resume) == 0
 	}
 	pageEdge := context.pageBottom - bottomSpace
+	// mayPush: element przesunięty już na tę stronę można przesunąć znowu tylko wtedy, gdy jego odległość od
+	// góry następnej strony maleje (np. element wyrównany do końca linii wyższej niż dwie strony); inaczej
+	// przesuwanie nie miałoby końca
+	mayPush := func(index int, top pr.Float) bool {
+		if !pushedBefore(index) {
+			return true
+		}
+		return top-pageEdge < context.flexPushOffset[resumeKey(lineSkip[index])]-0.5
+	}
 	pushItem := func(pushed map[int]tree.ResumeStack, index int, top pr.Float) {
 		marker := tree.ResumeStack{}
 		if context.flexPushOffset == nil {
@@ -1277,8 +1292,16 @@ restartCollapsed:
 			}
 			// TODO: Find another way than calling block_level_layout_switch.
 			newChild_ := child_.Copy()
-			newChild_, tmp, _ := blockLevelLayoutSwitch(context, newChild_.(bo.BlockLevelBoxITF), -pr.Inf, pickSkip(v.index, childSkipStack),
+			itemSkip := pickSkip(v.index, childSkipStack)
+			newChild_, tmp, _ := blockLevelLayoutSwitch(context, newChild_.(bo.BlockLevelBoxITF), -pr.Inf, itemSkip,
 				parentBox, pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
+			// gopdfgo: dalszy ciąg elementu nie ma górnego marginesu, obramowania ani dopełnienia (CSS
+			// Fragmentation 3 § 5.4, box-decoration-break: slice); rozmiar poprzeczny linii liczymy z nimi
+			// tak jak układ fragmentu. W źródle linia dalszego ciągu była o nie wyższa.
+			if itemSkip != nil && newChild_ != nil && cross == pr.PHeight {
+				measured := newChild_.Box()
+				child.MarginTop, child.PaddingTop, child.BorderTopWidth = measured.MarginTop, measured.PaddingTop, measured.BorderTopWidth
+			}
 			adjoiningMargins := tmp.adjoiningMargins
 			child.Baseline = pr.Float(0)
 			// przy „last baseline” zostaje dotychczasowe szukanie w głębi (bez linii bazowej zagnieżdżonego kontenera flex);
@@ -2160,7 +2183,7 @@ restartCollapsed:
 				if clipsBlockOverflow(box) {
 					childResumeAt = nil // dalszy ciąg byłby przycięty przez kontener
 				}
-				if newChild == nil && parallel && !pushedBefore(i) && len(box.Children) > flexItemsBefore {
+				if newChild == nil && parallel && mayPush(i, child.PositionY+child.MarginTop.V()) && len(box.Children) > flexItemsBefore {
 					// gopdfgo: element zaczynający się poniżej strony przechodzi na następną sam, reszta
 					// linii jest układana dalej
 					pushItem(linePushed, i, child.PositionY+child.MarginTop.V())
@@ -2255,7 +2278,7 @@ restartCollapsed:
 			}
 			for _, placed := range finalLines[lineIndex] {
 				index := itemIndexes[positions[placed]]
-				if isInBoxes(placed, lineOverflow) && !pushedBefore(index) {
+				if isInBoxes(placed, lineOverflow) && mayPush(index, placed.Box().PositionY+placed.Box().MarginTop.V()) {
 					removePlaceholders(context, []Box{placed}, absoluteBoxes, fixedBoxes)
 					pushItem(linePushed, index, placed.Box().PositionY+placed.Box().MarginTop.V())
 					continue
@@ -2280,6 +2303,37 @@ restartCollapsed:
 				resumeAt = tree.ResumeStack{line.line[0].index: nil}
 			}
 		} else if len(lineResume) != 0 {
+			// gopdfgo: element, który nie jest rozciągany do wysokości linii i nie mieści się na stronie obok
+			// dzielonego sąsiada, przechodzi na następną stronę (jak w gałęzi wyżej), np. element
+			// wyśrodkowany w linii wyższej niż strona; w źródle był przycinany do strony, a gdy zaczynał
+			// się poniżej niej, dostawał wysokość zero i ginął
+			itemIndexes := make([]int, 0, len(line.line))
+			for _, v := range line.line {
+				if v.box.Box().IsFlexItem {
+					if _, pushed := linePushed[v.index]; !pushed {
+						itemIndexes = append(itemIndexes, v.index)
+					}
+				}
+			}
+			if len(itemIndexes) == len(finalLines[lineIndex]) {
+				lineStart := len(box.Children) - len(finalLines[lineIndex])
+				kept := box.Children[:lineStart:lineStart]
+				var keptLine, clipped []Box
+				for position, placed := range finalLines[lineIndex] {
+					index := itemIndexes[position]
+					if isInBoxes(placed, lineOverflow) {
+						if !isStretchedFlexItem(placed, box) && mayPush(index, placed.Box().PositionY+placed.Box().MarginTop.V()) && lineResume[index] == nil {
+							removePlaceholders(context, []Box{placed}, absoluteBoxes, fixedBoxes)
+							pushItem(linePushed, index, placed.Box().PositionY+placed.Box().MarginTop.V())
+							continue
+						}
+						clipped = append(clipped, placed)
+					}
+					kept = append(kept, placed)
+					keptLine = append(keptLine, placed)
+				}
+				box.Children, finalLines[lineIndex], lineOverflow = kept, keptLine, clipped
+			}
 			for _, child := range lineOverflow {
 				if over := child.Box().PositionY + child.Box().MarginHeight() - (context.pageBottom - bottomSpace); over > 0 && child.Box().Height != pr.AutoF {
 					child.Box().Height = max(child.Box().Height.V()-over, 0)
@@ -2318,11 +2372,13 @@ restartCollapsed:
 		// gopdfgo: podział wysokości kontenera między fragmenty, zob. splitsHeight wyżej
 		available := context.pageBottom - bottomSpace - box.ContentBoxY()
 		if resumeAt != nil && available > 0 {
-			if fixedUsed >= 0 && fixedUsed-available > 0.5 {
+			if fixedUsed >= 0 {
+				// także zero, gdy treść wylewa się poza podaną wysokość: dalszy ciąg nie dostaje wtedy
+				// znowu całej wysokości
 				if context.fixedHeightRemaining == nil {
 					context.fixedHeightRemaining = map[uintptr]pr.Float{}
 				}
-				context.fixedHeightRemaining[resumeKey(resumeAt)] = fixedUsed - available
+				context.fixedHeightRemaining[resumeKey(resumeAt)] = max(fixedUsed-available, 0)
 			} else if fixedUsed < 0 && minUsed > 0 {
 				if context.minHeightRemaining == nil {
 					context.minHeightRemaining = map[uintptr]pr.Float{}
