@@ -229,13 +229,16 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}()
 
 	fontMap := fontscan.NewFontMap(log.New(io.Discard, "", 0))
-	contents := map[string][]byte{}
+	// identyfikatory w kolejności Options.Fonts: przy dwóch fontach o tej samej nazwie rodziny (także
+	// zlokalizowanej) wygrywa podany wcześniej; rejestracja w kolejności iteracji po mapie losowała
+	// zwycięzcę przy każdym uruchomieniu (test WPT css-fonts/font-family-name-010)
+	ids := make([]string, len(opts.Fonts))
 	for i, font := range opts.Fonts {
 		id := fmt.Sprintf("gopdfgo-font-%d:%s", i, font.Name)
 		if err := fontMap.AddFont(bytes.NewReader(font.Data), id, ""); err != nil {
 			return Result{}, fmt.Errorf("gopdfgo: font %q: %w", font.Name, err)
 		}
-		contents[id] = font.Data
+		ids[i] = id
 	}
 	fontConfig := text.NewFontConfigurationGotext(fontMap)
 	fontConfig.ReuseLoadedFaces = true
@@ -245,8 +248,8 @@ func render(html []byte, opts Options) (result Result, err error) {
 			fontConfig.GenericFamilies[strings.ToLower(strings.TrimSpace(generic))] = families
 		}
 	}
-	for id, data := range contents {
-		fontConfig.RegisterFontContent(id, data)
+	for i, id := range ids {
+		fontConfig.RegisterFontContent(id, opts.Fonts[i].Data)
 	}
 
 	resolver := opts.Resolver
