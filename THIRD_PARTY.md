@@ -919,6 +919,13 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- grubość twarzy z `@font-face` bez deskryptora `font-weight`, 2026-11-20 (`text/engine_gotext.go` `loadOneFont`):
+  - źródło rejestrowało taką twarz z grubością 0; wartość początkowa deskryptora to `auto`, czyli grubość
+    samego fontu (CSS Fonts 4 § 4.5); teraz bierzemy grubość z tabeli OS/2 fontu, a gdy jej brak, 400;
+  - skutek w źródle: w rodzinie z regułami „zwykła twarz bez `font-weight`” i „`font-weight: bold`” tekst
+    o grubości 400 dostawał twarz bold, bo 700 jest bliżej 400 niż 0; ilustrowana książka z
+    `testdata/books` drukowała się w całości pogrubionym fontem i miała 265 stron zamiast 256;
+  - test `tests/fontface18_test.go`;
 - `transform-origin` i `transform-box` w SVG, 2026-11-20 (praca pomocnika; `svg/`):
   - źródło obracało każdy element wewnątrz SVG wokół (0, 0) układu użytkownika; teraz macierz elementu to
     translate(punkt) × przekształcenia × translate(−punkt), dla atrybutu transform i dla właściwości transform,

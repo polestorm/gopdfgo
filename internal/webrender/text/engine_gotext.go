@@ -191,6 +191,18 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 	if len(ruleDescriptors.UnicodeRange) != 0 {
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
+	if desc.Aspect.Weight == 0 && !hasWeightAxis(lds[0]) {
+		// gopdfgo: reguła bez deskryptora font-weight ma wartość początkową auto, czyli grubość samego
+		// fontu (CSS Fonts 4 § 4.5), a nie 0. W źródle twarz bez deskryptora dostawała grubość 0, więc
+		// tekst o grubości 400 wybierał z tej samej rodziny twarz bold (700 jest bliżej 400 niż 0);
+		// rodzina z regułami „regular bez font-weight” + „bold” drukowała cały tekst pogrubionym fontem.
+		// Font zmienny z osią wght zostaje bez grubości: auto oznacza tam cały zakres osi, który
+		// obsługuje familyIndex (zob. family_names.go).
+		desc.Aspect.Weight = ft.Describe().Aspect.Weight
+		if desc.Aspect.Weight == 0 {
+			desc.Aspect.Weight = font.WeightNormal
+		}
+	}
 	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
 	// gopdfgo: style i grubości twarzy dla dopasowania i syntezy, zob. family_names.go
 	synthesisWeight := uint16(desc.Aspect.Weight)

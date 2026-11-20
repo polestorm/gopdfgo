@@ -380,3 +380,20 @@ func (fc *FontConfigurationGotext) faceLineGap(style *TextStyle, face *font.Face
 	}
 	return max(0, roundMetric(pr.Float(extents.LineGap)*size/pr.Float(face.Upem())))
 }
+
+// hasWeightAxis (gopdfgo) mówi, czy font ma oś wariantów wght (OpenType, tablica fvar).
+func hasWeightAxis(ld *opentype.Loader) bool {
+	raw, err := ld.RawTable(opentype.MustNewTag("fvar"))
+	if err != nil || len(raw) < 16 {
+		return false
+	}
+	offset := int(binary.BigEndian.Uint16(raw[4:]))
+	count := int(binary.BigEndian.Uint16(raw[8:]))
+	size := int(binary.BigEndian.Uint16(raw[10:]))
+	for i := 0; i < count && offset+i*size+4 <= len(raw); i++ {
+		if string(raw[offset+i*size:offset+i*size+4]) == "wght" {
+			return true
+		}
+	}
+	return false
+}
