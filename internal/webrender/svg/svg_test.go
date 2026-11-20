@@ -49,6 +49,8 @@ func TestHandleText(t *testing.T) {
 	}
 }
 
+// gopdfgo: filtr z nieobsługiwanym prymitywem (tu feGaussianBlur) jest pomijany w całości, a filtr
+// z samymi obsługiwanymi prymitywami działa jak dotąd; źródło wykonywało część łańcucha
 func TestFilter(t *testing.T) {
 	input := `
 	<svg width="230" height="120" xmlns="http://www.w3.org/2000/svg">
@@ -57,8 +59,12 @@ func TestFilter(t *testing.T) {
 			<feOffset in="SourceGraphic" dx="60" dy="60" />
 			<feGaussianBlur stdDeviation="5"/>
 		</filter>
+		<filter id="shift">
+			<feBlend in="SourceGraphic" in2="floodFill" mode="multiply"/>
+			<feOffset in="SourceGraphic" dx="60" dy="60" />
+		</filter>
 		
-		<circle cx="60" cy="60" r="50" fill="green"/>
+		<circle cx="60" cy="60" r="50" fill="green" filter="url(#shift)"/>
 		
 		<circle cx="170" cy="60" r="50" fill="green" filter="url(#blurMe)"/>
 	</svg>
@@ -67,11 +73,12 @@ func TestFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(out.definitions.filters, map[string][]filter{
-		"blurMe": {
-			filterBlend("multiply"),
-			filterOffset{dx: Value{60, Px}, dy: Value{60, Px}, isUnitsBBox: false},
-		},
+	if len(out.definitions.filters["blurMe"]) != 0 {
+		t.Fatalf("filtr z feGaussianBlur powinien być pominięty: %v", out.definitions.filters["blurMe"])
+	}
+	if !reflect.DeepEqual(out.definitions.filters["shift"], []filter{
+		filterBlend("multiply"),
+		filterOffset{dx: Value{60, Px}, dy: Value{60, Px}, isUnitsBBox: false},
 	}) {
 		t.Fatal(out.definitions.filters)
 	}

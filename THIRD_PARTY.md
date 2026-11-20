@@ -919,6 +919,22 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- SVG z korpusu prawdziwych plików (`testdata/svg`), 2026-11-20:
+  - `svg/xmlparse.go`: pliki SVG (obrazy, `<use>` z innego pliku) czytane parserem XML z encjami z DTD;
+    źródło używało parsera HTML5, w którym element XHTML w `<metadata>` kończył treść SVG; przy
+    niepoprawnym XML powrót do HTML5;
+  - `svg/svg.go` `synthesizeViewBox`: dokument SVG jako obraz z `width` i `height`, bez `viewBox`, dostaje
+    `viewBox="0 0 width height"` i skaluje się do rozmiaru obrazu, jak w przeglądarkach; źródło rysowało
+    go w skali 1:1 i ucinało (4 z 7 plików z Wikimedia Commons);
+  - `svg/elements.go` `newFilter`: filtr z nieobsługiwanym prymitywem albo z `feOffset` na wejściu innym
+    niż `SourceGraphic` jest pomijany w całości; źródło wykonywało część łańcucha i przesuwało cały element.
+    Przejęty `TestFilter` przepisany na dwa przypadki;
+  - `svg/paint.go`: gradient liniowy w jednostkach `objectBoundingBox` w prostokącie innym niż kwadrat:
+    skalowanie składane po przesunięciu (`RightMultBy`), jak w gradiencie radialnym; źródło przesuwało
+    gradient o (a−1)·x.
+
+  Korpus wobec Chrome 157: flagi Meksyku, Hiszpanii i herb Polski z 29–45% różnych pikseli do 0,0–0,3%;
+  sondaż `svg/` bez zmian (83 z 235), testy CSS z obrazami SVG bez zmian (247);
 - funkcje skokowe i osobne przekształcenia, 2026-11-20 (praca pomocnika; `css/validation/calc.go`,
   `css/properties/calc.go`, `css/properties/transforms.go`, `html/document/document.go`, `stacking.go`,
   `layout/absolute.go`, `background.go`, `column.go`, `svg/parser.go`, `boxes/boxes_tree.go`):

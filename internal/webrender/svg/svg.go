@@ -522,8 +522,31 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 	if err != nil {
 		return nil, err
 	}
+	if standalone {
+		synthesizeViewBox(out.root)
+	}
 
 	return &out, nil
+}
+
+// synthesizeViewBox (gopdfgo): dokument SVG wyświetlany jako obraz (img, background-image, object, embed),
+// który ma width i height w jednostkach bezwzględnych, ale nie ma viewBox, dostaje viewBox
+// "0 0 width height" i skaluje się do rozmiaru obrazu, jak w przeglądarkach (HTML, przetwarzanie obrazów
+// SVG: „synthesize a viewBox”; SVG Integration § 4). Bez tego obraz był rysowany w skali 1:1 i ucinany:
+// flagi i herby z Wikimedia Commons, zapisane bez viewBox, pokazywały tylko lewy górny róg. SVG osadzone
+// w HTML się nie skaluje, więc dotyczy to tylko dokumentów samodzielnych.
+func synthesizeViewBox(root *svgNode) {
+	if root == nil || root.viewbox != nil {
+		return
+	}
+	w, h := root.width, root.height
+	if w.U == 0 || h.U == 0 || w.U == Perc || h.U == Perc || w.U == Em || h.U == Em || w.U == Ex || h.U == Ex || w.U == Rem || h.U == Rem {
+		return
+	}
+	width, height := w.Resolve(defaultFontSize, 0), h.Resolve(defaultFontSize, 0)
+	if width > 0 && height > 0 {
+		root.viewbox = &Rectangle{Width: width, Height: height}
+	}
 }
 
 // rootBackground (gopdfgo) odczytuje kolor tła elementu głównego: background-color albo background

@@ -526,8 +526,19 @@ type filterOffset struct {
 type filterBlend string
 
 // parse a <filter> node
+//
+// gopdfgo: filtr z prymitywem, którego silnik nie obsługuje, albo z feOffset działającym na czymś innym niż
+// sam element (in="SourceAlpha", wynik poprzedniego prymitywu), jest pomijany w całości: element jest
+// rysowany bez filtra (Filter Effects 1 § 7.1 wymaga wtedy, żeby element nie był rysowany wcale, ale
+// w druku brak cienia jest mniejszą szkodą niż brak logo). Źródło stosowało same obsługiwane prymitywy
+// z łańcucha: przy cieniu (feGaussianBlur, feOffset, feMerge) przesuwało cały element zamiast cienia.
 func newFilter(node *cascadedNode) (out []filter, err error) {
 	for _, child := range node.children {
+		in := child.attrs["in"]
+		if child.tag == "feOffset" && in != "" && in != "SourceGraphic" {
+			logger.WarningLogger.Printf("unsupported filter input %q of feOffset: filter skipped", in)
+			return nil, nil
+		}
 		switch child.tag {
 		case "feOffset":
 			fi := filterOffset{
@@ -549,7 +560,8 @@ func newFilter(node *cascadedNode) (out []filter, err error) {
 			}
 			out = append(out, fi)
 		default:
-			logger.WarningLogger.Printf("unsupported filter element: %s", child.tag)
+			logger.WarningLogger.Printf("unsupported filter element: %s: filter skipped", child.tag)
+			return nil, nil
 		}
 	}
 

@@ -388,7 +388,11 @@ func (gr gradient) paint(dst backend.Canvas, node *svgNode, opacity Fl, dims dra
 			} else {
 				d = height / width
 			}
-			mt.LeftMultBy(matrix.Scaling(a, d))
+			// gopdfgo: skalowanie do proporcji prostokąta otaczającego działa w jego układzie, po
+			// przesunięciu do (x, y), jak dla gradientu radialnego niżej; źródło składało je przed
+			// przesunięciem (LeftMultBy), więc gradient w prostokącie innym niż kwadrat był przesunięty
+			// o (a-1)·x i jego początek wypadał poza kształtem (SVG 1.1 § 13.2.2, gradientUnits)
+			mt.RightMultBy(matrix.Scaling(a, d))
 		}
 		dx, dy := x2-x1, y2-y1
 		vectorLength := utils.Hypot(dx, dy)
