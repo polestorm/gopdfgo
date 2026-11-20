@@ -339,8 +339,11 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 					cellResumeAt = tree.ResumeStack{0: nil}
 					// gopdfgo: dalszy ciąg komórki rozpiętej, z którego nic się tu nie zmieściło, wznawia
 					// się w tym samym miejscu, a nie od początku treści (inaczej treść by się powtórzyła);
-					// gdy cała treść już była, nie ma czego wznawiać
-					if spanning && cellSkipStack != nil {
+					// gdy cała treść już była, nie ma czego wznawiać. To samo dotyczy dalszego ciągu zwykłej
+					// komórki podzielonego wiersza (np. pod powtórzonym nagłówkiem nie mieści się jej blok
+					// niepodzielny, a inne komórki wiersza płyną dalej): źródło wznawiało ją od {0: nil},
+					// więc treść z poprzednich stron powtarzała się (CSS Fragmentation 3 § 4.4).
+					if cellSkipStack != nil {
 						cellResumeAt = cellSkipStack
 						if k, _ := cellSkipStack.Unpack(); len(cellSkipStack) == 1 && k >= len(cell.Children) {
 							cellResumeAt = nil

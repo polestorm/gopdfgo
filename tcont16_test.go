@@ -64,3 +64,39 @@ func TestRowspanContinuationRowBackground(t *testing.T) {
 			tcontBox(0, 0, 100, 40, "yellow")+tcontBox(0, 40, 100, 40, "blue"),
 			tcontBox(0, 0, 50, 80, "blue")+tcontBox(50, 0, 50, 40, "yellow")+tcontBox(50, 40, 50, 40, "blue")))
 }
+
+// Dalszy ciąg zwykłej komórki podzielonego wiersza, z którego nic nie mieści się na następnej stronie
+// (blok niepodzielny wyższy niż miejsce pod powtórzonym nagłówkiem), wznawia się w tym samym miejscu,
+// a nie od początku treści: źródło wznawiało go od {0: nil} i czarny pasek z pierwszej strony powtarzał
+// się na trzeciej. Druga komórka płynie dalej przez trzy strony. Na czwartej blok niepodzielny stoi bez
+// nagłówka (tabela bez wiersza pod nagłówkiem jest układana od nowa bez niego; zachowanie sprzed zmiany).
+func TestSplitCellContinuationWithoutProgress(t *testing.T) {
+	dir := t.TempDir()
+	page := `<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }
+		table { border-spacing: 0 } td, th { padding: 0; width: 50px; vertical-align: top }
+		th { height: 20px; background: blue }
+		.s div { height: 10px } .s div:nth-child(odd) { background: black } .s div:nth-child(even) { background: yellow }</style>`
+	cellB := `<td class="s">` + strings.Repeat(`<div></div>`, 20) + `</td>`
+	stripes := func(top, from, count int) string {
+		var b strings.Builder
+		for i := range count {
+			color := "black"
+			if (from+i)%2 == 1 {
+				color = "yellow"
+			}
+			b.WriteString(tcontBox(50, top+10*i, 50, 10, color))
+		}
+		return b.String()
+	}
+	head := tcontBox(0, 0, 100, 20, "blue")
+	tcontSame(t, dir, "split-cell-stalled",
+		page+`<table><thead><tr><th></th><th></th></tr></thead><tr><td>`+
+			`<div style="height:30px;background:black"></div>`+
+			`<div style="height:90px;width:40px;background:green;display:inline-block;vertical-align:top"></div>`+
+			`<div style="height:10px;background:red"></div></td>`+cellB+`</tr></table>`,
+		tcontPages(page,
+			head+tcontBox(0, 20, 50, 30, "black")+stripes(20, 0, 8),
+			head+stripes(20, 8, 8),
+			head+stripes(20, 16, 4),
+			tcontBox(0, 0, 40, 90, "green")+tcontBox(0, 90, 50, 10, "red")))
+}
