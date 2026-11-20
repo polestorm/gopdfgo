@@ -919,6 +919,15 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- flex przez strony i szerokość kontenera kolumnowego, 2026-11-20 (praca pomocnika; `layout/flex.go`
+  `flexLayout`): element flex dostaje pageIsEmpty kontenera tylko wtedy, gdy przed nim w bieżącym fragmencie
+  nic nie stoi (w wierszu żadna wcześniejsza linia, w kolumnie żaden wcześniejszy element linii); w źródle
+  dostawał go każdy element, więc element dalszej linii tracił górny margines sięgający za stronę (CSS
+  Fragmentation 3 § 5.2), a element kolumny zaczynający się na krawędzi strony gubił pierwsze dziecko. Linia
+  wiersza zaczynająca się w całości poniżej strony przechodzi na następną cała, bez reszty row-gap (CSS Align 3
+  § 8.1). Szerokość nadana kontenerowi z zewnątrz (rozmiar główny elementu flex) jest szerokością bloku
+  zawierającego jego elementów, a linia kolumny z podaną szerokością bierze szerokość rozwiązaną zamiast liczby
+  ze stylu (width: 50% dawało 50 px; nachodzące na siebie akapity w kartach). Testy: `flexfrag16_test.go`;
 - dalszy ciąg komórek tabeli, 2026-11-20 (praca pomocnika; `layout/tables.go`, `background.go`, `preferred.go`,
   `document/draw.go`, `boxes/boxes.go`): dalszy ciąg komórki rozpiętej (rowspan) na następnej stronie ma pod sobą
   tło wiersza, w którym się zaczyna (pola `BoxFields.SpanOriginRow` i `SpanRowBackground`; CSS 2.1 § 17.5.1),

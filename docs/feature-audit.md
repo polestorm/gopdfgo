@@ -2158,3 +2158,26 @@ Otwarte: tło dalszego ciągu komórki `rowspan`; komórka o podanej wysokości 
 zwykła komórka, z której dalszego ciągu nic się nie zmieściło, zaczyna treść od nowa (możliwe powtórzenie);
 `max-width` samej tabeli bez `box-sizing` (`tableMaxContentWidth`); górny margines elementu flex przy podziale
 strony (`multi-line-row-flex-fragmentation-064`, `flex.go`).
+
+## Szesnasta paczka: dalszy ciąg komórek tabeli i flex przez strony (2026-11-20)
+
+Reftesty druku 310 z 340 bez zmian (poprawki nie zmieniają wyniku żadnego testu WPT z listy; każdą pilnują
+nowe testy pikselowe `tcont16_test.go`, `flexfrag16_test.go`), sondaż ekranowy 9502 bez zmian, korpus bez zmian.
+
+- tło dalszego ciągu komórki `rowspan` pochodzi z wiersza, w którym komórka się zaczyna (tabele w zebrę);
+- dalszy ciąg zwykłej komórki, z którego nic się nie zmieściło, nie zaczyna treści od nowa (powtórzony blok);
+- `max-width` tabeli przy `box-sizing: border-box` spójne między szerokością preferowaną a układem;
+- komórka o podanej wysokości wyższej niż strona, w wierszu na początku strony, jest dzielona (wcześniej wiersz
+  wystawał poza stronę); zmienione przejęte `TestTablePageBreaks`, `TestTablePageBreaksComplex1`,
+  `TestTableEmptyBody`;
+- flex: element dalszej linii nie traci górnego marginesu na stronie z dalszym ciągiem; element kolumny
+  zaczynający się na krawędzi strony nie gubi pierwszego dziecka; linia wiersza poniżej strony przechodzi cała;
+- **flex kolumnowy wewnątrz flex wierszowego (karty)**: szerokość nadana z zewnątrz i `width: 50%` liczone
+  poprawnie; wcześniej akapity w kartach nachodziły na siebie także na jednej stronie.
+
+Do decyzji: wiersz tabeli wyższy niż cała strona, który nie stoi na początku strony, najpierw przechodzi
+na następną stronę i dopiero tam jest dzielony (może zostać prawie pusta strona); Chromium prawdopodobnie dzieli
+go od razu w miejscu. Otwarte (`block.go`): pusty blok o podanej wysokości mieszczący się na stronie nie jest
+dzielony (ADR 0004; Chromium dzieli; przyczyna niezaliczonego `multi-line-row-flex-fragmentation-064`); element
+flex wyższy niż strona traci resztę podanej wysokości lub `min-height` (`canSplitFixedHeight` wyklucza elementy
+flex; tekst nie ginie, tło na ostatniej stronie tak).
