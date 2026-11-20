@@ -3,6 +3,8 @@ package pdf
 import (
 	"math"
 
+	cs "github.com/polestorm/gopdfgo/internal/pdflib/contentstream"
+
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 )
@@ -77,4 +79,13 @@ func (g *group) transferFunction(samples []fl) *model.FunctionDict {
 		g.cache.transfers[key] = fn
 	}
 	return fn
+}
+
+// WithoutText obejmuje task sekcją treści oznaczonej z pustym tekstem zastępczym
+// (/Span <</ActualText ()>> BDC … EMC, ISO 32000-1 § 14.9.4): czytniki i narzędzia wyodrębniające
+// tekst (pdftotext, kopiowanie) biorą wtedy pusty tekst zamiast glifów z kopii.
+func (g *group) WithoutText(task func()) {
+	g.stream.Ops(cs.OpBeginMarkedContent{Tag: "Span", Properties: cs.PropertyListDict{"ActualText": model.ObjStringLiteral("")}})
+	task()
+	g.stream.Ops(cs.OpEndMarkedContent{})
 }

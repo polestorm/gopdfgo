@@ -13,4 +13,8 @@ type FilterCanvas interface {
 	// false luminancję (/Luminosity). `transfer` to próbki funkcji przejścia na przedziale [0, 1]
 	// (równomiernie rozłożone, co najmniej dwie); nil oznacza tożsamość.
 	SetSoftMask(mask Canvas, alpha bool, transfer []Fl)
+
+	// WithoutText wykonuje task tak, żeby tekst narysowany w nim nie był wyodrębniany z dokumentu
+	// (kopie tekstu w masce cienia i w rozmyciu nie mogą powtarzać treści przy kopiowaniu i wyszukiwaniu).
+	WithoutText(task func())
 }

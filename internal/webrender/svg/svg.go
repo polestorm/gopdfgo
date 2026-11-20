@@ -147,6 +147,8 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 		effect := svg.definitions.filters[node.filterID]
 		if !paint {
 			effect = nil
+		} else if effect != nil {
+			svg.definitions.resolveFilterHref(effect)
 		}
 
 		// apply transform attribute
@@ -163,7 +165,7 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 			// gopdfgo: wynik filtra (np. cień) wychodzi poza ramkę elementu: grupa krycia obejmuje
 			// cały obszar filtra
 			if effect != nil {
-				bbox, hasBBox := objectBoundingBox(node, dims)
+				bbox, hasBBox := svg.objectBoundingBox(dst, node, dims)
 				if region, ok := effect.resolveRegion(bbox, hasBBox, dims); ok {
 					x, y, width, height = region.X, region.Y, region.Width, region.Height
 				}

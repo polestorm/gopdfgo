@@ -27,42 +27,83 @@ type svgFilter struct {
 	primitiveBBox bool // primitiveUnits="objectBoundingBox"
 	primitives    []*cascadedNode
 
-	warned bool // ostrzeżenie o nieobsługiwanym grafie wypisane
+	attrs    nodeAttributes // atrybuty elementu <filter> (do dziedziczenia przez href)
+	href     string         // odwołanie do innego filtra
+	resolved bool           // href rozwiązany
+	warned   bool           // ostrzeżenie o nieobsługiwanym grafie wypisane
 }
 
 // parse a <filter> node
 func newFilter(node *cascadedNode) (*svgFilter, error) {
-	out := &svgFilter{
-		userSpace:     node.attrs["filterUnits"] == "userSpaceOnUse",
-		primitiveBBox: node.attrs["primitiveUnits"] == "objectBoundingBox",
+	out := &svgFilter{attrs: node.attrs, href: parseURLFragment(node.attrs["href"])}
+	for _, child := range node.children {
+		if strings.HasPrefix(child.tag, "fe") {
+			out.primitives = append(out.primitives, child)
+		}
 	}
+	if out.href == "" {
+		out.resolved = true
+		return out, out.parseAttributes(node.attrs)
+	}
+	return out, nil
+}
+
+// parseAttributes czyta obszar filtra i jednostki.
+func (f *svgFilter) parseAttributes(attrs nodeAttributes) error {
+	f.userSpace = attrs["filterUnits"] == "userSpaceOnUse"
+	f.primitiveBBox = attrs["primitiveUnits"] == "objectBoundingBox"
 	// domyślny obszar filtra: -10%, -10%, 120%, 120% (Filter Effects 1 § 7.1)
 	defaults := [4]Value{{-10, Perc}, {-10, Perc}, {120, Perc}, {120, Perc}}
 	for i, name := range [4]string{"x", "y", "width", "height"} {
-		v, err := parseValue(node.attrs[name])
+		v, err := parseValue(attrs[name])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if v.U == 0 {
 			v = defaults[i]
 		}
 		switch i {
 		case 0:
-			out.region.x = v
+			f.region.x = v
 		case 1:
-			out.region.y = v
+			f.region.y = v
 		case 2:
-			out.region.width = v
+			f.region.width = v
 		case 3:
-			out.region.height = v
+			f.region.height = v
 		}
 	}
-	for _, child := range node.children {
-		if strings.HasPrefix(child.tag, "fe") {
-			out.primitives = append(out.primitives, child)
+	return nil
+}
+
+// resolveFilterHref dziedziczy przez href atrybuty niepodane w elemencie i prymitywy, gdy element
+// nie ma własnych (Filter Effects 1 § 7, atrybut href).
+func (defs definitions) resolveFilterHref(f *svgFilter) {
+	if f.resolved {
+		return
+	}
+	f.resolved = true
+	attrs := nodeAttributes{}
+	for k, v := range f.attrs {
+		attrs[k] = v
+	}
+	seen := map[*svgFilter]bool{f: true}
+	for ref := defs.filters[f.href]; ref != nil && !seen[ref]; ref = defs.filters[parseURLFragment(ref.attrs["href"])] {
+		seen[ref] = true
+		for _, name := range [6]string{"x", "y", "width", "height", "filterUnits", "primitiveUnits"} {
+			if _, has := attrs[name]; !has {
+				if v, has := ref.attrs[name]; has {
+					attrs[name] = v
+				}
+			}
+		}
+		if len(f.primitives) == 0 {
+			f.primitives = ref.primitives
 		}
 	}
-	return out, nil
+	if err := f.parseAttributes(attrs); err != nil {
+		f.parseAttributes(nil)
+	}
 }
 
 // bboxFraction zamienia wartość w jednostkach objectBoundingBox (liczba albo procent) na ułamek.
@@ -91,13 +132,29 @@ func (f *svgFilter) resolveRegion(bbox Rectangle, hasBBox bool, dims drawingDims
 	}, true
 }
 
-// objectBoundingBox zwraca ramkę elementu razem z potomkami (SVG 2 § 8.10), bez obrysu.
-func objectBoundingBox(node *svgNode, dims drawingDims) (Rectangle, bool) {
+// objectBoundingBox zwraca ramkę elementu razem z potomkami (SVG 2 § 8.10), bez obrysu. Tekst
+// w potomkach jest składany wcześniej niż przy rysowaniu, bo jego ramka jest znana dopiero po składzie.
+func (svg *SVGImage) objectBoundingBox(dst backend.Canvas, node *svgNode, dims drawingDims) (Rectangle, bool) {
 	out := emptyBbox
 	if _, isImage := node.graphicContent.(image); isImage {
 		x, y := dims.point(node.attributes.x, node.attributes.y)
 		w, h := dims.point(node.attributes.width, node.attributes.height)
 		out = Rectangle{x, y, w, h}
+	} else if t, isText := node.graphicContent.(*textSpan); isText && t.isText {
+		// ramka elementu <text> to suma ramek jego fragmentów
+		var collect func(n *svgNode)
+		collect = func(n *svgNode) {
+			if span, ok := n.graphicContent.(*textSpan); ok && n.attributes.display {
+				if span.textBoundingBox != emptyBbox && n.visible {
+					out.union(span.textBoundingBox)
+				}
+				for _, child := range n.children {
+					collect(child)
+				}
+			}
+		}
+		collect(node)
+		return out, out != emptyBbox
 	} else if bb, ok := node.resolveBoundingBox(dims, false); ok {
 		out = bb
 	}
@@ -105,12 +162,17 @@ func objectBoundingBox(node *svgNode, dims drawingDims) (Rectangle, bool) {
 		return out, out != emptyBbox
 	}
 	for _, child := range node.children {
-		cb, ok := objectBoundingBox(child, dims)
+		childDims := dims
+		childDims.fontSize = child.attributes.fontSize.Resolve(dims.fontSize, dims.fontSize)
+		if t, ok := child.graphicContent.(*textSpan); ok && t.isText {
+			svg.layoutText(dst, child, childDims)
+		}
+		cb, ok := svg.objectBoundingBox(dst, child, childDims)
 		if !ok {
 			continue
 		}
 		if len(child.attributes.transforms) != 0 {
-			mat := aggregateTransforms(child.attributes.transforms, dims.fontSize, dims.innerDiagonal)
+			mat := aggregateTransforms(child.attributes.transforms, childDims.fontSize, dims.innerDiagonal)
 			moved := emptyBbox
 			for _, corner := range [4][2]Fl{{cb.X, cb.Y}, {cb.X + cb.Width, cb.Y}, {cb.X, cb.Y + cb.Height}, {cb.X + cb.Width, cb.Y + cb.Height}} {
 				x, y := mat.Apply(corner[0], corner[1])
@@ -341,7 +403,9 @@ func (ev *filterEval) primitive(prim *cascadedNode) (filterResult, bool) {
 			in[i].blur(ev.scaleX(sx), ev.scaleY(sy))
 		}
 		return in, true
-	case "feDropShadow":
+	case "feDropShadow", "fedropshadow":
+		// parser HTML z golang.org/x/net nie zna feDropShadow w tabeli nazw SVG (HTML § 13.2.6.5)
+		// i zostawia nazwę małymi literami
 		in, _ := ev.input(attrs["in"])
 		shadow, ok := silhouetteOf(in)
 		if !ok {
@@ -893,7 +957,7 @@ func (svg *SVGImage) drawFiltered(dst backend.Canvas, f *svgFilter, node *svgNod
 	if _, ok := dst.(backend.FilterCanvas); !ok {
 		return false
 	}
-	bbox, hasBBox := objectBoundingBox(node, dims)
+	bbox, hasBBox := svg.objectBoundingBox(dst, node, dims)
 	region, ok := f.resolveRegion(bbox, hasBBox, dims)
 	if !ok {
 		// ramka pusta przy objectBoundingBox: obszar filtra jest pusty, element nie jest rysowany
@@ -960,7 +1024,8 @@ func drawFilterLayer(dst backend.Canvas, l filterLayer, source backend.Canvas, r
 		drawFilterLayer(inner, l, source, region, hostScale)
 		dst.OnNewStack(func() {
 			mask := dst.NewGroup(region.X, region.Y, region.Width, region.Height)
-			mask.(backend.FilterCanvas).DrawSharedGroup(1, source)
+			mfc := mask.(backend.FilterCanvas)
+			mfc.WithoutText(func() { mfc.DrawSharedGroup(1, source) })
 			dst.(backend.FilterCanvas).SetSoftMask(mask, true, invertTransfer)
 			dst.DrawWithOpacity(1, inner)
 		})
@@ -992,12 +1057,14 @@ func drawFilterLayer(dst backend.Canvas, l filterLayer, source backend.Canvas, r
 		// copies rysuje kopie elementu w punktach jądra z podanym kryciem
 		copies := func(target backend.Canvas, taps []kernelTap, opacity func(kernelTap) Fl) {
 			tfc := target.(backend.FilterCanvas)
-			for _, tap := range taps {
-				target.OnNewStack(func() {
-					target.State().Transform(matrix.Translation(tap.x*l.sx, tap.y*l.sy))
-					tfc.DrawSharedGroup(opacity(tap), source)
-				})
-			}
+			tfc.WithoutText(func() {
+				for _, tap := range taps {
+					target.OnNewStack(func() {
+						target.State().Transform(matrix.Translation(tap.x*l.sx, tap.y*l.sy))
+						tfc.DrawSharedGroup(opacity(tap), source)
+					})
+				}
+			})
 		}
 		blurMask := func() backend.Canvas {
 			mask := dst.NewGroup(area.X, area.Y, area.Width, area.Height)
@@ -1024,7 +1091,8 @@ func drawFilterLayer(dst backend.Canvas, l filterLayer, source backend.Canvas, r
 				fc.SetSoftMask(blurMask(), true, blurTransfer)
 			} else {
 				mask := dst.NewGroup(area.X, area.Y, area.Width, area.Height)
-				mask.(backend.FilterCanvas).DrawSharedGroup(1, source)
+				mfc := mask.(backend.FilterCanvas)
+				mfc.WithoutText(func() { mfc.DrawSharedGroup(1, source) })
 				fc.SetSoftMask(mask, true, nil)
 			}
 			dst.Rectangle(area.X, area.Y, area.Width, area.Height)
