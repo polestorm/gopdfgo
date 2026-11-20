@@ -77,3 +77,31 @@ func TestFlexRowFragmentationMargins(t *testing.T) {
 				box(0, 53, 200, 40, "green")+box(0, 53, 10, 10, "black"),
 			box(0, 0, 200, 40, "green")+box(0, 0, 10, 10, "black")))
 }
+
+// Kolumna flex, której szerokość wyznacza kontener nadrzędny (flex-basis elementu wiersza) albo procent
+// (width: 50%), łamie wiersze swoich elementów w tej szerokości: wysokości elementów odpowiadają liczbie
+// ich wierszy i elementy na siebie nie nachodzą. Wzorcem jest zwykły blok o tej samej szerokości.
+// Wcześniej elementy były mierzone w szerokości bloku zawierającego (flex-basis) albo w linii o szerokości
+// równej liczbie procentów w pikselach (width: 50% dawało 50px).
+func TestFlexColumnItemWidth(t *testing.T) {
+	dir := t.TempDir()
+	page := `<style>@page { size: 300px 300px; margin: 0 } body { margin: 0; font: 16px serif } p { margin: 0 }
+		.col { display: flex; flex-direction: column; background: yellow } .blk { width: 150px; background: yellow }</style>`
+	text := `<p>aaa bbb ccc ddd eee fff ggg hhh</p><p>iii jjj kkk lll mmm nnn ooo</p><p>end</p>`
+	want := rasterize(t, renderString(t, page+`<div class="blk">`+text+`</div>`).PDF, dir, "ref")
+	for name, test := range map[string]string{
+		"flex-basis":   `<div style="display:flex"><div class="col" style="flex:0 0 150px">` + text + `</div></div>`,
+		"flex-percent": `<div style="display:flex"><div class="col" style="flex:0 0 50%">` + text + `</div></div>`,
+		"width-50":     `<div class="col" style="width:50%">` + text + `</div>`,
+		"row-width-50": `<div style="display:flex"><div class="col" style="width:50%">` + text + `</div></div>`,
+	} {
+		got := rasterize(t, renderString(t, page+test).PDF, dir, name)
+		if len(got) != len(want) {
+			t.Errorf("%s: %d stron, wzorzec ma %d", name, len(got), len(want))
+			continue
+		}
+		if n := differentPixels(got[0], want[0]); n != 0 {
+			t.Errorf("%s: %d pikseli różni się od wzorca", name, n)
+		}
+	}
+}

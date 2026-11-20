@@ -302,6 +302,14 @@ func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStac
 		parentBox.Height = height
 	}
 	blockLevelWidth(parentBox_, nil, containingBlock)
+	// gopdfgo: szerokość nadana kontenerowi z zewnątrz (rozmiar główny elementu flex wiersza, rozciągnięcie
+	// w kolumnie) jest jego szerokością także dla elementów: od niej zależy łamanie ich wierszy, a więc
+	// i wysokość. Źródło liczyło ją tu na nowo ze stylu, więc kolumna flex będąca elementem wiersza
+	// z flex-basis (albo width w procentach) mierzyła treść w szerokości bloku zawierającego, a układała
+	// ją w węższej: elementy nachodziły na siebie.
+	if width, ok := box.Width.(pr.Float); ok && width != pr.Inf && width >= 0 {
+		parentBox.Width = width
+	}
 	// gopdfgo: kontener o wysokości auto z aspect-ratio i znaną szerokością ma określoną wysokość
 	// z proporcji (CSS Sizing 4 § 5.1), ograniczoną min- i max-height; elementy rozciągają się do niej
 	// (test WPT flex-aspect-ratio-cross-size-001). Źródło pomijało aspect-ratio kontenera flex.
@@ -1392,6 +1400,11 @@ restartCollapsed:
 						available = max(available, minWidth)
 					}
 					definiteCrossSize = available
+				} else if width, ok := parentBox.Width.(pr.Float); ok {
+					// gopdfgo: szerokość treści po rozwiązaniu procentów, calc() i box-sizing; źródło brało
+					// liczbę ze stylu, więc kolumna flex z width: 50% miała linię (i rozciągnięte elementy)
+					// szerokości 50px, a elementy zmierzone w pełnej szerokości nachodziły na siebie
+					definiteCrossSize = width
 				} else {
 					definiteCrossSize = box.Style.GetWidth().Value
 				}
