@@ -1726,6 +1726,12 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 				}
 				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, name+":"+value)})
 			}
+			// gopdfgo: atrybut transform jest atrybutem prezentacyjnym właściwości transform (SVG 2 § 8.5);
+			// na zewnętrznym <svg> działa jak transform pola CSS (testy WPT outer-svg-transform-attribute-*),
+			// a deklaracja CSS go zastępuje. Źródło go tu pomijało; rysowanie SVG pomija go wtedy w korzeniu.
+			if value, ok := svgTransformToCSS(element.Get("transform")); ok {
+				out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(element, "transform:"+value)})
+			}
 		case atom.Ol:
 			// gopdfgo: atrybuty list według HTML (§ 4.4.5, § 4.4.8) i CSS Lists 3. W źródle `start`
 			// obniżał licznik przez counter-increment na samej liście, `reversed` nie był obsługiwany,

@@ -391,10 +391,22 @@ func (img image) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims
 	dst.State().Clip(false)
 	dst.OnNewStack(func() {
 		dst.State().Transform(matrix.Transform{A: scale_x, D: scale_y, E: translate_x, F: translate_y})
+		// gopdfgo: obraz SVG wstawiony elementem <image> ma układ gospodarza dokumentu, który go
+		// wstawia, łącznie z dopasowaniem preserveAspectRatio (testy WPT non-scaling-stroke-non-uniform-
+		// scale, -with-none-preserve-aspect-ratio); zob. hostScale
+		if holder, ok := img.img.(svgImageHolder); ok && holder.SVG() != nil {
+			holder.SVG().draw(dst, intrinsic.Width, intrinsic.Height, svg.textContext, svg.hostBaseScale)
+			return
+		}
 		img.img.Draw(dst, svg.textContext, intrinsic.Width, intrinsic.Height, "auto")
 	})
 
 	return nil
+}
+
+// svgImageHolder (gopdfgo) to obraz, pod którym leży dokument SVG (images.SVGImage).
+type svgImageHolder interface {
+	SVG() *SVGImage
 }
 
 // wraps a node

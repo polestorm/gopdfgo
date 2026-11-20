@@ -396,6 +396,7 @@ var notInheritedAttributes = utils.NewSet(
 	"dx",
 	"dy",
 	"href",
+	"vector-effect", // gopdfgo: SVG 2 § 13.2, niedziedziczona
 )
 
 var colorAttributes = utils.NewSet(

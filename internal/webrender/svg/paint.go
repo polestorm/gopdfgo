@@ -2,6 +2,7 @@ package svg
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
@@ -97,6 +98,19 @@ func (svg *SVGImage) applyPainters(dst backend.Canvas, node *svgNode, dims drawi
 
 		// stroke options
 		dashes, offset := dims.resolveDashes(node.dashArray, node.dashOffset)
+		// gopdfgo: vector-effect: non-scaling-stroke (SVG 2 § 13.2) liczy obrys w układzie gospodarza
+		// (zob. hostScale), więc grubość i kreskowanie dzielimy przez skalę bieżącego układu
+		// użytkownika względem niego. Ścieżka zostaje w układzie użytkownika, przy skali niejednorodnej
+		// to przybliżenie (pióro staje się elipsą). Źródło tej właściwości nie znało.
+		if node.nonScalingStroke {
+			if scale := svg.hostScale(dst); scale > 0 && scale != 1 {
+				strokeWidth /= scale
+				for i := range dashes {
+					dashes[i] /= scale
+				}
+				offset /= scale
+			}
+		}
 		dst.State().SetDash(dashes, offset)
 
 		dst.State().SetLineWidth(strokeWidth)
@@ -104,6 +118,19 @@ func (svg *SVGImage) applyPainters(dst backend.Canvas, node *svgNode, dims drawi
 	}
 
 	return
+}
+
+// hostScale (gopdfgo) zwraca średnią skalę (pierwiastek z modułu wyznacznika) przekształcenia
+// z bieżącego układu użytkownika do układu gospodarza, czyli układu, w którym wywołano Draw (pole
+// obrazu w pikselach CSS). Przeglądarki nie wliczają do niego przekształceń CSS przodków ani samego
+// zewnętrznego <svg> (testy WPT non-scaling-stroke-outer-svg-transform, -paint-server-transform).
+// Wyznacznik złożenia jest iloczynem wyznaczników, więc kolejność składania nie gra roli.
+func (svg *SVGImage) hostScale(dst backend.Canvas) Fl {
+	return transformScale(dst.State().GetTransform()) * svg.hostBaseScale
+}
+
+func transformScale(mat matrix.Transform) Fl {
+	return Fl(math.Sqrt(math.Abs(float64(mat.Determinant()))))
 }
 
 func newPaintOp(fill, stroke, evenOdd bool) backend.PaintOp {
@@ -485,6 +512,11 @@ func (pt pattern) paint(dst backend.Canvas, node *svgNode, opacity Fl, dims draw
 
 	var patternWidth, patternHeight Fl
 	if pt.isUnitsUserSpace {
+		// gopdfgo: przy patternUnits="userSpaceOnUse" kafelki zaczynają się w punkcie (x, y) układu
+		// użytkownika (SVG 2 § 14.3.3), a nie w rogu ramki elementu; źródło przesuwało je o róg ramki
+		// (z obrysem), więc wzór zależał od położenia i grubości obrysu
+		x, y := dims.point(pt.x, pt.y)
+		mat = matrix.Translation(x, y)
 		patternWidth = pt.width.Resolve(dims.fontSize, 1)
 		patternHeight = pt.height.Resolve(dims.fontSize, 1)
 	} else {
