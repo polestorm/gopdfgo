@@ -903,12 +903,29 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				box.Height = pr.Float(remaining)
 			}
 		} else {
-			if remaining, ok := context.fixedHeightRemaining[resumeKey(skipStack)]; ok {
+			if remaining, ok := context.fixedHeightRemaining[resumeKey(skipStack)]; ok && box.IsFlexItem && box.Style.GetHeight().Tag == pr.Auto {
+				// gopdfgo: element flex o wysokości auto ma wysokość z algorytmu flex (rozciągnięcie do linii,
+				// rozmiar główny w kolumnie), ale wyznaczoną przez treść: w dalszym ciągu reszta tej wysokości
+				// jest tylko minimum, bo podział treści zostawia na poprzedniej stronie wolne miejsce, a treść
+				// dalszego ciągu może być wyższa niż reszta (CSS Fragmentation 3 § 5.1; tak Chromium)
+				if height, isFloat := box.Height.(pr.Float); isFloat {
+					resumedFixed = true
+					box.Height = max(height, remaining)
+					box.MinHeight, box.MaxHeight = pr.Float(0), pr.Inf
+				} else {
+					box.MinHeight = remaining
+				}
+			} else if ok {
 				// dalszy ciąg bloku o podanej wysokości, którego dzieci podzieliły się między strony:
 				// zostaje mu reszta wysokości (zob. niżej)
 				resumedFixed = true
 				box.Height = remaining
 				box.MinHeight, box.MaxHeight = pr.Float(0), pr.Inf
+			} else if remaining, ok := context.minHeightRemaining[resumeKey(skipStack)]; ok && box.Height == pr.AutoF {
+				// gopdfgo: min-height dotyczy sumy fragmentów (CSS Fragmentation 3 § 5.1): dalszy ciąg
+				// dostaje to, czego nie zużyły poprzednie (zob. niżej). W źródle każdy fragment miał całe
+				// min-height, a ostatni wystawał poza stronę i jego dalsza część ginęła.
+				box.MinHeight = remaining
 			}
 			skip, skipStack, parallelResume, parallelLast = unpackParallel(skipStack)
 		}
@@ -1400,6 +1417,26 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 		}
 	}
 
+	// gopdfgo: pudełko o wysokości auto, któremu min-height daje więcej wysokości, niż zostało na stronie,
+	// dzieli się jak pudełko o podanej wysokości: reszta przechodzi na następną stronę (CSS Fragmentation 3
+	// § 5.1). Pudełko niższe niż strona, które nie zaczyna się na jej początku, jest przenoszone w całości
+	// (ADR 0004). W źródle wystawało poza stronę i jego dalsza część ginęła.
+	if splitHeight < 0 && resumeAt == nil && box.Height == pr.AutoF && !discard && !resumedRemainder && !overflowContinuation {
+		if minHeight, ok := box.MinHeight.(pr.Float); ok && minHeight > 0 && minHeight < maxSliceableHeight && canSplitFixedHeight(context, box_, bottomSpace) {
+			used := max(min(newBox.Height.V(), newBox.MaxHeight.V()), minHeight)
+			available := context.pageBottom - bottomSpace - newBox.ContentBoxY()
+			splittable := !isStart || pageIsEmpty || used+newBox.BorderHeight()-newBox.Height.V() > context.pageHeight
+			if splittable && isStart && !pageIsEmpty && avoidPageBreak(string(box.Style.GetBreakInside()), context) {
+				splittable = false
+			}
+			if splittable && available > 0 && used-available > 0.5 {
+				splitHeight = available
+				resumeAt = tree.RemainderResume(float64(used - available))
+				newBox_.RemoveDecoration(newBox, false, true)
+			}
+		}
+	}
+
 	if splitHeight >= 0 {
 		newBox.Height = splitHeight
 	} else if resumedRemainder {
@@ -1446,6 +1483,15 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			if drawBottomDecoration {
 				newBox.Height = newBox.Height.V() + box.PaddingBottom.V() + box.BorderBottomWidth.V() + box.MarginBottom.V()
 			}
+		}
+		// gopdfgo: reszta min-height pudełka o wysokości auto przechodzi na dalszy ciąg (zob. wyżej
+		// minHeightRemaining)
+		if minHeight, ok := box.MinHeight.(pr.Float); ok && box.Height == pr.AutoF && minHeight > 0 && resumeAt != nil &&
+			!finishedWithOverflow && canSplitFixedHeight(context, box_, bottomSpace) {
+			if context.minHeightRemaining == nil {
+				context.minHeightRemaining = map[uintptr]pr.Float{}
+			}
+			context.minHeightRemaining[resumeKey(resumeAt)] = max(minHeight-newBox.Height.V(), 0)
 		}
 	}
 
@@ -2499,11 +2545,14 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 	if !bo.BlockT.IsInstance(box_) || !(box.IsInNormalFlow() || box.IsAbsolutelyPositioned() || box.IsFloated()) || box.IsColumn || box.IsForRootElement {
 		return false
 	}
-	// Elementy flex i grid mają własne algorytmy podziału; tam bloków nie tniemy.
+	// Elementy grid mają własny algorytm podziału; tam bloków nie tniemy.
 	// gopdfgo: wyjątkiem jest element niepodzielny przez zawieranie rozmiaru (contain: size) wyższy niż
 	// strona: wystawałby poza nią i jego dalsza część ginęła; w Chromium przechodzi na następne strony
 	// (CSS Break 3 § 4.4, testy WPT css-page/monolithic-overflow-005, -007).
-	if (box.IsFlexItem || box.IsGridItem) && !(bo.IsMonolithic(box_) && bo.HasContainment(box_, "size") && box.BorderHeight() > context.pageHeight) {
+	// gopdfgo: elementy flex są tu dzielone jak zwykłe bloki (w źródle wykluczone razem z grid): wysokość
+	// z algorytmu flex wyższa niż strona dzieli się między fragmenty (CSS Fragmentation 3 § 5.1, CSS
+	// Flexbox 1 § 12); wcześniej element wystawał poza stronę, a jego dalsza część i tło ginęły.
+	if box.IsGridItem && !(bo.IsMonolithic(box_) && bo.HasContainment(box_, "size") && box.BorderHeight() > context.pageHeight) {
 		return false
 	}
 	if bottomSpace == -pr.Inf || context.pageBottom == pr.Inf || context.clipDepth > 0 {
