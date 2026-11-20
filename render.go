@@ -23,6 +23,7 @@ import (
 	"github.com/polestorm/gopdfgo/internal/webrender/html/tree"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
+	"github.com/polestorm/gopdfgo/internal/webrender/text/hyphen"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 )
 
@@ -121,6 +122,13 @@ type Options struct {
 	// czytać w edytorze tekstu (diagnostyka). Obrazy zostają skompresowane bezstratnie stopniem 0, bo ich
 	// filtr jest częścią formatu. Domyślnie (false) wszystko jest kompresowane zlib w stopniu 6.
 	Uncompressed bool
+	// Hyphenation to słowniki dzielenia wyrazów (hyphens: auto) podane przez wywołującego: klucz to znacznik
+	// języka BCP 47 ("cs", "sv-SE"), wartość to wzorce Lianga w UTF-8, jeden w wierszu (plik .pat.txt
+	// z hyph-utf8 albo słownik .dic Hunspella). Mają pierwszeństwo przed wbudowanymi. Wbudowane są tylko
+	// słowniki na licencjach MIT, BSD, Unlicense i FSF all-permissive (ADR 0024): af, be, bg, da, de, el,
+	// en, es, et, fr, gl, it, lt, mn, nb, nl, nn, pl, pt, sk, sl, sq, te, uk. Za licencję słownika
+	// podanego tutaj odpowiada wywołujący.
+	Hyphenation map[string][]byte
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -191,6 +199,10 @@ func render(html []byte, opts Options) (result Result, err error) {
 		level = zlib.NoCompression
 	}
 	pdfmodel.SetCompressionLevel(level)
+	if err := hyphen.SetUserDictionaries(opts.Hyphenation); err != nil {
+		return Result{}, fmt.Errorf("gopdfgo: %w", err)
+	}
+	defer hyphen.SetUserDictionaries(nil)
 
 	var warnings bytes.Buffer
 	previousWarnings, previousProgress := logger.WarningLogger.Writer(), logger.ProgressLogger.Writer()

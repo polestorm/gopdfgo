@@ -33,7 +33,11 @@ func parseHyphDic(datas fs.FS, filename string) (out hyphDicReference, err error
 	if err != nil {
 		return out, err
 	}
+	return parseHyphDicBytes(b)
+}
 
+// parseHyphDicBytes (gopdfgo) czyta słownik z pamięci; zob. SetUserDictionaries.
+func parseHyphDicBytes(b []byte) (out hyphDicReference, err error) {
 	lines := bytes.Split(b, []byte{'\n'})
 	if len(lines) == 0 {
 		return out, nil

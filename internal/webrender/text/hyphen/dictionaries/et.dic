@@ -1,4 +1,68 @@
-.aa4 
+UTF-8
+% gopdfgo: hyph-et.pat.txt z hyph-utf8, rozpowszechniany na licencji MIT.
+% Wyjątki z hyph-et.hyp.txt zapisane jako wzorce (gen/gen.go).
+% title: Hyphenation patterns for Estonian
+% copyright: Copyright (C) 2004-2015 Enn Saar
+% notice: This file is part of the hyph-utf8 package.
+%     See http://www.hyphenation.org/tex for more information.
+% language:
+%     name: Estonian
+%     tag: et
+% authors:
+%   -
+%     name: Enn Saar
+%     contact: saar (at) aai.ee
+% licence:
+%     - This file is dual-licensed under both these licences, at your discretion:
+%     -
+%         name: MIT
+%         url: https://opensource.org/licenses/MIT
+%         text: >
+%             Permission is hereby granted, free of charge, to any person
+%             obtaining a copy of this software and associated documentation
+%             files (the "Software"), to deal in the Software without
+%             restriction, including without limitation the rights to use,
+%             copy, modify, merge, publish, distribute, sublicense, and/or sell
+%             copies of the Software, and to permit persons to whom the
+%             Software is furnished to do so, subject to the following
+%             conditions:
+% 
+%             The above copyright notice and this permission notice shall be
+%             included in all copies or substantial portions of the Software.
+% 
+%             THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+%             EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+%             OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+%             NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+%             HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+%             WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+%             FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+%             OTHER DEALINGS IN THE SOFTWARE.
+%     -
+%         name: LPPL
+%         version: 1.3
+%         or_later: true
+%         status: author-maintained
+%         url: http://www.latex-project.org/lppl.txt
+% changes:
+%     - 2004-04-13 latest changes
+% hyphenmins:
+%     typesetting:
+%         left: 2
+%         right: 3
+% texlive:
+%     encoding: ec
+%     babelname: estonian
+%     legacy_patterns: ethyph.tex
+%     message: Estonian hyphenation patterns
+%     description: Hyphenation patterns for Estonian in T1/EC and UTF-8 encodings.
+%
+% ==========================================
+% The patterns were generated long ago by applying patgen to
+% an Estonian dictionary; a few patterns were added later manually 
+% to prohibit aa-bits type cases. 
+%
+.aa4
 .aasta5
 .ahe4li
 .al4a
@@ -9,7 +73,7 @@
 .art5r
 .au3a
 .eba3
-.ee4	
+.ee4
 .eela4
 .ek3l
 .ek5r
@@ -44,7 +108,7 @@
 .nisu5
 .noa3
 .oa3
-.oo4 
+.oo4
 .pap4p
 .pea3a
 .raadio5
@@ -73,18 +137,18 @@
 .ul4ga
 .ulu4k
 .um2b
-.uu4 
+.uu4
 .vaa3l
 .vask3
 .vere3
 .õppe5
-.ää4 
-.õõ4 
-.öö4 
+.ää4
+.õõ4
+.öö4
 .ühi4s
 .üle3e
 .ür2
-.üü4 
+.üü4
 aaa5l
 a1aas
 4aab
@@ -155,7 +219,7 @@ aa4teh
 aa4tõ
 aa4tüh
 a1au
-aaži5
+aaši5
 a1b
 4a3ba
 a5be
@@ -397,7 +461,7 @@ a4suss
 a5suu
 a1t
 a3ta
-a4taš
+a4taž
 5ateljee
 atii4v
 atmi4k
@@ -437,8 +501,8 @@ a1õ2
 a1ö2
 a1ä2
 a1ü2
-aš4ni
-4a1ž
+až4ni
+4a1š
 5baa
 baa4g
 baa4k
@@ -618,9 +682,9 @@ dõ4l
 dü4li
 4dü4r
 5düü
-4dš
-2d2ž
-3džem
+4dž
+2d2š
+3dšem
 eaa2
 ea3aj
 e1aas
@@ -867,7 +931,7 @@ e1õ2
 e3ö4
 e1ä2
 e1ü4
-e1ž
+e1š
 5faa
 faa4n
 4fa4d
@@ -1384,7 +1448,7 @@ i4vü
 i1õ2
 i1ä4
 i1ü2
-i1š
+i1ž
 j4a
 3jaa
 ja1aj
@@ -1584,7 +1648,7 @@ ku4siv
 kut4r
 kuu4ni
 kuuse5
-4kuš
+4kuž
 2k1v
 k4van
 3kvart
@@ -1604,8 +1668,8 @@ käi5s
 2kühe
 4küle
 4küll.
-2kš4
-4kž
+2kž4
+4kš
 1la
 5laag
 la4aj
@@ -1734,7 +1798,7 @@ li4sõl
 li4sö
 lit4r
 li5tu
-2liše
+2liže
 2l1j
 lja1a
 lja5os
@@ -1972,7 +2036,7 @@ mõ4d
 mär4gel
 3mü
 4müh
-4mš
+4mž
 1na
 n4aa
 na5ah
@@ -2127,8 +2191,8 @@ nõ4l
 1nä
 1nü
 4nül
-4nš
 4nž
+4nš
 oa2
 oa4a
 o1ae
@@ -2144,7 +2208,7 @@ odaa4
 odaal3
 o4deh
 odu4sõ
-od4ž
+od4š
 oe5a4
 oe4fe
 oe2l
@@ -2442,8 +2506,8 @@ pär4gu
 4päs
 3pü
 pü3he
-4pš
 4pž
+4pš
 1ra
 raal3a
 4raale
@@ -2454,7 +2518,7 @@ raa4ta4
 4raatt
 raa4tu
 4raav
-5raaž
+5raaš
 raie3
 2rain
 r3aine
@@ -2600,7 +2664,7 @@ roo4ga
 ros4po
 ro5staati
 rost4r
-4roš
+4rož
 2r1p
 rp5ret
 2r1r
@@ -2658,8 +2722,8 @@ rööp5l
 4rük
 4rüm
 4rü4r
-4rš
 4rž
+4rš
 1sa
 3s2aa
 saa5j
@@ -2870,7 +2934,7 @@ s4suss
 2s1t
 s2taa
 3staad
-5staaž
+5staaš
 s4tain
 4stam
 5standard
@@ -2963,7 +3027,7 @@ sü3lem
 sü4ra
 3süs
 3süü
-4sš
+4sž
 1ta
 3ta.
 3taat.
@@ -3162,10 +3226,10 @@ tä5ke
 1tü
 tü5he.
 tü3hi
-2t1š
-t2še
-5tšek
-3tšem
+2t1ž
+t2že
+5tžek
+3tžem
 uaa4
 u3aast
 ua2b
@@ -3365,7 +3429,7 @@ u1õ2
 uä2
 u3är
 u1ü2
-uš4l
+už4l
 vaa4re4
 va4as
 4vabi
@@ -3661,31 +3725,31 @@ zoos4
 üü4le
 üü4lo
 üü4pe
-1ša
-4šb
-1še
-5šee
-5šer
-4šf
-1ši
-4šj
-4šk
-4šl
-4šm
-4šn
-3šo
-4šp
-4št
-5šö
-5šü
-2šš
-3ža
-4žak
-4žau
+1ža
+4žb
 1že
-3ž4i
-žis4k
+5žee
+5žer
+4žf
+1ži
+4žj
 4žk
-5žo
+4žl
+4žm
+4žn
+3žo
+4žp
 4žt
-3žu4
+5žö
+5žü
+2žž
+3ša
+4šak
+4šau
+1še
+3š4i
+šis4k
+4šk
+5šo
+4št
+3šu4

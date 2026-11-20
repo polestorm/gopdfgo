@@ -919,6 +919,11 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- słowniki dzielenia wyrazów, 2026-11-20 (`text/hyphen`, ADR 0024): 42 słowniki LibreOffice z Pyphen (w tym
+  na LGPL i GPL) zastąpione wzorcami hyph-utf8 na MIT, BSD, Unlicense i FSF all-permissive (25 języków,
+  1,3 MB zamiast 5,8 MB); nowy generator `gen/gen.go`; `SetUserDictionaries` i `parseHyphDicBytes` dla
+  `Options.Hyphenation`; przejęte testy `TestAlternative` i `TestFallback` przepisane (słownik w pamięci,
+  inne języki);
 - mniejsze pliki PDF, 2026-11-20 (ADR 0023):
   - `pdflib/model/streams.go`, `pdflib/contentstream/images.go`: stopień kompresji zlib ustawiany przez
     `SetCompressionLevel` (źródło: zawsze `BestSpeed`); `gopdfgo.Render` ustawia 6, a przy
@@ -2160,13 +2165,14 @@ zależnością modułu):
 
 ## Zależności modułu
 
-Z `go.mod`, licencje z plików `LICENSE` w pamięci modułów; do potwierdzenia przed publikacją:
+Z `go.mod`, licencje z plików `LICENSE` w pamięci modułów (sprawdzone 2026-11-20); pełne teksty w `THIRD_PARTY_NOTICES` (ADR 0025):
 
 | Moduł | Licencja | Użycie |
 |---|---|---|
 | `github.com/go-text/typesetting` | BSD-3-Clause / Unlicense (plik `LICENSE` modułu) | kształtowanie tekstu, fonty |
 | `github.com/benoitkugler/pdf` | MIT | zapis PDF (tymczasowo, do wymiany wg ADR 0002) |
-| `github.com/benoitkugler/pstokenizer`, `github.com/hhrutter/lzw` | do sprawdzenia | pośrednie przez `benoitkugler/pdf` |
+| `github.com/benoitkugler/pstokenizer` | MIT | pośrednie przez `benoitkugler/pdf` |
+| `github.com/hhrutter/lzw` | BSD-3-Clause (The Go Authors) | pośrednie przez `benoitkugler/pdf` |
 | `github.com/benoitkugler/textlayout` | MIT | tylko w testach (`html/layout/layout_fonts_test.go`) |
 | `golang.org/x/{image,net,text}` | BSD-3-Clause | obrazy, parser HTML, kodowania |
 

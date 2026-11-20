@@ -4,6 +4,7 @@
 package hyphen
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"unicode"
@@ -14,7 +15,29 @@ import (
 var (
 	dictionariesCache     = map[string]hyphDicReference{}
 	dictionariesCacheLock sync.Mutex
+	// userDictionaries (gopdfgo): słowniki podane przez wywołującego, zob. SetUserDictionaries
+	userDictionaries map[language.Language]hyphDicReference
 )
+
+// SetUserDictionaries (gopdfgo) ustawia słowniki podane przez wywołującego (gopdfgo.Options.Hyphenation):
+// klucz to znacznik języka BCP 47, wartość to wzorce Lianga w UTF-8, jeden w wierszu (format hyph-utf8
+// .pat.txt albo Hunspell .dic). Mają pierwszeństwo przed wbudowanymi. Wbudowane są tylko słowniki na
+// licencjach MIT, BSD, Unlicense i FSF all-permissive (ADR 0024); pozostałe języki może dostarczyć
+// wywołujący, na własnych warunkach licencyjnych. nil usuwa słowniki poprzedniego wywołania.
+func SetUserDictionaries(dicts map[string][]byte) error {
+	parsed := make(map[language.Language]hyphDicReference, len(dicts))
+	for tag, data := range dicts {
+		dic, err := parseHyphDicBytes(data)
+		if err != nil {
+			return fmt.Errorf("słownik dzielenia %q: %w", tag, err)
+		}
+		parsed[language.NewLanguage(tag)] = dic
+	}
+	dictionariesCacheLock.Lock()
+	defer dictionariesCacheLock.Unlock()
+	userDictionaries = parsed
+	return nil
+}
 
 type Hyphener struct {
 	hd          hyphDic
@@ -42,7 +65,9 @@ func NewHyphener(lang language.Language, left, right int) Hyphener {
 	dictionariesCacheLock.Lock()
 	defer dictionariesCacheLock.Unlock()
 
-	if dic, ok := dictionariesCache[filename]; ok {
+	if dic, ok := userDictionaries[LanguageFallback(lang)]; ok { // gopdfgo: słownik wywołującego
+		out.hd.data = dic
+	} else if dic, ok := dictionariesCache[filename]; ok {
 		out.hd.data = dic
 	} else {
 		dic, _ := parseHyphDic(dictionaries, filename) // Test assert thaht it wont fail
@@ -199,6 +224,9 @@ type complexHyphenation struct {
 // including scripts for languages with multiple regions available.
 func LanguageFallback(lang language.Language) language.Language {
 	for _, lg := range lang.SimpleInheritance() {
+		if _, ok := userDictionaries[lg]; ok { // gopdfgo: zob. SetUserDictionaries
+			return lg
+		}
 		if _, ok := languages[lg]; ok {
 			return lg
 		}

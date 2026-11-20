@@ -1,140 +1,208 @@
+// Command gen (gopdfgo) buduje słowniki dzielenia wyrazów z wzorców projektu hyph-utf8
+// (https://github.com/hyphenation/tex-hyphen, katalog hyph-utf8/tex/generic/hyph-utf8/patterns).
+//
+// Do binarki trafiają tylko języki, których wzorce wolno rozpowszechniać na licencji MIT, BSD,
+// Unlicense albo „all-permissive” FSF (ADR 0024). Każdy słownik zaczyna się nagłówkiem
+// pliku źródłowego (tytuł, autorzy, prawa autorskie, licencja) zapisanym jako komentarz, więc informacja
+// o prawach autorskich jedzie razem z danymi. Wyjątki (plik .hyp.txt) są zapisywane jako wzorce,
+// które wymuszają podział całego słowa.
+//
+// Użycie, z katalogu internal/webrender/text/hyphen:
+//
+//	go run ./gen -src <katalog z podkatalogami tex/ i txt/ z hyph-utf8>
 package main
 
 import (
+	"bufio"
 	"bytes"
-	"embed"
+	"flag"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/go-text/typesetting/language"
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/charmap"
-	"golang.org/x/text/encoding/unicode"
 )
 
-var encodings = map[string]encoding.Encoding{
-	"utf-8":            unicode.UTF8,
-	"cp1251":           charmap.Windows1251,
-	"microsoft-cp1251": charmap.Windows1251,
-	"iso8859-1":        charmap.ISO8859_1,
-	"iso8859-2":        charmap.ISO8859_2,
-	"iso8859-5":        charmap.ISO8859_5,
-	"iso8859-7":        charmap.ISO8859_7,
-	"iso8859-13":       charmap.ISO8859_13,
-	"iso8859-15":       charmap.ISO8859_15,
+// source to jeden słownik: plik hyph-utf8, nazwa wyjściowa, licencja wybrana do rozpowszechniania
+// i znaczniki języka, dla których jest używany.
+type source struct {
+	hyph    string // nazwa w hyph-utf8, np. "de-1996"
+	out     string // plik w dictionaries/
+	license string // licencja, na której rozpowszechniamy (gdy plik daje wybór)
+	tags    []string
+}
+
+var sources = []source{
+	{"af", "af", "MIT", []string{"af", "af-za"}},
+	{"be", "be", "MIT", []string{"be", "be-by"}},
+	{"bg", "bg", "BSD-like (see header)", []string{"bg", "bg-bg"}},
+	{"da", "da", "MIT", []string{"da", "da-dk"}},
+	{"de-1996", "de", "MIT", []string{"de", "de-de", "de-at", "de-ch"}},
+	{"el-monoton", "el", "MIT", []string{"el", "el-gr"}},
+	{"en-gb", "en_gb", "MIT", []string{"en-gb"}},
+	{"en-us", "en_us", "FSF all-permissive", []string{"en", "en-us"}},
+	{"es", "es", "MIT", []string{"es", "es-es"}},
+	{"et", "et", "MIT", []string{"et", "et-ee"}},
+	{"fr", "fr", "MIT", []string{"fr", "fr-fr"}},
+	{"gl", "gl", "Unlicense", []string{"gl", "gl-es"}},
+	{"it", "it", "MIT", []string{"it", "it-it"}},
+	{"lt", "lt", "MIT", []string{"lt", "lt-lt"}},
+	{"mn-cyrl", "mn", "MIT", []string{"mn", "mn-mn"}},
+	{"nb", "nb", "FSF all-permissive", []string{"nb", "nb-no", "no"}},
+	{"nl", "nl", "MIT", []string{"nl", "nl-nl"}},
+	{"nn", "nn", "FSF all-permissive", []string{"nn", "nn-no"}},
+	{"pl", "pl", "MIT", []string{"pl", "pl-pl"}},
+	{"pt", "pt", "BSD-3-Clause", []string{"pt", "pt-pt", "pt-br"}},
+	{"sk", "sk", "MIT", []string{"sk", "sk-sk"}},
+	{"sl", "sl", "MIT", []string{"sl", "sl-si"}},
+	{"sq", "sq", "MIT", []string{"sq", "sq-al"}},
+	{"te", "te", "MIT", []string{"te", "te-in"}},
+	{"uk", "uk", "MIT", []string{"uk", "uk-ua"}},
 }
 
 func main() {
-	contents, map_, err := getLanguages()
-	if err != nil {
-		panic(err)
+	src := flag.String("src", "", "katalog z podkatalogami tex/ i txt/ z hyph-utf8")
+	flag.Parse()
+	if *src == "" {
+		flag.Usage()
+		os.Exit(2)
 	}
+	if err := run(*src); err != nil {
+		fmt.Fprintln(os.Stderr, "gen:", err)
+		os.Exit(1)
+	}
+}
 
-	fmt.Println("Languages available :", len(contents))
-
-	for _, content := range contents {
-		err = os.WriteFile("../"+content.path(), []byte(content.content), os.ModePerm)
-		if err != nil {
-			panic(err)
+func run(src string) error {
+	old, _ := filepath.Glob("dictionaries/*.dic")
+	for _, f := range old {
+		if err := os.Remove(f); err != nil {
+			return err
 		}
 	}
+	var mapping []string
+	var notices strings.Builder
+	notices.WriteString("Hyphenation patterns from hyph-utf8 (https://github.com/hyphenation/tex-hyphen).\n" +
+		"Each .dic file starts with the header of its source file: authors, copyright and the full licence text.\n\n")
+	for _, s := range sources {
+		tex, err := os.ReadFile(filepath.Join(src, "tex", "hyph-"+s.hyph+".tex"))
+		if err != nil {
+			return err
+		}
+		header := texHeader(tex)
+		patterns, err := os.ReadFile(filepath.Join(src, "txt", "hyph-"+s.hyph+".pat.txt"))
+		if err != nil {
+			if patterns = texPatterns(tex); patterns == nil {
+				return fmt.Errorf("%s: brak wzorców", s.hyph)
+			}
+		}
+		exceptions, _ := os.ReadFile(filepath.Join(src, "txt", "hyph-"+s.hyph+".hyp.txt"))
 
-	outFile, err := os.Create("../datas_gen.go")
-	if err != nil {
-		panic(err)
+		var out bytes.Buffer
+		out.WriteString("UTF-8\n")
+		fmt.Fprintf(&out, "%% gopdfgo: hyph-%s.pat.txt z hyph-utf8, rozpowszechniany na licencji %s.\n", s.hyph, s.license)
+		out.WriteString("% Wyjątki z hyph-" + s.hyph + ".hyp.txt zapisane jako wzorce (gen/gen.go).\n")
+		for _, line := range header {
+			out.WriteString(line + "\n")
+		}
+		for _, p := range strings.Fields(string(patterns)) {
+			out.WriteString(p + "\n")
+		}
+		for _, word := range strings.Fields(string(exceptions)) {
+			out.WriteString(exceptionPattern(word) + "\n")
+		}
+		name := "dictionaries/" + s.out + ".dic"
+		if err := os.WriteFile(name, out.Bytes(), 0o644); err != nil {
+			return err
+		}
+		for _, tag := range s.tags {
+			mapping = append(mapping, fmt.Sprintf("\t%q: %q,", tag, name))
+		}
+		title := ""
+		for i, line := range header {
+			if strings.HasPrefix(line, "% copyright:") {
+				title = strings.TrimSpace(strings.TrimPrefix(line, "% copyright:"))
+				if title == ">" && i+1 < len(header) { // wartość wielowierszowa YAML
+					title = strings.TrimSpace(strings.TrimPrefix(header[i+1], "%"))
+				}
+			}
+		}
+		fmt.Fprintf(&notices, "%s (hyph-%s): %s; licence: %s\n", name, s.hyph, title, s.license)
 	}
-	defer outFile.Close()
-
-	fmt.Fprintln(outFile, `package hyphen
-	
-	import (
-		"embed"
-
-		"github.com/go-text/typesetting/language"
-	)
-
-	//go:embed dictionaries
-	var dictionaries embed.FS
-
-	`)
-
-	var keys []language.Language
-	for k := range map_ {
-		keys = append(keys, k)
+	sort.Strings(mapping)
+	var gen bytes.Buffer
+	gen.WriteString("// Code generated by gen/gen.go; DO NOT EDIT.\n\npackage hyphen\n\nimport (\n\t\"embed\"\n\n\t\"github.com/go-text/typesetting/language\"\n)\n\n")
+	gen.WriteString("//go:embed dictionaries\nvar dictionaries embed.FS\n\nvar languages = map[language.Language]string{\n")
+	gen.WriteString(strings.Join(mapping, "\n"))
+	gen.WriteString("\n}\n")
+	if err := os.WriteFile("datas_gen.go", gen.Bytes(), 0o644); err != nil {
+		return err
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-
-	fmt.Fprintln(outFile, "var languages = map[language.Language]string{")
-	for _, l := range keys {
-		index := map_[l]
-		fmt.Fprintf(outFile, "%q: %q,\n", l, contents[index].path())
-	}
-	fmt.Fprintln(outFile, "}")
+	return os.WriteFile("dictionaries/NOTICES.txt", []byte(notices.String()), 0o644)
 }
 
-//go:embed dictionaries
-var dictionaries embed.FS
-
-type alphabet struct {
-	name    string
-	content string
-}
-
-func (al alphabet) path() string {
-	return filepath.Join("dictionaries", al.name+".dic")
-}
-
-func getLanguages() ([]alphabet, map[language.Language]int, error) {
-	l, err := fs.ReadDir(dictionaries, "dictionaries")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var contents []alphabet
-	languageToContent := map[language.Language]int{}
-
-	for _, file := range l {
-		filename := file.Name()
-		if !strings.HasSuffix(filename, ".dic") {
+// texHeader zwraca początkowy blok komentarzy pliku .tex (tytuł, autorzy, prawa autorskie, licencja).
+func texHeader(tex []byte) []string {
+	var lines []string
+	sc := bufio.NewScanner(bytes.NewReader(tex))
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "%") {
+			if len(lines) > 0 && strings.TrimSpace(line) != "" {
+				break
+			}
 			continue
 		}
-		index := len(contents)
-
-		languageName := language.NewLanguage(filename[5 : len(filename)-4])
-
-		languageToContent[languageName] = index
-		shortName := language.NewLanguage(strings.Split(string(languageName), "-")[0])
-		if _, ok := languageToContent[shortName]; !ok {
-			languageToContent[shortName] = index
-		}
-
-		fullPath := filepath.Join("dictionaries", filename)
-		b, err := fs.ReadFile(dictionaries, fullPath)
-		if err != nil {
-			return nil, nil, err
-		}
-		firstLine, remaining, _ := bytes.Cut(b, []byte{'\n'})
-		dec := getEncoding(firstLine)
-
-		utf8, err := dec.Bytes(remaining)
-		if err != nil {
-			return nil, nil, err
-		}
-		contents = append(contents, alphabet{name: strings.ReplaceAll(string(languageName), "-", "_"), content: string(utf8)})
+		lines = append(lines, line)
 	}
-
-	return contents, languageToContent, nil
+	return lines
 }
 
-func getEncoding(firstLine []byte) *encoding.Decoder {
-	cs := strings.ToLower(strings.TrimSpace(string(firstLine)))
-	enco := encodings[cs]
-	if enco == nil {
-		enco = unicode.UTF8
+var patternsBlock = regexp.MustCompile(`(?s)\\patterns\{(.*?)\}`)
+
+// texPatterns wyciąga wzorce z polecenia \patterns{…}, gdy hyph-utf8 nie ma pliku .pat.txt.
+func texPatterns(tex []byte) []byte {
+	m := patternsBlock.FindSubmatch(tex)
+	if m == nil {
+		return nil
 	}
-	return enco.NewDecoder()
+	var out bytes.Buffer
+	for _, line := range strings.Split(string(m[1]), "\n") {
+		if i := strings.IndexByte(line, '%'); i >= 0 {
+			line = line[:i]
+		}
+		out.WriteString(line + "\n")
+	}
+	return out.Bytes()
+}
+
+// exceptionPattern zamienia wyjątek („ta-ble”) na wzorzec całego słowa z wagami 8 (nie dzielić) i 9
+// (dzielić) między każdą parą liter. Najwyższa waga wygrywa, więc słowo dzieli się dokładnie tak,
+// jak w wyjątku (algorytm Lianga).
+func exceptionPattern(word string) string {
+	letters := []rune(strings.ReplaceAll(word, "-", ""))
+	breaks := map[int]bool{}
+	n := 0
+	for _, r := range word {
+		if r == '-' {
+			breaks[n] = true
+			continue
+		}
+		n++
+	}
+	var b strings.Builder
+	b.WriteByte('.')
+	for i, r := range letters {
+		if i > 0 {
+			if breaks[i] {
+				b.WriteByte('9')
+			} else {
+				b.WriteByte('8')
+			}
+		}
+		b.WriteRune(r)
+	}
+	b.WriteByte('.')
+	return b.String()
 }

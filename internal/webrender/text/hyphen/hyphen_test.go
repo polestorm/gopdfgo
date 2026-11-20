@@ -3,6 +3,7 @@ package hyphen
 import (
 	"reflect"
 	"testing"
+	"testing/fstest"
 
 	"github.com/go-text/typesetting/language"
 )
@@ -27,12 +28,19 @@ func TestIterate(t *testing.T) {
 	}
 }
 
+// gopdfgo: węgierski słownik LibreOffice z wzorcami zastępującymi litery (sz/sz=) nie jest już wbudowany
+// (licencje GPL, LGPL, MPL; ADR 0024), więc składnię sprawdzamy na słowniku w pamięci.
 func TestAlternative(t *testing.T) {
-	dic := NewHyphener("hu", 1, 1)
-	exp := []string{"kulisz", "ku"}
-	got := dic.Iterate("kulissza", "")
-	if !reflect.DeepEqual(exp, got) {
-		t.Fatalf("expected %v, got %v", exp, got)
+	fsys := fstest.MapFS{"hu.dic": {Data: []byte("UTF-8\n1li\nis5sza/sz=,2,1\n")}}
+	data, err := parseHyphDic(fsys, "hu.dic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dic := Hyphener{hd: hyphDic{data: data, cache: map[string][]dataOrInt{}}, left: 1, right: 1}
+	for word, exp := range map[string][]string{"kulissza": {"kulisz", "ku"}, "KULISSZA": {"KULISZ", "KU"}} {
+		if got := dic.Iterate(word, ""); !reflect.DeepEqual(exp, got) {
+			t.Fatalf("%s: expected %v, got %v", word, exp, got)
+		}
 	}
 }
 
@@ -96,10 +104,11 @@ func TestFallback(t *testing.T) {
 	if LanguageFallback(language.NewLanguage("en_FR")) != language.NewLanguage("en") {
 		t.Fatal("unexpected fallback")
 	}
-	if LanguageFallback(language.NewLanguage("sr-Latn")) != language.NewLanguage("sr_Latn") {
+	// gopdfgo: słowników serbskich nie ma (licencje GPL i LPPL, ADR 0024); region i pismo jak dla pt
+	if LanguageFallback(language.NewLanguage("pt-Latn-BR")) != language.NewLanguage("pt") {
 		t.Fatal("unexpected fallback")
 	}
-	if LanguageFallback(language.NewLanguage("sr-Cyrl")) != language.NewLanguage("sr") {
+	if LanguageFallback(language.NewLanguage("sr-Latn")) != "" {
 		t.Fatal("unexpected fallback")
 	}
 	if LanguageFallback(language.NewLanguage("fr-Latn-FR")) != language.NewLanguage("fr") {

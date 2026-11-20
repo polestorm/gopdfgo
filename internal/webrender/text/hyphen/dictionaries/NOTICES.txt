@@ -1,0 +1,28 @@
+Hyphenation patterns from hyph-utf8 (https://github.com/hyphenation/tex-hyphen).
+Each .dic file starts with the header of its source file: authors, copyright and the full licence text.
+
+dictionaries/af.dic (hyph-af): Copyright (C) 2013 Tilla Fick and Chris Swanepoel; licence: MIT
+dictionaries/be.dic (hyph-be): Copyright (C) 2016 Maksim Salau; licence: MIT
+dictionaries/bg.dic (hyph-bg): Copyright (C) 2000, 2004, 2017 Anton Zinoviev; licence: BSD-like (see header)
+dictionaries/da.dic (hyph-da): Copyright (C) 1994 Frank Jensen; licence: MIT
+dictionaries/de.dic (hyph-de-1996): Copyright (c) 2013-2024; licence: MIT
+dictionaries/el.dic (hyph-el-monoton): Copyright (C) 2008-2011 Dimitrios Filippou; licence: MIT
+dictionaries/en_gb.dic (hyph-en-gb): Copyright (C) 1992, 1996, 2005, 2016 Dominik Wujastyk, Graham Toal; licence: MIT
+dictionaries/en_us.dic (hyph-en-us): Copyright (C) 1990, 2004, 2005 Gerard D.C. Kuiken; licence: FSF all-permissive
+dictionaries/es.dic (hyph-es): Copyright (C) 1993, 1997 Javier Bezos, 2001-2019 Javier Bezos, CervanTeX; licence: MIT
+dictionaries/et.dic (hyph-et): Copyright (C) 2004-2015 Enn Saar; licence: MIT
+dictionaries/fr.dic (hyph-fr): Copyright (C) 1994-2002 Daniel Flipo, Bernard Gaulle, 2016 Arthur Reutenauer; licence: MIT
+dictionaries/gl.dic (hyph-gl): Copyright (C) 2006, 2007, 2008, 2010 Javier A. Múgica; licence: Unlicense
+dictionaries/it.dic (hyph-it): Copyright (C) 2008-2011 Claudio Beccari; licence: MIT
+dictionaries/lt.dic (hyph-lt): Copyright (C) 1992 Sigitas Tolušis, Yannis Haralambous; licence: MIT
+dictionaries/mn.dic (hyph-mn-cyrl): Copyright (C) 2007-2015 by Dorjgotov Batmunkh; licence: MIT
+dictionaries/nb.dic (hyph-nb): Copyright (C) 2004–2005 Rune Kleveland, Ole Michael Selberg, 2007 Karl Ove Hufthammer; licence: FSF all-permissive
+dictionaries/nl.dic (hyph-nl): Copyright (C) 1996 Piet Tutelaers; licence: MIT
+dictionaries/nn.dic (hyph-nn): Copyright (C) 2007 Karl Ove Hufthammer; licence: FSF all-permissive
+dictionaries/pl.dic (hyph-pl): Copyright (C) 1987-1995 Hanna Kołodziejska, Bogusław Jackowski, Marek Ryćko; licence: MIT
+dictionaries/pt.dic (hyph-pt): Copyright (C) 1987, 1994, 1996, 2015 Pedro J. de Rezende, 1996, 2015 J. Joao Dias Almeida, 2024 Leonardo Araujo and Aline Benevides; licence: BSD-3-Clause
+dictionaries/sk.dic (hyph-sk): Copyright (C) 1992 Jana Chlebíková; licence: MIT
+dictionaries/sl.dic (hyph-sl): Copyright (C) 1990 Matjaž Vrečko; licence: MIT
+dictionaries/sq.dic (hyph-sq): Copyright (C) 2020 Claudio Beccari, Sabina Koliqi; licence: MIT
+dictionaries/te.dic (hyph-te): Copyright (C) 2016 Santhosh Thottingal; licence: MIT
+dictionaries/uk.dic (hyph-uk): Copyright (C) 1998-2001 Maksym Polyakov; licence: MIT

@@ -1,3 +1,36 @@
+UTF-8
+% gopdfgo: hyph-sk.pat.txt z hyph-utf8, rozpowszechniany na licencji MIT.
+% Wyjątki z hyph-sk.hyp.txt zapisane jako wzorce (gen/gen.go).
+% title: Hyphenation patterns for Slovak
+% copyright: Copyright (C) 1992 Jana Chlebíková
+% notice: This file is part of the hyph-utf8 package.
+%     See http://www.hyphenation.org/tex for more information.
+% version: 2.0 1992-04-24
+% language:
+%     name: Slovak
+%     tag: sk
+% authors:
+%   -
+%     name: Jana Chlebíková
+%     affiliation: Department of Informatics Education, Comenius University, 842 15 Bratislava, Slovakia 
+%     contact: chlebikj (at) dcs.fmph.uniba.sk
+% licence:
+%     name: MIT
+%     url: http://www.opensource.org/licenses/MIT
+% hyphenmins:
+%     typesetting:
+%         left: 2
+%         right: 3
+% texlive:
+%     encoding: ec
+%     babelname: slovak
+%     legacy_patterns: skhyph.tex
+%     message: Slovak hyphenation patterns
+%     description: |-
+%         Hyphenation patterns for Slovak in T1/EC and UTF-8 encodings.
+%         Original patterns 'skhyphen' are still distributed in the 'csplain'
+%         package and loaded with ISO Latin 2 encoding (IL2).
+%
 a1
 á1
 ä1
@@ -2465,3 +2498,8 @@ gymnázi3um
 le2u3kémia
 t2ri3u2mf
 kli3e2nt
+.d8o8s8ť.
+.m8e9t8ó9d8a.
+.m8e9t8ó9d8y.
+.n8e9d8o9s8t8a8t9k8a9m8i.
+.s8e8p9t8e8m9b8r8a.

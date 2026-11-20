@@ -1,3 +1,62 @@
+UTF-8
+% gopdfgo: hyph-da.pat.txt z hyph-utf8, rozpowszechniany na licencji MIT.
+% Wyjątki z hyph-da.hyp.txt zapisane jako wzorce (gen/gen.go).
+% title: Hyphenation patterns for Danish
+% copyright: Copyright (C) 1994 Frank Jensen
+% notice: This file is part of the hyph-utf8 package.
+%     See http://www.hyphenation.org/tex for more information.
+% language:
+%     name: Danish
+%     tag: da
+% version: 2011-01-11
+% authors:
+%   -
+%     name: Frank Jensen
+%     contact: frank.jensen (at) hugin.com
+% licence:
+%     - This file is available under any of these licences:
+%     -
+%         name: LPPL
+%         version: 1.3
+%         or_later: true
+%         url: http://www.latex-project.org/lppl/lppl-1-3.html
+%     -
+%         name: MIT
+%         url: https://opensource.org/licenses/MIT
+%         text: >
+%             Permission is hereby granted, free of charge, to any person
+%             obtaining a copy of this software and associated documentation
+%             files (the "Software"), to deal in the Software without
+%             restriction, including without limitation the rights to use,
+%             copy, modify, merge, publish, distribute, sublicense, and/or sell
+%             copies of the Software, and to permit persons to whom the
+%             Software is furnished to do so, subject to the following
+%             conditions:
+%
+%             The above copyright notice and this permission notice shall be
+%             included in all copies or substantial portions of the Software.
+%
+%             THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+%             EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+%             OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+%             NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+%             HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+%             WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+%             FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+%             OTHER DEALINGS IN THE SOFTWARE.
+% hyphenmins:
+%     typesetting:
+%         left: 2
+%         right: 2
+% changes:
+%     - 2011-01-11 - remove support for OT1 encoding
+% texlive:
+%     encoding: ec
+%     babelname: danish
+%     legacy_patterns: dkhyph.tex
+%     message: Danish hyphenation patterns
+%     description: Hyphenation patterns for Danish in T1/EC and UTF-8 encodings.
+%
 .ae3
 .an3k
 .an1s
@@ -9,15 +68,11 @@
 .her3
 .hoved3
 .ne4t5
-.næv5nt.
 .om1
 .ove4
 .po1
-.så3
 .til3
 .yd5r
-.ær5i
-.øv3r
 ab5le
 3abst
 a3c
@@ -83,10 +138,8 @@ a1to
 ato5v
 a5tr
 a1tu
-a3tø
 a5va
 a1ve
-a5væ
 a5z
 1ba
 ba4ti
@@ -106,7 +159,6 @@ bo4gr
 bo3ra
 bo5re
 1br4
-brød3
 4bs
 bs5k
 b3so
@@ -117,7 +169,6 @@ bu4s5tr
 b5w
 1by
 by5s
-5bæ
 4c1c
 1ce
 ce5ro
@@ -159,12 +210,10 @@ d1p
 3driv
 d5ros
 d5ru
-5drøv
 ds5an
 ds5in
 d1ski
 d4sm
-dstå4
 d4su
 dsu5l
 ds5vi
@@ -177,8 +226,6 @@ dt5u
 dub5
 d1v
 3dy
-3dæ
-3dø
 e5ad
 e3af
 e5ag
@@ -233,8 +280,6 @@ e3lo
 el5sa
 e5lu
 e3ly
-e3læ
-e3lø
 e4mad
 em4p5le
 em1s
@@ -268,8 +313,6 @@ er5tr
 e3rum
 er5un
 e5ry
-e3rø
-er5øn
 e1ta
 e1te
 etek4s
@@ -279,8 +322,6 @@ e1to
 e3tr
 e3tu
 e1ty
-e5tæ
-e5tø
 e3um
 e3un
 3eur
@@ -288,10 +329,7 @@ e1va
 e3ve
 e4v3erf
 e1vi
-e1væ
 e5x
-e3æ
-e5å
 1fa
 fa4ce
 fags3
@@ -320,9 +358,6 @@ f5tvi
 1fu
 f1v
 3fy
-3fæ
-3fø
-fø4r5en
 1ga
 g3art
 g1b
@@ -337,7 +372,6 @@ g1h
 1gi
 gi4b
 gi3st
-giø4
 5gj
 g3k
 g1l
@@ -357,8 +391,6 @@ gs1p
 g5s4tide
 g4str
 gs1v
-g4sø
-g5så
 g3ta
 g1te
 g1ti
@@ -370,9 +402,6 @@ gun5
 g3v
 1gy
 g5yd
-3gæ
-3gø1
-3gå
 4ha.
 heds3
 he5s
@@ -457,12 +486,10 @@ i3tr
 it5re.
 i1tu
 i3ty
-i5tæ
 i1u
 i1va
 i1ve
 i1vi
-i3ø
 j3ag
 jde4rer
 jds1
@@ -517,8 +544,6 @@ kt5s
 3kut
 k4vo
 k4vu
-3kø
-3kå
 5lab
 lad3r
 5lagd
@@ -543,7 +568,6 @@ lfind5
 l1go1
 l3h
 li4ga
-lingeniø4
 4l5ins
 4l3int
 li5o
@@ -575,8 +599,6 @@ l3tu
 lu5l
 l3ve
 l3vi
-l3væ
-5løs
 1ma
 m1b
 m3d
@@ -615,14 +637,10 @@ m3ta
 m3te
 m3ti
 m3tr
-m5tå
 m1ud
 1mul
 mu1li
 3my
-1mæ
-3mø
-3må
 3na
 4nak
 1nal
@@ -655,7 +673,6 @@ n1ko
 n3kr
 n3ku
 n5kv
-n3kæ
 4n1l
 n1m
 n1n
@@ -680,13 +697,9 @@ nt4s5t
 nt4su
 n3tu
 n3ty
-n5tæ
 4n1v
 3ny
 n3z
-3næ
-4n5æb
-5nø
 o3a
 o4as
 ob3li
@@ -715,7 +728,6 @@ o1li
 o1lo
 o3lu
 o5ly
-o5læ
 1omr
 on3k
 ook5
@@ -744,14 +756,12 @@ or3k
 or5o
 or3sl
 or3st
-or3ø
 o3si
 o3so
 o3t
 o1te
 o5un
 ov4s
-o5å
 3pa
 pa5gh
 p5anl
@@ -777,7 +787,6 @@ p3n
 4p5p4
 p4ro
 1proc
-5præ
 p3sk
 p5so
 ps4p
@@ -788,8 +797,6 @@ pu5b
 p5ule
 p5v
 5py3
-5pæd
-på3
 qu4
 4raf
 ra5is
@@ -824,7 +831,6 @@ r1ke
 r1ki
 rk3so
 r3ku
-r5kæ
 r1l
 rmo4
 r5mu
@@ -857,21 +863,13 @@ r5tri
 r5tro
 rt3s
 r5ty
-r5tæ
-r5tø
 r3ud
 run4da
 5rut
 r3va
 r1ve
 r3vi
-r3væ
 ry4s
-r5æl
-4røn
-5rør
-3råd
-r5år
 s3af
 1sam
 sa4ma
@@ -901,18 +899,15 @@ s5ju
 s3kl
 sk5s4
 5sky
-s4kå
 s1le
 s1li
 slo3
 5slu
 s5ly
-3slå
 s1m
 s4my
 4snin
 s4nit
-s4næ
 so5k
 5sol
 5som.
@@ -948,8 +943,6 @@ st5as
 3sto
 st5om
 1str
-5stø
-1stå
 s1ud
 3sul
 s3un
@@ -957,11 +950,6 @@ s3un
 s3ve
 3s4y
 1sy1s
-1sæ
-4s5æn
-1sø
-s5øk
-så4r5
 5ta.
 1tag
 tands3
@@ -981,7 +969,6 @@ tialis5t
 3tid
 ti4en
 ti3st
-ti4ø
 4t3k
 4t1l
 tli4s5
@@ -996,20 +983,16 @@ t4ra
 4tres
 tro5v
 1try
-3træk.
 4ts
 t3si
 ts4pa
 ts5pr
 t3st
 ts5ul
-t4sø
-t5så
 4t1t
 t5uds
 5tur
 t5ve
-t3væ
 1typ
 u1a
 5udl
@@ -1028,7 +1011,6 @@ uk4tr
 u1la
 u1le
 u5ly
-u3læ
 u5pe
 up5l
 u5q
@@ -1072,9 +1054,6 @@ v3st
 v5su
 v5t
 3vu
-3værd
-1værk
-5vå
 y3a
 y5dr
 y3e
@@ -1098,8 +1077,87 @@ y3si
 y3ti
 y5t3r
 y5ve
-y5væ
 zi5o
+.så3
+.ær5i
+.øv3r
+a3tø
+a5væ
+brød3
+5bæ
+5drøv
+dstå4
+3dæ
+3dø
+e3læ
+e3lø
+e3rø
+er5øn
+e5tæ
+e5tø
+e1væ
+e3æ
+e5å
+3fæ
+3fø
+fø4r5en
+giø4
+g4sø
+g5så
+3gæ
+3gø1
+3gå
+i5tæ
+i3ø
+3kø
+3kå
+lingeniø4
+l3væ
+5løs
+m5tå
+1mæ
+3mø
+3må
+n3kæ
+n5tæ
+3næ
+4n5æb
+5nø
+o5læ
+or3ø
+o5å
+5præ
+5pæd
+på3
+r5kæ
+r5tæ
+r5tø
+r3væ
+r5æl
+4røn
+5rør
+3råd
+r5år
+s4kå
+3slå
+s4næ
+5stø
+1stå
+1sæ
+4s5æn
+1sø
+s5øk
+så4r5
+ti4ø
+3træk.
+t4sø
+t5så
+t3væ
+u3læ
+3værd
+1værk
+5vå
+y5væ
 æb3l
 æ3c
 æ3e
