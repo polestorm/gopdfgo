@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
 	pdfmodel "github.com/polestorm/gopdfgo/internal/pdflib/model"
 )
 
@@ -20,16 +21,33 @@ const (
 	// metadane XMP z identyfikatorem PDF/A, profil sRGB jako zamierzone wyjście, identyfikator pliku,
 	// bez interpolacji obrazów (ADR 0016).
 	PDFA2b Conformance = "PDF/A-2b"
+	// PDFA3b: PDF/A-3b (ISO 19005-3, poziom B): to samo co PDFA2b, a ponadto załączniki dowolnego typu
+	// jako pliki stowarzyszone z dokumentem (/AF katalogu, /AFRelationship; § 6.8), np. XML e-faktury
+	// (ADR 0026).
+	PDFA3b Conformance = "PDF/A-3b"
 )
 
-// applyConformance uzupełnia dokument o to, czego wymaga wybrana norma.
-func applyConformance(file *pdfmodel.Document, conformance Conformance) error {
+// applyConformance uzupełnia dokument o to, czego wymaga wybrana norma; files to wszystkie pliki
+// osadzone w dokumencie (pdf.Output.EmbeddedFiles).
+func applyConformance(file *pdfmodel.Document, conformance Conformance, files []pdf.EmbeddedFile) error {
+	part := 2
 	switch conformance {
 	case ConformanceNone:
 		return nil
+	case PDFA3b:
+		part = 3
+		// ISO 19005-3 § 6.8: każdy osadzony plik ma być stowarzyszony z dokumentem albo jego częścią
+		// przez klucz AF. Pliki z <link rel=attachment> i Options.Attachments dotyczą całego dokumentu;
+		// pliki adnotacji (<a rel=attachment>) też stowarzyszamy z dokumentem, bo PDF/A-3 nie wymaga
+		// wskazania węższej części, a jedna tablica w katalogu wystarcza czytnikom e-faktur.
+		file.Catalog.AF = nil
+		for _, f := range files {
+			file.Catalog.AF = append(file.Catalog.AF, f.Spec)
+		}
+		fallthrough
 	case PDFA2b:
 		file.Trailer.ContentID = true
-		file.Catalog.Metadata = xmpPacket(file.Trailer.Info, 2, "B")
+		file.Catalog.Metadata = xmpPacket(file.Trailer.Info, part, "B")
 		file.Catalog.OutputIntents = []pdfmodel.OutputIntent{{
 			S:                         "GTS_PDFA1",
 			OutputConditionIdentifier: "sRGB IEC61966-2.1",
