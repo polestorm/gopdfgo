@@ -181,8 +181,8 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			row.Width = rowsWidth
 			// Place cells at the top of the row and layout their content.
 			var newRowChildren []Box
-			leftBehind := false // komórka z treścią, z której nic nie zostało na tej stronie
-			placedSome := false // inna komórka, z której coś na tej stronie zostało
+			leftBehind := false  // komórka z treścią, z której nic nie zostało na tej stronie
+			placedSome := false  // inna komórka, z której coś na tej stronie zostało
 			heightSplit := false // komórka dzielona według podanej wysokości (zob. niżej)
 			// gopdfgo: komórki układane w tym wierszu: własne komórki wiersza i dalsze ciągi komórek
 			// rozpiętych (rowspan) z wierszy, które zostały na poprzedniej stronie (zob. rowCellEntries).
