@@ -76,6 +76,18 @@ func TestFlexRowFragmentationMargins(t *testing.T) {
 			box(0, 0, 200, 5, "blue")+box(0, 5, 200, 40, "green")+box(0, 5, 10, 10, "black")+
 				box(0, 53, 200, 40, "green")+box(0, 53, 10, 10, "black"),
 			box(0, 0, 200, 40, "green")+box(0, 0, 10, 10, "black")))
+
+	// Kolumna flex: pierwszy element wypełnia stronę, drugi zaczyna się dokładnie na jej dolnej krawędzi.
+	// Drugi element nie dostaje „pustej” strony, więc przechodzi na następną w całości. Wcześniej był
+	// układany na stronie 1 z pierwszym dzieckiem poniżej krawędzi i to dziecko (zielone) ginęło.
+	column := `<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }</style>`
+	same("flex-column-item-at-page-edge",
+		column+`<div style="display:flex;flex-direction:column">`+
+			`<div style="height:100px;background:blue"></div>`+
+			`<div><div style="height:100px;background:green"></div><div style="height:100px;background:yellow"></div></div>`+
+			`<div style="height:100px;background:black"></div></div>`,
+		pages(column, box(0, 0, 200, 100, "blue"), box(0, 0, 200, 100, "green"), box(0, 0, 200, 100, "yellow"),
+			box(0, 0, 200, 100, "black")))
 }
 
 // Kolumna flex, której szerokość wyznacza kontener nadrzędny (flex-basis elementu wiersza) albo procent
