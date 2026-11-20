@@ -919,6 +919,56 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- właściwość CSS `filter`, 2026-11-20 (praca pomocnika; `css/validation/filter.go`, `html/document/draw_filter.go`,
+  `html/document/draw.go`, `properties/transforms.go`, `layout/inline.go`, `boxes/build.go`, `goweasyprint/pdf/page.go`,
+  `pdflib/contentstream/appearance.go`):
+  - nowa właściwość `filter` (Filter Effects 1 § 5, § 13) z funkcjami `blur()`, `brightness()`, `contrast()`,
+    `drop-shadow()`, `grayscale()`, `hue-rotate()`, `invert()`, `opacity()`, `saturate()`, `sepia()`; `url()`
+    przyjmowane, a łańcuch z nim rysowany bez filtra z ostrzeżeniem;
+  - bez rastrowania treści wektorowej:
+    - funkcje barwne to macierze § 13.2 stosowane po kolei z obcięciem do [0, 1] do każdego koloru jednolitego,
+      punktów gradientów i pikseli obrazów rastrowych (obraz dekodowany i osadzany ponownie jako PNG);
+    - `opacity()` to krycie grupy;
+    - `drop-shadow()` to prostokąt w kolorze cienia przez maskę miękką z kanału alfa treści; trzecia długość to
+      odchylenie standardowe, jak w Chromium;
+    - rozmycie (`blur()` i cień) jest przybliżone kopiami treści na okręgach z wagami rozkładu Gaussa, złożonymi
+      w masce alfa z funkcją przejścia `/TR` (kopie od najlżejszej, bo przeglądarki PDF składają krycie w 8 bitach);
+  - filtr inny niż `none` tworzy kontekst nakładania i blok zawierający dla potomków `absolute` i `fixed` (poza
+    elementem głównym, `HasFilter` w `EstablishesTransformContext`); pudełko liniowe z filtrem jest blokiem
+    zawierającym dla potomków `absolute`, a blok wydzielony z niego dziedziczy filtr;
+  - grupa krycia właściwości `opacity` nie przycina już treści do pudełka obramowania (w źródle wystające
+    potomki i cienie znikały);
+  - backend: opcjonalne `backend.AlphaMaskFromAlpha` i `backend.CopyDrawer` (kopie w `/Span` z pustym
+    `/ActualText`, by pdftotext nie zwracał powtórzeń); `transparencyGroup` zapisuje grupę rysowaną wiele razy jako
+    jeden obiekt (w źródle nowy obiekt przy każdym `DrawWithOpacity`); `OpsLen` w `pdflib/contentstream`;
+  - testy W3C `css/filter-effects` (72 testy CSS bez skryptów, `url()` i `backdrop-filter`, klon w katalogu
+    roboczym): 39 → 59; strata `svg-image-root-filter` przechodziła przypadkiem (test i wzorzec bez filtra);
+- filtry SVG bez rastrowania, 2026-11-20 (praca pomocnika; `svg/filters.go`, `svg/filters_draw.go`,
+  `backend/filters.go`, `goweasyprint/pdf/filters.go`):
+  - graf prymitywów (Filter Effects 1 § 9) jest oceniany do listy warstw: element, jego sylwetka w jednym
+    kolorze albo wypełnienie obszaru, z przesunięciem, rozmyciem, przycięciem do podobszaru i trybem mieszania;
+  - obsługiwane:
+    - feFlood, feOffset, feGaussianBlur, feDropShadow, feMerge, feBlend;
+    - feComposite (over, in, out, atop, arithmetic z k1 = k4 = 0);
+    - feColorMatrix i feComponentTransfer na sylwetkach;
+    - domyślne wejścia, filterUnits, primitiveUnits, dziedziczenie przez href;
+    - pusty filtr ukrywa element;
+  - inne prymitywy pomijają filtr w całości z ostrzeżeniem;
+  - źródło wykonywało tylko feOffset (przesuwając cały element przed jego przekształceniem) i feBlend
+    (mieszając z tłem strony);
+  - rysowanie:
+    - element trafia raz do grupy wskazywanej wielokrotnie;
+    - sylwetka to maska miękka /Alpha;
+    - rozmycie to kopie maski w punktach jądra Gaussa z funkcją przejścia /TR, z kryciem kopii kwantowanym do
+      1/255 i dwustopniowe przy σ > 5 px;
+    - kopie tekstu w maskach są w /Span z pustym ActualText, więc pdftotext wyodrębnia tekst raz;
+    - filtr działa po przekształceniu elementu, a przed clip-path, maską i opacity;
+  - flood-color, flood-opacity i lighting-color nie są dziedziczone (§ 9.13); przejęty `TestFilter` przepisany na
+    ocenę grafu; przypadek „filter” w `tests/svg18_test.go` używa teraz nieobsługiwanego feMorphology.
+
+  Korpus wobec Chrome 157: own-logo-shadow z 2,5% do 1,2% różnych pikseli, plik PDF +1,8 kB. Sondaż `svg/` bez
+  zmian. Testy SVG z `css/filter-effects` (158, klon w katalogu roboczym): z 59 do 65 i 1 z dokładnością do
+  krawędzi. Testy CSS z obrazami SVG bez zmian (247). Poza popplerem sprawdzone w PDFKit (macOS): cień poprawny;
 - tekst SVG, 2026-11-20 (praca pomocnika; nowy `svg/text_layout.go`, `svg/elements_text.go`, `svg/svg.go`, `svg/tree.go`):
   - źródło:
     - rysowało każdy znak osobno, bez kształtowania (brak kerningu, ligatur i form kontekstowych, szerokości

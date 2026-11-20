@@ -118,6 +118,9 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 - `subgrid`;
 - baseline alignment in grid and flex (`last baseline`, column axis);
 - some cases of positioned grid items and nested multi-column layout;
+- CSS `filter`: the colour functions are exact on colours and on raster image pixels; `drop-shadow()` and
+  `blur()` are vector approximations (soft-mask copies); `url()` filters on HTML elements, `backdrop-filter`
+  and the `filter()` image function are not supported;
 - perspective projection: `perspective()`, the `perspective` property and the perspective components of
   `matrix3d()` are accepted with a warning and ignored, so the element is drawn as an orthographic
   projection; `preserve-3d` has no depth sorting or plane intersection. 3D transforms without perspective
@@ -164,9 +167,12 @@ Supported:
     and stays unscaled in `object`/`embed`, as in Chrome.
 
 Not supported or incomplete:
-- filters: only `feOffset` and `feBlend`. A filter with any other primitive (`feGaussianBlur`,
-  `feColorMatrix`, `feFlood`, `feComposite` …) is skipped as a whole, so the element is drawn without it;
-  a drop shadow is simply missing;
+- filters: drop shadow and blur (`feGaussianBlur`, `feOffset`, `feFlood`, `feComposite`, `feMerge`,
+  `feDropShadow`, `feBlend`, `feColorMatrix`/`feComponentTransfer` on shadows) are drawn without
+  rasterization. A blur is many soft-mask copies, so it is an approximation, within a few brightness levels
+  of Chrome, and adds about 2 kB per filtered element. Colour matrices on the element itself and `feImage`,
+  `feTile`, `feMorphology`, `feTurbulence`, `feConvolveMatrix`, lighting and `feDisplacementMap` skip the
+  filter as a whole;
 - spatial media fragments in image URLs (`image.svg#xywh=…`);
 - `currentColor` passed through a context paint, and `objectBoundingBox` paint servers on a context;
 - CSS `zoom`;

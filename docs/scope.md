@@ -32,9 +32,10 @@ powstaje od zera, czy jest adoptowany: w drugim przypadku jest listą do sprawdz
   `counter-reset/increment`, `content` z `counter()`, `attr()`, łańcuchami, `quotes`, `visibility`, `opacity`.
 - **Powinien**: flex w pełnym zakresie (`flex-wrap`, `align-*`, `order`, `gap`), `column-*`, `transform` 2D,
   `box-shadow`, `text-shadow`, gradienty liniowe i radialne, `object-fit`, `aspect-ratio`, `hyphens: auto`
-  ze wzorcami, `font-feature-settings` (tabular numbers), `tab-size`.
+  ze wzorcami, `font-feature-settings` (tabular numbers), `tab-size`. Od 2026-11-20 także `filter` (funkcje
+  barwne dokładnie, rozmycie i cień jako przybliżenie wektorowe, bez `url()`) i `clip-path`.
 - **Nie będzie**: Grid (na start; wraca, jeśli adoptowany silnik go ma), `position: sticky/fixed` poza
-  `fixed` jako elementem na każdej stronie, `filter`, `mask`, `clip-path` w CSS, `writing-mode` pionowy,
+  `fixed` jako elementem na każdej stronie, `mask` w CSS, `writing-mode` pionowy,
   `backdrop-filter`, `mix-blend-mode`, przestrzenie barw inne niż sRGB.
 
 ## CSS: fonty
@@ -62,7 +63,8 @@ powstaje od zera, czy jest adoptowany: w drugim przypadku jest listą do sprawdz
   (z fontami z CSS), `use`, `defs`, `symbol`, `clipPath`, `viewBox` z `preserveAspectRatio`, `transform`, wypełnienie
   i obrys z `opacity`, `stroke-dasharray`, `linearGradient`, `radialGradient`, style przez atrybuty i CSS.
 - **Powinien**: `image` (data:), `marker`, `pattern`, `textPath`, `mask`.
-- **Nie będzie**: filtry SVG, animacje SMIL, skrypty, `foreignObject`.
+- **Nie będzie**: animacje SMIL, skrypty. Od 2026-11-20 obsługiwane są też `foreignObject` i filtry SVG
+  w zakresie cienia i rozmycia (przybliżenie wektorowe, bez rastrowania).
 
 ## Kryterium „musi”
 

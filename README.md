@@ -19,7 +19,8 @@ Comparison with Chromium, the list of what is not supported, and requirements:
 - HTML5 parsing and the CSS cascade: selectors level 4 including `:is()`, `:where()`, `:not()`; custom
   properties; `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`; colour functions;
   `transform` with 2D and 3D functions (flattened to the page, as browsers do without perspective),
-  `backface-visibility`, the individual `translate`, `rotate`, `scale` properties; relative colours
+  `backface-visibility`, the individual `translate`, `rotate`, `scale` properties; `filter` (colour
+  functions exact, `drop-shadow()` and `blur()` as vector approximations); relative colours
   (`rgb(from …)` …), `color()` with predefined colour spaces, `color-mix()` in every space.
 - Layout:
   - block, inline, floats and positioning;
@@ -94,9 +95,10 @@ licences (list in `docs/overview.md`).
 - Vertical writing and right-to-left/bidirectional text.
 - Tagged PDF (PDF/UA, PDF/A-2a, PDF/A-3a); the XMP extension schema of Factur-X/ZUGFeRD.
 - `subgrid`, `grid-lanes`, `column-height`.
-- SVG filters other than `feOffset` and `feBlend` (a blur or drop shadow is dropped, the element is still
-  drawn), spatial media fragments (`#xywh=`), `transform-origin` on SVG elements. Details in
-  `docs/overview.md`.
+- Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
+  lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on
+  HTML elements, `backdrop-filter`. Blur and drop shadows (SVG and CSS `filter`) are vector approximations.
+- SVG: spatial media fragments (`#xywh=`), `transform-origin` on SVG elements. Details in `docs/overview.md`.
 - Perspective: `perspective()` and the `perspective` property are accepted with a warning and drawn as
   an orthographic projection; `preserve-3d` has no depth sorting. 3D transforms without perspective are
   drawn exactly.
