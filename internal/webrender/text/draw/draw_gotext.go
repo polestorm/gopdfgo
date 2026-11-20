@@ -103,12 +103,12 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 	}
 
 	var (
-		visualLine = layout.Line
+		visualLine = layout.Line()
 		index      int
 		ellipsis   []rune
 	)
 	if textOverflow == "ellipsis" {
-		_, wrapped, _ := fts.LineWrap(textRunes, style, layout.Line, layout.MaxWidth, true)
+		_, wrapped, _ := fts.LineWrap(textRunes, style, layout.Line(), layout.MaxWidth, true)
 		visualLine = wrapped.Line
 		index = wrapped.NextLine
 		if index == len(textRunes) {
@@ -122,7 +122,7 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 		}
 		textRunes = slices.Concat(textRunes, ellipsis)
 		line := fts.WrapWordBreak(textRunes, style, layout.MaxWidth, true)
-		visualLine = line.Layout.(*text.TextLayoutGotext).Line
+		visualLine = line.Layout.(*text.TextLayoutGotext).Line()
 		index = line.ResumeAt
 		// Remove last word if hyphenated
 		// TODO
@@ -145,7 +145,7 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			textRunes = slices.Concat(textRunes[:lastWordEnd], ellipsis)
 			line := fts.WrapWordBreak(textRunes, style, layout.MaxWidth, true)
 			index = line.ResumeAt
-			visualLine = line.Layout.(*text.TextLayoutGotext).Line
+			visualLine = line.Layout.(*text.TextLayoutGotext).Line()
 		}
 	}
 

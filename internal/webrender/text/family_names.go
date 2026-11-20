@@ -351,16 +351,17 @@ func (fc *FontConfigurationGotext) Synthesis(face *font.Face, fd FontDescription
 func FallbackLineExtents(context TextLayoutContext, layout EngineLayout) (above, below pr.Float, ok bool) {
 	fc, isGotext := context.Fonts().(*FontConfigurationGotext)
 	l, isLayout := layout.(*TextLayoutGotext)
-	if !isGotext || !isLayout || len(l.Line) == 0 {
+	if !isGotext || !isLayout || l.store.len() == 0 {
 		return 0, 0, false
 	}
 	primary := fc.resolveFace(' ', l.Style.FontDescription)
-	for _, run := range l.Line {
-		if run.Face == nil || run.Face == primary || len(run.Glyphs) == 0 {
+	for r := 0; r < l.store.len(); r++ {
+		face := l.store.face(r)
+		if face == nil || face == primary || l.store.glyphCount(r) == 0 {
 			continue
 		}
-		ascent, descent := fc.faceExtents(l.Style, run.Face)
-		top, bottom := SplitLeading(fc.faceLineGap(l.Style, run.Face), true)
+		ascent, descent := fc.faceExtents(l.Style, face)
+		top, bottom := SplitLeading(fc.faceLineGap(l.Style, face), true)
 		above, below, ok = max(above, ascent+top), max(below, -descent+bottom), true
 	}
 	return above, below, ok

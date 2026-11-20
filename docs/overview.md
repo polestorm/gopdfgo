@@ -74,7 +74,7 @@ whole process including program or browser start.
 |---|---|---|
 | pages | 253 | 256 |
 | time | 2.13–2.47 s | 1.54–1.58 s |
-| peak memory | 1672–1701 MB (all browser processes) | 951–976 MB |
+| peak memory | 1672–1701 MB (all browser processes) | 842–874 MB |
 | PDF size | 27.58 MB (tagged PDF) | 26.25 MB |
 | of which images | 25.21 MB (171 image objects) | 24.76 MB (164 image objects) |
 | of which text, pages, fonts and structure | 2.37 MB | 1.49 MB |
@@ -95,14 +95,33 @@ follows the specification and moves such a paragraph whole. With `widows: 1; orp
 253 pages, the same as Chrome.
 
 **Memory.** The illustrations are not the cause: they are embedded without decoding, and the raw files take
-27 MB of the heap. The live heap at the end of the run is about 400 MB, and it grows with the number of
-pages, because all pages are laid out before any is drawn (the design inherited from WeasyPrint). The
-largest parts are shaped glyph arrays (about 90 MB), copies made for justified lines (about 37 MB), and the
-boxes and styles of 256 pages. The Go garbage collector lets the heap grow to about twice the live size
-before collecting (`GOGC=100`), which gives the peak of about 1 GB. Measured with a heap profile at the
-peak and `GODEBUG=gctrace=1`. With `GOGC=50` the peak is 740 MB and with `GOGC=25` 660 MB; wall time stays
-about the same, CPU time grows by 25% and 70%. Drawing each page right after its layout would bound memory by page, not by document; that is
-a larger change and has not been started.
+27 MB of the heap. All pages are laid out before any is drawn (the design inherited from WeasyPrint), so
+memory grows with the number of pages. Live heap after a forced collection, measured at each stage:
+
+| Stage | book, 256 pages | book ×4, 1021 pages |
+|---|---|---|
+| HTML parsed, stylesheets | 40 MB | 47 MB |
+| computed styles | 57 MB | 85 MB |
+| box tree (the whole input) | 103 MB | 191 MB |
+| all pages laid out | 289 MB | 527 MB |
+| all pages drawn | 390 MB | 859 MB |
+
+The Go garbage collector lets the heap grow to about twice the live size before collecting (`GOGC=100`),
+which gives the peak of about 1 GB for the book. With `GOGC=50` the peak was 740 MB and with `GOGC=25`
+660 MB; wall time stays about the same, CPU time grows by 25% and 70%.
+
+The table was measured before two optimisations, which give byte-identical output:
+
+- laid-out lines keep their glyphs in a compact form (44 B per glyph instead of the 80 B record of the
+  go-text shaper);
+- justification stores only the changed glyphs instead of copying each justified line (190 MB of copies
+  for the 1021-page book).
+
+Peak memory after them: book 0.92–1.07 → 0.84–0.87 GB, book ×4 (1021 pages, 4.7 s, Chromium 2.44 GB)
+2.25–2.31 → 1.83 GB.
+
+Drawing each page right after its layout would bound memory by the input (191 MB live for 1021 pages)
+instead of by the laid-out document; that is a larger change and has not been started.
 
 ## PDF file size
 

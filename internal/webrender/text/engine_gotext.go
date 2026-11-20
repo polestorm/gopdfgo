@@ -279,7 +279,8 @@ type TextLayoutGotext struct {
 	hangingSpaces int // gopdfgo: spacje na końcu wiersza wyłączone z justowania
 	text          []rune
 	Style         *TextStyle
-	Line          shaping.Line
+	// gopdfgo: glify wiersza w zwartej postaci, zob. compact_line.go; pełny wiersz zwraca Line
+	store lineStore
 
 	MaxWidth pr.Float // input constraint, not always respected. Inf for no constraint
 
@@ -299,11 +300,10 @@ type TextLayoutGotext struct {
 // zdjętą szerokość.
 func (l *TextLayoutGotext) TrimTrailingLetterSpacing() pr.Float {
 	ls := l.trailingSpacing
-	if ls == 0 || len(l.Line) == 0 {
+	if ls == 0 || l.store.len() == 0 {
 		return 0
 	}
-	l.Line = slices.Clone(l.Line)
-	addToLastGlyph(l.Line, l.text, -ls, false)
+	l.store.edit(func(line shaping.Line) { addToLastGlyph(line, l.text, -ls, false) })
 	l.trailingSpacing = 0
 	return fixedToFloat(ls)
 }
@@ -311,6 +311,13 @@ func (l *TextLayoutGotext) TrimTrailingLetterSpacing() pr.Float {
 // TrailingLetterSpacing (gopdfgo) zwraca odstęp między literami za ostatnim znakiem tekstu (zob.
 // TrimTrailingLetterSpacing).
 func (l *TextLayoutGotext) TrailingLetterSpacing() pr.Float { return fixedToFloat(l.trailingSpacing) }
+
+// Line (gopdfgo) zwraca glify wiersza w postaci go-text. Dla wiersza zapisanego zwięźle to nowa
+// kopia z poprawkami justowania (zob. compact_line.go); wiersz nie jest przez nią zmieniany.
+func (l *TextLayoutGotext) Line() shaping.Line { return l.store.line() }
+
+// RunCount (gopdfgo) zwraca liczbę przebiegów wiersza bez odtwarzania glifów.
+func (l *TextLayoutGotext) RunCount() int { return l.store.len() }
 
 // addToLastGlyph (gopdfgo) dodaje delta do szerokości ostatniego glifu wiersza, na kopii glifów
 // (są wspólne z pamięcią podręczną układów). Z skipIgnorable pomija końcowe znaki kategorii Cf,
@@ -358,7 +365,7 @@ func (l TextLayoutGotext) Metrics() LineMetrics {
 		return LineMetrics{}
 	}
 
-	face := l.Line[0].Face
+	face := l.store.face(0)
 	factor := pr.Fl(l.Style.FontDescription.Size) / pr.Fl(face.Upem())
 
 	extents, _ := face.FontHExtents()
@@ -387,23 +394,20 @@ func (l *TextLayoutGotext) JustificationStart() int         { return l.justifySt
 func (l *TextLayoutGotext) HangingSpaces() int              { return l.hangingSpaces }
 
 func (l *TextLayoutGotext) TrailingSpacesWidth() pr.Float {
-	if len(l.Line) == 0 || l.Style == nil || l.Style.Direction == pr.Rtl {
+	if l.store.len() == 0 || l.Style == nil || l.Style.Direction == pr.Rtl {
 		return 0
 	}
 	// gopdfgo: wiszą też odstępy kategorii Zs inne niż spacja (CSS Text 3 § 4.1.3), a ciąg bywa
 	// złożony kilkoma fontami, więc liczymy go przez wszystkie przebiegi od końca
 	var width fixed.Int26_6
-runs:
-	for r := len(l.Line) - 1; r >= 0; r-- {
-		glyphs := l.Line[r].Glyphs
-		for i := len(glyphs) - 1; i >= 0; i-- {
-			index := glyphs[i].ClusterIndex
-			if index < 0 || index >= len(l.text) || !isHangingWhiteSpace(l.text[index]) {
-				break runs
-			}
-			width += glyphs[i].Advance
+	l.store.each(true, func(v glyphView) bool {
+		index := int(v.glyph.cluster)
+		if index < 0 || index >= len(l.text) || !isHangingWhiteSpace(l.text[index]) {
+			return false
 		}
-	}
+		width += v.glyph.advance
+		return true
+	})
 	return fixedToFloat(width)
 }
 
@@ -415,23 +419,22 @@ func (l *TextLayoutGotext) SetCharJustification(spacing pr.Float) { l.charJustif
 func (l *TextLayoutGotext) justifiableClusterEnds() [][2]int {
 	var ends [][2]int
 	lastCluster := -1
-	for r, run := range l.Line {
-		for i, glyph := range run.Glyphs {
-			index := glyph.ClusterIndex
-			if index < l.justifyStart || index < 0 {
-				continue
-			}
-			if index < len(l.text) && isIgnorableForSpacing(l.text[index]) && glyph.GlyphCount == 1 {
-				continue
-			}
-			if index == lastCluster && len(ends) != 0 {
-				ends[len(ends)-1] = [2]int{r, i}
-				continue
-			}
-			lastCluster = index
-			ends = append(ends, [2]int{r, i})
+	l.store.each(false, func(v glyphView) bool {
+		index, r, i := int(v.glyph.cluster), v.run, v.index
+		if index < l.justifyStart || index < 0 {
+			return true
 		}
-	}
+		if index < len(l.text) && isIgnorableForSpacing(l.text[index]) && v.glyph.glyphs == 1 {
+			return true
+		}
+		if index == lastCluster && len(ends) != 0 {
+			ends[len(ends)-1] = [2]int{r, i}
+			return true
+		}
+		lastCluster = index
+		ends = append(ends, [2]int{r, i})
+		return true
+	})
 	// wiszące spacje na końcu wiersza zachowują szerokość i nie są jednostkami justowania
 	if n := l.hangingSpaces; n > 0 {
 		ends = ends[:max(0, len(ends)-n)]
@@ -455,70 +458,64 @@ func (l *TextLayoutGotext) ApplyJustification() {
 		// gopdfgo: text-justify: inter-character (CSS Text 3 § 6.4): odstęp za każdą jednostką
 		// typograficzną oprócz ostatniej w pudełku (odstęp przed następnym pudełkiem dodaje układ wiersza)
 		ends := l.justifiableClusterEnds()
-		line := make(shaping.Line, len(l.Line))
-		for i, run := range l.Line {
-			run.Glyphs = append([]shaping.Glyph(nil), run.Glyphs...)
-			line[i] = run
-		}
-		l.Line = line
-		// odstęp zaokrąglony do 1/64 z przeniesieniem reszty, żeby suma zgadzała się z szerokością z układu
-		var given fixed.Int26_6
-		for j, end := range ends[:max(0, len(ends)-1)] {
-			spacing := fixed.Int26_6(math.Round(float64(l.charJustification)*64*float64(j+1))) - given
-			given += spacing
-			glyph := &l.Line[end[0]].Glyphs[end[1]]
-			glyph.Advance += spacing
-			glyph.XAdvance += spacing
-		}
-		for i := range l.Line {
-			l.Line[i].RecomputeAdvance()
-		}
+		// gopdfgo: zmiana bez kopii wiersza, zapisywane są tylko zmienione glify (zob. compact_line.go)
+		l.store.edit(func(line shaping.Line) {
+			// odstęp zaokrąglony do 1/64 z przeniesieniem reszty, żeby suma zgadzała się z szerokością z układu
+			var given fixed.Int26_6
+			for j, end := range ends[:max(0, len(ends)-1)] {
+				spacing := fixed.Int26_6(math.Round(float64(l.charJustification)*64*float64(j+1))) - given
+				given += spacing
+				glyph := &line[end[0]].Glyphs[end[1]]
+				glyph.Advance += spacing
+				glyph.XAdvance += spacing
+			}
+			for i := range line {
+				line[i].RecomputeAdvance()
+			}
+		})
 		l.justified = true
 		return
 	}
-	// gopdfgo: glify są wspólne z pamięcią podręczną układów, więc zmieniamy ich kopię
-	line := make(shaping.Line, len(l.Line))
-	for i, run := range l.Line {
-		run.Glyphs = append([]shaping.Glyph(nil), run.Glyphs...)
-		line[i] = run
-	}
-	l.Line = line
-	// gopdfgo: numer skupienia glifu może wychodzić poza tekst wiersza (obcięta spacja na końcu, tekst
-	// od prawej do lewej), a go-text indeksuje nim tekst bez sprawdzenia; w źródle kończyło się to
-	// paniką. Brakujące pozycje dopełniamy znakiem, który nie jest odstępem.
-	text := l.text
-	for _, run := range l.Line {
-		for _, glyph := range run.Glyphs {
-			if glyph.ClusterIndex >= len(text) {
-				text = append(append([]rune(nil), text...), make([]rune, glyph.ClusterIndex+1-len(text))...)
+	// gopdfgo: glify są wspólne z pamięcią podręczną układów, więc zmieniamy kopię; w postaci zwięzłej
+	// edit zapisuje tylko zmienione glify (zob. compact_line.go)
+	l.store.edit(func(line shaping.Line) {
+		// gopdfgo: numer skupienia glifu może wychodzić poza tekst wiersza (obcięta spacja na końcu, tekst
+		// od prawej do lewej), a go-text indeksuje nim tekst bez sprawdzenia; w źródle kończyło się to
+		// paniką. Brakujące pozycje dopełniamy znakiem, który nie jest odstępem.
+		text := l.text
+		for _, run := range line {
+			for _, glyph := range run.Glyphs {
+				if glyph.ClusterIndex >= len(text) {
+					text = append(append([]rune(nil), text...), make([]rune, glyph.ClusterIndex+1-len(text))...)
+				}
 			}
 		}
-	}
-	// gopdfgo: tekst przed początkiem justowania (część wiersza przed ostatnim tabulatorem) zasłaniamy
-	// znakiem, który nie jest separatorem słów, żeby AddSpacing go nie poszerzał
-	if l.justifyStart > 0 {
-		text = append([]rune(nil), text...)
-		for i := 0; i < l.justifyStart && i < len(text); i++ {
-			text[i] = 'x'
-		}
-	}
-	// wiszące spacje na końcu wiersza zachowują swoją szerokość
-	var kept []fixed.Int26_6
-	if n := l.hangingSpaces; n > 0 && len(l.Line) != 0 {
-		if glyphs := l.Line[len(l.Line)-1].Glyphs; len(glyphs) >= n {
-			for _, glyph := range glyphs[len(glyphs)-n:] {
-				kept = append(kept, glyph.Advance)
+		// gopdfgo: tekst przed początkiem justowania (część wiersza przed ostatnim tabulatorem) zasłaniamy
+		// znakiem, który nie jest separatorem słów, żeby AddSpacing go nie poszerzał
+		if l.justifyStart > 0 {
+			text = append([]rune(nil), text...)
+			for i := 0; i < l.justifyStart && i < len(text); i++ {
+				text[i] = 'x'
 			}
 		}
-	}
-	shaping.AddSpacing(l.Line, text, floatToFixed(pr.Fl(l.justification)), 0)
-	if len(kept) != 0 {
-		last := &l.Line[len(l.Line)-1]
-		for i, advance := range kept {
-			last.Glyphs[len(last.Glyphs)-len(kept)+i].Advance = advance
+		// wiszące spacje na końcu wiersza zachowują swoją szerokość
+		var kept []fixed.Int26_6
+		if n := l.hangingSpaces; n > 0 && len(line) != 0 {
+			if glyphs := line[len(line)-1].Glyphs; len(glyphs) >= n {
+				for _, glyph := range glyphs[len(glyphs)-n:] {
+					kept = append(kept, glyph.Advance)
+				}
+			}
 		}
-		last.RecomputeAdvance()
-	}
+		shaping.AddSpacing(line, text, floatToFixed(pr.Fl(l.justification)), 0)
+		if len(kept) != 0 {
+			last := &line[len(line)-1]
+			for i, advance := range kept {
+				last.Glyphs[len(last.Glyphs)-len(kept)+i].Advance = advance
+			}
+			last.RecomputeAdvance()
+		}
+	})
 	l.justified = true
 }
 
@@ -1502,7 +1499,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	out := FirstLine{
 		Hang:         fixedToFloat(hang),
-		Layout:       &TextLayoutGotext{text: text[:firstLineLength], Style: style, Line: outLine, MaxWidth: maxWidth, trailingSpacing: trailingSpacing},
+		Layout:       &TextLayoutGotext{text: text[:firstLineLength], Style: style, store: newLineStore(outLine, style.LetterSpacing != 0), MaxWidth: maxWidth, trailingSpacing: trailingSpacing},
 		Length:       firstLineLength,
 		ResumeAt:     resumeAt,
 		FirstLineRTL: style.Direction == pr.Rtl,

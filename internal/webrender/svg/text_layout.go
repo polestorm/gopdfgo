@@ -311,14 +311,15 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 				drawn = append(drawn, struct{ run, index int }{r, k})
 			}
 		}
+		shaped := layout.Line() // gopdfgo: odtworzenie zwartego wiersza raz, zob. text/compact_line.go
 		var shapedCount int
-		for _, run := range layout.Line {
+		for _, run := range shaped {
 			shapedCount += len(run.Glyphs)
 		}
 		canDraw := shapedCount == len(drawn)
 
 		k := 0
-		for _, run := range layout.Line {
+		for _, run := range shaped {
 			for _, g := range run.Glyphs {
 				tg := textGlyph{segment: segIndex, run: -1, advance: Fl(g.Advance) / 64 / scale}
 				if canDraw {

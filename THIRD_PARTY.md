@@ -919,6 +919,20 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- zwarta postać złożonych wierszy i justowanie bez kopii wiersza, 2026-11-20 (`text/compact_line.go`,
+  `text/engine_gotext.go`, odczyty w `text/draw`, `svg/text_layout.go`, `text/family_names.go`):
+  - złożony wiersz żyje do narysowania strony; źródło trzymało go jako rekordy kształtowania go-text
+    (`shaping.Glyph`, 80 B na glif), a justowanie przy rysowaniu kopiowało cały wiersz, żeby nie zmieniać
+    wspólnej pamięci podręcznej układów, i kopia zostawała przy pudełku do końca;
+  - teraz wiersz jest zapisany zwięźle (44 B na glif: numer glifu, posunięcia, przesunięcia, wymiary obrysu,
+    które czyta ponowne zawijanie dla `text-overflow: ellipsis`, powiązanie ze znakami), a justowanie i przycięcie odstępu za ostatnią literą zapisują tylko zmienione glify;
+    `TextLayoutGotext.Line()` odtwarza pełny wiersz na żądanie;
+  - wiersz z odstępem między literami zostaje w pełnej postaci, bo zawijanie go-text czyta nieeksportowane
+    pola tego odstępu; maski glifu nic po złożeniu nie czyta;
+  - przejęty test `layout_test.go` czyta glify przez `Line()`;
+  - wynik bajt w bajt taki sam (książka z `testdata/books`, jej czterokrotność, 45 plików korpusu HTML i SVG);
+    książka ×4, 1021 stron: szczyt pamięci 2,25–2,31 → 1,83 GB, poprawki justowania w profilu sterty
+    190 → 23 MB; czas zegarowy bez zmian, czas procesora +10%;
 - grubość twarzy z `@font-face` bez deskryptora `font-weight`, 2026-11-20 (`text/engine_gotext.go` `loadOneFont`):
   - źródło rejestrowało taką twarz z grubością 0; wartość początkowa deskryptora to `auto`, czyli grubość
     samego fontu (CSS Fonts 4 § 4.5); teraz bierzemy grubość z tabeli OS/2 fontu, a gdy jej brak, 400;
