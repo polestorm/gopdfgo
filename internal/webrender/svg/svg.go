@@ -446,8 +446,12 @@ func (svg *SVGImage) applyClipPath(dst backend.Canvas, clipPath *clipPath, node 
 	dst.Rectangle(0, 0, 0, 0)
 	dst.State().Clip(false)
 	newCtm := dst.State().GetTransform()
+	// gopdfgo: Transform dokłada macierz po prawej stronie (CTM' = CTM × M, zob. matrix.Mul3), więc
+	// powrót do oldCtm wymaga M = newCtm⁻¹ × oldCtm; źródło mnożyło w odwrotnej kolejności, co przy
+	// clipPathUnits="objectBoundingBox" przesuwało i skalowało dalsze rysowanie elementu (zwykle poza
+	// obszar przycięcia).
 	if err := newCtm.Invert(); err == nil {
-		dst.State().Transform(matrix.Mul(oldCtm, newCtm))
+		dst.State().Transform(matrix.Mul(newCtm, oldCtm))
 	}
 }
 
