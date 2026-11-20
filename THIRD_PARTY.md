@@ -919,6 +919,15 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- dokumenty osadzone, 2026-11-20 (`html/boxes/html.go`, `html/document/nested.go`, `images/drawn.go`):
+  `<iframe>` (najpierw `srcdoc`, potem `src`), `<object>` i `<embed>` z dokumentem HTML drukują jego treść
+  (HTML § 4.8.5–4.8.7). Dokument jest układany przy rysowaniu, w rozmiarze elementu, w trybie ciągłym bez
+  marginesów, i przycinany do elementu, jak drukuje Chromium. Zagnieżdżenie ograniczone do 3 poziomów.
+  W źródle ramka była pustym prostokątem, a `<object>` z HTML pokazywał treść zastępczą. Typ HTML rozpoznajemy
+  po atrybucie `type`, po rozszerzeniu adresu (`.html`, `.htm`, `.xhtml`), a dla `<iframe src>` także po typie
+  zasobu. Sondaż testów z tymi elementami (46): zyski `root-canvas-001`, `resizable-iframe-paint-order`;
+  straty `grid-item-margin-box-overflowing-grid-area-paint-001` i `grid-painting-rtl-001`: siatki
+  z `direction: rtl` w ramkach. Wcześniej przechodziły przypadkiem, bo test i wzorzec miały puste ramki;
 - słowniki dzielenia wyrazów, 2026-11-20 (`text/hyphen`, ADR 0024): 42 słowniki LibreOffice z Pyphen (w tym
   na LGPL i GPL) zastąpione wzorcami hyph-utf8 na MIT, BSD, Unlicense i FSF all-permissive (24 języki,
   1,3 MB zamiast 5,8 MB); nowy generator `gen/gen.go`; `SetUserDictionaries` i `parseHyphDicBytes` dla

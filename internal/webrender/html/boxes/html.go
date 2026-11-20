@@ -61,8 +61,60 @@ func handleCanvas(element *utils.HTMLNode, box Box, resolver URLResolver, _ stri
 // handleIframe (gopdfgo): <iframe> to element zastępowany o rozmiarze domyślnym 300 na 150 i bez
 // proporcji własnych (CSS 2.1 § 10.3.2, HTML § 4.8.5); zagnieżdżonego dokumentu nie rysujemy, ale
 // ramka zajmuje swoje miejsce razem z tłem i obramowaniem. W źródle był pustym pudełkiem liniowym.
-func handleIframe(element *utils.HTMLNode, box Box, _ URLResolver, _ string) []Box {
+func handleIframe(element *utils.HTMLNode, box Box, resolver URLResolver, baseUrl string) []Box {
+	// gopdfgo: treść ramki jest drukowana (HTML § 4.8.5): najpierw srcdoc, potem dokument spod src,
+	// ułożony w rozmiarze ramki i przycięty do niej, jak drukuje Chromium. Źródło zostawiało pustą ramkę.
+	if NestedDocument != nil {
+		if srcdoc := element.Get("srcdoc"); srcdoc != "" {
+			return []Box{makeReplacedBox(element, box, NestedDocument([]byte(srcdoc), baseUrl, resolver.Fetch))}
+		}
+		if src := element.GetUrlAttribute("src", baseUrl, false); src != "" {
+			if data, ok := fetchHTMLDocument(resolver, src, "", true); ok {
+				return []Box{makeReplacedBox(element, box, NestedDocument(data, src, resolver.Fetch))}
+			}
+			if image := resolver.FetchImage(src, "", box.Box().Style.GetImageOrientation()); image != nil {
+				return []Box{makeReplacedBox(element, box, image)}
+			}
+		}
+	}
 	return []Box{makeReplacedBox(element, box, images.Blank{Width: 300, Height: 150})}
+}
+
+// NestedDocument (gopdfgo) zamienia dokument HTML na obraz, który przy rysowaniu układa go w rozmiarze
+// elementu i rysuje przycięty do niego (<iframe>, a także <object> i <embed> z dokumentem HTML).
+// Ustawia ją pakiet document, który zna układ i rysowanie; nil oznacza brak obsługi.
+var NestedDocument func(source []byte, baseURL string, fetch utils.UrlFetcher) images.Image
+
+// isHTMLType (gopdfgo): typ MIME dokumentu HTML albo XHTML.
+func isHTMLType(mime string) bool {
+	mime = strings.ToLower(strings.TrimSpace(strings.SplitN(mime, ";", 2)[0]))
+	return mime == "text/html" || mime == "application/xhtml+xml"
+}
+
+// fetchHTMLDocument (gopdfgo) pobiera url, gdy wskazuje dokument HTML: według podanego typu, a przy
+// braku typu według rozszerzenia adresu (.html, .htm, .xhtml) albo, gdy anyType, według typu zasobu.
+func fetchHTMLDocument(resolver URLResolver, url, declaredType string, anyType bool) ([]byte, bool) {
+	if NestedDocument == nil || resolver.Fetch == nil {
+		return nil, false
+	}
+	path := strings.ToLower(strings.SplitN(strings.SplitN(url, "#", 2)[0], "?", 2)[0])
+	byName := strings.HasSuffix(path, ".html") || strings.HasSuffix(path, ".htm") || strings.HasSuffix(path, ".xhtml")
+	if declaredType != "" && !isHTMLType(declaredType) {
+		return nil, false
+	}
+	if declaredType == "" && !byName && !anyType {
+		return nil, false
+	}
+	resource, err := resolver.Fetch(url)
+	if err != nil || resource.Content == nil {
+		return nil, false
+	}
+	if declaredType == "" && !byName && !isHTMLType(resource.MimeType) {
+		return nil, false
+	}
+	data := make([]byte, resource.Content.Len())
+	_, _ = resource.Content.Read(data)
+	return data, true
 }
 
 // Wrap an image in a replaced box.
@@ -114,6 +166,10 @@ func handleEmbed(element *utils.HTMLNode, box Box, resolver URLResolver, baseUrl
 	src := element.GetUrlAttribute("src", baseUrl, false)
 	type_ := strings.TrimSpace(element.Get("type"))
 	if src != "" {
+		// gopdfgo: <embed> z dokumentem HTML drukuje jego treść, jak <iframe> (HTML § 4.8.6)
+		if data, ok := fetchHTMLDocument(resolver, src, type_, false); ok {
+			return []Box{makeReplacedBox(element, box, NestedDocument(data, src, resolver.Fetch))}
+		}
 		image := resolver.FetchImage(src, type_, box.Box().Style.GetImageOrientation())
 		if image != nil {
 			return []Box{makeReplacedBox(element, box, image)}
@@ -130,6 +186,10 @@ func handleObject(element *utils.HTMLNode, box Box, resolver URLResolver, baseUr
 	data := element.GetUrlAttribute("data", baseUrl, false)
 	type_ := strings.TrimSpace(element.Get("type"))
 	if data != "" {
+		// gopdfgo: <object> z dokumentem HTML drukuje jego treść zamiast treści zastępczej (HTML § 4.8.7)
+		if doc, ok := fetchHTMLDocument(resolver, data, type_, false); ok {
+			return []Box{makeReplacedBox(element, box, NestedDocument(doc, data, resolver.Fetch))}
+		}
 		image := resolver.FetchImage(data, type_, box.Box().Style.GetImageOrientation())
 		if image != nil {
 			return []Box{makeReplacedBox(element, box, image)}
