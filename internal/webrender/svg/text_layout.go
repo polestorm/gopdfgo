@@ -58,14 +58,14 @@ type textGlyph struct {
 
 // textCluster to znak typograficzny: glify jednego skupienia z kształtowania.
 type textCluster struct {
-	start          int // pierwszy znak (adresowalny)
-	glyphs         [2]int
-	advance        Fl
-	segment        int
-	x, y           Fl
-	angle          Fl // stopnie
-	scaleX         Fl
-	chunk          int
+	start           int // pierwszy znak (adresowalny)
+	glyphs          [2]int
+	advance         Fl
+	segment         int
+	x, y            Fl
+	angle           Fl // stopnie
+	scaleX          Fl
+	chunk           int
 	rotated, hidden bool
 }
 
@@ -274,10 +274,10 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 		// spacje są już przetworzone (handleText), więc skład zachowuje je takie, jakie są
 		style.SetWhiteSpace(pr.Pre)
 		if s.span.hasLetterSpacing {
-			style.SetLetterSpacing(pr.FToPx(pr.Float(s.span.letterSpacing.Resolve(s.fontSize, dims.innerDiagonal)*scale)))
+			style.SetLetterSpacing(pr.FToPx(pr.Float(s.span.letterSpacing.Resolve(s.fontSize, dims.innerDiagonal) * scale)))
 		}
 		if s.span.hasWordSpacing {
-			style.SetWordSpacing(pr.FToPx(pr.Float(s.span.wordSpacing.Resolve(s.fontSize, dims.innerDiagonal)*scale)))
+			style.SetWordSpacing(pr.FToPx(pr.Float(s.span.wordSpacing.Resolve(s.fontSize, dims.innerDiagonal) * scale)))
 		}
 		segText := chars[i:end]
 		line := text.SplitFirstLine(segText, style, svg.textContext, pr.Inf, false, true)
