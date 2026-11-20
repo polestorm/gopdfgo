@@ -920,7 +920,7 @@ Wspólne dla obu katalogów:
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
 - słowniki dzielenia wyrazów, 2026-11-20 (`text/hyphen`, ADR 0024): 42 słowniki LibreOffice z Pyphen (w tym
-  na LGPL i GPL) zastąpione wzorcami hyph-utf8 na MIT, BSD, Unlicense i FSF all-permissive (25 języków,
+  na LGPL i GPL) zastąpione wzorcami hyph-utf8 na MIT, BSD, Unlicense i FSF all-permissive (24 języki,
   1,3 MB zamiast 5,8 MB); nowy generator `gen/gen.go`; `SetUserDictionaries` i `parseHyphDicBytes` dla
   `Options.Hyphenation`; przejęte testy `TestAlternative` i `TestFallback` przepisane (słownik w pamięci,
   inne języki);

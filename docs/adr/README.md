@@ -15,7 +15,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | 0021 | Obszar strony zaokrąglany do całych pikseli CSS jak w Chrome 157 (szerokość i wysokość w górę, lewa krawędź do najbliższego), pod przełącznikiem `ExactLengths` z ADR 0013 | przyjęta |
 | 0022 | Dywiz-minus po literze albo cyfrze i przed cyfrą jest miejscem podziału jak w Chromium (UAX #14 zostawia wybór; „03-228” dzielone po dywizie) | przyjęta |
 | 0023 | Strumienie PDF kompresowane zlib w stopniu 6 (pomiar: stopień 9 wolniejszy o 8-13% za 0-2% rozmiaru); `Options.Uncompressed` do diagnostyki | przyjęta |
-| 0024 | Słowniki dzielenia wyrazów tylko z hyph-utf8 na MIT, BSD, Unlicense, FSF all-permissive (25 języków); pozostałe przez `Options.Hyphenation` | przyjęta |
+| 0024 | Słowniki dzielenia wyrazów tylko z hyph-utf8 na MIT, BSD, Unlicense, FSF all-permissive (24 języki); pozostałe przez `Options.Hyphenation` | przyjęta |
 | 0025 | Licencja projektu Apache-2.0 z `NOTICE` (atrybucja: Michał Głębowski) i `THIRD_PARTY_NOTICES`; repozytorium na razie prywatne | przyjęta |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
 | 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page` | zastąpiona przez ADR 0019 |
