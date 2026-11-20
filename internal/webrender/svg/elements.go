@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"net/url"
+	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -77,25 +78,30 @@ type rect struct {
 	// x, y, width, height are common attributes
 
 	rx, ry Value
+	// gopdfgo: rx/ry = auto (SVG 2 § 10.2) — zob. ellipse.
+	autoX, autoY bool
 }
 
 func newRect(node *cascadedNode, _ *svgContext) (drawable, error) {
-	rx_, ry_ := node.attrs["rx"], node.attrs["ry"]
-	if rx_ == "" {
-		rx_ = ry_
-	} else if ry_ == "" {
-		ry_ = rx_
-	}
+	rx_, ry_ := strings.TrimSpace(node.attrs["rx"]), strings.TrimSpace(node.attrs["ry"])
 
 	var (
 		out rect
 		err error
 	)
+	if rx_ == "" || strings.EqualFold(rx_, "auto") {
+		out.autoX, rx_ = true, ""
+	}
+	if ry_ == "" || strings.EqualFold(ry_, "auto") {
+		out.autoY, ry_ = true, ""
+	}
 	out.rx, err = parseValue(rx_)
 	if err != nil {
 		return nil, err
 	}
-	out.ry, err = parseValue(rx_)
+	// gopdfgo: źródło parsowało tu rx_ zamiast ry_, więc ry zawsze równało się rx.
+	// Według SVG 2 § 10.2 promień auto przyjmuje bezwzględną wartość drugiego.
+	out.ry, err = parseValue(ry_)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +116,11 @@ func (r rect) draw(dst backend.Canvas, attrs *attributes, _ *SVGImage, dims draw
 	}
 	x, y := dims.point(attrs.x, attrs.y)
 	rx, ry := dims.point(r.rx, r.ry)
+	if r.autoX {
+		rx = ry
+	} else if r.autoY {
+		ry = rx
+	}
 
 	if rx == 0 || ry == 0 { // no border radius
 		dst.Rectangle(x, y, width, height)
@@ -205,21 +216,34 @@ func (r polyline) draw(dst backend.Canvas, _ *attributes, _ *SVGImage, _ drawing
 // ellipse or circle
 type ellipse struct {
 	rx, ry, cx, cy Value
+	// gopdfgo: rx/ry = auto (SVG 2 § 10.4) — promień „auto” przyjmuje
+	// rozwiązaną (bezwzględną) wartość drugiego promienia.
+	autoX, autoY bool
 }
 
 func newEllipse(node *cascadedNode, _ *svgContext) (drawable, error) {
-	r_, rx_, ry_ := node.attrs["r"], node.attrs["rx"], node.attrs["ry"]
-	if rx_ == "" {
-		rx_ = r_
-	}
-	if ry_ == "" {
-		ry_ = r_
+	var rx_, ry_ string
+	// gopdfgo: źródło brało dla <circle> i <ellipse> rx/ry z fallbackiem na r.
+	// Według SVG 2 § 10.3–10.4 <circle> ma tylko r, a <ellipse> tylko rx/ry,
+	// których wartością początkową jest auto (także jako właściwości CSS).
+	if node.tag == "circle" {
+		rx_, ry_ = node.attrs["r"], node.attrs["r"]
+	} else {
+		rx_, ry_ = strings.TrimSpace(node.attrs["rx"]), strings.TrimSpace(node.attrs["ry"])
 	}
 
 	var (
 		out ellipse
 		err error
 	)
+	if node.tag != "circle" {
+		if rx_ == "" || strings.EqualFold(rx_, "auto") {
+			out.autoX, rx_ = true, ""
+		}
+		if ry_ == "" || strings.EqualFold(ry_, "auto") {
+			out.autoY, ry_ = true, ""
+		}
+	}
 	out.rx, err = parseValue(rx_)
 	if err != nil {
 		return nil, err
@@ -240,8 +264,22 @@ func newEllipse(node *cascadedNode, _ *svgContext) (drawable, error) {
 	return out, nil
 }
 
+// radii zwraca rozwiązane promienie z uwzględnieniem wartości auto.
+func (e ellipse) radii(dims drawingDims) (rx, ry Fl) {
+	rx, ry = dims.point(e.rx, e.ry)
+	switch {
+	case e.autoX && e.autoY:
+		return 0, 0
+	case e.autoX:
+		rx = ry
+	case e.autoY:
+		ry = rx
+	}
+	return rx, ry
+}
+
 func (e ellipse) draw(dst backend.Canvas, _ *attributes, _ *SVGImage, dims drawingDims) []vertex {
-	rx, ry := dims.point(e.rx, e.ry)
+	rx, ry := e.radii(dims)
 	if rx == 0 || ry == 0 {
 		return nil
 	}
