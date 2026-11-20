@@ -919,6 +919,27 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- gradienty, wzorce i maski miękkie w grupach przezroczystości, 2026-11-20 (praca pomocnika; `pdflib/contentstream`
+  `ToGroupXFormObject`, `SetSoftMaskState`, `goweasyprint/pdf`, `html/document/draw.go` `visibleTiles`, `svg/paint.go`):
+  - Apple PDFKit (Podgląd, Quick Look, Safari) odczytuje dwie rzeczy inaczej niż norma i poppler (sprawdzone na
+    ręcznie zbudowanych plikach):
+    - macierz wzorca z zasobów formy z /Group odnosi do układu strony zamiast układu formy (ISO 32000-1
+      § 8.7.3.1); wzorzec z zasobów zwykłej formy zagnieżdżonej w grupie odczytuje poprawnie;
+    - maskę miękką przycina do prostokąta strony w punktach, wziętego we współrzędnych formy maski (§ 11.6.5.2);
+  - skutki w źródle: gradient tła w pudełku z opacity albo filtrem był w PDFKit przesunięty, a cienie filtrów
+    daleko od lewego górnego rogu strony znikały;
+  - zmiany:
+    - grupa przezroczystości używająca wzorców ma treść w zagnieżdżonej zwykłej formie;
+    - grupa maski miękkiej ma treść przesuniętą do początku układu, a gdy jest większa od strony, także
+      zmniejszoną o potęgę dwójki, z `gs` pod przekształceniem odwrotnym, więc według normy maska się nie zmienia;
+    - obraz tła z najwyżej jedną widoczną kopią w każdej osi jest rysowany wprost (przycięcie, `sh` albo `Do`)
+      zamiast wzorcem (CSS Backgrounds 3 § 3.4);
+    - wypełnienie kształtu SVG gradientem rysujemy jako przycięcie do ścieżki i `sh`; przy okazji `fill-opacity`
+      działa na gradient (SVG 2 § 13.4);
+    - wzorce zostają dla kafli tła, obrysu i tekstu gradientem oraz `<pattern>`;
+  - korpus 693 793 → 686 430 B; dwa testy własne (`replaced-content-radius`, `background-blend-difference`) dostały
+    inny wzorzec albo tolerancję jednej kolumny pikseli, bo pdftoppm wygładza krawędź przycięcia pod `sh` inaczej;
+  - sprawdzone w PDFKit, popplerze i Chrome: gradienty w grupach, cienie CSS i SVG, cień pod tekstem;
 - właściwość CSS `filter`, 2026-11-20 (praca pomocnika; `css/validation/filter.go`, `html/document/draw_filter.go`,
   `html/document/draw.go`, `properties/transforms.go`, `layout/inline.go`, `boxes/build.go`, `goweasyprint/pdf/page.go`,
   `pdflib/contentstream/appearance.go`):
