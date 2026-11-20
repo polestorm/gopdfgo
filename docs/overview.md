@@ -131,50 +131,57 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 
 ## SVG
 
-Checked 2026-11-20 in the code (`internal/webrender/svg`) and on the W3C `svg/` reftests.
+Checked 2026-11-20 in the code (`internal/webrender/svg`), on the W3C `svg/` reftests, and on a corpus of
+23 real-world SVG files (`testdata/svg`: icons, flags and coats of arms from Wikimedia Commons, charts,
+a draw.io-style diagram) compared with Chrome 157.
 
 Supported:
 - shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`;
-- `g`, nested `svg`, `use` and `symbol` within the same document, `defs`, `a`, `image` (raster and SVG);
-- `viewBox`, `preserveAspectRatio`, `transform`;
-- fill and stroke with opacity, dash arrays, line caps and joins;
-- paint servers: `linearGradient`, `radialGradient`, `pattern`;
-- `clipPath`, `mask`, `marker`;
+- structure:
+  - `g`, nested `svg`, `defs`, `a`;
+  - `use` and `symbol`, also from another file (`<use href="icons.svg#id">`);
+  - `switch` with conditional attributes;
+- `image` (raster and SVG), `foreignObject` (HTML content laid out in the given box);
+- coordinates: `viewBox`, `preserveAspectRatio`, `transform`, also on the outermost `<svg>`;
+- painting:
+  - fill and stroke with opacity, dash arrays, line caps and joins, `vector-effect: non-scaling-stroke`;
+  - paint servers: `linearGradient`, `radialGradient`, `pattern`;
+  - `clipPath`, `mask`, `marker`;
 - text: `text`, `tspan`, `textPath`, `text-anchor`, `dominant-baseline`, `letter-spacing`;
 - `<style>` and `style` attributes, CSS selectors inside SVG;
-- inline `<svg>` in HTML and SVG files as images (`img`, `object`, `embed`, CSS `background-image`).
+- inline `<svg>` in HTML, and SVG files used with `img`, `object`, `embed` and CSS `background-image`:
+  - SVG files are parsed as XML;
+  - a file with `width` and `height` but no `viewBox` stretches to the image box in `img` and backgrounds,
+    and stays unscaled in `object`/`embed`, as in Chrome.
 
 Not supported or incomplete:
-- filters: only `feOffset` and `feBlend`; other primitives (`feGaussianBlur`, `feColorMatrix`, `feFlood`,
-  `feComposite` …) are skipped with a warning, so the element is drawn without the filter;
-- `foreignObject`;
-- `vector-effect: non-scaling-stroke`;
-- `<use>` pointing to another file;
+- filters: only `feOffset` and `feBlend`. A filter with any other primitive (`feGaussianBlur`,
+  `feColorMatrix`, `feFlood`, `feComposite` …) is skipped as a whole, so the element is drawn without it;
+  a drop shadow is simply missing;
 - spatial media fragments in image URLs (`image.svg#xywh=…`);
-- the `transform` attribute on the outermost `<svg>` (SVG 2);
-- `rx`/`ry` set to `auto` on `ellipse`, `context-fill`/`context-stroke` in markers;
-- animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope;
-- SVG files are parsed with the HTML5 parser, not as XML. An XHTML element inside an SVG file (for example
-  `<meta>` or `<p>` in `<metadata>` or `<desc>`) ends the SVG content, and the rest of the drawing is lost.
-  SVG exported by drawing programs usually has RDF metadata without such elements, so it is unaffected.
+- `rx`/`ry` set to `auto` on `ellipse`, `context-fill`/`context-stroke` in markers, `currentColor` in some
+  paint servers, `maskContentUnits="objectBoundingBox"`;
+- page stylesheets do not reach elements inside inline `<svg>`; only `<style>` inside the `<svg>` applies;
+- CSS `zoom`;
+- animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 83 pass (80 exactly, 3 within anti-aliasing edges).
+or have no reference. Of those 235, 115 pass; on the morning of 2026-11-20 it was 83.
 
-To measure SVG files as stand-alone documents, each `.svg` test was drawn through `<img>`. A copy without
-`<metadata>` was used, to keep the parser problem above from hiding the other results.
+Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Failures by cause (151):
+Failures by cause (120):
 - CSS Linked Parameters: 23;
-- SVG text, among others text shadows, `text-transform`, combining marks: 15;
-- `foreignObject`: 13;
+- SVG text: 15;
 - media fragments: 12;
-- `non-scaling-stroke`: 10;
-- external `<use>`: 9;
-- `transform` on the outer `<svg>`: 7;
-- `ellipse` with `auto` radii: 6;
-- masks, clipping, markers, `currentColor` in paint servers, outer `<svg>` sizing: 3–4 each;
-- other single cases: 37.
+- `ellipse` with `auto` radii: 8;
+- outer `<svg>` (CSS `zoom`, sizing): 6;
+- `non-scaling-stroke` with CSS `zoom` or page stylesheets: 5;
+- masks, markers, `currentColor` in paint servers, `foreignObject` stacking, clipping: 1–3 each;
+- other single cases: 40.
+
+Real-world corpus: every file is within 2.5% of Chrome's pixels; the remaining differences are font
+substitution, the missing blur shadow, and anti-aliasing.
 
 ## Requirements
 

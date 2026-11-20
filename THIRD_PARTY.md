@@ -919,6 +919,35 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- SVG: `foreignObject`, `switch` i atrybuty warunkowe, 2026-11-20 (praca pomocnika; `svg/foreign.go`, `svg/svg.go`,
+  `svg/tree.go`, `html/document/nested.go`):
+  - `<foreignObject>` (SVG 2 § 23.2): treść XHTML układana jako osobny dokument HTML w prostokącie
+    (x, y, width, height) układu SVG i rysowana z bieżącym przekształceniem, przycięciem, przezroczystością,
+    maską i `mix-blend-mode`; przycinana do prostokąta, chyba że `overflow: visible`/`auto`; bez width/height
+    nie jest rysowana. Dokument dostaje arkusze całego dokumentu (bez reguł `@page`), dziedziczone właściwości
+    z kaskady SVG (color, font-*, line-height, visibility i in.) oraz styl i klasę elementu na `<body>`;
+    mechanizm wspólny z `<iframe>`/`<object>`/`<embed>` (`svg.ForeignDocument`, `drawNestedDocument`).
+    Źródło gubiło treść;
+  - `<switch>` rysuje tylko pierwsze dziecko ze spełnionymi warunkami (SVG 2 § 5.8.2): `requiredFeatures`
+    (usunięte w SVG 2) ignorowane jak w Chromium, `requiredExtensions` zna przestrzeń XHTML, `systemLanguage`
+    porównywane z en-US; element z niespełnionym warunkiem nie jest rysowany (§ 5.8.1). Źródło rysowało
+    wszystkie dzieci (draw.io: etykieta dwa razy);
+  - poprawki przy okazji: kolejność mnożenia macierzy przy przywracaniu CTM po `clipPathUnits=objectBoundingBox`;
+    `<symbol>` nie jest rysowany wprost (§ 5.5); zagnieżdżone `<svg>`/`<symbol>` bez width/height mają 100%
+    (źródło: 0); pusta maska ukrywa element (obszar maski najpierw wypełniany czernią);
+- SVG: `non-scaling-stroke`, `transform` zewnętrznego `<svg>`, `<use>` z innego pliku, 2026-11-20 (praca
+  pomocnika; `svg`, `images`, `html/tree/svg_transform.go`, `css/selector`):
+  - `vector-effect: non-scaling-stroke` (SVG 2 § 13.2): grubość i kreskowanie obrysu dzielone przez skalę
+    układu użytkownika względem układu, w którym rysowany jest obraz (bez przekształceń CSS przodków i samego
+    zewnętrznego `<svg>`); obraz wstawiony przez `<image>` dziedziczy układ gospodarza;
+  - atrybut `transform` zewnętrznego `<svg>` w HTML jest atrybutem prezentacyjnym właściwości `transform`
+    (SVG 2 § 8.5); przekształcenia korzenia osadzonego SVG nie są stosowane drugi raz wewnątrz rysunku;
+  - `<use>` z innego pliku (SVG 2 § 5.6): cel to element o id z fragmentu (bez fragmentu: `<svg>`), dokument
+    czytany jako XML z dowolnym elementem głównym albo jako HTML, cel przetwarzany w kontekście swojego pliku
+    (kaskada, `:root`, adresy względne), cykle między plikami przerywane; źródło brało zawsze pierwszy `<svg>`;
+  - `:target` (Selectors 4 § 9.2) dopasowuje element oznaczony przez wywołującego;
+  - poprawki przy okazji: kafelki wzorca z `patternUnits=userSpaceOnUse` zaczynają się w (x, y) wzorca
+    (§ 14.3.3); obraz bez rozmiaru i proporcji w `<image>` wypełnia obszar elementu zamiast 300×150;
 - SVG z korpusu prawdziwych plików (`testdata/svg`), 2026-11-20:
   - `svg/xmlparse.go`: pliki SVG (obrazy, `<use>` z innego pliku) czytane parserem XML z encjami z DTD;
     źródło używało parsera HTML5, w którym element XHTML w `<metadata>` kończył treść SVG; przy
