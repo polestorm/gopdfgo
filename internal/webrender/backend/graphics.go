@@ -235,6 +235,13 @@ type GraphicState interface {
 	SetTextPaint(op PaintOp)
 }
 
+// AlphaMaskFromAlpha (gopdfgo) to opcjonalne rozszerzenie GraphicState: maska miękka z kanału alfa
+// grupy mask (a nie z jej luminancji jak SetAlphaMask), z funkcją przejścia podaną równomiernymi
+// próbkami na [0, 1] (nil albo pusta: tożsamość). Służy filtrom CSS drop-shadow() i blur().
+type AlphaMaskFromAlpha interface {
+	SetAlphaMaskFromAlpha(mask Canvas, transfer []Fl)
+}
+
 // Canvas represents a 2D surface which is the target of graphic operations.
 // It may be used as the final output (like a PDF page or the screen),
 // or as intermediate container (see for instance DrawWithOpacity or SetAlphaMask)

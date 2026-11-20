@@ -2193,3 +2193,9 @@ func (s *AnonymousStyle) GetPerspectiveOrigin() pr.Point {
 func (s *AnonymousStyle) SetPerspectiveOrigin(v pr.Point) {
 	s.propsCache.setKnown(pr.PPerspectiveOrigin, v)
 }
+
+func (s *ComputedStyle) GetFilter() pr.Filters  { return s.Get(pr.PFilter.Key()).(pr.Filters) }
+func (s *ComputedStyle) SetFilter(v pr.Filters) { s.propsCache.setKnown(pr.PFilter, v) }
+
+func (s *AnonymousStyle) GetFilter() pr.Filters  { return s.Get(pr.PFilter.Key()).(pr.Filters) }
+func (s *AnonymousStyle) SetFilter(v pr.Filters) { s.propsCache.setKnown(pr.PFilter, v) }

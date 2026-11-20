@@ -137,6 +137,50 @@ type group struct {
 	cache
 
 	stream cs.GraphicStream
+
+	// gopdfgo: form – obiekt grupy przezroczystości zapisany przez transparencyGroup przy formLen
+	// operacjach strumienia; ta sama grupa rysowana wiele razy (kopie rozmycia filtra CSS) trafia do
+	// pliku raz
+	form    *model.XObjectTransparencyGroup
+	formLen int
+}
+
+// transparencyGroup (gopdfgo) zwraca grupę przezroczystości z treścią g, tę samą przy kolejnych
+// wywołaniach, dopóki do strumienia nie dopisano nic nowego.
+func (g *group) transparencyGroup() *model.XObjectTransparencyGroup {
+	if g.form != nil && g.formLen == g.stream.OpsLen() {
+		return g.form
+	}
+	content := g.stream.ToXFormObject(compressStreams)
+	g.form = &model.XObjectTransparencyGroup{
+		XObjectForm: *content,
+		Group:       model.TransparencyGroup{CS: model.ColorSpaceRGB, I: true},
+	}
+	g.formLen = g.stream.OpsLen()
+	return g.form
+}
+
+// SetAlphaMaskFromAlpha (gopdfgo, backend.AlphaMaskFromAlpha): maska miękka z kanału alfa grupy mask
+// (ISO 32000-1 § 11.6.5.2, /S /Alpha), z funkcją przejścia /TR podaną próbkami (nil: tożsamość).
+// Grupa jest współdzielona z DrawWithOpacity (zob. transparencyGroup).
+func (g *group) SetAlphaMaskFromAlpha(mask backend.Canvas, transfer []fl) {
+	soft := model.SoftMaskDict{S: model.ObjName("Alpha"), G: mask.(*group).transparencyGroup()}
+	if len(transfer) != 0 {
+		samples := make([]byte, len(transfer))
+		for i, v := range transfer {
+			samples[i] = byte(min(255, max(0, v*255+0.5)))
+		}
+		soft.TR = &model.FunctionDict{
+			FunctionType: model.FunctionSampled{
+				Stream:        model.Stream{Content: samples},
+				Size:          []int{len(samples)},
+				BitsPerSample: 8,
+			},
+			Domain: []model.Range{{0, 1}},
+			Range:  []model.Range{{0, 1}},
+		}
+	}
+	g.stream.SetGraphicState(&model.GraphicState{SMask: soft})
 }
 
 func newGroup(cache cache,
@@ -305,14 +349,9 @@ func (g *group) NewGroup(x fl, y fl, width fl, height fl) backend.Canvas {
 // DrawGroup add the `gr` content to the current target. It will panic
 // if `gr` was not created with `AddGroup`
 func (g *group) DrawWithOpacity(opacity fl, gr backend.Canvas) {
-	content := gr.(*group).stream.ToXFormObject(compressStreams)
-	form := &model.XObjectTransparencyGroup{
-		XObjectForm: *content,
-		Group: model.TransparencyGroup{
-			CS: model.ColorSpaceRGB,
-			I:  true,
-		},
-	}
+	// gopdfgo: grupa rysowana kilka razy jest zapisywana raz (zob. transparencyGroup); źródło tworzyło
+	// nowy obiekt przy każdym rysowaniu
+	form := gr.(*group).transparencyGroup()
 	g.stream.SetFillAlpha(opacity)
 	g.stream.SetStrokeAlpha(opacity)
 	g.stream.AddXObject(form)

@@ -221,6 +221,7 @@ var InitialValues = Properties{
 	PWhiteSpaceTrim:      String("none"),                            // gopdfgo: CSS Text 4 § 4.2
 	PBackgroundBlendMode: Strings{"normal"},                         // gopdfgo: CSS Compositing 1 § 3.2
 	PClipPath:            ClipPath{},                                // gopdfgo: none
+	PFilter:              Filters{},                                 // gopdfgo: none (Filter Effects 1 § 5)
 	PBoxOrient:           String("horizontal"),                      // gopdfgo: -webkit-box-orient
 	PPageOrientation:     String("upright"),                         // gopdfgo: CSS Page 3 § 7.2
 

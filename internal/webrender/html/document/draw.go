@@ -120,6 +120,10 @@ type drawContext struct {
 	// jako maskę dla background-clip: border-area
 	borderMask bool
 
+	// gopdfgo: filteredImages – obrazy rastrowe po przekształceniu barw filtra CSS (zob.
+	// filterRasterImage), według obrazu i przekształcenia
+	filteredImages map[string]*filteredImage
+
 	// gopdfgo: context3D – kontekst renderowania 3D rodzica z transform-style: preserve-3d (nil poza
 	// nim), zob. drawStackingContext
 	context3D *context3D
@@ -283,159 +287,166 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				return
 			}
 		}
-		// gopdfgo: przy hideOwn rysujemy tylko uczestników kontekstu 3D elementu
-		drawChild := func(child StackingContext) {
-			if !hideOwn || child.parent3D {
-				ctx.drawStackingContext(child)
-			}
-		}
 		// gopdfgo: clip-path przycina element razem z potomkami w jego układzie po przekształceniu
 		// (CSS Masking 1 § 5.1)
 		ctx.applyClipPath(box)
 
-		// Point 1 is done in drawPage
-
-		// Point 2
-		// gopdfgo: przy hideOwn (zob. wyżej) bez własnej treści elementu
-		if !hideOwn && (bo.BlockT.IsInstance(box_) || bo.MarginT.IsInstance(box_) ||
-			bo.InlineBlockT.IsInstance(box_) || bo.TableCellT.IsInstance(box_) ||
-			bo.FlexContainerT.IsInstance(box_) || bo.GridContainerT.IsInstance(box_) || bo.ReplacedT.IsInstance(box_)) {
-			ctx.setMaskBorder(box_)
-			// The canvas background was removed by layout_backgrounds.
-			ctx.drawBoxShadows(box_.Box(), false)
-			ctx.drawBackgroundDefaut(box_.Box().Background)
-			ctx.drawBoxShadows(box_.Box(), true)
-			ctx.drawBorder(box_)
-		}
-
-		// gopdfgo: tabela, która sama tworzy kontekst nakładania (overflow, opacity, transform, z-index
-		// na pudełku tabeli), rysuje tu swoje tła: własne, kolumn, wierszy i komórek. W źródle tabela
-		// była rysowana tylko jako dziecko cudzego kontekstu, więc w tym przypadku tła komórek ginęły.
-		rootTable, rootIsTable := box_.(bo.TableBoxITF)
-		rootIsTable = rootIsTable && !hideOwn
-		if rootIsTable {
-			ctx.setMaskBorder(box_)
-			ctx.drawTable(rootTable.Table())
-		}
-
-		ctx.dst.OnNewStack(func() {
-			// dont clip the PageBox, see #35
-			if bo.ClipsOverflow(box_) && !bo.PageT.IsInstance(box_) {
-				// Only clip the content and the children:
-				// - the background is already clipped
-				// - the border must *not* be clipped
-				roundedBox(ctx.dst, box.RoundedPaddingBox())
-				ctx.dst.State().Clip(false)
-			}
-
-			// Point 3
-			for _, childContext := range stackingContext.negativeZContexts {
-				drawChild(childContext)
-			}
-
-			// Point 4
-			// gopdfgo: obramowania zwinięte tabeli są rysowane po tłach i obramowaniach pudełek blokowych
-			// leżących w jej komórkach, ale przed pudełkami następującymi po tabeli (CSS Tables 3 § 5.3.3,
-			// testy WPT collapsed-borders-painting-order-*, collapsed-border-paint-phase-002). W źródle
-			// były rysowane razem z tłem tabeli, więc blok albo tabela w komórce zasłaniały obramowanie.
-			type openTable struct {
-				box         Box
-				descendants map[*bo.BoxFields]bool // według pól pudełka: nie każda wartość Box jest haszowalna
-			}
-			var openTables []openTable
-			closeTables := func(next Box) {
-				for len(openTables) != 0 {
-					top := openTables[len(openTables)-1]
-					if next != nil && top.descendants[next.Box()] {
-						return
-					}
-					openTables = openTables[:len(openTables)-1]
-					ctx.setMaskBorder(top.box)
-					ctx.drawCollapsedBorders(top.box.(bo.TableBoxITF).Table())
+		// gopdfgo: treść elementu (punkty 2–10) rysujemy przez etapy właściwości filter (draw_filter.go),
+		// w układzie elementu po przekształceniu; filtr działa przed przycięciem (clip, clip-path)
+		// i kryciem (Filter Effects 1 § 5, CSS Masking 1 § 3: „filter, clipping, masking, opacity”).
+		paint := func(ctx drawContext) {
+			// gopdfgo: przy hideOwn rysujemy tylko uczestników kontekstu 3D elementu
+			drawChild := func(child StackingContext) {
+				if !hideOwn || child.parent3D {
+					ctx.drawStackingContext(child)
 				}
 			}
-			var paintRoot Box
+
+			// Point 1 is done in drawPage
+
+			// Point 2
+			// gopdfgo: przy hideOwn (zob. wyżej) bez własnej treści elementu
+			if !hideOwn && (bo.BlockT.IsInstance(box_) || bo.MarginT.IsInstance(box_) ||
+				bo.InlineBlockT.IsInstance(box_) || bo.TableCellT.IsInstance(box_) ||
+				bo.FlexContainerT.IsInstance(box_) || bo.GridContainerT.IsInstance(box_) || bo.ReplacedT.IsInstance(box_)) {
+				ctx.setMaskBorder(box_)
+				// The canvas background was removed by layout_backgrounds.
+				ctx.drawBoxShadows(box_.Box(), false)
+				ctx.drawBackgroundDefaut(box_.Box().Background)
+				ctx.drawBoxShadows(box_.Box(), true)
+				ctx.drawBorder(box_)
+			}
+
+			// gopdfgo: tabela, która sama tworzy kontekst nakładania (overflow, opacity, transform, z-index
+			// na pudełku tabeli), rysuje tu swoje tła: własne, kolumn, wierszy i komórek. W źródle tabela
+			// była rysowana tylko jako dziecko cudzego kontekstu, więc w tym przypadku tła komórek ginęły.
+			rootTable, rootIsTable := box_.(bo.TableBoxITF)
+			rootIsTable = rootIsTable && !hideOwn
 			if rootIsTable {
-				paintRoot = box_
+				ctx.setMaskBorder(box_)
+				ctx.drawTable(rootTable.Table())
 			}
-			blocks := orderTablePaint(stackingContext.blockLevelBoxes, paintRoot)
-			if hideOwn {
-				blocks = nil
-			}
-			for _, item := range blocks {
-				block := item.box
-				closeTables(block)
-				if item.table != nil {
-					// odłożony nagłówek lub stopka tabeli (zob. orderTablePaint)
-					ctx.setMaskBorder(item.table)
-					ctx.drawTableGroup(item.table.(bo.TableBoxITF).Table(), block)
-					continue
+
+			ctx.dst.OnNewStack(func() {
+				// dont clip the PageBox, see #35
+				if bo.ClipsOverflow(box_) && !bo.PageT.IsInstance(box_) {
+					// Only clip the content and the children:
+					// - the background is already clipped
+					// - the border must *not* be clipped
+					roundedBox(ctx.dst, box.RoundedPaddingBox())
+					ctx.dst.State().Clip(false)
 				}
-				ctx.setMaskBorder(block)
-				if box_, ok := block.(bo.TableBoxITF); ok {
-					ctx.drawTable(box_.Table())
-					if table := box_.Table(); table.Style.GetBorderCollapse() == "collapse" && table.Style.GetVisibility() == "visible" {
-						descendants := map[*bo.BoxFields]bool{}
-						var collect func(Box)
-						collect = func(parent Box) {
-							for _, child := range parent.Box().Children {
-								switch child.(type) {
-								case StackingContext, *StackingContext:
-									continue // osobny kontekst warstw: rysowany poza tą pętlą
-								}
-								descendants[child.Box()] = true
-								collect(child)
-							}
+
+				// Point 3
+				for _, childContext := range stackingContext.negativeZContexts {
+					drawChild(childContext)
+				}
+
+				// Point 4
+				// gopdfgo: obramowania zwinięte tabeli są rysowane po tłach i obramowaniach pudełek blokowych
+				// leżących w jej komórkach, ale przed pudełkami następującymi po tabeli (CSS Tables 3 § 5.3.3,
+				// testy WPT collapsed-borders-painting-order-*, collapsed-border-paint-phase-002). W źródle
+				// były rysowane razem z tłem tabeli, więc blok albo tabela w komórce zasłaniały obramowanie.
+				type openTable struct {
+					box         Box
+					descendants map[*bo.BoxFields]bool // według pól pudełka: nie każda wartość Box jest haszowalna
+				}
+				var openTables []openTable
+				closeTables := func(next Box) {
+					for len(openTables) != 0 {
+						top := openTables[len(openTables)-1]
+						if next != nil && top.descendants[next.Box()] {
+							return
 						}
-						collect(block)
-						openTables = append(openTables, openTable{block, descendants})
+						openTables = openTables[:len(openTables)-1]
+						ctx.setMaskBorder(top.box)
+						ctx.drawCollapsedBorders(top.box.(bo.TableBoxITF).Table())
 					}
-				} else {
-					ctx.drawBoxShadows(block.Box(), false)
-					ctx.drawBackgroundDefaut(block.Box().Background)
-					ctx.drawBoxShadows(block.Box(), true)
-					ctx.drawBorder(block)
 				}
-			}
-			closeTables(nil)
-			if rootIsTable {
-				if table := rootTable.Table(); table.Style.GetBorderCollapse() == "collapse" && table.Style.GetVisibility() == "visible" {
-					ctx.drawCollapsedBorders(table)
+				var paintRoot Box
+				if rootIsTable {
+					paintRoot = box_
 				}
-			}
+				blocks := orderTablePaint(stackingContext.blockLevelBoxes, paintRoot)
+				if hideOwn {
+					blocks = nil
+				}
+				for _, item := range blocks {
+					block := item.box
+					closeTables(block)
+					if item.table != nil {
+						// odłożony nagłówek lub stopka tabeli (zob. orderTablePaint)
+						ctx.setMaskBorder(item.table)
+						ctx.drawTableGroup(item.table.(bo.TableBoxITF).Table(), block)
+						continue
+					}
+					ctx.setMaskBorder(block)
+					if box_, ok := block.(bo.TableBoxITF); ok {
+						ctx.drawTable(box_.Table())
+						if table := box_.Table(); table.Style.GetBorderCollapse() == "collapse" && table.Style.GetVisibility() == "visible" {
+							descendants := map[*bo.BoxFields]bool{}
+							var collect func(Box)
+							collect = func(parent Box) {
+								for _, child := range parent.Box().Children {
+									switch child.(type) {
+									case StackingContext, *StackingContext:
+										continue // osobny kontekst warstw: rysowany poza tą pętlą
+									}
+									descendants[child.Box()] = true
+									collect(child)
+								}
+							}
+							collect(block)
+							openTables = append(openTables, openTable{block, descendants})
+						}
+					} else {
+						ctx.drawBoxShadows(block.Box(), false)
+						ctx.drawBackgroundDefaut(block.Box().Background)
+						ctx.drawBoxShadows(block.Box(), true)
+						ctx.drawBorder(block)
+					}
+				}
+				closeTables(nil)
+				if rootIsTable {
+					if table := rootTable.Table(); table.Style.GetBorderCollapse() == "collapse" && table.Style.GetVisibility() == "visible" {
+						ctx.drawCollapsedBorders(table)
+					}
+				}
 
-			// Point 5
-			for _, childContext := range stackingContext.floatContexts {
-				drawChild(childContext)
-			}
+				// Point 5
+				for _, childContext := range stackingContext.floatContexts {
+					drawChild(childContext)
+				}
 
-			// Point 6
-			if bo.InlineT.IsInstance(box_) && !hideOwn {
-				ctx.drawInlineLevel(stackingContext.page, box_, 0, "clip", pr.TaggedString{Tag: pr.None})
-			}
+				// Point 6
+				if bo.InlineT.IsInstance(box_) && !hideOwn {
+					ctx.drawInlineLevel(stackingContext.page, box_, 0, "clip", pr.TaggedString{Tag: pr.None})
+				}
 
-			// Point 7
+				// Point 7
+				if !hideOwn {
+					root := newBoxTree()
+					root.set(box_, stackingContext.blocksAndCells)
+					ctx.drawBlockLevel(stackingContext.page, root)
+				}
+
+				// Point 8
+				for _, childContext := range stackingContext.zeroZContexts {
+					drawChild(childContext)
+				}
+
+				// Point 9
+				for _, childContext := range stackingContext.positiveZContexts {
+					drawChild(childContext)
+				}
+			})
+
+			// Point 10
 			if !hideOwn {
-				root := newBoxTree()
-				root.set(box_, stackingContext.blocksAndCells)
-				ctx.drawBlockLevel(stackingContext.page, root)
+				ctx.drawOutline(box_)
 			}
-
-			// Point 8
-			for _, childContext := range stackingContext.zeroZContexts {
-				drawChild(childContext)
-			}
-
-			// Point 9
-			for _, childContext := range stackingContext.positiveZContexts {
-				drawChild(childContext)
-			}
-		})
-
-		// Point 10
-		if !hideOwn {
-			ctx.drawOutline(box_)
 		}
+		ctx.drawFiltered(filterStages(box.Style), paint)
 
 		if opacity < 1 {
 			group := ctx.dst

@@ -28,7 +28,14 @@ func HasTransform(style StyleAccessor) bool {
 // EstablishesTransformContext mówi, czy element tworzy kontekst nakładania i blok zawierający dla
 // wszystkich potomków tak jak przekształcony: ma przekształcenie (HasTransform), perspective inne niż
 // none (CSS Transforms 2 § 7) albo transform-style: preserve-3d (§ 5). Perspektywy i kontekstu 3D
-// nie rysujemy, ale te skutki zostają.
+// nie rysujemy, ale te skutki zostają. Tak samo działa filter inny niż none (Filter Effects 1 § 5: kontekst
+// nakładania i blok zawierający dla potomków absolute i fixed, poza elementem głównym).
 func EstablishesTransformContext(style StyleAccessor) bool {
-	return HasTransform(style) || style.GetPerspective().Tag != None || style.GetTransformStyle() == "preserve-3d"
+	return HasTransform(style) || style.GetPerspective().Tag != None || style.GetTransformStyle() == "preserve-3d" ||
+		HasFilter(style)
+}
+
+// HasFilter mówi, czy właściwość filter ma wartość inną niż none (Filter Effects 1 § 5).
+func HasFilter(style StyleAccessor) bool {
+	return len(style.GetFilter()) != 0
 }

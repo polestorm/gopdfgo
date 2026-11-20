@@ -95,6 +95,22 @@ type ClipPath struct {
 	Box                   string
 }
 
+// FilterFunction (gopdfgo): jedna funkcja filtra z właściwości filter (Filter Effects 1 § 13.1). Name to
+// nazwa funkcji: blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity,
+// saturate, sepia albo url (odwołanie do elementu <filter>, wtedy URL). Amount to ilość funkcji barwnej
+// jako liczba (procent podzielony przez 100), a dla hue-rotate kąt w radianach. Length to promień
+// (odchylenie standardowe) blur(), a Shadow przesunięcie, rozmycie i kolor drop-shadow().
+type FilterFunction struct {
+	Name   string
+	Amount Fl
+	Length Dimension
+	Shadow BoxShadow
+	URL    string
+}
+
+// Filters (gopdfgo): lista funkcji filtra w kolejności stosowania; pusta oznacza none.
+type Filters []FilterFunction
+
 // BoxShadows: lista cieni w kolejności ze stylu (pierwszy leży na wierzchu); pusta oznacza none.
 type BoxShadows []BoxShadow
 
@@ -799,6 +815,7 @@ func (Strings) isCssProperty()           {}
 func (Transforms) isCssProperty()        {}
 func (BoxShadows) isCssProperty()        {}
 func (ClipPath) isCssProperty()          {}
+func (Filters) isCssProperty()           {}
 func (Values) isCssProperty()            {}
 func (AttrData) isCssProperty()          {}
 func (NoneImage) isCssProperty()         {}
@@ -848,6 +865,7 @@ func (Strings) isDeclaredValue()           {}
 func (Transforms) isDeclaredValue()        {}
 func (BoxShadows) isDeclaredValue()        {}
 func (ClipPath) isDeclaredValue()          {}
+func (Filters) isDeclaredValue()           {}
 func (Values) isDeclaredValue()            {}
 func (AttrData) isDeclaredValue()          {}
 func (NoneImage) isDeclaredValue()         {}

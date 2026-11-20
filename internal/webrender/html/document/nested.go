@@ -78,6 +78,7 @@ func drawNestedDocument(dst backend.Canvas, fonts text.FontConfiguration, source
 			fonts:             fonts,
 			hyphenCache:       make(map[text.HyphenDictKey]hyphen.Hyphener),
 			strutLayoutsCache: make(map[text.StrutLayoutKey][2]pr.Float),
+			filteredImages:    make(map[string]*filteredImage), // gopdfgo: zob. filterRasterImage
 		}
 		ctx.drawPage(pages[0])
 	})

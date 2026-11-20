@@ -1649,7 +1649,9 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 		maxX -= leftSpacing
 	}
 
-	if box.Style.GetPosition().String == "relative" {
+	// gopdfgo: pudełko liniowe z filter innym niż none też jest blokiem zawierającym dla potomków
+	// absolute (Filter Effects 1 § 5); źródło uwzględniało tylko position: relative
+	if box.Style.GetPosition().String == "relative" || pr.HasFilter(box.Style) {
 		absoluteBoxes = &[]*AbsolutePlaceholder{}
 	}
 
@@ -2002,7 +2004,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 	newBox.MarginTop = leadingTop - newBox.BorderTopWidth.V() - newBox.PaddingTop.V()
 	newBox.MarginBottom = leadingBottom - newBox.BorderBottomWidth.V() - newBox.PaddingBottom.V()
 
-	if newBox.Style.GetPosition().String == "relative" {
+	if newBox.Style.GetPosition().String == "relative" || pr.HasFilter(newBox.Style) { // gopdfgo: zob. wyżej
 		for _, absoluteBox := range *absoluteBoxes {
 			// gopdfgo: w wierszu odkładamy układ do chwili, gdy pudełko liniowe ma już ostateczne
 			// położenie w pionie (zob. getNextLinebox)
