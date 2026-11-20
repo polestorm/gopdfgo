@@ -137,6 +137,56 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		}
 	}
 
+	// gopdfgo: wysokość powtarzanego nagłówka i stopki w bieżącej próbie układu treści (zob. allGroupsLayout).
+	// Na następnej stronie zajmą tyle samo, więc wierszom zostaje tam co najwyżej fragmentator bez nich.
+	var repeatedPartsHeight pr.Float
+	// freshRowsHeight zwraca górne ograniczenie wysokości, jaką wiersz miałby do dyspozycji na nowej stronie
+	// (albo w nowej kolumnie), albo +Inf, gdy treść nie jest dzielona na fragmenty. Wiersz wyższy od tej
+	// wysokości nie zmieści się na żadnej stronie, więc jest dzielony tam, gdzie wypada (zob. tallRow).
+	// Celowo ograniczenie górne: przy niedoszacowaniu wiersz, który zmieściłby się na następnej stronie,
+	// byłby niepotrzebnie dzielony; przy przeszacowaniu najwyżej przechodzi dalej jak dotąd.
+	freshRowsHeight := func(bottomSpace pr.Float) pr.Float {
+		fragmentainerHeight := repeatFragmentainerHeight(context, bottomSpace)
+		if fragmentainerHeight <= 0 {
+			return pr.Inf
+		}
+		return fragmentainerHeight - repeatedPartsHeight
+	}
+
+	// naturalRowHeight mierzy wysokość, jaką wiersz miałby bez ograniczenia stroną: najwyższa z jego własnych
+	// komórek nierozpiętych (z resztą treści według wznowienia i z podaną wysokością). Komórki muszą mieć już
+	// ustalone położenie i szerokość z próby układu wiersza. Pomiar jest kosztowny, więc wołamy go tylko
+	// wtedy, gdy od wysokości zależy, czy wiersz przechodzi na następną stronę w całości.
+	naturalRowHeight := func(entries []cellEntry) pr.Float {
+		var height pr.Float
+		for _, entry := range entries {
+			cell := entry.box.Box()
+			if entry.own < 0 || cell.Rowspan > 1 {
+				continue
+			}
+			originalStyle := cell.Style
+			if cell.Style.GetHeight().Tag != pr.Auto {
+				styleCopy := cell.Style.Copy()
+				styleCopy.SetHeight(pr.TagToV(pr.Auto))
+				cell.Style = styleCopy
+			}
+			cell.Height = pr.AutoF
+			measured, _, _ := blockContainerLayout(context, entry.box, -pr.Inf, entry.skip, true,
+				new([]*AbsolutePlaceholder), new([]*AbsolutePlaceholder), new([]pr.Float), false, -1)
+			cell.Style = originalStyle
+			if measured == nil {
+				continue
+			}
+			box := measured.Box()
+			content := box.Height.V()
+			if computed, ok := cell.ComputedHeight.(pr.Float); ok {
+				content = max(content, computed)
+			}
+			height = max(height, box.BorderHeight()-box.Height.V()+content)
+		}
+		return height
+	}
+
 	// Make this a sub-function so that many local variables like rowsX
 	// don't need to be passed as parameters.
 	groupLayout := func(group_ Box, positionY, bottomSpace pr.Float, pageIsEmpty bool, skipStack tree.ResumeStack) (Box, tree.ResumeStack, tree.PageBreak) {
@@ -179,11 +229,26 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			row.PositionX = rowsLeftX
 			row.PositionY = positionY
 			row.Width = rowsWidth
+			// gopdfgo: dalszy ciąg wiersza o podanej wysokości, podzielonego między strony, ma resztę tej
+			// wysokości (zob. niżej rowHeightSplit); skipStack to tu stos wznowienia tego wiersza.
+			if remaining, ok := context.cellHeightRemaining[resumeKey(skipStack)]; ok && skipStack != nil {
+				row.Height = remaining
+			}
+			specifiedRowHeight, rowHeightSpecified := row.Height.(pr.Float)
 			// Place cells at the top of the row and layout their content.
 			var newRowChildren []Box
 			leftBehind := false  // komórka z treścią, z której nic nie zostało na tej stronie
 			placedSome := false  // inna komórka, z której coś na tej stronie zostało
 			heightSplit := false // komórka dzielona według podanej wysokości (zob. niżej)
+			// gopdfgo: wiersz wyższy niż cała strona (zob. freshRowsHeight) nie zmieści się na żadnej stronie,
+			// więc jest dzielony tam, gdzie wypada, zamiast najpierw przejść na następną stronę i zostawić
+			// tę prawie pustą (CSS Fragmentation 3 § 4.4 i § 5.1: treść, która nie mieści się we
+			// fragmentatorze, dzielimy w środku; decyzja użytkownika z 2026-11-20, uzupełnienie ADR 0020).
+			// Wiersz niższy od strony nadal przechodzi w całości (CSS Tables 3 § 6.1). W źródle wiersz
+			// o podanej wysokości był dzielony tylko na początku strony, a wiersz z komórką, z której nic
+			// się nie zmieściło, przechodził dalej niezależnie od swojej wysokości.
+			rowsHeightLimit := freshRowsHeight(bottomSpace)
+			tallRow := false
 			// gopdfgo: komórki układane w tym wierszu: własne komórki wiersza i dalsze ciągi komórek
 			// rozpiętych (rowspan) z wierszy, które zostały na poprzedniej stronie (zob. rowCellEntries).
 			entries := rowCellEntries(group, row_, indexRow, skipStack)
@@ -367,12 +432,16 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// dalszego ciągu bez treści (CSS Fragmentation 3 § 5.1, jak blok w block.go; zob. niżej
 				// cellHeightRemaining). W źródle wiersz wystawał poza stronę, a za nim ginęło to, co poza nią.
 				// Poza początkiem strony wiersz jak dotąd przechodzi na następną stronę.
-				if computed, ok := cell.ComputedHeight.(pr.Float); ok && pageIsEmpty && !spanning && cellResumeAt == nil && newCell != nil {
-					if available := context.pageBottom - bottomSpace - cell.ContentBoxY(); available > 0 &&
+				// gopdfgo: poza początkiem strony tak samo dzielimy komórkę, która razem z odstępami
+				// i obramowaniem jest wyższa niż cała strona (zob. tallRow).
+				if computed, ok := cell.ComputedHeight.(pr.Float); ok && !spanning && cellResumeAt == nil && newCell != nil {
+					tall := computed+cell.BorderHeight()-cell.Height.V() > rowsHeightLimit
+					if available := context.pageBottom - bottomSpace - cell.ContentBoxY(); (pageIsEmpty || tall) && available > 0 &&
 						cell.Height.V() < available && computed > available {
 						cellResumeAt = tree.ResumeStack{len(entry.box.Box().Children): nil}
 						heightSplit = true
 					}
+					tallRow = tallRow || tall
 				}
 				if spanning {
 					// gopdfgo: komórka dzielona między strony nie jest wyrównywana w pionie: jej treść
@@ -479,7 +548,12 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// jest lepszy niż podział, który zostawia komórkę pustą (CSS Break 3 § 3.1, tak dzielą
 				// przeglądarki). W źródle na stronie zostawały komórki jednowierszowe (numer, kwoty),
 				// a nazwa pozycji lądowała na następnej.
-				if leftBehind && placedSome && len(newGroupChildren) != 0 {
+				// gopdfgo: nie dotyczy wiersza wyższego niż cała strona (zob. tallRow): na następnej stronie też by
+				// się nie zmieścił, więc dzielimy go tutaj, a treść komórki, z której nic się nie zmieściło
+				// (np. blok niepodzielny), przechodzi do jej dalszego ciągu.
+				if leftBehind && placedSome && len(newGroupChildren) != 0 && !tallRow &&
+					!(rowHeightSpecified && specifiedRowHeight > rowsHeightLimit) &&
+					!(rowsHeightLimit < pr.Inf && naturalRowHeight(entries) > rowsHeightLimit) {
 					avoidBreak = true
 				}
 				if stalledEnd {
@@ -585,6 +659,45 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			} else {
 				rowBottomY = row.PositionY
 				row.Height = pr.Float(0)
+			}
+
+			// gopdfgo: wiersz o podanej wysokości, który nie mieści się do końca strony, a jest na jej
+			// początku albo jest wyższy niż cała strona (zob. tallRow), dzielimy jak blok o podanej wysokości
+			// (CSS Fragmentation 3 § 5.1): fragment sięga końca strony, a reszta podanej wysokości przechodzi
+			// do dalszego ciągu wiersza na następnej stronie (zapisana w cellHeightRemaining pod stosem
+			// wznowienia wiersza). Komórki, które zmieściły się w całości, nie mają dalszego ciągu treści.
+			// W źródle taki wiersz wystawał poza stronę, a jego część za końcem strony ginęła.
+			rowHeightSplit := false
+			if limit := context.pageBottom - bottomSpace; rowHeightSpecified && rowsHeightLimit < pr.Inf &&
+				row.Style.GetVisibility() != "collapse" && overflows(limit, rowBottomY) && limit > row.PositionY &&
+				(pageIsEmpty || specifiedRowHeight > rowsHeightLimit) {
+				cellsBottom := row.PositionY
+				for _, cell := range endingCells {
+					cellsBottom = max(cellsBottom, cell.Box().PositionY+cell.Box().BorderHeight())
+				}
+				if !overflows(limit, cellsBottom) {
+					if resumeAt == nil {
+						resumeAt = tree.ResumeStack{indexRow: tree.ResumeStack{}}
+						for _, cell := range row.Children {
+							cell.RemoveDecoration(cell.Box(), false, true)
+						}
+					}
+					own := resumeAt[indexRow]
+					for i, cell := range group.Children[indexRow].Box().Children {
+						if _, has := own[i]; !has {
+							own[i] = tree.ResumeStack{len(cell.Box().Children): nil}
+						}
+					}
+					if remaining := row.Height.V() - (limit - row.PositionY); remaining > 0 {
+						if context.cellHeightRemaining == nil {
+							context.cellHeightRemaining = map[uintptr]pr.Float{}
+						}
+						context.cellHeightRemaining[resumeKey(own)] = remaining
+					}
+					row.Height = limit - row.PositionY
+					rowBottomY = limit
+					rowHeightSplit = true
+				}
 			}
 
 			if len(baselineCells) == 0 {
@@ -698,7 +811,8 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// też jest treścią tego wiersza, choć nie jest jego dzieckiem
 				// gopdfgo: podobnie komórka dzielona według podanej wysokości: nie ma treści, ale wiersz z nią
 				// robi postęp (inaczej wiersz byłby porzucany i układany od nowa w nieskończoność)
-				allEmpty := len(pendingEnd) == 0 && !heightSplit
+				// gopdfgo: tak samo wiersz dzielony według własnej podanej wysokości (rowHeightSplit)
+				allEmpty := len(pendingEnd) == 0 && !heightSplit && !rowHeightSplit
 				for _, child := range row.Children {
 					if !child.Box().Empty {
 						allEmpty = false
@@ -1015,6 +1129,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				endPositionY     pr.Float
 			)
 			bodySkip := behindHeader(headerHeight)
+			repeatedPartsHeight = headerHeight + footerHeight
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(bodySkip, positionY+headerHeight,
 				bottomSpace+footerHeight, avoidBreaks)
 			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
@@ -1046,6 +1161,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				endPositionY     pr.Float
 			)
 			bodySkip := behindHeader(headerHeight)
+			repeatedPartsHeight = headerHeight
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(bodySkip, positionY+headerHeight, bottomSpace, avoidBreaks)
 			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
 				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(bodySkip, positionY+headerHeight, bottomSpace,
@@ -1066,6 +1182,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				newTableChildren []Box
 				endPositionY     pr.Float
 			)
+			repeatedPartsHeight = footerHeight
 			newTableChildren, resumeAt, nextPage, endPositionY = bodyGroupsLayout(skipStack, positionY, bottomSpace+footerHeight, avoidBreaks)
 			if len(newTableChildren) == 0 && rowsLeft && pageIsEmpty {
 				newTableChildren, resumeAt, nextPage, endPositionY = forcedBodyLayout(skipStack, positionY, bottomSpace+footerHeight,
@@ -1092,6 +1209,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		if header != nil || footer != nil {
 			panic(fmt.Sprintf("expected empty header and footer, got %v %v", header, footer))
 		}
+		repeatedPartsHeight = 0
 		newTableChildren, resumeAt, nextPage, endPositionY := bodyGroupsLayout(skipStack, positionY, bottomSpace, pageIsEmpty)
 		footer, resumeAt, endPositionY = placeDroppedFooter(newTableChildren, resumeAt, endPositionY)
 		return header, newTableChildren, footer, endPositionY, resumeAt, nextPage

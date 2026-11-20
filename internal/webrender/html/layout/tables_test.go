@@ -2393,9 +2393,13 @@ func TestTablePageBreaksComplex1(t *testing.T) {
 		// gdzie nagłówek i stopka są powtarzane jak na każdej stronie tabeli (CSS Tables 3 § 6.2).
 		// Wcześniej (źródło i gopdfgo) wiersz zostawał cały, a ustępowała mu stopka, a przy wierszu 5
 		// także nagłówek: {{"Header"}, {"Row 4"}}, {{"Row 5"}}, a stopka na osobnej stronie.
+		// gopdfgo: wiersz 5 (90px) jest wyższy niż miejsce między nagłówkiem a stopką na każdej stronie,
+		// więc dzielimy go od razu pod resztą wiersza 4, zamiast przenosić na następną stronę (decyzja
+		// użytkownika z 2026-11-20, uzupełnienie ADR 0020; CSS Fragmentation 3 § 4.4 i § 5.1). Wcześniej
+		// strona 5 miała tylko resztę wiersza 4: {{"Header"}, {""}, {"Footer"}}, a wiersz 5 zaczynał się
+		// na stronie 6.
 		{{"Header"}, {"Row 4"}, {"Footer"}},
-		{{"Header"}, {""}, {"Footer"}},
-		{{"Header"}, {"Row 5"}, {"Footer"}},
+		{{"Header"}, {"", "Row 5"}, {"Footer"}},
 		{{"Header"}, {""}, {"Footer"}},
 	})
 }
@@ -3089,24 +3093,33 @@ func TestTableEmptyBody(t *testing.T) {
 		// § 5.1): reszta wysokości bez treści ("") przechodzi na następną stronę. Dotyczy 85/5 (nagłówek
 		// dzielony nad powtarzaną stopką, która stoi na obu stronach), 30/110, 110/30 i 110/110; wcześniej
 		// grupa wystawała poza stronę.
+		// gopdfgo: wiersz wyższy niż cała strona (bez powtarzanej stopki) jest dzielony tam, gdzie wypada,
+		// a nie najpierw przenoszony na następną stronę (decyzja użytkownika z 2026-11-20, uzupełnienie
+		// ADR 0020; CSS Fragmentation 3 § 4.4 i § 5.1). Dotyczy 85/5 (85px nad powtarzaną stopką 18px nie
+		// mieści się na żadnej stronie; wcześniej: nil, {"Header", "Footer"}, {"", "Footer"}), 30/110
+		// (stopka 110px dzielona na stronie 1; wcześniej {"Header"}, {"Footer"}, {""}), 110/30 i 110/110
+		// (nagłówek 110px dzielony na stronie 1 pod akapitem; wcześniej strona 1 bez tabeli) oraz 110/110 bez
+		// akapitu (stopka dzielona na stronie 2 pod resztą nagłówka; wcześniej przechodziła na stronę 3).
 		{[][]string{{"Header"}, {"Footer"}}, 45, 45, "<p>content</p>"},
-		{[][]string{nil, {"Header", "Footer"}, {"", "Footer"}}, 85, 5, "<p>content</p>"},
+		{[][]string{{"Header", "Footer"}, {"", "Footer"}}, 85, 5, "<p>content</p>"},
 		{[][]string{{"Header", "Footer"}}, 30, 30, "<p>content</p>"},
-		{[][]string{{"Header"}, {"Footer"}, {""}}, 30, 110, "<p>content</p>"},
+		{[][]string{{"Header", "Footer"}, {""}}, 30, 110, "<p>content</p>"},
 		{[][]string{{"Header"}, {"Footer"}}, 30, 60, "<p>content</p>"},
-		{[][]string{nil, {"Header"}, {"", "Footer"}}, 110, 30, "<p>content</p>"},
+		{[][]string{{"Header"}, {"", "Footer"}}, 110, 30, "<p>content</p>"},
 
 		// gopdfgo: nagłówek albo stopka wyższe niż strona nie są już pomijane, tylko płyną jak zwykła
 		// grupa wierszy; wtedy to one są treścią, dla której ustępuje druga, powtarzana grupa.
 		// Źródło oczekiwało, że za wysoka grupa zniknie (w ostatnim przypadku obie, czyli pusta tabela).
-		{[][]string{nil, {"Header"}, {""}, {"Footer"}, {""}}, 110, 110, "<p>content</p>"},
+		{[][]string{{"Header"}, {"", "Footer"}, {""}}, 110, 110, "<p>content</p>"},
 
 		// gopdfgo: jak wyżej; 30/110 i 110/30: druga grupa nie znika, tylko przechodzi na stronę 2.
 		{[][]string{{"Header", "Footer"}}, 30, 30, ""},
-		{[][]string{{"Header"}, {"Footer"}, {""}}, 30, 110, ""},
+		// gopdfgo: 30/110 i 110/110: stopka wyższa niż strona jest dzielona tam, gdzie wypada (zob. wyżej);
+		// wcześniej 30/110: {"Header"}, {"Footer"}, {""}, a 110/110: {"Header"}, {""}, {"Footer"}, {""}.
+		{[][]string{{"Header", "Footer"}, {""}}, 30, 110, ""},
 		{[][]string{{"Header", "Footer"}}, 30, 60, ""},
 		{[][]string{{"Header"}, {"", "Footer"}}, 110, 30, ""},
-		{[][]string{{"Header"}, {""}, {"Footer"}, {""}}, 110, 110, ""},
+		{[][]string{{"Header"}, {"", "Footer"}, {""}}, 110, 110, ""},
 	} {
 		html := fmt.Sprintf(`
       <style>
