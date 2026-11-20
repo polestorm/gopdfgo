@@ -1,7 +1,9 @@
 package contentstream
 
 import (
+	"bytes"
 	"fmt"
+	"strconv"
 
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
 )
@@ -299,11 +301,57 @@ func (ap *GraphicStream) SetAlphaMask(transparency *model.XObjectForm) {
 	alphaState := model.GraphicState{
 		SMask: model.SoftMaskDict{
 			S: model.ObjName("Luminosity"),
-			G: &model.XObjectTransparencyGroup{XObjectForm: *transparency},
 		},
 		Ca:  model.ObjFloat(1),
 		AIS: false,
 	}
 
-	ap.SetGraphicState(&alphaState)
+	// gopdfgo: maska w układzie znormalizowanym (zob. SetSoftMaskState)
+	ap.SetSoftMaskState(&alphaState, transparency, transparency.BBox, model.TransparencyGroup{})
+}
+
+// SetSoftMaskState (gopdfgo) ustawia stan graficzny state z maską miękką, której treścią jest forma
+// content (zwykła forma albo grupa) o prostokącie bbox w bieżącym układzie użytkownika; group to
+// słownik /Group grupy maski. Pole state.SMask.G jest tu wypełniane.
+//
+// Grupa maski ma układ CTM z chwili operatora gs (ISO 32000-1 § 11.6.5.2). Apple PDFKit (Podgląd,
+// Quick Look, Safari) przycina jednak maskę do prostokąta strony [0, szer.] × [0, wys.] (w punktach)
+// wziętego we współrzędnych formy maski, z pominięciem CTM, także gdy maskę ustawiono w grupie
+// przezroczystości (sprawdzone na ręcznie zbudowanych plikach, 2026-11-20): maska o współrzędnych
+// w pikselach CSS dalej niż szerokość strony w punktach znikała (cienie filtrów przy prawym i dolnym
+// brzegu strony). Dlatego forma maski ma BBox [0 0 1 1]: jej treść to `T cm /XI0 Do`, gdzie T
+// odwzorowuje bbox na kwadrat jednostkowy, a XI0 to content; operator gs stoi pod CTM złożonym
+// z odwrotności T (`T⁻¹ cm /GS gs T cm`), więc według normy maska się nie zmienia.
+func (ap *GraphicStream) SetSoftMaskState(state *model.GraphicState, content model.XObject, bbox model.Rectangle, group model.TransparencyGroup) {
+	w, h := bbox.Urx-bbox.Llx, bbox.Ury-bbox.Lly
+	if !(w > 0 && h > 0) {
+		w, h = 1, 1
+	}
+	toUnit := model.Matrix{1 / w, 0, 0, 1 / h, -bbox.Llx / w, -bbox.Lly / h}
+	fromUnit := model.Matrix{w, 0, 0, h, bbox.Llx, bbox.Lly}
+	wrapper := &model.XObjectTransparencyGroup{Group: group}
+	wrapper.BBox = model.Rectangle{Llx: 0, Lly: 0, Urx: 1, Ury: 1}
+	wrapper.Resources = model.ResourcesDict{XObject: map[model.ObjName]model.XObject{"XI0": content}}
+	wrapper.Content = WriteOperations(opPreciseConcat{toUnit}, OpXObject{XObject: "XI0"})
+	state.SMask.G = wrapper
+	ap.Ops(opPreciseConcat{fromUnit})
+	ap.SetGraphicState(state)
+	ap.Ops(opPreciseConcat{toUnit})
+}
+
+// opPreciseConcat (gopdfgo) to operator cm z pełną dokładnością float32: skala do kwadratu
+// jednostkowego dla maski „bez granic” (BBox ±100000) jest rzędu 1e-5, czego FmtFloat (5 miejsc
+// po przecinku) nie zapisze. Zapis dziesiętny, bez wykładnika (ISO 32000-1 § 7.3.3).
+type opPreciseConcat struct{ m model.Matrix }
+
+func (o opPreciseConcat) Add(out *bytes.Buffer) {
+	for _, v := range o.m {
+		if v == 0 {
+			out.WriteString("0 ")
+			continue
+		}
+		out.WriteString(strconv.FormatFloat(float64(v), 'f', -1, 32))
+		out.WriteByte(' ')
+	}
+	out.WriteString("cm")
 }

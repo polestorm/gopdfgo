@@ -41,16 +41,13 @@ func (g *group) SetSoftMask(mask backend.Canvas, alpha bool, transfer []fl) {
 	}
 	state := model.GraphicState{
 		SMask: model.SoftMaskDict{
-			S: model.ObjName(kind),
-			G: &model.XObjectTransparencyGroup{
-				XObjectForm: *form,
-				Group:       model.TransparencyGroup{CS: model.ColorSpaceRGB},
-			},
+			S:  model.ObjName(kind),
 			TR: g.transferFunction(transfer),
 		},
 		AIS: false,
 	}
-	g.stream.SetGraphicState(&state)
+	// gopdfgo: maska w układzie znormalizowanym (zob. contentstream.SetSoftMaskState)
+	g.stream.SetSoftMaskState(&state, form, form.BBox, model.TransparencyGroup{CS: model.ColorSpaceRGB})
 }
 
 // transferFunction zamienia próbki na funkcję próbkowaną; ta sama tablica próbek daje ten sam obiekt.

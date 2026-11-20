@@ -87,6 +87,14 @@ func TestPatternsInTransparencyGroups(t *testing.T) {
 	pdf, _ = render("css-filter", `<div style="width:200px;height:70px;margin:20px;filter:drop-shadow(4px 4px 3px #000);
 		background:linear-gradient(135deg,#4f8ef7,#1b3f8f)"></div>`)
 	noTiling("css-filter", pdf)
+	checkUnitSoftMasks(t, "css-filter", pdf)
+
+	// cień filtra SVG przy prawym brzegu strony (współrzędne maski większe niż szerokość strony w pt)
+	shadow := `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='150'><defs><filter id='f'>` +
+		`<feDropShadow dx='4' dy='4' stdDeviation='2'/></filter></defs>` +
+		`<rect x='160' y='20' width='120' height='50' fill='%2300c' filter='url(%23f)'/></svg>`
+	pdf, _ = render("svg-shadow", `<img style="display:block" src="data:image/svg+xml,`+shadow+`">`)
+	checkUnitSoftMasks(t, "svg-shadow", pdf)
 
 	// Kafle tła zostają wzorcem, ale nie w zasobach grupy przezroczystości.
 	pdf, ppm = render("tiles-opacity", `<div style="width:200px;height:50px;margin:20px;opacity:.8;
@@ -124,6 +132,29 @@ func checkNoPatternsInGroups(t *testing.T, name string, pdf []byte) {
 		dict := m[1]
 		if bytes.Contains(dict, []byte("/Transparency")) && bytes.Contains(dict, []byte("/Pattern")) {
 			t.Errorf("%s: grupa przezroczystości ze wzorcem we własnych zasobach: %.200s", name, dict)
+		}
+	}
+}
+
+var softMaskGroup = regexp.MustCompile(`/SMask\s*<<[^>]*?/G (\d+) 0 R`)
+
+// checkUnitSoftMasks sprawdza, że w pliku są maski miękkie i grupa każdej z nich ma BBox [0 0 1 1]:
+// Apple PDFKit przycina maskę do prostokąta strony we współrzędnych jej formy (zob.
+// contentstream.SetSoftMaskState), więc treść maski leży w kwadracie jednostkowym.
+func checkUnitSoftMasks(t *testing.T, name string, pdf []byte) {
+	t.Helper()
+	groups := softMaskGroup.FindAllSubmatch(pdf, -1)
+	if len(groups) == 0 {
+		t.Errorf("%s: brak maski miękkiej", name)
+	}
+	for _, m := range groups {
+		obj := regexp.MustCompile(`(?s)(?:^|\n)` + string(m[1]) + ` 0 obj\s*<<.*?/BBox \[([^\]]*)\]`).FindSubmatch(pdf)
+		if obj == nil {
+			t.Errorf("%s: nie znaleziono grupy maski %s", name, m[1])
+			continue
+		}
+		if strings.Join(strings.Fields(string(obj[1])), " ") != "0 0 1 1" {
+			t.Errorf("%s: grupa maski %s ma BBox [%s], oczekiwano [0 0 1 1]", name, m[1], obj[1])
 		}
 	}
 }

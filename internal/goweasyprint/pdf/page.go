@@ -167,7 +167,8 @@ func (g *group) transparencyGroup() *model.XObjectTransparencyGroup {
 // (ISO 32000-1 § 11.6.5.2, /S /Alpha), z funkcją przejścia /TR podaną próbkami (nil: tożsamość).
 // Grupa jest współdzielona z DrawWithOpacity (zob. transparencyGroup).
 func (g *group) SetAlphaMaskFromAlpha(mask backend.Canvas, transfer []fl) {
-	soft := model.SoftMaskDict{S: model.ObjName("Alpha"), G: mask.(*group).transparencyGroup()}
+	inner := mask.(*group).transparencyGroup()
+	soft := model.SoftMaskDict{S: model.ObjName("Alpha")}
 	if len(transfer) != 0 {
 		samples := make([]byte, len(transfer))
 		for i, v := range transfer {
@@ -183,7 +184,10 @@ func (g *group) SetAlphaMaskFromAlpha(mask backend.Canvas, transfer []fl) {
 			Range:  []model.Range{{0, 1}},
 		}
 	}
-	g.stream.SetGraphicState(&model.GraphicState{SMask: soft})
+	// gopdfgo: maska w układzie znormalizowanym, z grupą współdzieloną z DrawWithOpacity w środku
+	// (zob. contentstream.SetSoftMaskState)
+	g.stream.SetSoftMaskState(&model.GraphicState{SMask: soft}, inner, inner.BBox,
+		model.TransparencyGroup{CS: model.ColorSpaceRGB, I: true})
 }
 
 func newGroup(cache cache,
