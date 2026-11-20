@@ -246,6 +246,10 @@ func parseViewbox(attr string) (Rectangle, error) {
 
 // return an empty list for empty attributes
 func parseTransform(attr string) (out []transform, err error) {
+	// gopdfgo: transform: none (właściwość CSS) to pusta lista przekształceń (CSS Transforms 1 § 6)
+	if strings.TrimSpace(attr) == "none" {
+		return nil, nil
+	}
 	ts := strings.Split(attr, ")")
 	for _, t := range ts {
 		t = strings.TrimSpace(t)
@@ -257,12 +261,36 @@ func parseTransform(attr string) (out []transform, err error) {
 		if len(d) != 2 || d[1] == "" {
 			return nil, fmt.Errorf("invalid transformation: %s", t) // badly formed transformation
 		}
-		points, err := parseValues(d[1])
+		transformKind := strings.ToLower(strings.TrimSpace(d[0]))
+		// gopdfgo: funkcje przekształceń CSS (CSS Transforms 1 § 13): kąty z jednostką (deg, grad, rad,
+		// turn) w rotate i skew oraz funkcje jednoosiowe translateX/Y, scaleX/Y, rotateZ; atrybut
+		// transform SVG to ta sama właściwość (§ 12), a źródło znało tylko składnię SVG 1.1, więc np.
+		// „rotate(45deg)” z arkusza unieważniało cały element
+		var points []Value
+		switch transformKind {
+		case "rotate", "rotatez", "skew", "skewx", "skewy":
+			points, err = parseAngleValues(d[1])
+		default:
+			points, err = parseValues(d[1])
+		}
 		if err != nil {
 			return nil, fmt.Errorf("invalid transform: %s", err)
 		}
-
-		transformKind := strings.ToLower(strings.TrimSpace(d[0]))
+		switch L := len(points); {
+		case transformKind == "rotatez" && L == 1:
+			transformKind = "rotate"
+		case transformKind == "translatex" && L == 1:
+			transformKind = "translate"
+		case transformKind == "translatey" && L == 1:
+			points = []Value{{0, Px}, points[0]}
+			transformKind = "translate"
+		case transformKind == "scalex" && L == 1:
+			points = []Value{points[0], {1, Px}}
+			transformKind = "scale"
+		case transformKind == "scaley" && L == 1:
+			points = []Value{{1, Px}, points[0]}
+			transformKind = "scale"
+		}
 		L := len(points)
 		var tr transform
 		copy(tr.args[:], points)
@@ -331,10 +359,79 @@ func parseTransform(attr string) (out []transform, err error) {
 	return out, nil
 }
 
-// individualTransforms czyta właściwości translate i scale (CSS Transforms 2 § 5.1), w tej kolejności.
-// Procenty translate liczone są jak w atrybucie transform (SVG nie zna transform-box), składowa z
-// jest pomijana, a wartość niepoprawna ignorowana. Właściwości rotate nie czytamy, bo atrybut rotate
-// elementu text ma w SVG inne znaczenie (obrót znaków).
+// parseRotateProperty (gopdfgo) czyta właściwość rotate (CSS Transforms 2 § 5.1) w postaci
+// „<angle>”, „z <angle>” albo „0 0 <z> <angle>” z z > 0 (z < 0 odwraca kierunek).
+func parseRotateProperty(s string) (transform, bool) {
+	fields := strings.Fields(strings.ToLower(s))
+	if len(fields) == 0 {
+		return transform{}, false
+	}
+	angleText := fields[len(fields)-1]
+	if !strings.HasSuffix(angleText, "deg") && !strings.HasSuffix(angleText, "rad") && !strings.HasSuffix(angleText, "turn") {
+		return transform{}, false // także grad: kończy się na „rad”
+	}
+	angle, err := parseAngle(angleText)
+	if err != nil {
+		return transform{}, false
+	}
+	switch axis := fields[:len(fields)-1]; len(axis) {
+	case 0:
+	case 1:
+		if axis[0] != "z" {
+			return transform{}, false
+		}
+	case 3:
+		x, errX := strconv.ParseFloat(axis[0], 64)
+		y, errY := strconv.ParseFloat(axis[1], 64)
+		z, errZ := strconv.ParseFloat(axis[2], 64)
+		if errX != nil || errY != nil || errZ != nil || x != 0 || y != 0 || z == 0 {
+			return transform{}, false
+		}
+		if z < 0 {
+			angle.V = -angle.V
+		}
+	default:
+		return transform{}, false
+	}
+	return transform{kind: rotate, args: [6]Value{angle}}, true
+}
+
+// parseAngle (gopdfgo) czyta kąt w stopniach: liczbę bez jednostki (składnia SVG) albo <angle> CSS
+// z jednostką deg, grad, rad lub turn (CSS Values 4 § 7.1). Wartość bez jednostki kąta czyta
+// parseValue (zachowanie źródła).
+func parseAngle(s string) (Value, error) {
+	s = strings.TrimSpace(s)
+	for _, u := range [...]struct {
+		suffix string
+		factor float64
+	}{{"deg", 1}, {"grad", 0.9}, {"rad", 180 / math.Pi}, {"turn", 360}} {
+		if strings.HasSuffix(s, u.suffix) {
+			f, err := strconv.ParseFloat(strings.TrimSpace(strings.TrimSuffix(s, u.suffix)), 64)
+			return Value{Fl(f * u.factor), Px}, err
+		}
+	}
+	return parseValue(s)
+}
+
+// parseAngleValues (gopdfgo): jak parseValues, z kątami według parseAngle.
+func parseAngleValues(data string) ([]Value, error) {
+	fields := strings.FieldsFunc(data, func(r rune) bool { return r == ' ' || r == ',' || r == '\t' || r == '\n' || r == '\r' })
+	out := make([]Value, len(fields))
+	for i, f := range fields {
+		v, err := parseAngle(f)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = v
+	}
+	return out, nil
+}
+
+// individualTransforms czyta właściwości translate, rotate i scale (CSS Transforms 2 § 5.1), w tej
+// kolejności. Procenty translate liczone są względem pola odniesienia (transform-box, zob.
+// nodeTransform), składowa z jest pomijana, a wartość niepoprawna ignorowana. rotate czytamy tylko
+// z kątem z jednostką (<angle>, ewentualnie z osią z albo 0 0 1), bo atrybut rotate elementu text
+// to lista liczb o innym znaczeniu (obrót znaków); obrót wokół innych osi pomijamy (rysunek 2D).
 func (na nodeAttributes) individualTransforms() (out []transform) {
 	if values, err := parseValues(na["translate"]); err == nil && len(values) >= 1 && len(values) <= 3 {
 		tr := transform{kind: translate}
@@ -343,6 +440,9 @@ func (na nodeAttributes) individualTransforms() (out []transform) {
 		if len(values) >= 2 {
 			tr.args[1] = values[1]
 		}
+		out = append(out, tr)
+	}
+	if tr, ok := parseRotateProperty(na["rotate"]); ok {
 		out = append(out, tr)
 	}
 	if values, err := parseValues(na["scale"]); err == nil && len(values) >= 1 && len(values) <= 3 {

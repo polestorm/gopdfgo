@@ -152,7 +152,7 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 		}
 
 		// apply transform attribute
-		applyTransform(dst, node.attributes.transforms, dims)
+		svg.applyTransform(dst, node, dims)
 
 		// create sub group for opacity
 		opacity := node.attributes.opacity
@@ -233,8 +233,9 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 
 			// then recurse
 			if display {
+				childDims := nestedViewportDims(node, dims)
 				for _, child := range node.children {
-					svg.drawNode(dst, child, dims, paint)
+					svg.drawNode(dst, child, childDims, paint)
 
 					childText, isChildText := child.graphicContent.(*textSpan)
 					if visibleTextChild := (isText && isChildText && child.visible); visibleTextChild {
@@ -454,16 +455,157 @@ func aggregateTransforms(transforms []transform, fontSize, diagonal Fl) matrix.T
 	return mat
 }
 
-func applyTransform(dst backend.Canvas, transforms []transform, dims drawingDims) {
-	if len(transforms) == 0 { // do not apply a useless identity transform
+// gopdfgo: przekształcenie elementu liczy nodeTransform (transform-origin, transform-box); dst służy
+// do wyznaczenia ramki elementu <text> i grup, może być nil
+func (svg *SVGImage) applyTransform(dst backend.Canvas, node *svgNode, dims drawingDims) {
+	if len(node.attributes.transforms) == 0 { // do not apply a useless identity transform
 		return
 	}
 
-	// aggregate the transformations
-	mat := aggregateTransforms(transforms, dims.fontSize, dims.innerDiagonal)
+	mat := svg.nodeTransform(dst, node, dims)
 	if mat.Determinant() != 0 {
 		dst.State().Transform(mat)
 	}
+}
+
+// transformBox (gopdfgo) to wartość transform-box (CSS Transforms 1 § 7) dla elementu SVG.
+type transformBox uint8
+
+const (
+	viewBoxTransform   transformBox = iota // view-box, wartość początkowa
+	fillBoxTransform                       // fill-box, także content-box
+	strokeBoxTransform                     // stroke-box, także border-box
+)
+
+// parseTransformBox (gopdfgo): element SVG bez pola układu CSS używa fill-box w miejsce content-box
+// i stroke-box w miejsce border-box (CSS Transforms 1 § 7); wartość nieznana to wartość początkowa.
+func parseTransformBox(s string) transformBox {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "fill-box", "content-box":
+		return fillBoxTransform
+	case "stroke-box", "border-box":
+		return strokeBoxTransform
+	}
+	return viewBoxTransform
+}
+
+// parseTransformOrigin (gopdfgo) czyta transform-origin (CSS Transforms 1 § 6): jedną, dwie albo
+// trzy wartości (słowa kluczowe, długości, procenty); składowa z nie ma znaczenia w 2D. Dla elementów
+// SVG wartością początkową jest 0 0; wartość niepoprawna też daje 0 0.
+func parseTransformOrigin(s string) (out [2]Value) {
+	fields := strings.Fields(strings.ToLower(strings.ReplaceAll(s, ",", " ")))
+	if len(fields) == 0 || len(fields) > 3 {
+		return out
+	}
+	// słowo kluczowe: wartość procentowa i oś (0 dowolna, 1 pozioma, 2 pionowa)
+	keyword := func(f string) (Value, int, bool) {
+		switch f {
+		case "left":
+			return Value{0, Perc}, 1, true
+		case "right":
+			return Value{100, Perc}, 1, true
+		case "top":
+			return Value{0, Perc}, 2, true
+		case "bottom":
+			return Value{100, Perc}, 2, true
+		case "center":
+			return Value{50, Perc}, 0, true
+		}
+		return Value{}, 0, false
+	}
+	type item struct {
+		v    Value
+		axis int
+		kw   bool
+	}
+	var items []item
+	for _, f := range fields[:min(len(fields), 2)] {
+		if v, axis, ok := keyword(f); ok {
+			items = append(items, item{v, axis, true})
+			continue
+		}
+		v, err := parseValue(f)
+		if err != nil {
+			return [2]Value{}
+		}
+		items = append(items, item{v: v})
+	}
+	center := Value{50, Perc}
+	if len(items) == 1 {
+		if items[0].axis == 2 {
+			return [2]Value{center, items[0].v}
+		}
+		return [2]Value{items[0].v, center}
+	}
+	a, b := items[0], items[1]
+	if a.axis == 2 || b.axis == 1 {
+		// para słów kluczowych w odwrotnej kolejności („top left”); długość nie może stać po słowie
+		// pionowym na pierwszym miejscu ani przed poziomym na drugim
+		if !a.kw || !b.kw || a.axis == 1 || b.axis == 2 {
+			return [2]Value{}
+		}
+		a, b = b, a
+	}
+	if a.axis == 2 || b.axis == 1 {
+		return [2]Value{}
+	}
+	return [2]Value{a.v, b.v}
+}
+
+// nodeTransform (gopdfgo) zwraca przekształcenie elementu: translate(punkt odniesienia) ×
+// przekształcenia × translate(−punkt odniesienia) (CSS Transforms 1 § 6, macierz przekształcenia
+// bieżącego dla atrybutu i właściwości transform oraz translate, rotate, scale), gdzie punkt to
+// transform-origin w polu odniesienia (§ 7): ramce obiektu (fill-box), ramce z obrysem (stroke-box)
+// albo najbliższym oknie widoku SVG (view-box: początek układu współrzędnych i rozmiar viewBox).
+// Procenty translate też odnoszą się do pola odniesienia (§ 13). Ramkę elementu <text> i grupy
+// liczymy z dst (zob. objectBoundingBox); bez dst bierzemy ramkę samego kształtu.
+func (svg *SVGImage) nodeTransform(dst backend.Canvas, node *svgNode, dims drawingDims) matrix.Transform {
+	attrs := &node.attributes
+	if len(attrs.transforms) == 0 {
+		return matrix.Identity()
+	}
+	needBox := attrs.transformOrigin[0].V != 0 || attrs.transformOrigin[1].V != 0 || attrs.transformBox != viewBoxTransform
+	for _, tr := range attrs.transforms {
+		if tr.kind == translate && (tr.args[0].U == Perc || tr.args[1].U == Perc) {
+			needBox = true
+		}
+	}
+	if !needBox {
+		return aggregateTransforms(attrs.transforms, dims.fontSize, dims.innerDiagonal)
+	}
+	box := Rectangle{0, 0, dims.innerWidth, dims.innerHeight}
+	if attrs.transformBox != viewBoxTransform {
+		var ok bool
+		// ramki obrysu nieskalowanego (vector-effect: non-scaling-stroke) nie da się wyznaczyć przed
+		// przekształceniem, więc stroke-box działa wtedy jak fill-box (csswg-drafts#9640, testy WPT
+		// transform-box/svgbox-stroke-box-003, -004)
+		if attrs.transformBox == strokeBoxTransform && !attrs.nonScalingStroke {
+			box, ok = node.resolveBoundingBox(dims, true)
+		}
+		if !ok && dst != nil {
+			box, ok = svg.objectBoundingBox(dst, node, dims)
+		} else if !ok {
+			box, ok = node.resolveBoundingBox(dims, false)
+		}
+		if !ok {
+			box = Rectangle{} // element bez ramki: pole 0 0 0 0
+		}
+	}
+	ox := box.X + attrs.transformOrigin[0].Resolve(dims.fontSize, box.Width)
+	oy := box.Y + attrs.transformOrigin[1].Resolve(dims.fontSize, box.Height)
+	mat := matrix.Translation(ox, oy)
+	for _, tr := range attrs.transforms {
+		if tr.kind == translate {
+			for i, ref := range [2]Fl{box.Width, box.Height} {
+				if tr.args[i].U == Perc {
+					tr.args[i] = Value{tr.args[i].V * ref / 100, Px}
+				}
+			}
+		}
+		tr.applyTo(&mat, dims.fontSize, dims.innerDiagonal)
+	}
+	mat.Translate(-ox, -oy)
+	return mat
 }
 
 func (svg *SVGImage) applyClipPath(dst backend.Canvas, clipPath *clipPath, node *svgNode, dims drawingDims) {
@@ -704,6 +846,31 @@ type drawingDims struct {
 	normalizedDiagonal Fl
 }
 
+// nestedViewportDims (gopdfgo): zagnieżdżony <svg> (także z <use> i <symbol>) ustanawia nowe okno
+// widoku, względem którego potomkowie liczą procenty (SVG 2 § 8.9) i transform-box: view-box (CSS
+// Transforms 1 § 7): rozmiar viewBox albo, bez niego, szerokość i wysokość elementu. Źródło liczyło
+// je zawsze względem okna elementu głównego.
+func nestedViewportDims(node *svgNode, dims drawingDims) drawingDims {
+	s, ok := node.graphicContent.(svg)
+	if !ok || s.isRoot {
+		return dims
+	}
+	if vb := node.attributes.viewbox; vb != nil && vb.Width > 0 && vb.Height > 0 {
+		dims.innerWidth, dims.innerHeight = vb.Width, vb.Height
+	} else {
+		w, h := node.attributes.width, node.attributes.height
+		if w.U == 0 {
+			w = Value{100, Perc}
+		}
+		if h.U == 0 {
+			h = Value{100, Perc}
+		}
+		dims.innerWidth, dims.innerHeight = dims.point(w, h)
+	}
+	dims.setupDiagonal()
+	return dims
+}
+
 // update `innerDiagonal` and `normalizedDiagonal`
 func (dims *drawingDims) setupDiagonal() {
 	dims.innerDiagonal = Fl(math.Hypot(float64(dims.innerWidth), float64(dims.innerHeight)) / math.Sqrt2)
@@ -734,6 +901,10 @@ type attributes struct {
 	viewbox *Rectangle
 
 	transforms []transform
+	// transformOrigin, transformBox (gopdfgo): transform-origin i transform-box (CSS Transforms 1 § 6,
+	// § 7); źródło ich nie znało i obracało każdy element wokół (0, 0)
+	transformOrigin [2]Value
+	transformBox    transformBox
 
 	clipPathID, maskID, filterID                      string
 	markerID, markerStartID, markerMidID, markerEndID string
@@ -994,6 +1165,8 @@ func (na nodeAttributes) parseSharedAttributes(out *attributes) error {
 	// gopdfgo: właściwości translate i scale (CSS Transforms 2 § 5.1) przed transform (§ 6); źródło
 	// ich nie znało
 	out.transforms = append(na.individualTransforms(), out.transforms...)
+	out.transformOrigin = parseTransformOrigin(na["transform-origin"])
+	out.transformBox = parseTransformBox(na["transform-box"])
 
 	out.stroke, err = newPainter(na["stroke"])
 	if err != nil {

@@ -168,7 +168,8 @@ func (svg *SVGImage) textPathFor(span *textSpan, dims drawingDims) *textPathGeom
 			return nil
 		}
 		// przekształcenie elementu path działa dodatkowo w układzie tekstu (SVG 2 § 11.10.3)
-		geometry = newTextPathGeometry(p, aggregateTransforms(node.attributes.transforms, dims.fontSize, dims.innerDiagonal))
+		// gopdfgo: z transform-origin i transform-box ścieżki (CSS Transforms 1 § 6)
+		geometry = newTextPathGeometry(p, svg.nodeTransform(nil, node, dims))
 	}
 	if geometry == nil || len(geometry.points) < 2 {
 		return nil

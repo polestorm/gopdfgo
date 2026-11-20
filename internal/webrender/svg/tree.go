@@ -539,6 +539,7 @@ var notInheritedAttributes = utils.NewSet(
 	"style",
 	"transform",
 	"transform-origin",
+	"transform-box", // gopdfgo: CSS Transforms 1 § 7, niedziedziczona
 	"translate", // gopdfgo: CSS Transforms 2 § 5.1, niedziedziczone
 	"scale",
 	"viewBox",

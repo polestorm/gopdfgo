@@ -189,7 +189,7 @@ func (attrs nodeAttributes) applyStyle(_ string, node *html.Node, normal, import
 
 // rootBoxProperties (gopdfgo): zob. applyDocumentStyle
 var rootBoxProperties = utils.NewSet("width", "height", "x", "y", "transform", "translate", "rotate", "scale",
-	"transform-origin", "opacity", "filter", "clip-path", "mask", "mix-blend-mode")
+	"transform-origin", "transform-box", "opacity", "filter", "clip-path", "mask", "mix-blend-mode")
 
 // applyDocumentStyle (gopdfgo) stosuje kaskadę dokumentu HTML do elementu SVG osadzonego w HTML
 // (zob. DocumentStyle). decls są w rosnącej kolejności kaskady; presentation to nazwy atrybutów

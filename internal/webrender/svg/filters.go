@@ -160,7 +160,7 @@ func (svg *SVGImage) objectBoundingBox(dst backend.Canvas, node *svgNode, dims d
 		return out, out != emptyBbox
 	}
 	for _, child := range node.children {
-		childDims := dims
+		childDims := nestedViewportDims(node, dims) // gopdfgo: okno zagnieżdżonego <svg>
 		childDims.fontSize = child.attributes.fontSize.Resolve(dims.fontSize, dims.fontSize)
 		if t, ok := child.graphicContent.(*textSpan); ok && t.isText {
 			svg.layoutText(dst, child, childDims)
@@ -170,7 +170,7 @@ func (svg *SVGImage) objectBoundingBox(dst backend.Canvas, node *svgNode, dims d
 			continue
 		}
 		if len(child.attributes.transforms) != 0 {
-			mat := aggregateTransforms(child.attributes.transforms, childDims.fontSize, dims.innerDiagonal)
+			mat := svg.nodeTransform(dst, child, childDims) // gopdfgo: z transform-origin
 			moved := emptyBbox
 			for _, corner := range [4][2]Fl{{cb.X, cb.Y}, {cb.X + cb.Width, cb.Y}, {cb.X, cb.Y + cb.Height}, {cb.X + cb.Width, cb.Y + cb.Height}} {
 				x, y := mat.Apply(corner[0], corner[1])
