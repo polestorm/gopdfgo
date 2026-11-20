@@ -195,6 +195,11 @@ var InitialValues = Properties{
 	// Transforms 1 (CR): https://www.w3.org/TR/css-transforms-1/
 	PTransformOrigin: Point{{Value: 50, Unit: Perc}, {Value: 50, Unit: Perc}},
 	PTransform:       Transforms{}, // computed value for "none"
+	// gopdfgo: właściwości translate, rotate i scale (CSS Transforms 2 § 5.1) jako listy funkcji
+	// przekształcenia; pusta lista to none
+	PTranslate: Transforms{},
+	PRotate:    Transforms{},
+	PScale:     Transforms{},
 
 	// User Interface 3/4 (REC/WD): https://www.w3.org/TR/css-ui-4/
 	PAppearance:          String("none"),

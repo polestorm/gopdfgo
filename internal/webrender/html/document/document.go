@@ -38,7 +38,9 @@ func getMatrix(box_ Box) (mt.Transform, bool) {
 	//  multiple inline-level boxes."
 	// http://www.w3.org/TR/css3-2d-transforms/#introduction
 	box := box_.Box()
-	trans := box.Style.GetTransform()
+	// gopdfgo: translate, rotate i scale przed transform, w kolejności z CSS Transforms 2 § 6;
+	// źródło znało tylko transform
+	trans := pr.EffectiveTransforms(box.Style)
 	if box.PageScale > 1 {
 		// gopdfgo: treść strony pomniejszona, żeby zmieściła się na szerokość (ADR 0014); własne
 		// przekształcenie elementu głównego jest wtedy pomijane

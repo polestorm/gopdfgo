@@ -124,6 +124,7 @@ var (
 		pr.PQuotes:        quotes,
 		pr.PTabSize:       tabSize,
 		pr.PTransform:     transforms,
+		pr.PTranslate:     transforms, // gopdfgo: CSS Transforms 2 § 5.1
 		pr.PBoxShadow:     boxShadows,
 		pr.PTextShadow:    boxShadows,
 		pr.PClipPath:      clipPath,
@@ -338,6 +339,8 @@ func length_(computer *ComputedStyle, value pr.TaggedDim, fontSize pr.Float, pix
 			// wyrażenie zostaje (z długościami w pikselach) i jest liczone w układzie jak procent
 			return pr.Dimension{Unit: pr.Perc, Calc: value.Calc.Freeze(toPixels)}.Tagged()
 		}
+		// gopdfgo: NaN (np. round(10px, 0px)) działa jak 0 (CSS Values 4 § 10.9)
+		result.Pixels = result.Pixels.NaNToZero()
 		if err != nil || result.Percent == 0 || pixelsOnly {
 			return asPixels(pr.Dimension{Value: result.Pixels, Unit: pr.Px}.Tagged(), pixelsOnly)
 		}
