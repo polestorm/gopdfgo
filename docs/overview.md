@@ -149,7 +149,8 @@ Supported:
 - painting:
   - fill and stroke with opacity, dash arrays, line caps and joins, `vector-effect: non-scaling-stroke`;
   - paint servers: `linearGradient`, `radialGradient`, `pattern`;
-  - `clipPath`, `mask`, `marker`;
+  - `clipPath`, `mask` (also with `objectBoundingBox` content units), `marker` with `orient="auto"`,
+    `context-fill`/`context-stroke`;
 - text: `text`, `tspan`, `textPath`, `text-anchor`, `dominant-baseline`, `letter-spacing`;
 - `<style>` and `style` attributes, CSS selectors inside SVG;
 - inline `<svg>` in HTML, and SVG files used with `img`, `object`, `embed` and CSS `background-image`:
@@ -162,26 +163,18 @@ Not supported or incomplete:
   `feColorMatrix`, `feFlood`, `feComposite` …) is skipped as a whole, so the element is drawn without it;
   a drop shadow is simply missing;
 - spatial media fragments in image URLs (`image.svg#xywh=…`);
-- `rx`/`ry` set to `auto` on `ellipse`, `context-fill`/`context-stroke` in markers, `currentColor` in some
-  paint servers, `maskContentUnits="objectBoundingBox"`;
+- `currentColor` passed through a context paint, and `objectBoundingBox` paint servers on a context;
 - page stylesheets do not reach elements inside inline `<svg>`; only `<style>` inside the `<svg>` applies;
 - CSS `zoom`;
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 115 pass; on the morning of 2026-11-20 it was 83.
+or have no reference. Of those 235, 136 pass; on the morning of 2026-11-20 it was 83.
 
 Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Failures by cause (120):
-- CSS Linked Parameters: 23;
-- SVG text: 15;
-- media fragments: 12;
-- `ellipse` with `auto` radii: 8;
-- outer `<svg>` (CSS `zoom`, sizing): 6;
-- `non-scaling-stroke` with CSS `zoom` or page stylesheets: 5;
-- masks, markers, `currentColor` in paint servers, `foreignObject` stacking, clipping: 1–3 each;
-- other single cases: 40.
+Remaining failures (99), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
+SVG text with blur shadows or page stylesheets, CSS `zoom`, and single cases.
 
 Real-world corpus: every file is within 2.5% of Chrome's pixels; the remaining differences are font
 substitution, the missing blur shadow, and anti-aliasing.

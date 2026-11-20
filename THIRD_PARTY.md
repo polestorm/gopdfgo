@@ -919,6 +919,39 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- mniejsze braki SVG, 2026-11-20 (praca pomocnika; `svg/elements.go`, `svg/elements_path.go`, `svg/elements_text.go`,
+  `svg/markers.go` (nowy), `svg/paint.go`, `svg/parser.go`, `svg/svg.go`, `svg/tree.go`, `svg/foreign.go`,
+  `svg/bounding_box.go`):
+  - `rx`/`ry` = `auto` (także pominięte i jako właściwości CSS) w `<ellipse>` i `<rect>` przyjmują bezwzględną
+    wartość drugiego promienia (SVG 2 § 10.2, § 10.4); `<circle>` bierze tylko `r`; poprawka: źródło
+    parsowało `ry` prostokąta z `rx`;
+  - `currentColor` dziedziczy się jako słowo kluczowe i rozwiązuje względem `color` elementu, który go używa
+    (CSS Color 4 § 6.4), bez względu na wielkość liter, także w kolorze zastępczym po `url(...)`; źródło
+    zamieniało tylko zapis „currentColor” i dziedziczyło kolor rodzica;
+  - definicje bez `id` (clipPath, mask, filter, marker, serwery farby) nie są rejestrowane; źródło zapisywało
+    je pod kluczem "", przez co stosowały się do każdego elementu (nieskończona rekursja przy `<clipPath>` bez id);
+  - znaczniki według SVG 2 § 13.7.3 i § 9.5.1:
+    - dwusieczna kierunków wejścia i wyjścia; przy zawróceniu o 180° kąt wejścia minus 90°, jak w Chromium;
+    - odcinki zerowej długości dostają kierunek sąsiadów, a łuk liczy się jako jeden odcinek;
+    - dochodzi wierzchołek zamykający wielokąta, Z po Z tworzy niejawną podścieżkę, a zamknięcie w punkcie
+      początkowym nie tworzy osobnego wierzchołka;
+    - kąt jest stosowany: źródło liczyło go z odwróconymi argumentami atan2 i nie stosowało;
+    - `orient` przyjmuje jednostki kąta;
+    - `markerUnits="strokeWidth"` przy `non-scaling-stroke` bierze grubość w układzie użytkownika;
+    - skrót `marker` nie jest atrybutem prezentacji (§ 13.7.2);
+  - `display` nie jest dziedziczona (CSS Display 3 § 2); źródło, dziedzicząc ją, ukrywało treść `<marker>`,
+    `<pattern>` i celów `<use>` w poddrzewie z `display: none`;
+  - `context-fill` i `context-stroke` (SVG 2 § 13.4.1) dla treści znaczników i `<use>`; bez przeniesienia
+    `currentColor` przez kontekst i bez ramki grupy dla serwerów farby w jednostkach `objectBoundingBox`;
+    przejęty `Test_newPainter` dostał nowe pole w literałach;
+  - maski: domyślne `maskUnits="objectBoundingBox"` z obszarem od ramki elementu, `maskContentUnits=
+    "objectBoundingBox"` (CSS Masking 1 § 7.3); maska nakładana przed rysowaniem treści (źródło nakładało ją
+    po dzieciach, więc maska na `<g>` i na treści `<foreignObject>` nie działała);
+  - tekst: `text-transform`; znaki łączące, ZWJ/ZWNJ i selektory wariantu rysowane razem ze znakiem bazowym
+    (SVG 2 § 11.8.1); tekst z `visibility: hidden` przesuwa pozycję bieżącą dla widocznych `tspan`.
+
+  Sondaż `svg/`: 115 → 136 z 235, bez strat; korpus SVG wobec Chrome, testy CSS z obrazami SVG (247)
+  i korpus dokumentów bez zmian;
 - SVG: `foreignObject`, `switch` i atrybuty warunkowe, 2026-11-20 (praca pomocnika; `svg/foreign.go`, `svg/svg.go`,
   `svg/tree.go`, `html/document/nested.go`):
   - `<foreignObject>` (SVG 2 § 23.2): treść XHTML układana jako osobny dokument HTML w prostokącie
