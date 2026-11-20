@@ -118,12 +118,13 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 - `subgrid`;
 - baseline alignment in grid and flex (`last baseline`, column axis);
 - some cases of positioned grid items and nested multi-column layout;
-- functions that make the whole declaration skipped with a warning (checked 2026-11-20):
-  - all 3D transform functions: `rotate3d()`, `rotateX()`, `rotateY()`, `scale3d()`, `translate3d()`,
-    `matrix3d()`, `perspective()`; the individual `translate`, `rotate`, `scale` properties work and
-    are flattened to 2D;
-  - relative colours in any form (`rgb(from …)`, `hsl(from …)` …); `color-mix()` works;
-  - `<angle>` values inside `calc()`;
+- perspective projection: `perspective()`, the `perspective` property and the perspective components of
+  `matrix3d()` are accepted with a warning and ignored, so the element is drawn as an orthographic
+  projection; `preserve-3d` has no depth sorting or plane intersection. 3D transforms without perspective
+  (`rotateX()`, `rotate3d()`, `translate3d()`, `matrix3d()` …) and `backface-visibility` are exact;
+- `<angle>` values inside `calc()` in transform functions;
+- colours outside the sRGB gamut (`color(display-p3 …)`, `oklch()` …) are clipped per channel, as Chromium
+  prints them, not gamut-mapped as CSS Color 4 § 13 describes;
 - the colour of `-webkit-text-stroke`;
 - a box with `overflow: hidden` and a fixed height, or with `contain: size`, taller than a page is clipped
   at the page edge;

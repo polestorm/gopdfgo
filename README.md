@@ -18,7 +18,9 @@ Comparison with Chromium, the list of what is not supported, and requirements:
 
 - HTML5 parsing and the CSS cascade: selectors level 4 including `:is()`, `:where()`, `:not()`; custom
   properties; `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`; colour functions;
-  `transform` and the individual `translate`, `rotate`, `scale` properties (2D).
+  `transform` with 2D and 3D functions (flattened to the page, as browsers do without perspective),
+  `backface-visibility`, the individual `translate`, `rotate`, `scale` properties; relative colours
+  (`rgb(from …)` …), `color()` with predefined colour spaces, `color-mix()` in every space.
 - Layout:
   - block, inline, floats and positioning;
   - tables, including spanning cells split across pages;
@@ -94,9 +96,9 @@ licences (list in `docs/overview.md`).
 - SVG filters other than `feOffset` and `feBlend` (a blur or drop shadow is dropped, the element is still
   drawn), spatial media fragments (`#xywh=`), page stylesheets inside inline `<svg>`. Details in
   `docs/overview.md`.
-- 3D transform functions (`rotate3d()`, `rotateX()`, `scale3d()`, `translate3d()`, `matrix3d()`,
-  `perspective()` …) and relative colours (`rgb(from …)`, `hsl(from …)` …). The declaration is skipped with
-  a warning.
+- Perspective: `perspective()` and the `perspective` property are accepted with a warning and drawn as
+  an orthographic projection; `preserve-3d` has no depth sorting. 3D transforms without perspective are
+  drawn exactly.
 
 The full list with its status is in `docs/overview.md` and `docs/progress.md`.
 

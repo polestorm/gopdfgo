@@ -919,6 +919,40 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- przekształcenia 3D i barwy, 2026-11-20 (praca pomocnika):
+  - `css/validation` (`transformFunction`, `transformOrigin`, właściwości `translate`/`rotate`/`scale`, nowy plik
+    `transforms3d.go`): funkcje 3D z CSS Transforms 2 § 12 (`translate3d`, `translateZ`, `scale3d`, `scaleZ`,
+    `rotate3d`, `rotateX`, `rotateY`, `rotateZ`, `matrix3d`); `<zero>` w miejscu kąta (źródło uznawało
+    `rotate(0deg)` i `skew(0)` za błąd i pomijało deklarację); procenty w funkcjach skali; składowa z
+    w `transform-origin` (źródło ją pomijało bez sprawdzania); właściwości `backface-visibility`,
+    `transform-style`, `perspective`, `perspective-origin`. `perspective()`, `perspective`, składowe
+    perspektywy `matrix3d()` i `transform-style: preserve-3d` są przyjmowane z ostrzeżeniem, a perspektywa
+    pomijana, bo PDF nie zapisze rzutu perspektywicznego. `perspective` inne niż none i `preserve-3d` tworzą
+    kontekst nakładania i blok zawierający (§ 5, § 7);
+  - `html/document` (`getMatrix`, `drawStackingContext`, `stacking.go`) i nowy `matrix/matrix3d.go`:
+    - lista funkcji z częścią 3D jest składana w macierz 4×4 i spłaszczana raz, rzutem prostokątnym
+      (CSS Transforms 2 § 6);
+    - `backface-visibility: hidden` liczone ze skumulowanej macierzy 3D (§ 11);
+    - kontekst `preserve-3d` bez perspektywy rysowany dokładnie (dzieci jako osobne płaszczyzny ze
+      skumulowaną macierzą), bez sortowania po głębokości i bez przecinania płaszczyzn; części tabeli nie są
+      płaszczyznami kontekstu 3D;
+  - `css/parser` (`colors.go`, nowy `colors_relative.go`):
+    - składnia względna barw (CSS Color 5 § 4) z wyrażeniami matematycznymi w kanałach;
+    - `color()` z przestrzeniami predefiniowanymi (CSS Color 4 § 10; rec2020 z czystą potęgą 2,4);
+    - `color-mix()` we wszystkich przestrzeniach z metodami interpolacji kąta barwy, `calc()` w funkcjach
+      barw, `rebeccapurple`;
+    - barwy spoza gamy są przycinane kanał po kanale zamiast odwzorowania gamy z § 13, jak przy druku
+      w Chromium;
+    - barwa zależna od `currentColor` (składnia względna, `color-mix()`) zostaje w wartości obliczonej jako
+      funkcja i jest liczona z koloru elementu przy użyciu (CSS Color 5 § 4.2);
+    - kanały względne są liczone z barwy wyjściowej już przyciętej do sRGB;
+    - `hsl()` nie przycina nasycenia powyżej 100% ani jasności (CSS Color 4 § 7, test WPT hsl-009); źródło
+      przycinało oba do [0, 100%].
+
+  Reftesty W3C (miara `dt.sh`, do 20 pikseli, klon WPT z gałęzi głównej w katalogu roboczym):
+  - `css-transforms`: 318 → 375 z 786; 9 testów przechodziło dotąd przypadkiem (skrypty, animacje,
+    sortowanie po głębokości, `preserve-3d` w częściach tabeli);
+  - `css-color`: 175 → 268 z 320;
 - mniejsze braki SVG, 2026-11-20 (praca pomocnika; `svg/elements.go`, `svg/elements_path.go`, `svg/elements_text.go`,
   `svg/markers.go` (nowy), `svg/paint.go`, `svg/parser.go`, `svg/svg.go`, `svg/tree.go`, `svg/foreign.go`,
   `svg/bounding_box.go`):
