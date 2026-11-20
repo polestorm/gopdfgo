@@ -122,11 +122,6 @@ func (fo *foreignObject) draw(dst backend.Canvas, attrs *attributes, svg *SVGIma
 		return nil
 	}
 	source := fo.document(dims.fontSize)
-	// maskę drawNode nakłada dopiero po narysowaniu treści elementu, przed końcowym wypełnieniem,
-	// więc treść foreignObject (rysowana tutaj) by jej nie podlegała
-	if ma, has := svg.definitions.masks[attrs.maskID]; has {
-		svg.applyMask(dst, ma, &svgNode{attributes: *attrs}, dims)
-	}
 	paint := func(dst backend.Canvas) {
 		dst.OnNewStack(func() {
 			dst.State().Transform(matrix.Translation(x, y))

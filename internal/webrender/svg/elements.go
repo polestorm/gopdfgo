@@ -804,6 +804,8 @@ func newMarker(node *cascadedNode, children []*svgNode) (out *marker, err error)
 type mask struct {
 	svgNode
 	isUnitsBBox bool
+	// gopdfgo: maskContentUnits="objectBoundingBox" (CSS Masking 1 § 7.3)
+	isContentBBox bool
 }
 
 func newMask(node *cascadedNode, children []*svgNode) (mask, error) {
@@ -811,7 +813,9 @@ func newMask(node *cascadedNode, children []*svgNode) (mask, error) {
 		svgNode: svgNode{
 			children: children,
 		},
-		isUnitsBBox: node.attrs["maskUnits"] == "objectBoundingBox",
+		// gopdfgo: wartością domyślną maskUnits jest objectBoundingBox (CSS Masking 1 § 7.3)
+		isUnitsBBox:   node.attrs["maskUnits"] != "userSpaceOnUse",
+		isContentBBox: node.attrs["maskContentUnits"] == "objectBoundingBox",
 	}
 	err := node.attrs.parseCommonAttributes(&out.svgNode.attributes)
 	if err != nil {
