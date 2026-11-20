@@ -6,7 +6,7 @@ It is built for ordinary business documents (invoices, reports, financial statem
 not for printing arbitrary web pages.
 
 All numbers below were measured on 2026-11-20:
-- gopdfgo: commit `COMMIT`, engine `gopdfgo/webrender 0.1.0-dev`;
+- gopdfgo: commit `e3f59aa` (code as of this page's first version), engine `gopdfgo/webrender 0.1.0-dev`;
 - Chromium: Google Chrome 157.0.8103.79 on macOS;
 - browser size on a server: Chrome 158.0.8127.36 on Ubuntu.
 
