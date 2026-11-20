@@ -357,6 +357,19 @@ func (g *group) DrawWithOpacity(opacity fl, gr backend.Canvas) {
 	g.stream.AddXObject(form)
 }
 
+// DrawCopyWithOpacity (gopdfgo, backend.CopyDrawer): jak DrawWithOpacity, ale tekst grupy jest
+// wyłączony z wydobywania tekstu: rysunek leży w treści oznaczonej /Span z pustym /ActualText
+// (ISO 32000-1 § 14.9.4). Służy powtórzeniom treści (kopie rozmycia filtra CSS), które inaczej
+// pdftotext i kopiowanie z przeglądarki zwracałyby wielokrotnie.
+func (g *group) DrawCopyWithOpacity(opacity fl, gr backend.Canvas) {
+	g.stream.Ops(cs.OpBeginMarkedContent{
+		Tag:        "Span",
+		Properties: cs.PropertyListDict{"ActualText": model.ObjStringLiteral("")},
+	})
+	g.DrawWithOpacity(opacity, gr)
+	g.stream.Ops(cs.OpEndMarkedContent{})
+}
+
 func (g *group) drawMask(app *cs.GraphicStream) {
 	transparency := app.ToXFormObject(compressStreams)
 	g.stream.SetAlphaMask(transparency)

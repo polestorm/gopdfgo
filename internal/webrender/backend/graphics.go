@@ -242,6 +242,13 @@ type AlphaMaskFromAlpha interface {
 	SetAlphaMaskFromAlpha(mask Canvas, transfer []Fl)
 }
 
+// CopyDrawer (gopdfgo) to opcjonalne rozszerzenie Canvas: DrawCopyWithOpacity rysuje grupę jak
+// DrawWithOpacity, ale jako powtórzenie treści, którego tekst nie jest wydobywany (kopie rozmycia
+// i cienia filtra CSS).
+type CopyDrawer interface {
+	DrawCopyWithOpacity(opacity Fl, group Canvas)
+}
+
 // Canvas represents a 2D surface which is the target of graphic operations.
 // It may be used as the final output (like a PDF page or the screen),
 // or as intermediate container (see for instance DrawWithOpacity or SetAlphaMask)

@@ -302,10 +302,20 @@ func gaussianMask(dst, content backend.Canvas, sigma fl) (mask backend.Canvas, t
 		alphas[i] = fl(alpha)
 		mask.OnNewStack(func() {
 			mask.State().Transform(matrix.New(1, 0, 0, 1, sample.dx, sample.dy))
-			mask.DrawWithOpacity(fl(alpha), content)
+			drawCopy(mask, fl(alpha), content)
 		})
 	}
 	return mask, blurTransfer(alphas)
+}
+
+// drawCopy rysuje grupę group na dst jako powtórzenie treści, bez wydobywania jej tekstu (zob.
+// backend.CopyDrawer), a gdy dst tego nie umie, zwyczajnie.
+func drawCopy(dst backend.Canvas, opacity fl, group backend.Canvas) {
+	if copier, ok := dst.(backend.CopyDrawer); ok {
+		copier.DrawCopyWithOpacity(opacity, group)
+		return
+	}
+	dst.DrawWithOpacity(opacity, group)
 }
 
 // drawShadow rysuje cień drop-shadow() treści content: prostokąt w kolorze cienia przez maskę alfa
@@ -318,9 +328,16 @@ func (ctx drawContext) drawShadow(content backend.Canvas, stage filterStage) {
 		logger.WarningLogger.Println("Ignored drop-shadow(): alpha masks are not supported by the output")
 		return
 	}
-	mask, transfer := content, []fl(nil)
+	var (
+		mask     backend.Canvas
+		transfer []fl
+	)
 	if stage.sigma > 0 {
 		mask, transfer = gaussianMask(ctx.dst, content, stage.sigma)
+	} else {
+		// maska to sama treść, ale w osobnej grupie jako kopia, by jej tekst nie był wydobywany
+		mask = newFilterGroup(ctx.dst)
+		drawCopy(mask, 1, content)
 	}
 	ctx.dst.OnNewStack(func() {
 		ctx.dst.State().Transform(matrix.New(1, 0, 0, 1, stage.dx, stage.dy))
@@ -345,20 +362,25 @@ func (ctx drawContext) drawBlurred(content backend.Canvas, sigma fl) {
 	}
 	samples := gaussianSamples(sigma)
 	colors := newFilterGroup(ctx.dst)
-	draw := func(sample blurSample, alpha fl) {
+	// tekst wydobywa się tylko z kopii bez przesunięcia w drugim przebiegu (zob. drawCopy)
+	draw := func(sample blurSample, alpha fl, extractable bool) {
 		colors.OnNewStack(func() {
 			colors.State().Transform(matrix.New(1, 0, 0, 1, sample.dx, sample.dy))
-			colors.DrawWithOpacity(alpha, content)
+			if extractable {
+				colors.DrawWithOpacity(alpha, content)
+			} else {
+				drawCopy(colors, alpha, content)
+			}
 		})
 	}
 	for i := len(samples) - 1; i >= 0; i-- {
-		draw(samples[i], 1)
+		draw(samples[i], 1, false)
 	}
 	var total fl
-	for _, sample := range samples {
+	for i, sample := range samples {
 		total += sample.w
 		if total > 0 {
-			draw(sample, sample.w/total)
+			draw(sample, sample.w/total, i == 0)
 		}
 	}
 	mask, transfer := gaussianMask(ctx.dst, content, sigma)
@@ -434,6 +456,14 @@ func (c *filterCanvas) DrawWithOpacity(opacity fl, group backend.Canvas) {
 	c.out.DrawWithOpacity(opacity, out)
 	if c.raw != nil {
 		c.raw.DrawWithOpacity(opacity, raw)
+	}
+}
+
+func (c *filterCanvas) DrawCopyWithOpacity(opacity fl, group backend.Canvas) {
+	out, raw := branches(group)
+	drawCopy(c.out, opacity, out)
+	if c.raw != nil {
+		drawCopy(c.raw, opacity, raw)
 	}
 }
 
