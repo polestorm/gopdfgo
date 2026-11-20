@@ -152,8 +152,12 @@ Supported:
   - paint servers: `linearGradient`, `radialGradient`, `pattern`;
   - `clipPath`, `mask` (also with `objectBoundingBox` content units), `marker` with `orient="auto"`,
     `context-fill`/`context-stroke`;
-- text: `text`, `tspan`, `textPath`, `text-anchor`, `dominant-baseline`, `letter-spacing`;
-- `<style>` and `style` attributes, CSS selectors inside SVG;
+- text: `text`, `tspan`, `textPath` (on a path or a `path` attribute, with `startOffset`), shaped like HTML
+  text (kerning, ligatures, OpenType features), `text-anchor` per text chunk, `textLength`/`lengthAdjust`,
+  `dominant-baseline`, `letter-spacing`; text is written as runs, so it can be selected and searched in the PDF;
+- styling: presentation attributes, `style` attributes, `<style>` inside the SVG and, for inline `<svg>` in
+  HTML, the page's whole cascade (`<style>` in `<head>`, `<link rel=stylesheet>`, the user stylesheet,
+  `@media`, `var()`), with inheritance from the HTML ancestors;
 - inline `<svg>` in HTML, and SVG files used with `img`, `object`, `embed` and CSS `background-image`:
   - SVG files are parsed as XML;
   - a file with `width` and `height` but no `viewBox` stretches to the image box in `img` and backgrounds,
@@ -165,17 +169,16 @@ Not supported or incomplete:
   a drop shadow is simply missing;
 - spatial media fragments in image URLs (`image.svg#xywh=…`);
 - `currentColor` passed through a context paint, and `objectBoundingBox` paint servers on a context;
-- page stylesheets do not reach elements inside inline `<svg>`; only `<style>` inside the `<svg>` applies;
 - CSS `zoom`;
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 136 pass; on the morning of 2026-11-20 it was 83.
+or have no reference. Of those 235, 145 pass; on the morning of 2026-11-20 it was 83.
 
 Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Remaining failures (99), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
-SVG text with blur shadows or page stylesheets, CSS `zoom`, and single cases.
+Remaining failures (90), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
+blur shadows, CSS `zoom`, `transform-origin` on SVG elements, CSS animations, and single cases.
 
 Real-world corpus: every file is within 2.5% of Chrome's pixels; the remaining differences are font
 substitution, the missing blur shadow, and anti-aliasing.

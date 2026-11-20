@@ -30,8 +30,9 @@ Comparison with Chromium, the list of what is not supported, and requirements:
   running elements, named pages, footnotes, `leader()`, `target-counter()`.
 - Text: OpenType shaping (go-text/HarfBuzz port), font fallback, `@font-face`, font features,
   `hyphens: auto`, `text-transform`, justification, `white-space`, `word-break`, `overflow-wrap`.
-- SVG (inline and as files, parsed as XML; including `foreignObject`, `switch`, external `<use>`,
-  `non-scaling-stroke`), PNG, JPEG and GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
+- SVG (inline and as files, parsed as XML; inline SVG styled by the page's CSS; text shaped like HTML
+  text, with `textPath`; `foreignObject`, `switch`, external `<use>`, `non-scaling-stroke`), PNG, JPEG and
+  GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
   are printed at the size of the element.
 - PDF output:
   - font subsets;
@@ -94,7 +95,7 @@ licences (list in `docs/overview.md`).
 - Tagged PDF (PDF/UA, PDF/A-2a, PDF/A-3a); the XMP extension schema of Factur-X/ZUGFeRD.
 - `subgrid`, `grid-lanes`, `column-height`.
 - SVG filters other than `feOffset` and `feBlend` (a blur or drop shadow is dropped, the element is still
-  drawn), spatial media fragments (`#xywh=`), page stylesheets inside inline `<svg>`. Details in
+  drawn), spatial media fragments (`#xywh=`), `transform-origin` on SVG elements. Details in
   `docs/overview.md`.
 - Perspective: `perspective()` and the `perspective` property are accepted with a warning and drawn as
   an orthographic projection; `preserve-3d` has no depth sorting. 3D transforms without perspective are
