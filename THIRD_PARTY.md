@@ -919,6 +919,31 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- wysokość elementów flex i bloków z `min-height` przez strony, 2026-11-20 (praca pomocnika; `layout/block.go`,
+  `flex.go`): elementy flex korzystają z podziału bloku o podanej wysokości (`canSplitFixedHeight` nie wyklucza już
+  elementów flex, tylko grid); kontener flex o podanej wysokości lub z min-height wyższymi niż strona dzieli
+  wysokość między fragmenty (reszta w `fixedHeightRemaining`/`minHeightRemaining`, a gdy elementy skończyły się
+  wcześniej, `RemainderResume` bez elementów; kontener niższy niż strona przechodzi w całości, ADR 0004).
+  Wznowiony element kontenera kolumnowego zachowuje w algorytmie swoją resztę wysokości (bez flex-grow/shrink).
+  W dalszym ciągu elementu o wysokości auto reszta z algorytmu flex jest tylko minimum. Element linii
+  nierozciągany, który nie mieści się obok dzielonego sąsiada (np. align-items: center/flex-end w linii wyższej
+  niż strona), przechodzi na następną stronę zamiast ginąć; ponowne przesunięcie tylko przy postępie. Pusta kopia
+  zakończonego elementu ma align-self: flex-start. Rozmiar poprzeczny linii dalszego ciągu nie liczy górnego
+  marginesu, obramowania ani dopełnienia elementu. Zwykły blok o wysokości auto z min-height dzieli min-height
+  między fragmenty (CSS Fragmentation 3 § 5.1); w źródle ostatni fragment miał całe min-height i wystawał poza
+  stronę. Skutek: `body { min-height: 100vh }` z marginesem daje 2 strony, tak samo jak Chrome 157 (pomiar
+  2026-11-20 na własnych plikach);
+- dzielenie wysokiego wiersza tabeli w miejscu, 2026-11-20 (praca pomocnika; `layout/tables.go`): wiersz tabeli
+  wyższy niż cała strona (wysokość fragmentatora z `repeatFragmentainerHeight` minus powtarzany nagłówek
+  i stopka, `freshRowsHeight`) jest dzielony tam, gdzie wypada, zamiast najpierw przechodzić na następną stronę
+  (CSS Fragmentation 3 § 4.4 i § 5.1; decyzja użytkownika, uzupełnienie ADR 0020). Dotyczy komórki o podanej
+  wysokości (wcześniej dzielonej tylko na początku strony), wiersza z komórką, z której nic się nie zmieściło
+  (reguła `leftBehind` przenosi już tylko wiersz niższy od strony; wysokość mierzy `naturalRowHeight`), oraz
+  wiersza o podanej wysokości `tr`, który w źródle nie był dzielony wcale: wystawał poza stronę, a jego część za
+  końcem strony ginęła (reszta wysokości w `cellHeightRemaining` pod stosem wznowienia wiersza). Wiersz niższy od
+  strony przechodzi w całości jak dotąd (CSS Tables 3 § 6.1). Zmienione testy przejęte:
+  `TestTablePageBreaksComplex1` (wiersz 5 zaczyna się na stronie 5 pod resztą wiersza 4), `TestTableEmptyBody`
+  (85/5, 30/110, 110/30 i 110/110: grupa wyższa niż strona dzielona w miejscu);
 - flex przez strony i szerokość kontenera kolumnowego, 2026-11-20 (praca pomocnika; `layout/flex.go`
   `flexLayout`): element flex dostaje pageIsEmpty kontenera tylko wtedy, gdy przed nim w bieżącym fragmencie
   nic nie stoi (w wierszu żadna wcześniejsza linia, w kolumnie żaden wcześniejszy element linii); w źródle

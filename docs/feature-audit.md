@@ -2181,3 +2181,23 @@ go od razu w miejscu. Otwarte (`block.go`): pusty blok o podanej wysokości mies
 dzielony (ADR 0004; Chromium dzieli; przyczyna niezaliczonego `multi-line-row-flex-fragmentation-064`); element
 flex wyższy niż strona traci resztę podanej wysokości lub `min-height` (`canSplitFixedHeight` wyklucza elementy
 flex; tekst nie ginie, tło na ostatniej stronie tak).
+
+## Siedemnasta paczka: wysokie wiersze tabeli i wysokość elementów flex (2026-11-20)
+
+Decyzje użytkownika z 2026-11-20: wiersz tabeli wyższy niż cała strona dzielony w miejscu (uzupełnienie ADR 0020);
+ADR 0004 bez zmian (pusty blok o podanej wysokości mieszczący się na stronie przechodzi w całości, bez opcji).
+Reftesty druku 310 z 340, sondaż ekranowy 9502, korpus bez zmian; poprawki pilnują testy `rowsplit17_test.go`
+(8 przypadków) i `flexheight17_test.go` (16 przypadków).
+
+- wiersz tabeli wyższy niż strona nie przechodzi najpierw na następną stronę (bez prawie pustych stron),
+  powtarzany nagłówek zostaje na każdej stronie; wiersz z `tr { height }` wyższym niż strona jest dzielony
+  (wcześniej jego część za końcem strony ginęła);
+- element i kontener flex z `height`/`min-height` wyższymi niż strona zachowują całą wysokość (tło na ostatniej
+  stronie); element nierozciągany obok dzielonego sąsiada (`align-items: center`, `flex-end`) nie ginie;
+- zwykły blok z `min-height` wyższym niż strona dzieli je między strony. Skutek: `body { min-height: 100vh }`
+  z marginesem albo `html, body { height: 100% }` daje 2 strony — sprawdzone w Chrome 157 na własnych plikach
+  (2026-11-20): Chrome też drukuje 2 strony; kolumnowy flex z `min-height: 100vh` i `margin: 0` daje 1 stronę
+  w obu.
+
+Otwarte: blok niepodzielny (`overflow: hidden` z wysokością, `contain: size`) wyższy niż strona jest ucinany na
+krawędzi strony (w tabeli i poza nią); reguła zamrożonego elementu kolumnowego flex działa tylko bez zawijania.
