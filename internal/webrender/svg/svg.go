@@ -794,6 +794,17 @@ func (tree *svgContext) processGraphicNode(node *cascadedNode, children []*svgNo
 	if err != nil {
 		return nil, err
 	}
+	if node.tag == "svg" && node != tree.root {
+		// gopdfgo: width i height zagnieżdżonego <svg> (także <symbol> wstawionego przez <use>) mają
+		// wartość auto, czyli 100% (SVG 2 § 5.1.2 i § 5.6); źródło liczyło brak atrybutu jako 0, więc
+		// symbol bez rozmiaru na <use> był w całości przycinany
+		if out.width.U == 0 {
+			out.width = Value{100, Perc}
+		}
+		if out.height.U == 0 {
+			out.height = Value{100, Perc}
+		}
+	}
 	if node.tag == "foreignObject" {
 		// gopdfgo: visibility: hidden na foreignObject ukrywa tylko jego własne pudełko; potomkowie
 		// z visibility: visible są rysowani (CSS Display 3 § 5.1), więc o widoczności treści decyduje
