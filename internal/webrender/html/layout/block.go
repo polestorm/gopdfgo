@@ -2545,10 +2545,13 @@ func canSplitFixedHeight(context *layoutContext, box_ Box, bottomSpace pr.Float)
 	if !bo.BlockT.IsInstance(box_) || !(box.IsInNormalFlow() || box.IsAbsolutelyPositioned() || box.IsFloated()) || box.IsColumn || box.IsForRootElement {
 		return false
 	}
-	// Elementy flex i grid mają własne algorytmy podziału; tam bloków nie tniemy.
+	// Elementy grid mają własny algorytm podziału; tam bloków nie tniemy.
 	// gopdfgo: wyjątkiem jest element niepodzielny przez zawieranie rozmiaru (contain: size) wyższy niż
 	// strona: wystawałby poza nią i jego dalsza część ginęła; w Chromium przechodzi na następne strony
 	// (CSS Break 3 § 4.4, testy WPT css-page/monolithic-overflow-005, -007).
+	// gopdfgo: elementy flex są tu dzielone jak zwykłe bloki (w źródle wykluczone razem z grid): wysokość
+	// z algorytmu flex wyższa niż strona dzieli się między fragmenty (CSS Fragmentation 3 § 5.1, CSS
+	// Flexbox 1 § 12); wcześniej element wystawał poza stronę, a jego dalsza część i tło ginęły.
 	if box.IsGridItem && !(bo.IsMonolithic(box_) && bo.HasContainment(box_, "size") && box.BorderHeight() > context.pageHeight) {
 		return false
 	}
