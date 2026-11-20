@@ -244,6 +244,10 @@ func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.Mayb
 	return intrinsicWidth, intrinsicHeight, ratio
 }
 
+// SVG (gopdfgo) udostępnia przetworzony obraz SVG rysującemu go elementowi <image> innego SVG
+// (zob. svg.svgImageHolder).
+func (img SVGImage) SVG() *svg.SVGImage { return img.icon }
+
 func (img SVGImage) Draw(dst backend.Canvas, textContext text.TextLayoutContext, concreteWidth, concreteHeight pr.Fl, imageRendering string) {
 	if img.asDocument {
 		img.icon.DrawAsDocument(dst, concreteWidth, concreteHeight, textContext)

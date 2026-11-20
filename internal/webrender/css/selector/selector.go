@@ -429,6 +429,32 @@ func (c neverMatchSelector) PseudoElement() string {
 	return ""
 }
 
+// TargetAttribute (gopdfgo) to klucz atrybutu, którym wywołujący oznacza element docelowy dokumentu
+// (wskazany fragmentem adresu), aby pasował do :target. Bajt zerowy nie wystąpi w nazwie atrybutu
+// z dokumentu, więc oznaczenie nie koliduje z selektorami atrybutów.
+const TargetAttribute = "\x00target"
+
+// targetPseudoClassSelector (gopdfgo) implementuje :target (Selectors 4 § 9.2).
+type targetPseudoClassSelector struct{}
+
+func (targetPseudoClassSelector) Match(n *html.Node) bool {
+	if n.Type != html.ElementNode {
+		return false
+	}
+	for _, a := range n.Attr {
+		if a.Key == TargetAttribute {
+			return true
+		}
+	}
+	return false
+}
+
+func (targetPseudoClassSelector) Specificity() Specificity { return Specificity{0, 1, 0} }
+
+func (targetPseudoClassSelector) PseudoElement() string { return "" }
+
+func (targetPseudoClassSelector) String() string { return ":target" }
+
 type compoundSelector struct {
 	pseudoElement string
 	selectors     []Sel

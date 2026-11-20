@@ -60,6 +60,9 @@ type SVGImage struct {
 
 	// synthesizedViewBox (gopdfgo): viewBox dopisany przez synthesizeViewBox; DrawAsDocument rysuje bez niego
 	synthesizedViewBox bool
+	// hostBaseScale (gopdfgo): skala z układu bieżącego strumienia (strony albo grupy) do układu
+	// gospodarza, zob. hostScale; ustawiana w Draw i przy tworzeniu grup
+	hostBaseScale Fl
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -84,6 +87,16 @@ func (svg *SVGImage) ViewBox() *Rectangle { return svg.root.viewbox }
 // `textContext` is required to properly layout <text> tags. It may be ommited
 // for svg content not displaying text.
 func (svg *SVGImage) Draw(dst backend.Canvas, width, height Fl, textContext text.TextLayoutContext) {
+	// gopdfgo: układem gospodarza (hostScale) jest układ, w którym obraz jest rysowany
+	hostBaseScale := Fl(1)
+	if scale := transformScale(dst.State().GetTransform()); scale > 0 {
+		hostBaseScale = 1 / scale
+	}
+	svg.draw(dst, width, height, textContext, hostBaseScale)
+}
+
+// draw (gopdfgo) to Draw z podanym układem gospodarza (zob. hostBaseScale).
+func (svg *SVGImage) draw(dst backend.Canvas, width, height Fl, textContext text.TextLayoutContext, hostBaseScale Fl) {
 	var dims drawingDims
 
 	dims.concreteWidth, dims.concreteHeight = width, height
@@ -99,6 +112,7 @@ func (svg *SVGImage) Draw(dst backend.Canvas, width, height Fl, textContext text
 	dims.setupDiagonal()
 
 	svg.textContext = textContext
+	svg.hostBaseScale = hostBaseScale
 	if svg.background != nil && svg.background.A > 0 {
 		dst.OnNewStack(func() {
 			dst.Rectangle(0, 0, width, height)
@@ -132,6 +146,10 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 				x, y, width, height = box.X, box.Y, box.Width, box.Height
 			}
 			originalDst1 = dst
+			// gopdfgo: grupa zaczyna od tożsamości, a jest rysowana w bieżącym układzie (hostScale)
+			savedHostBase := svg.hostBaseScale
+			svg.hostBaseScale *= transformScale(dst.State().GetTransform())
+			defer func() { svg.hostBaseScale = savedHostBase }()
 			dst = dst.NewGroup(x, y, width, height)
 		}
 
@@ -152,6 +170,10 @@ func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDim
 
 			if textAnchor == middle || textAnchor == end {
 				originalDst2 = dst
+				// gopdfgo: jak wyżej przy grupie przezroczystości
+				savedHostBase := svg.hostBaseScale
+				svg.hostBaseScale *= transformScale(dst.State().GetTransform())
+				defer func() { svg.hostBaseScale = savedHostBase }()
 				dst = dst.NewGroup(0, 0, 0, 0) // BBox set after drawing
 			}
 		}
@@ -540,6 +562,12 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 	if standalone {
 		out.synthesizedViewBox = synthesizeViewBox(out.root)
 	}
+	// gopdfgo: przekształcenia zewnętrznego <svg> osadzonego w HTML (atrybut transform, właściwości
+	// transform, translate, rotate, scale) stosuje układ HTML jako transform pola CSS (SVG 2 § 8.5,
+	// CSS Transforms 1 § 12; zob. findStyleAttributes). Źródło stosowało je drugi raz wewnątrz obrazu.
+	if !standalone && out.root != nil {
+		out.root.transforms = nil
+	}
 
 	return &out, nil
 }
@@ -695,6 +723,10 @@ type attributes struct {
 
 	isFillEvenOdd    bool
 	display, visible bool
+
+	// nonScalingStroke (gopdfgo): vector-effect: non-scaling-stroke (SVG 2 § 13.2); źródło tej
+	// właściwości nie znało
+	nonScalingStroke bool
 }
 
 func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgNode, error) {
@@ -954,6 +986,7 @@ func (na nodeAttributes) parseSharedAttributes(out *attributes) error {
 
 	out.display = na.display()
 	out.visible = na.visible()
+	out.nonScalingStroke = strings.TrimSpace(na["vector-effect"]) == "non-scaling-stroke"
 	return nil
 }
 

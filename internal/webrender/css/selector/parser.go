@@ -634,7 +634,11 @@ func (p *parser) parsePseudoclassSelector() (out Sel, pseudoElement string, err 
 		out = disabledPseudoClassSelector{}
 	case "checked":
 		out = checkedPseudoClassSelector{}
-	case "visited", "hover", "active", "focus", "target", "focus-visible", "focus-within":
+	case "target":
+		// gopdfgo: :target (Selectors 4 § 9.2) pasuje do elementu oznaczonego TargetAttribute; źródło
+		// nie dopasowywało go nigdy
+		out = targetPseudoClassSelector{}
+	case "visited", "hover", "active", "focus", "focus-visible", "focus-within":
 		// Not applicable in a static context: never match.
 		out = neverMatchSelector{value: ":" + name}
 	case "after", "backdrop", "before", "cue", "first-letter", "first-line",
