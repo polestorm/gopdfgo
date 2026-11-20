@@ -63,6 +63,8 @@ type SVGImage struct {
 	// hostBaseScale (gopdfgo): skala z układu bieżącego strumienia (strony albo grupy) do układu
 	// gospodarza, zob. hostScale; ustawiana w Draw i przy tworzeniu grup
 	hostBaseScale Fl
+	// paintContext (gopdfgo): bieżący element kontekstu dla context-fill/context-stroke
+	paintContext *paintContext
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -371,7 +373,8 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 					dst.State().Clip(false)
 				}
 
-				svg.drawNode(dst, child, dims, paint)
+				// gopdfgo: kształt jest elementem kontekstu dla treści znacznika (SVG 2 § 13.4.1)
+				svg.withPaintContext(node, func() { svg.drawNode(dst, child, dims, paint) })
 			})
 		}
 

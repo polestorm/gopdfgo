@@ -644,7 +644,11 @@ func (u use) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims dra
 
 	dst.OnNewStack(func() {
 		dst.State().Transform(matrix.Translation(x, y))
-		svg.drawNode(dst, u.target, dims, true) // actually draw the target
+		// gopdfgo: <use> jest elementem kontekstu dla swojej treści (SVG 2 § 13.4.1); źródło nie
+		// znało context-fill/context-stroke
+		svg.withPaintContext(&svgNode{graphicContent: u, attributes: *attrs}, func() {
+			svg.drawNode(dst, u.target, dims, true) // actually draw the target
+		})
 	})
 	return nil
 }
