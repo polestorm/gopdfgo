@@ -3,6 +3,7 @@ package model
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,10 @@ type FileSpec struct {
 	UF   string // optional
 	EF   *EmbeddedFileStream
 	Desc string // optional
+
+	// gopdfgo: AFRelationship to związek pliku z dokumentem (Source, Data, Alternative, Supplement,
+	// Unspecified; ISO 32000-2 § 7.11.3 tabela 43, wymagany przez ISO 19005-3 § 6.8). Źródło go nie miało.
+	AFRelationship Name // optional
 }
 
 // returns the dictionnay, with a nil content `pdf` is used
@@ -31,6 +36,9 @@ func (f *FileSpec) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, strin
 	}
 	if f.Desc != "" {
 		b.fmt("/Desc %s", pdf.EncodeString(f.Desc, TextString, ref))
+	}
+	if f.AFRelationship != "" {
+		b.fmt("/AFRelationship %s", f.AFRelationship)
 	}
 	b.fmt(">>")
 	return StreamHeader{}, b.String(), nil
@@ -82,11 +90,35 @@ func (params EmbeddedFileParams) pdfString(pdf pdfWriter, ref Reference) string 
 type EmbeddedFileStream struct {
 	Stream
 	Params EmbeddedFileParams // optional
+
+	// gopdfgo: Subtype to typ MIME pliku, np. "text/xml" (ISO 32000-1 § 7.11.4 tabela 45; wymagany
+	// przez ISO 19005-3 § 6.8). Zapisywany jako nazwa, z ukośnikiem kodowanym jako #2F (§ 7.3.5).
+	// Źródło tego wpisu nie zapisywało.
+	Subtype string // optional
+}
+
+// EncodeName (gopdfgo) zapisuje dowolny napis jako obiekt nazwy PDF: bajty spoza zakresu ! do ~ oraz
+// ograniczniki i znak # są kodowane jako #XX (ISO 32000-1 § 7.3.5).
+func EncodeName(s string) string {
+	b := newBuffer()
+	b.WriteString("/")
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c < '!' || c > '~' || strings.IndexByte("#()<>[]{}/%", c) >= 0 {
+			b.fmt("#%02X", c)
+		} else {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
 }
 
 func (emb *EmbeddedFileStream) pdfContent(pdf pdfWriter, ref Reference) (StreamHeader, string, []byte) {
 	args := emb.PDFCommonFields(true)
 	args.Fields["Type"] = "/EmbeddedFile"
+	if emb.Subtype != "" {
+		args.Fields["Subtype"] = EncodeName(emb.Subtype)
+	}
 	args.Fields["Params"] = emb.Params.pdfString(pdf, ref)
 	return args, "", emb.Content
 }

@@ -331,17 +331,16 @@ func (efs EmbeddedFileTree) Limits() [2]string {
 	return limitsName(efs)
 }
 
+// gopdfgo: drzewo jest zapisywane jako sam korzeń z tablicą /Names, a korzeń nie ma wpisu /Limits
+// (ISO 32000-1 § 7.9.6 tabela 36: Limits tylko w węzłach pośrednich i liściach). Źródło zapisywało /Limits.
 func (p EmbeddedFileTree) pdfString(pdf pdfWriter, ref Reference) string {
-	lims := p.Limits()
 	chunks := make([]string, len(p))
 	for i, f := range p {
 		fsRef := pdf.addItem(f.FileSpec)
 		chunks[i] = fmt.Sprintf("%s %s",
 			pdf.EncodeString(f.Name, ByteString, ref), fsRef)
 	}
-	return fmt.Sprintf("<</Limits [%s %s] /Names [%s]>>",
-		pdf.EncodeString(lims[0], ByteString, ref), pdf.EncodeString(lims[1], ByteString, ref),
-		strings.Join(chunks, " "))
+	return fmt.Sprintf("<</Names [%s]>>", strings.Join(chunks, " "))
 }
 
 func (p EmbeddedFileTree) clone(cache cloneCache) EmbeddedFileTree {

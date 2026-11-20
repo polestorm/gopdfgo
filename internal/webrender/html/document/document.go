@@ -434,14 +434,26 @@ func (d *Document) scaleAnchors(anchors []backend.Anchor, matrix mt.Transform) {
 
 func (d *Document) fetchAttachment(attachmentUrl string) backend.Attachment {
 	// Attachments from document links like <link> or <a> can only be URLs.
-	tmp, err := utils.FetchSource(utils.InputUrl(attachmentUrl), "", d.urlFetcher, false)
+	// gopdfgo: zasób pobierany wprost przez urlFetcher (u nas Options.Resolver), bez dekodowania tekstu,
+	// bo załącznik to bajty pliku; typ MIME z odpowiedzi trafia do /Subtype (ISO 19005-3 § 6.8). Związek
+	// z dokumentem jest nieznany, więc /AFRelationship to Unspecified (ISO 32000-2 § 7.11.3, tabela 43:
+	// wartość dla związku nieznanego). Źródło czytało zasób przez FetchSource i gubiło typ MIME.
+	result, err := d.urlFetcher(attachmentUrl)
 	if err != nil {
 		logger.WarningLogger.Printf("Failed to load attachment at url %s: %s\n", attachmentUrl, err)
 		return backend.Attachment{}
 	}
-	source, baseurl := tmp.Content, tmp.BaseUrl
-	filename := getFilenameFromResult(baseurl)
-	return backend.Attachment{Content: source, Title: filename}
+	var source []byte
+	if result.Content != nil {
+		source = make([]byte, result.Content.Len())
+		_, _ = result.Content.Read(source)
+	}
+	location := result.RedirectedUrl
+	if location == "" {
+		location = attachmentUrl
+	}
+	filename := getFilenameFromResult(location)
+	return backend.Attachment{Content: source, Title: filename, MediaType: result.MimeType, Relationship: "Unspecified"}
 }
 
 // Derive a filename from a fetched resource.
@@ -534,6 +546,7 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 	as := attachments
 	for _, a := range d.Metadata.Attachments {
 		t := d.fetchAttachment(a.URL)
+		t.Description = a.Title // gopdfgo: atrybut title elementu <link> jako opis pliku, jak w WeasyPrint
 		if len(t.Content) != 0 {
 			as = append(as, t)
 		}

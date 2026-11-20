@@ -210,14 +210,24 @@ func (cp *outputPage) AddExternalLink(xMin, yMin, xMax, yMax fl, url string) {
 
 // Add file annotation on the current page
 func (cp *outputPage) AddFileAnnotation(xMin, yMin, xMax, yMax fl, fileID string) {
+	// gopdfgo: pliku, którego nie udało się pobrać (ostrzeżenie już zgłoszone), nie ma w mapie; adnotacja
+	// pliku bez /FS jest niepoprawna (ISO 32000-1 § 12.5.6.15, FS wymagany), więc ją pomijamy. Źródło
+	// zapisywało adnotację ze wskaźnikiem nil i kończyło się paniką.
+	if cp.embeddedFiles[fileID] == nil {
+		return
+	}
 	rect := model.Rectangle{Llx: xMin, Lly: yMin, Urx: xMax, Ury: yMax}
 	an := model.AnnotationDict{
 		BaseAnnotation: model.BaseAnnotation{
 			Rect: rect,
 			F:    model.APrint, // gopdfgo: jak wyżej
 			AP: &model.AppearanceDict{
+				// gopdfgo: pusta, ale niezerowa treść, żeby wygląd został zapisany jako strumień, a nie
+				// słownik (ISO 32000-1 § 12.5.5; ISO 19005-2/3 § 6.3.3: N ma być strumieniem wyglądu).
+				// Źródło zostawiało treść nil i wpis N wskazywał słownik bez strumienia.
 				N: model.AppearanceEntry{"": &model.XObjectForm{
-					BBox: rect,
+					ContentStream: model.ContentStream{Stream: model.Stream{Content: []byte{}}},
+					BBox:          rect,
 				}},
 			},
 		},

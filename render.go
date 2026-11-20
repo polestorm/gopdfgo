@@ -115,7 +115,7 @@ type Options struct {
 	// (ADR 0017).
 	Continuous bool
 	// Conformance wybiera normę pliku wynikowego; wartość pusta to zwykły PDF 1.7, PDFA2b to PDF/A-2b
-	// (ADR 0016). W trybie PDF/A plik dostaje metadane XMP, profil sRGB i identyfikator wyliczony
+	// (ADR 0016), PDFA3b to PDF/A-3b z plikami stowarzyszonymi (ADR 0026). W trybie PDF/A plik dostaje metadane XMP, profil sRGB i identyfikator wyliczony
 	// z treści; układ i wygląd stron się nie zmieniają.
 	Conformance Conformance
 	// Uncompressed zapisuje strumienie treści stron, fontów i map ToUnicode bez kompresji, żeby dało się je
@@ -129,6 +129,12 @@ type Options struct {
 	// en, es, et, fr, gl, it, lt, mn, nb, nl, nn, pl, pt, sk, sl, sq, te, uk. Za licencję słownika
 	// podanego tutaj odpowiada wywołujący.
 	Hyphenation map[string][]byte
+	// Attachments to pliki osadzane w dokumencie obok tych, które wskazuje sam HTML (<link rel=attachment>,
+	// <a rel=attachment>, pobierane przez Resolver). Trafiają do drzewa /EmbeddedFiles katalogu, a w trybie
+	// PDFA3b także do tablicy /AF katalogu (pliki stowarzyszone, ISO 19005-3 § 6.8), np. XML faktury
+	// Factur-X/ZUGFeRD jako RelationshipAlternative. PDFA2b dopuszcza tylko załączniki będące plikami
+	// PDF/A-1 albo PDF/A-2; inne kończą Render błędem ErrAttachmentNotPDFA (ADR 0026).
+	Attachments []Attachment
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -158,6 +164,9 @@ var engineSlot = make(chan struct{}, 1)
 func Render(ctx context.Context, html []byte, opts Options) (Result, error) {
 	if len(opts.Fonts) == 0 {
 		return Result{}, ErrNoFonts
+	}
+	if _, err := backendAttachments(opts.Attachments); err != nil {
+		return Result{}, err
 	}
 	select {
 	case engineSlot <- struct{}{}:
@@ -199,6 +208,10 @@ func render(html []byte, opts Options) (result Result, err error) {
 		level = zlib.NoCompression
 	}
 	pdfmodel.SetCompressionLevel(level)
+	attachments, err := backendAttachments(opts.Attachments)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := hyphen.SetUserDictionaries(opts.Hyphenation); err != nil {
 		return Result{}, fmt.Errorf("gopdfgo: %w", err)
 	}
@@ -303,13 +316,17 @@ func render(html []byte, opts Options) (result Result, err error) {
 	laidOut := document.Render(parsed, sheets, true, fontConfig)
 	pdfmodel.NonFiniteNumbers.Store(0)
 	output := pdf.NewOutput()
-	laidOut.Write(output, 1, nil)
+	laidOut.Write(output, 1, attachments)
 	if opts.Conformance != ConformanceNone {
 		output.DisableImageInterpolation() // ISO 19005-2 § 6.2.8
 	}
 	file := output.Finalize()
 	file.Trailer.Info.Producer = EngineName + " " + EngineVersion
-	if err := applyConformance(&file, opts.Conformance); err != nil {
+	embedded := output.EmbeddedFiles()
+	if err := checkAttachments(embedded, opts.Conformance); err != nil {
+		return Result{}, err
+	}
+	if err := applyConformance(&file, opts.Conformance, embedded); err != nil {
 		return Result{}, err
 	}
 	var out bytes.Buffer

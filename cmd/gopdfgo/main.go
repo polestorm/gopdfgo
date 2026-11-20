@@ -33,7 +33,23 @@ func main() {
 	continuous := flag.Bool("continuous", false, "bez podziału na strony: jedna strona rosnąca do wysokości treści")
 	hyphenDicts := flag.String("hyphenation", "", "słowniki dzielenia wyrazów spoza wbudowanych, np. \"cs=hyph-cs.pat.txt,sv=hyph-sv.pat.txt\"")
 	uncompressed := flag.Bool("uncompressed", false, "strumienie treści, fontów i ToUnicode bez kompresji (diagnostyka)")
-	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b (PDF/A-2b); domyślnie zwykły PDF")
+	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b (PDF/A-2b) albo 3b (PDF/A-3b); domyślnie zwykły PDF")
+	flag.Func("attach", "załącznik dokumentu: plik[,związek[,typ MIME]], związek: Source, Data, Alternative, Supplement, Unspecified (domyślnie); flaga może się powtarzać", func(value string) error {
+		parts := strings.Split(value, ",")
+		data, err := os.ReadFile(parts[0])
+		if err != nil {
+			return err
+		}
+		attachment := gopdfgo.Attachment{Name: filepath.Base(parts[0]), Data: data}
+		if len(parts) > 1 {
+			attachment.Relationship = gopdfgo.Relationship(strings.TrimSpace(parts[1]))
+		}
+		if len(parts) > 2 {
+			attachment.MediaType = strings.TrimSpace(parts[2])
+		}
+		attachments = append(attachments, attachment)
+		return nil
+	})
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
 	exactLengths := flag.Bool("exact-lengths", false,
@@ -75,8 +91,10 @@ func main() {
 	case "":
 	case "2b", "2B":
 		conformance = gopdfgo.PDFA2b
+	case "3b", "3B":
+		conformance = gopdfgo.PDFA3b
 	default:
-		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b)")
+		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b, 3b)")
 		os.Exit(2)
 	}
 	if *in == "" || *out == "" || *fontDir == "" {
@@ -95,7 +113,8 @@ var (
 	conformance      gopdfgo.Conformance
 	continuousMode   bool
 	uncompressedMode bool
-	hyphenation      map[string][]byte // flaga -hyphenation
+	hyphenation      map[string][]byte    // flaga -hyphenation
+	attachments      []gopdfgo.Attachment // flaga -attach
 )
 
 func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, maxShrink float64, monospaceSize float64, timeout time.Duration, quiet bool) error {
@@ -160,7 +179,8 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	defer cancel()
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
-		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation})
+		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation,
+		Attachments: attachments})
 	if err != nil {
 		return err
 	}

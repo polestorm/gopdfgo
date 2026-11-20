@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -129,6 +130,9 @@ type Catalog struct {
 	// tych wpisów katalogu nie zapisywało; oba są wymagane przez PDF/A (ISO 19005-2 § 6.6.2.1, § 6.2.3).
 	Metadata      []byte
 	OutputIntents []OutputIntent
+	// gopdfgo: AF to pliki stowarzyszone z całym dokumentem (ISO 32000-2 § 14.13.2, ISO 19005-3 § 6.8);
+	// te same obiekty specyfikacji pliku co w drzewie /EmbeddedFiles. Źródło tego wpisu nie zapisywało.
+	AF []*FileSpec
 }
 
 // OutputIntent opisuje zamierzone urządzenie wyjściowe i niesie jego profil ICC.
@@ -236,6 +240,13 @@ func (cat *Catalog) pdfString(pdf pdfWriter) string {
 				pdf.EncodeString(intent.Info, TextString, pdf.catalog), profile)
 		}
 		b.line("]")
+	}
+	if len(cat.AF) != 0 {
+		refs := make([]string, len(cat.AF))
+		for i, spec := range cat.AF {
+			refs[i] = pdf.addItem(spec).String()
+		}
+		b.line("/AF [%s]", strings.Join(refs, " "))
 	}
 	b.fmt(">>")
 

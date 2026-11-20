@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"time"
+
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 )
 
@@ -13,6 +15,13 @@ type Anchor struct {
 type Attachment struct {
 	Title, Description string
 	Content            []byte
+
+	// gopdfgo: typ MIME (/Subtype strumienia pliku, ISO 19005-3 § 6.8), związek z dokumentem
+	// (/AFRelationship, ISO 32000-2 § 7.11.3) i data modyfikacji (/Params /ModDate, pomijana, gdy zerowa).
+	// Źródło tych pól nie miało.
+	MediaType    string
+	Relationship string
+	ModTime      time.Time
 }
 
 // BookmarkNode exposes the outline hierarchy of the document

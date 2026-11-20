@@ -54,6 +54,9 @@ type Output struct {
 	// and used in file annotations
 	embeddedFiles map[string]*model.FileSpec
 
+	// gopdfgo: osadzone pliki w kolejności zapisu (EmbeddedFiles)
+	documentFiles, annotationFiles []EmbeddedFile
+
 	cache cache
 
 	document model.Document
@@ -114,31 +117,65 @@ func (c *Output) CreateAnchors(anchors [][]backend.Anchor) {
 
 // embedded files
 
+// EmbeddedFile (gopdfgo) to plik osadzony w dokumencie: specyfikacja pliku zapisywana w PDF i treść
+// przed kompresją, potrzebna do sprawdzenia zgodności z PDF/A.
+type EmbeddedFile struct {
+	Name string
+	Spec *model.FileSpec
+	Data []byte
+}
+
+// gopdfgo: typ MIME trafia do /Subtype strumienia pliku, a gdy go nie znamy, zapisujemy
+// application/octet-stream, jak każe ISO 19005-3 § 6.8; związek z dokumentem do /AFRelationship,
+// data modyfikacji do /Params /ModDate (pomijana, gdy zerowa). Źródło zapisywało tylko /UF, /Desc
+// i sumę kontrolną.
 func newFileSpec(a backend.Attachment) *model.FileSpec {
 	stream := model.NewCompressedStream(a.Content)
+	subtype := a.MediaType
+	if subtype == "" {
+		subtype = "application/octet-stream"
+	}
 	fs := &model.FileSpec{
-		UF:   a.Title,
-		Desc: a.Description,
+		UF:             a.Title,
+		Desc:           a.Description,
+		AFRelationship: model.Name(a.Relationship),
 		EF: &model.EmbeddedFileStream{
-			Stream: stream,
+			Stream:  stream,
+			Subtype: subtype,
 		},
 	}
 	fs.EF.Params.SetChecksumAndSize(a.Content)
+	fs.EF.Params.ModDate = a.ModTime
 	return fs
 }
 
 // Add global attachments to the file, which are compressed using FlateDecode filter
+//
+// gopdfgo: kluczem w drzewie /EmbeddedFiles jest nazwa pliku (powtórzona dostaje przyrostek " (2)",
+// " (3)"...), a plik bez nazwy dostaje nazwę attachment.bin; drzewo jest posortowane według kluczy
+// (ISO 32000-1 § 7.9.6). Źródło używało kluczy attachement_0, attachement_1...
 func (c *Output) SetAttachments(as []backend.Attachment) {
 	var files model.EmbeddedFileTree
-	for i, a := range as {
+	used := map[string]bool{}
+	for _, a := range as {
+		if a.Title == "" {
+			a.Title = "attachment.bin"
+		}
+		name := a.Title
+		for i := 2; used[name]; i++ {
+			name = fmt.Sprintf("%s (%d)", a.Title, i)
+		}
+		used[name] = true
 		fs := newFileSpec(a)
 		files = append(files, model.NameToFile{
-			Name:     fmt.Sprintf("attachement_%d", i),
+			Name:     name,
 			FileSpec: fs,
 		})
+		c.documentFiles = append(c.documentFiles, EmbeddedFile{Name: name, Spec: fs, Data: a.Content})
 	}
 
 	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
+	sort.SliceStable(c.documentFiles, func(i, j int) bool { return c.documentFiles[i].Name < c.documentFiles[j].Name })
 
 	c.document.Catalog.Names.EmbeddedFiles = files
 }
@@ -152,6 +189,13 @@ func (c *Output) EmbedFile(fileID string, a backend.Attachment) {
 	}
 
 	c.embeddedFiles[fileID] = newFileSpec(a)
+	c.annotationFiles = append(c.annotationFiles, EmbeddedFile{Name: a.Title, Spec: c.embeddedFiles[fileID], Data: a.Content})
+}
+
+// EmbeddedFiles (gopdfgo) zwraca wszystkie osadzone pliki: najpierw pliki dokumentu w kolejności
+// drzewa nazw, potem pliki adnotacji w kolejności osadzania.
+func (c *Output) EmbeddedFiles() []EmbeddedFile {
+	return append(append([]EmbeddedFile(nil), c.documentFiles...), c.annotationFiles...)
 }
 
 func bookmarksToOutline(root []backend.BookmarkNode, pages []*outputPage) *model.Outline {
