@@ -8,8 +8,8 @@ import (
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	"github.com/polestorm/gopdfgo/internal/webrender/css/validation"
 	"github.com/polestorm/gopdfgo/internal/webrender/images"
-	"github.com/polestorm/gopdfgo/internal/webrender/svg"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
+	"github.com/polestorm/gopdfgo/internal/webrender/svg"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 
