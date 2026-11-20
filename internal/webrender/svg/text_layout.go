@@ -53,14 +53,21 @@ type textGlyph struct {
 	run      int // indeks przebiegu w segment.drawing albo -1, gdy glifu się nie rysuje
 	glyph    backend.TextGlyph
 	advance  Fl // przesunięcie z kształtowania, w jednostkach użytkownika
-	inOffset Fl // odległość od początku skupienia
+	inOffset Fl // odległość pióra przed glifem od pióra przed skupieniem
+	// kerningBase to Kerning minus Offset glifu z rysunku silnika (w tysięcznych rozmiaru przebiegu):
+	// różnica szerokości glifu w foncie i przesunięcia z kształtowania
+	kerningBase Fl
 }
 
 // textCluster to znak typograficzny: glify jednego skupienia z kształtowania.
 type textCluster struct {
-	start           int // pierwszy znak (adresowalny)
-	glyphs          [2]int
-	advance         Fl
+	start   int // pierwszy znak (adresowalny)
+	glyphs  [2]int
+	advance Fl // od początku skupienia (x) do pióra za nim
+	// lead to przesunięcie poziome pierwszego glifu względem pióra (połowa letter-spacing przed
+	// znakiem, XOffset z GPOS): wchodzi do pozycji skupienia, aby obrót (rotate, textPath) działał
+	// wokół początku glifu, a nie pióra
+	lead            Fl
 	segment         int
 	x, y            Fl
 	angle           Fl // stopnie
@@ -286,6 +293,11 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 			i = end
 			continue
 		}
+		// odstęp między literami za ostatnim znakiem fragmentu (text chunk) znika, jak na końcu
+		// wiersza (CSS Text 3 § 7.2); liczy się to dla text-anchor i textLength
+		if end == n || absolute(end) || spans[owner[end]].path != s.path {
+			layout.TrimTrailingLetterSpacing()
+		}
 		segment := textSegment{span: owner[i], start: i, end: end, baseline: Fl(line.Baseline) / scale, height: Fl(line.Height) / scale}
 		segment.drawing = drawer.CreateFirstLine(layout, "none", pr.TaggedString{Tag: pr.None}, 1, 0, 0, 0)
 		segment.drawing.FontSize /= scale
@@ -311,6 +323,7 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 				if canDraw {
 					tg.run = drawn[k].run
 					tg.glyph = segment.drawing.Runs[drawn[k].run].Glyphs[drawn[k].index]
+					tg.kerningBase = Fl(tg.glyph.Kerning) - tg.glyph.Offset
 				}
 				k++
 				charIndex := i + g.TextIndex()
@@ -318,13 +331,17 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 				last := len(clusters) - 1
 				if last >= 0 && clusters[last].segment == segIndex &&
 					(clusters[last].start == charIndex || isClusterContinuation(chars[min(charIndex, n-1)])) {
-					tg.inOffset = clusters[last].advance
-					clusters[last].advance += tg.advance
-					clusters[last].glyphs[1]++
+					c := &clusters[last]
+					tg.inOffset = c.lead + c.advance
+					c.advance += tg.advance
+					c.glyphs[1]++
 				} else {
+					lead := Fl(g.XOffset) / 64 / scale
+					tg.glyph.Offset = 0 // zob. textCluster.lead
+					tg.inOffset = lead
 					clusters = append(clusters, textCluster{
 						start: charIndex, glyphs: [2]int{len(glyphs), len(glyphs) + 1},
-						advance: tg.advance, segment: segIndex, scaleX: 1,
+						advance: tg.advance - lead, lead: lead, segment: segIndex, scaleX: 1,
 					})
 				}
 				glyphs = append(glyphs, tg)
@@ -401,12 +418,12 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 			chunkStart = append(chunkStart, ci)
 		}
 		c.chunk = chunk
-		c.x, c.y = pen.x, pen.y
+		c.x, c.y = pen.x+c.lead, pen.y
 		if !isNaN(rotates[i]) && rotates[i] != 0 {
 			c.angle, c.rotated = rotates[i], true
 		}
 		c.hidden = path == -2
-		pen.x += c.advance
+		pen.x = c.x + c.advance
 	}
 
 	// 4. textLength (SVG 2 § 11.8.2, krok „resolve text length”), od najgłębszych elementów
@@ -575,7 +592,7 @@ func (svg *SVGImage) buildTextDrawings(spans []textLayoutSpan, segments []textSe
 				if k+1 < len(current) {
 					// Kerning przesuwa pióro o różnicę między szerokością glifu w foncie a przesunięciem;
 					// zmieniamy go o różnicę między przesunięciem z kształtowania a żądanym
-					wanted := Fl(out.Kerning) + g.advance*1000/runSize -
+					wanted := g.kerningBase + out.Offset + g.advance*1000/runSize -
 						(current[k+1].x-p.x)*1000/(runSize*c.scaleX) + carry
 					out.Kerning = int(math.Floor(float64(wanted) + 1e-3))
 					carry = wanted - Fl(out.Kerning)
@@ -602,7 +619,7 @@ func (svg *SVGImage) buildTextDrawings(spans []textLayoutSpan, segments []textSe
 				flush()
 				continue
 			}
-			x := c.x + g.inOffset*c.scaleX
+			x := c.x + (g.inOffset-c.lead)*c.scaleX
 			if len(current) != 0 {
 				prev := current[len(current)-1]
 				pc := clusters[prev.cluster]
