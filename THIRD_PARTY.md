@@ -919,6 +919,27 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- rysowanie stron w trakcie układu, 2026-11-20 (praca pomocnika; ADR 0027; `html/layout/stream.go`,
+  `html/layout/layout.go` `layoutDocument`, `html/layout/pages.go` `makeAllPages`, `html/document/stream.go`,
+  `html/document/draw.go` `drawStackingContext`, `backend/document.go` `ResumablePage`,
+  `goweasyprint/pdf/page.go`, `pdflib/contentstream/appearance.go` `Mark`, `ResumeAt`, `Flush`,
+  `pdflib/contentstream/commands.go` `writeOperationsAt`, `render.go`):
+  - źródło układało wszystkie strony przed narysowaniem pierwszej; obróbka stron po paginacji jest teraz
+    wydzielona z `layoutDocument` do `pageFinisher` (te same kroki w tej samej kolejności), a
+    `layout.LayoutStreaming` wykonuje ją dla każdej strony zaraz po jej ułożeniu, oddaje stronę do
+    narysowania i zwalnia jej drzewo pudełek;
+  - pola marginesowe są układane po ułożeniu wszystkich stron i dopisywane w zapamiętanym miejscu treści
+    strony, za elementem głównym i obszarem przypisów (CSS Page 3 § 3.1), więc „strona X z Y” nie wymaga
+    układania całości; narysowana treść czeka na nie skompresowana;
+  - dokumenty, w których strona po ułożeniu może się jeszcze zmienić (ponowna paginacja dla
+    `target-counter`, `target-text` i `counter(pages)` w treści, fragmenty pozycjonowane dokładane do stron
+    wcześniejszych, pudełko `fixed` pojawiające się po raz pierwszy na stronie dalszej, pole marginesowe o
+    ujemnym z-index, `string-set` i `bookmark-label` z liczbą stron albo licznikiem celu), są układane i
+    rysowane dotychczasową drogą;
+  - wynik bajt w bajt taki sam (45 plików korpusu, książka, jej czterokrotność, 19 dokumentów z tymi
+    cechami w `tests/streamdraw18_test.go`); szczyt pamięci: książka 0,75 → 0,56–0,63 GB, książka ×4
+    (1021 stron) 1,34–1,36 → 0,90–0,96 GB; ostrzeżenia o brakujących kotwicach są teraz wypisywane po
+    ostrzeżeniach z rysowania;
 - zwalnianie narysowanych stron, 2026-11-20 (`html/document/document.go` `ReleaseDrawnPages`, `render.go`):
   - źródło trzymało drzewa pudełek wszystkich stron do końca zapisu PDF, choć po narysowaniu strony nic ich
     nie czyta (odnośniki, kotwice i zakładki są zbierane wcześniej); teraz `Write` zwalnia stronę zaraz po
