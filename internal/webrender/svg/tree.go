@@ -32,6 +32,11 @@ type svgContext struct {
 
 	// cache
 	pathParser pathParser
+
+	// document (gopdfgo) to korzeń całego dokumentu, w którym leży SVG (dla SVG w HTML: dokument
+	// HTML); foreignHead to zapamiętane arkusze stylów dla treści foreignObject (zob. documentStyles)
+	document    *html.Node
+	foreignHead *string
 }
 
 // newSVGContextReader parses the html [rootText]
@@ -70,6 +75,10 @@ func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher)
 	out.urlFetcher = urlFetcher
 	out.defs = make(map[string]*cascadedNode)
 	out.inUseIDs = make(utils.Set)
+	out.document = root
+	for out.document.Parent != nil {
+		out.document = out.document.Parent
+	}
 
 	// may return nil to discard the node
 	var buildTree func(node *html.Node, parentAttrs nodeAttributes) *cascadedNode
@@ -118,8 +127,15 @@ func newSVGContext(root *html.Node, baseURL string, urlFetcher utils.UrlFetcher)
 			attrs: childAttrs,
 		}
 
+		// gopdfgo: dzieci <foreignObject> to treść HTML rysowana jako osobny dokument (zob. foreign.go),
+		// a nie elementy SVG
+		if strings.EqualFold(node.Data, "foreignObject") {
+			nodeSVG.tag = "foreignObject"
+			nodeSVG.foreign = node
+		}
+
 		// recurse
-		for child := node.FirstChild; child != nil; child = child.NextSibling {
+		for child := node.FirstChild; child != nil && nodeSVG.foreign == nil; child = child.NextSibling {
 			if childSVG := buildTree(child, childAttrs); childSVG != nil {
 				nodeSVG.children = append(nodeSVG.children, childSVG)
 			}
@@ -182,6 +198,10 @@ type cascadedNode struct {
 	text     []byte
 	attrs    nodeAttributes
 	children []*cascadedNode
+
+	// foreign (gopdfgo) to element <foreignObject> z drzewa wejściowego; jego dzieci nie są
+	// przetwarzane jako SVG
+	foreign *html.Node
 }
 
 // returns a copy
@@ -396,6 +416,10 @@ var notInheritedAttributes = utils.NewSet(
 	"dx",
 	"dy",
 	"href",
+	// gopdfgo: atrybuty warunkowe (SVG 2 § 5.8.1) dotyczą tylko swojego elementu
+	"requiredExtensions",
+	"requiredFeatures",
+	"systemLanguage",
 )
 
 var colorAttributes = utils.NewSet(

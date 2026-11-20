@@ -660,6 +660,12 @@ func (tree *svgContext) processNode(node *cascadedNode, defs definitions) (*svgN
 		if child == nil {
 			continue // do not add useless node to the tree
 		}
+		// gopdfgo: element z niespełnionym atrybutem warunkowym nie jest rysowany (SVG 2 § 5.8.1), choć
+		// pozostaje w definicjach; <switch> rysuje tylko pierwsze dziecko, którego warunki są spełnione
+		// (SVG 2 § 5.8.2), z pominięciem elementów opisowych. Źródło rysowało wszystkie dzieci.
+		if !conditionsPass(c) || (node.tag == "switch" && (len(children) != 0 || isDescriptive(c.tag))) {
+			continue
+		}
 		children = append(children, child)
 	}
 
@@ -757,6 +763,8 @@ func (tree *svgContext) processGraphicNode(node *cascadedNode, children []*svgNo
 	case "a", "text", "textPath", "tspan":
 		out.graphicContent, err = newTextSpan(node)
 		isText = true
+	case "foreignObject": // gopdfgo: SVG 2 § 23.2, zob. foreign.go
+		out.graphicContent, err = newForeignObject(node, tree)
 	}
 
 	if err != nil {
@@ -771,6 +779,12 @@ func (tree *svgContext) processGraphicNode(node *cascadedNode, children []*svgNo
 
 	if err != nil {
 		return nil, err
+	}
+	if node.tag == "foreignObject" {
+		// gopdfgo: visibility: hidden na foreignObject ukrywa tylko jego własne pudełko; potomkowie
+		// z visibility: visible są rysowani (CSS Display 3 § 5.1), więc o widoczności treści decyduje
+		// dokument HTML, któremu przekazujemy visibility (zob. inheritedForeignProperties)
+		out.visible = out.display
 	}
 
 	return &out, nil
