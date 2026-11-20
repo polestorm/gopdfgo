@@ -66,7 +66,9 @@ func TestMulticolBackgroundsRest(t *testing.T) {
 	// background-blend-mode: difference czerwieni nad żółtym daje zieleń (0, 255, 0); warstwa miesza się
 	// tylko z tłem elementu, nie z tym, co leży pod nim.
 	// Grupa przezroczystości wygładza swoją krawędź inaczej niż samo tło: dopuszczamy kilka pikseli.
-	tolerance = 4
+	// Gradient jest rysowany cieniowaniem (sh) w przycięciu, a pdftoppm maluje je w grupie o kolumnę
+	// pikseli za prawą krawędź przycięcia (Quick Look nie): dopuszczamy jedną kolumnę wysokości 50px.
+	tolerance = 54
 	same("background-blend-difference", `<div style="background:blue;padding:10px;width:100px"><div style="width:100px;height:50px;`+
 		`background:linear-gradient(red, red), yellow;background-blend-mode:difference"></div></div>`,
 		`<div style="background:blue;padding:10px;width:100px"><div style="width:100px;height:50px;background:linear-gradient(lime, lime)"></div></div>`)

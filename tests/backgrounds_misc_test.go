@@ -102,8 +102,10 @@ func TestBackgroundsMisc(t *testing.T) {
 	// treść elementu zastępowanego jest przycinana do zaokrąglonej krawędzi treści
 	same("replaced-content-radius", `<img style="display:block;padding:10px;border-radius:30px;background:green"
 		src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><rect width='40' height='40' fill='blue'/></svg>">`,
-		`<div style="width:40px;height:40px;padding:10px;border-radius:30px;
-		background:linear-gradient(blue,blue) content-box,green"></div>`)
+		// wzorzec: krawędź treści ma promień 30-10 = 20px. Gradient w content-box dawał to samo, ale
+		// pdftoppm wygładza krawędź przycięcia pod cieniowaniem (sh) inaczej niż pod wypełnieniem ścieżki
+		`<div style="width:40px;padding:10px;border-radius:30px;background:green">
+		<div style="height:40px;border-radius:20px;background:blue"></div></div>`)
 	// round skaluje obraz, a background-position działa dalej
 	same("round-with-position", `<div style="width:60px;height:60px;background:linear-gradient(green,green) 5px 5px / 25px 25px round,blue"></div>`,
 		`<div style="width:60px;height:60px;background:linear-gradient(green,green) 5px 5px / 30px 30px repeat,blue"></div>`)
