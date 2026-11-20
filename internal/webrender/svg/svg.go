@@ -57,6 +57,9 @@ type SVGImage struct {
 
 	// needed to draw text
 	cursorPosition, cursorDPosition point
+
+	// synthesizedViewBox (gopdfgo): viewBox dopisany przez synthesizeViewBox; DrawAsDocument rysuje bez niego
+	synthesizedViewBox bool
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -523,7 +526,7 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 		return nil, err
 	}
 	if standalone {
-		synthesizeViewBox(out.root)
+		out.synthesizedViewBox = synthesizeViewBox(out.root)
 	}
 
 	return &out, nil
@@ -535,18 +538,50 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 // SVG: „synthesize a viewBox”; SVG Integration § 4). Bez tego obraz był rysowany w skali 1:1 i ucinany:
 // flagi i herby z Wikimedia Commons, zapisane bez viewBox, pokazywały tylko lewy górny róg. SVG osadzone
 // w HTML się nie skaluje, więc dotyczy to tylko dokumentów samodzielnych.
-func synthesizeViewBox(root *svgNode) {
+func synthesizeViewBox(root *svgNode) bool {
 	if root == nil || root.viewbox != nil {
-		return
+		return false
 	}
 	w, h := root.width, root.height
 	if w.U == 0 || h.U == 0 || w.U == Perc || h.U == Perc || w.U == Em || h.U == Em || w.U == Ex || h.U == Ex || w.U == Rem || h.U == Rem {
-		return
+		return false
 	}
 	width, height := w.Resolve(defaultFontSize, 0), h.Resolve(defaultFontSize, 0)
 	if width > 0 && height > 0 {
 		root.viewbox = &Rectangle{Width: width, Height: height}
+		// obraz rozciąga się niezależnie w poziomie i w pionie, jak przy preserveAspectRatio="none":
+		// tak rysuje Chrome 157 w <img> i w background-image (pomiar 2026-11-20); przy tych samych
+		// proporcjach daje to zwykłe skalowanie
+		if s, ok := root.graphicContent.(svg); ok {
+			s.preserveRatio.none = true
+			root.graphicContent = s
+		}
+		return true
 	}
+	return false
+}
+
+// DrawAsDocument (gopdfgo) rysuje obraz jak osobny dokument (<object>, <embed>): bez viewBox dopisanego
+// przez synthesizeViewBox, więc dokument bez viewBox nie skaluje się, tylko dostaje obszar o rozmiarze
+// elementu, jak w Chrome 157.
+func (img *SVGImage) DrawAsDocument(dst backend.Canvas, width, height Fl, textContext text.TextLayoutContext) {
+	if !img.synthesizedViewBox {
+		img.Draw(dst, width, height, textContext)
+		return
+	}
+	viewbox, content := img.root.viewbox, img.root.graphicContent
+	img.root.viewbox = nil
+	if s, ok := content.(svg); ok {
+		s.preserveRatio.none = false
+		img.root.graphicContent = s
+	}
+	// dokument jest przycinany do obszaru elementu, jak w Chrome
+	dst.OnNewStack(func() {
+		dst.Rectangle(0, 0, width, height)
+		dst.State().Clip(false)
+		img.Draw(dst, width, height, textContext)
+	})
+	img.root.viewbox, img.root.graphicContent = viewbox, content
 }
 
 // rootBackground (gopdfgo) odczytuje kolor tła elementu głównego: background-color albo background

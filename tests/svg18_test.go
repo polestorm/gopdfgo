@@ -9,8 +9,9 @@ import (
 )
 
 // Poprawki SVG z korpusu testdata/svg (2026-11-20), sprawdzane pikselami wobec wzorców w HTML:
-//   - plik SVG bez viewBox, z width i height, skaluje się do rozmiaru obrazu (przeglądarki dopisują
-//     viewBox "0 0 width height"); wcześniej był rysowany w skali 1:1 i ucinany;
+//   - plik SVG bez viewBox, z width i height, rozciąga się do rozmiaru obrazu w <img> i w tle (Chrome
+//     dopisuje viewBox "0 0 width height" i preserveAspectRatio="none"); w <object> i <embed> nie skaluje
+//     się, bo jest osobnym dokumentem; wcześniej był zawsze rysowany w skali 1:1 i ucinany;
 //   - filtr z nieobsługiwanym prymitywem (feGaussianBlur) jest pomijany, a element narysowany w całości;
 //     wcześniej feOffset z łańcucha cienia przesuwał cały element;
 //   - gradient w jednostkach objectBoundingBox w prostokącie innym niż kwadrat pokrywa cały kształt;
@@ -48,8 +49,10 @@ func TestSVGCorpusFixes(t *testing.T) {
 	for name, c := range map[string][2]string{
 		// 200×100 narysowane w 100×50
 		"noviewbox": {`<img src="noviewbox.svg" style="width:100px;height:50px">`, box(0, 0, 50, 50, "green") + box(50, 0, 50, 50, "blue")},
-		"filter":    {`<img src="filter.svg">`, box(20, 20, 160, 60, "green")},
-		"gradient":  {`<img src="gradient.svg">`, box(40, 20, 140, 40, "green")},
+		// <object> to osobny dokument: plik bez viewBox nie skaluje się, tylko jest ucinany (Chrome 157)
+		"object-noviewbox": {`<object data="noviewbox.svg" type="image/svg+xml" style="display:block;width:100px;height:50px"></object>`, box(0, 0, 100, 50, "green")},
+		"filter":           {`<img src="filter.svg">`, box(20, 20, 160, 60, "green")},
+		"gradient":         {`<img src="gradient.svg">`, box(40, 20, 140, 40, "green")},
 	} {
 		got := rasterize(t, render(c[0]), dir, name)
 		want := rasterize(t, render(c[1]), dir, name+"-ref")

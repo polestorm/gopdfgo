@@ -80,6 +80,15 @@ func handleIframe(element *utils.HTMLNode, box Box, resolver URLResolver, baseUr
 	return []Box{makeReplacedBox(element, box, images.Blank{Width: 300, Height: 150})}
 }
 
+// asDocument (gopdfgo): SVG w <object> i <embed> jest osobnym dokumentem, a nie obrazem: plik bez viewBox
+// nie skaluje się do rozmiaru elementu (zob. images.SVGImage.AsDocument).
+func asDocument(image images.Image) images.Image {
+	if svgImage, ok := image.(images.SVGImage); ok {
+		return svgImage.AsDocument()
+	}
+	return image
+}
+
 // NestedDocument (gopdfgo) zamienia dokument HTML na obraz, który przy rysowaniu układa go w rozmiarze
 // elementu i rysuje przycięty do niego (<iframe>, a także <object> i <embed> z dokumentem HTML).
 // Ustawia ją pakiet document, który zna układ i rysowanie; nil oznacza brak obsługi.
@@ -172,7 +181,7 @@ func handleEmbed(element *utils.HTMLNode, box Box, resolver URLResolver, baseUrl
 		}
 		image := resolver.FetchImage(src, type_, box.Box().Style.GetImageOrientation())
 		if image != nil {
-			return []Box{makeReplacedBox(element, box, image)}
+			return []Box{makeReplacedBox(element, box, asDocument(image))}
 		}
 	}
 	// No fallback.
@@ -192,7 +201,7 @@ func handleObject(element *utils.HTMLNode, box Box, resolver URLResolver, baseUr
 		}
 		image := resolver.FetchImage(data, type_, box.Box().Style.GetImageOrientation())
 		if image != nil {
-			return []Box{makeReplacedBox(element, box, image)}
+			return []Box{makeReplacedBox(element, box, asDocument(image))}
 		}
 	}
 	// The element’s children are the fallback.

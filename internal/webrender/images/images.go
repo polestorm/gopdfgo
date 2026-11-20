@@ -167,6 +167,15 @@ func (r rasterImage) Draw(context backend.Canvas, _ text.TextLayoutContext, conc
 
 type SVGImage struct {
 	icon *svg.SVGImage
+	// asDocument (gopdfgo): obraz z <object> albo <embed>, rysowany jak osobny dokument (zob. AsDocument)
+	asDocument bool
+}
+
+// AsDocument (gopdfgo) zwraca kopię obrazu rysowaną jak osobny dokument SVG (<object>, <embed>), bez
+// skalowania pliku bez viewBox; obraz w pamięci podręcznej, wspólny z <img>, zostaje bez zmian.
+func (img SVGImage) AsDocument() SVGImage {
+	img.asDocument = true
+	return img
 }
 
 func (SVGImage) isImage() {}
@@ -236,5 +245,9 @@ func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.Mayb
 }
 
 func (img SVGImage) Draw(dst backend.Canvas, textContext text.TextLayoutContext, concreteWidth, concreteHeight pr.Fl, imageRendering string) {
+	if img.asDocument {
+		img.icon.DrawAsDocument(dst, concreteWidth, concreteHeight, textContext)
+		return
+	}
 	img.icon.Draw(dst, concreteWidth, concreteHeight, textContext)
 }

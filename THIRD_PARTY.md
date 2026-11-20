@@ -924,8 +924,10 @@ Wspólne dla obu katalogów:
     źródło używało parsera HTML5, w którym element XHTML w `<metadata>` kończył treść SVG; przy
     niepoprawnym XML powrót do HTML5;
   - `svg/svg.go` `synthesizeViewBox`: dokument SVG jako obraz z `width` i `height`, bez `viewBox`, dostaje
-    `viewBox="0 0 width height"` i skaluje się do rozmiaru obrazu, jak w przeglądarkach; źródło rysowało
-    go w skali 1:1 i ucinało (4 z 7 plików z Wikimedia Commons);
+    `viewBox="0 0 width height"` z `preserveAspectRatio="none"` i rozciąga się do rozmiaru obrazu, jak
+    w Chrome 157 w `<img>` i w tle; w `<object>` i `<embed>` (`images.SVGImage.AsDocument`,
+    `svg.SVGImage.DrawAsDocument`) jest osobnym dokumentem: nie skaluje się i jest przycinany do elementu.
+    Źródło zawsze rysowało go w skali 1:1 i ucinało (4 z 7 plików z Wikimedia Commons);
   - `svg/elements.go` `newFilter`: filtr z nieobsługiwanym prymitywem albo z `feOffset` na wejściu innym
     niż `SourceGraphic` jest pomijany w całości; źródło wykonywało część łańcucha i przesuwało cały element.
     Przejęty `TestFilter` przepisany na dwa przypadki;
