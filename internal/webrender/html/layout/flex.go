@@ -2026,6 +2026,22 @@ restartCollapsed:
 			resumeAt = tree.ResumeStack{line.line[0].index: nil}
 			break
 		}
+		lineStartsFragment := len(box.Children) == flexItemsBefore
+		// gopdfgo: linia wiersza, która w całości zaczyna się poniżej strony, przechodzi na następną
+		// cała, a odstęp row-gap przed nią jest obcinany na podziale (CSS Align 3 § 8.1). Bez tego jej
+		// elementy przechodziły pojedynczo (pushItem) z przesunięciem o część odstępu wystającą za stronę.
+		if parallel && !lineStartsFragment {
+			lineTop, anyItem := pr.Inf, false
+			for _, v := range line.line {
+				if v.box.Box().IsFlexItem {
+					lineTop, anyItem = min(lineTop, v.box.Box().PositionY), true
+				}
+			}
+			if anyItem && lineTop >= pageEdge {
+				resumeAt = tree.ResumeStack{line.line[0].index: nil}
+				break
+			}
+		}
 		for position, v := range line.line {
 			i, child := v.index, v.box.Box()
 			// gopdfgo: w kolumnie bez zawijania wymuszony podział strony wypada między elementami (jak wyżej
@@ -2043,9 +2059,24 @@ restartCollapsed:
 				itemSkip := pickSkip(i, childSkipStack)
 				_, resumedRemainder := itemSkip.Remainder()
 				plannedHeight := child.MarginHeight()
+				// gopdfgo: strona jest „pusta” dla elementu tylko wtedy, gdy przed nim w tym fragmencie
+				// kontenera nic nie stoi w osi blokowej: w wierszu żadna wcześniejsza linia, w kolumnie żaden
+				// wcześniejszy element tej linii. W źródle każdy element dostawał pageIsEmpty kontenera,
+				// więc element dalszej linii, którego margines sięgał za stronę, tracił górny margines
+				// (zasada „pierwszy wiersz za wysoki na pustą stronę” w blockContainerLayout) i zostawał
+				// na stronie zamiast przejść na następną. Obcinanie marginesów dotyczy tylko marginesów
+				// przylegających do podziału (CSS Fragmentation 3 § 5.2), a margines elementu linii
+				// zaczynającej się w środku fragmentu do podziału nie przylega (test WPT
+				// css-break/flexbox/multi-line-row-flex-fragmentation-064-print).
+				itemPageIsEmpty := pageIsEmpty
+				if main == pr.PWidth {
+					itemPageIsEmpty = pageIsEmpty && lineStartsFragment
+				} else {
+					itemPageIsEmpty = pageIsEmpty && len(finalLines[lineIndex]) == 0
+				}
 				// TODO: Don't use block_level_layout_switch.
 				newChild, tmp, _ := blockLevelLayoutSwitch(context, v.box.(bo.BlockLevelBoxITF), bottomSpace, itemSkip, box,
-					pageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
+					itemPageIsEmpty, absoluteBoxes, fixedBoxes, new([]pr.Float), discard, -1)
 				if resumedRemainder && main == pr.PHeight && newChild != nil && lineSkip == nil {
 					if shift := plannedHeight - newChild.Box().MarginHeight(); shift > 0 {
 						columnShift += shift
