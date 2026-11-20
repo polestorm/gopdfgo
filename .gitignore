@@ -7,3 +7,4 @@
 # pamięć podręczna skanowania fontów systemowych, tworzona przez testy forka
 font_index_*.cache
 .claude/
+/testdata/books/pride-and-prejudice/

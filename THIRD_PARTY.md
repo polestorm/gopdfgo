@@ -919,6 +919,21 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- `transform-origin` i `transform-box` w SVG, 2026-11-20 (praca pomocnika; `svg/`):
+  - źródło obracało każdy element wewnątrz SVG wokół (0, 0) układu użytkownika; teraz macierz elementu to
+    translate(punkt) × przekształcenia × translate(−punkt), dla atrybutu transform i dla właściwości transform,
+    translate, rotate i scale (CSS Transforms 1 § 6–7, SVG 2 § 8.5);
+  - wartości początkowe to `view-box` i `0 0`; `view-box` to pole o rozmiarze viewBox najbliższego okna widoku,
+    `content-box` działa jak `fill-box`, a `border-box` jak `stroke-box`; przy `non-scaling-stroke` `stroke-box`
+    działa jak `fill-box` (csswg-drafts#9640); procenty w translate() odnoszą się do pola odniesienia;
+  - funkcje przekształceń CSS w SVG: `none`, kąty z jednostką (deg, grad, rad, turn), translateX/Y, scaleX/Y,
+    rotateZ; wcześniej „rotate(45deg)” z arkusza unieważniało cały element; właściwość `rotate` jest czytana
+    tylko z jednostką kąta, żeby nie mylić jej z atrybutem `rotate` elementu `text`;
+  - zagnieżdżony `<svg>` ustanawia nowe okno widoku dla procentów potomków (SVG 2 § 8.9); źródło liczyło je
+    względem elementu głównego; `gradientTransform` i `patternTransform` bez zmian;
+  - testy W3C `svg/`: 145 → 148 z 235; css-transforms (transform-box, transform-origin, SVG; klon w katalogu
+    roboczym): 28 → 73 ścisłych ze 129; 4 testy ze skryptami zmieniającymi stroke-width przechodziły
+    wcześniej przypadkiem;
 - gradienty, wzorce i maski miękkie w grupach przezroczystości, 2026-11-20 (praca pomocnika; `pdflib/contentstream`
   `ToGroupXFormObject`, `SetSoftMaskState`, `goweasyprint/pdf`, `html/document/draw.go` `visibleTiles`, `svg/paint.go`):
   - Apple PDFKit (Podgląd, Quick Look, Safari) odczytuje dwie rzeczy inaczej niż norma i poppler (sprawdzone na

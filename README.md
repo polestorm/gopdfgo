@@ -98,7 +98,7 @@ licences (list in `docs/overview.md`).
 - Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
   lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on
   HTML elements, `backdrop-filter`. Blur and drop shadows (SVG and CSS `filter`) are vector approximations.
-- SVG: spatial media fragments (`#xywh=`), `transform-origin` on SVG elements. Details in `docs/overview.md`.
+- SVG: spatial media fragments (`#xywh=`). Details in `docs/overview.md`.
 - Perspective: `perspective()` and the `perspective` property are accepted with a warning and drawn as
   an orthographic projection; `preserve-3d` has no depth sorting. 3D transforms without perspective are
   drawn exactly.

@@ -1,0 +1,8 @@
+/* Arkusz dokładany do książek z testdata/books przy pomiarach: ten sam font (Tinos, metryka Times,
+   z testdata/fonts) i ten sam format strony w obu silnikach. */
+@font-face { font-family: "Bench Serif"; src: url("../fonts/tinos/Tinos-Regular.ttf"); }
+@font-face { font-family: "Bench Serif"; font-weight: bold; src: url("../fonts/tinos/Tinos-Bold.ttf"); }
+@font-face { font-family: "Bench Serif"; font-style: italic; src: url("../fonts/tinos/Tinos-Italic.ttf"); }
+@font-face { font-family: "Bench Serif"; font-weight: bold; font-style: italic; src: url("../fonts/tinos/Tinos-BoldItalic.ttf"); }
+@page { size: A4; margin: 20mm; }
+html, body, h1, h2, h3, h4, h5, h6, p, div, span, td, th, pre { font-family: "Bench Serif" !important; }

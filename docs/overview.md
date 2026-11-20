@@ -58,6 +58,37 @@ Memory:
 gopdfgo renders one document at a time per process; further calls wait in a queue. Chromium can print
 several tabs in parallel.
 
+### A large document: an illustrated book (265 pages)
+
+The illustrated HTML edition of *Pride and Prejudice* from Project Gutenberg (book 1342, 164 illustrations
+by Hugh Thomson, 0.8 MB of HTML and 27 MB of JPEG/PNG images; public domain). The files are not in the
+repository; `testdata/books/fetch.sh` downloads them from the Gutenberg mirror and checks their SHA-256
+sums, so the measurement can be repeated on the same input. For the measurement both engines get
+`testdata/books/bench.css`: the same font (Tinos, with Times metrics, from `testdata/fonts`) and A4 pages
+with 20 mm margins.
+
+Measured 2026-11-20 on the same machine; gopdfgo at commit `fdd1bbb`, Chrome 157.0.8103.79. Three runs each,
+whole process including program or browser start.
+
+| | Chromium, `--headless --print-to-pdf` | gopdfgo, command line |
+|---|---|---|
+| pages | 253 | 265 |
+| time | 2.13–2.26 s | 1.56–1.59 s |
+| peak memory | 1674–1727 MB (all browser processes) | 928–1032 MB |
+| PDF size | 27.58 MB (tagged PDF) | 26.29 MB |
+| of which images | 25.21 MB (171 image objects) | 24.76 MB (164 image objects) |
+| of which text, pages, fonts and structure | 2.37 MB | 1.52 MB |
+
+- Both engines embed the illustrations almost unchanged, so most of the file is images. Without them,
+  gopdfgo's file is 36% smaller; part of that is the structure tree Chrome's command line adds for screen
+  readers (tagged PDF). Chrome without tags (through DevTools) was not measured for this book.
+- The split was measured by summing the stream lengths of image objects, font files and everything else in
+  the PDF.
+- The 12-page difference comes from line breaking: on page 10 the lines already end at different words,
+  although both engines use the same font. The cause has not been investigated yet.
+- gopdfgo's peak memory is much higher here than for text documents (50–160 MB in the table above). It is
+  probably the decoded illustrations; this has not been investigated yet.
+
 ## PDF file size
 
 | Document | Chromium via DevTools (untagged PDF) | Chromium `--print-to-pdf` (tagged PDF) | gopdfgo (untagged PDF) |
@@ -179,14 +210,14 @@ Not supported or incomplete:
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 145 pass; on the morning of 2026-11-20 it was 83.
+or have no reference. Of those 235, 148 pass; on the morning of 2026-11-20 it was 83.
 
 Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Remaining failures (90), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
-blur shadows, CSS `zoom`, `transform-origin` on SVG elements, CSS animations, and single cases.
+Remaining failures (87), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
+blur shadows, CSS `zoom`, CSS animations, and single cases.
 
-Real-world corpus: every file is within 2.5% of Chrome's pixels; the remaining differences are font
+Real-world corpus: every file is within 2.3% of Chrome's pixels; the remaining differences are font
 substitution, the missing blur shadow, and anti-aliasing.
 
 ## Requirements
