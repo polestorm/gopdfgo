@@ -58,7 +58,7 @@ Memory:
 gopdfgo renders one document at a time per process; further calls wait in a queue. Chromium can print
 several tabs in parallel.
 
-### A large document: an illustrated book (265 pages)
+### A large document: an illustrated book (256 pages)
 
 The illustrated HTML edition of *Pride and Prejudice* from Project Gutenberg (book 1342, 164 illustrations
 by Hugh Thomson, 0.8 MB of HTML and 27 MB of JPEG/PNG images; public domain). The files are not in the
@@ -67,27 +67,42 @@ sums, so the measurement can be repeated on the same input. For the measurement 
 `testdata/books/bench.css`: the same font (Tinos, with Times metrics, from `testdata/fonts`) and A4 pages
 with 20 mm margins.
 
-Measured 2026-11-20 on the same machine; gopdfgo at commit `fdd1bbb`, Chrome 157.0.8103.79. Three runs each,
+Measured 2026-11-20 on the same machine; gopdfgo at commit `0eb174f`, Chrome 157.0.8103.79. Three runs each,
 whole process including program or browser start.
 
 | | Chromium, `--headless --print-to-pdf` | gopdfgo, command line |
 |---|---|---|
-| pages | 253 | 265 |
-| time | 2.13–2.26 s | 1.56–1.59 s |
-| peak memory | 1674–1727 MB (all browser processes) | 928–1032 MB |
-| PDF size | 27.58 MB (tagged PDF) | 26.29 MB |
+| pages | 253 | 256 |
+| time | 2.13–2.47 s | 1.54–1.58 s |
+| peak memory | 1672–1701 MB (all browser processes) | 951–976 MB |
+| PDF size | 27.58 MB (tagged PDF) | 26.25 MB |
 | of which images | 25.21 MB (171 image objects) | 24.76 MB (164 image objects) |
-| of which text, pages, fonts and structure | 2.37 MB | 1.52 MB |
+| of which text, pages, fonts and structure | 2.37 MB | 1.49 MB |
 
 - Both engines embed the illustrations almost unchanged, so most of the file is images. Without them,
-  gopdfgo's file is 36% smaller; part of that is the structure tree Chrome's command line adds for screen
+  gopdfgo's file is 37% smaller; part of that is the structure tree Chrome's command line adds for screen
   readers (tagged PDF). Chrome without tags (through DevTools) was not measured for this book.
 - The split was measured by summing the stream lengths of image objects, font files and everything else in
   the PDF.
-- The 12-page difference comes from line breaking: on page 10 the lines already end at different words,
-  although both engines use the same font. The cause has not been investigated yet.
-- gopdfgo's peak memory is much higher here than for text documents (50–160 MB in the table above). It is
-  probably the decoded illustrations; this has not been investigated yet.
+
+**Page count.** The first measurement gave 265 pages. The cause was a bug: an `@font-face` rule without a
+`font-weight` descriptor got weight 0 instead of the font's own weight (`auto`, CSS Fonts 4 § 4.5), so
+normal text matched the bold face of the same family and the whole book was set in bold. After the fix the
+text of every page matches Chrome's up to page 30, where the first such paragraph occurs. The remaining 3 pages come from widows and orphans: Chrome splits a
+three-line paragraph 2 + 1 at a page end, although the initial `widows: 2` forbids a single line at the top
+of the next page (CSS Fragmentation 3 § 3.3); with four or more lines Chrome follows the rule. gopdfgo
+follows the specification and moves such a paragraph whole. With `widows: 1; orphans: 1` gopdfgo gives
+253 pages, the same as Chrome.
+
+**Memory.** The illustrations are not the cause: they are embedded without decoding, and the raw files take
+27 MB of the heap. The live heap at the end of the run is about 400 MB, and it grows with the number of
+pages, because all pages are laid out before any is drawn (the design inherited from WeasyPrint). The
+largest parts are shaped glyph arrays (about 90 MB), copies made for justified lines (about 37 MB), and the
+boxes and styles of 256 pages. The Go garbage collector lets the heap grow to about twice the live size
+before collecting (`GOGC=100`), which gives the peak of about 1 GB. Measured with a heap profile at the
+peak and `GODEBUG=gctrace=1`. With `GOGC=50` the peak is 740 MB and with `GOGC=25` 660 MB; wall time stays
+about the same, CPU time grows by 25% and 70%. Drawing each page right after its layout would bound memory by page, not by document; that is
+a larger change and has not been started.
 
 ## PDF file size
 
