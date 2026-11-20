@@ -183,6 +183,7 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			var newRowChildren []Box
 			leftBehind := false // komórka z treścią, z której nic nie zostało na tej stronie
 			placedSome := false // inna komórka, z której coś na tej stronie zostało
+			heightSplit := false // komórka dzielona według podanej wysokości (zob. niżej)
 			// gopdfgo: komórki układane w tym wierszu: własne komórki wiersza i dalsze ciągi komórek
 			// rozpiętych (rowspan) z wierszy, które zostały na poprzedniej stronie (zob. rowCellEntries).
 			entries := rowCellEntries(group, row_, indexRow, skipStack)
@@ -360,6 +361,19 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 				cell = cell_.Box()
 				cell_.RemoveDecoration(cell, cellSkipStack != nil, false)
+				// gopdfgo: komórka o podanej wysokości większej niż miejsce do końca strony, której treść
+				// zmieściła się w całości, w wierszu na początku strony (gdzie przeniesienie wiersza nic nie
+				// da) jest dzielona: fragment sięga końca strony, a reszta podanej wysokości przechodzi do
+				// dalszego ciągu bez treści (CSS Fragmentation 3 § 5.1, jak blok w block.go; zob. niżej
+				// cellHeightRemaining). W źródle wiersz wystawał poza stronę, a za nim ginęło to, co poza nią.
+				// Poza początkiem strony wiersz jak dotąd przechodzi na następną stronę.
+				if computed, ok := cell.ComputedHeight.(pr.Float); ok && pageIsEmpty && !spanning && cellResumeAt == nil && newCell != nil {
+					if available := context.pageBottom - bottomSpace - cell.ContentBoxY(); available > 0 &&
+						cell.Height.V() < available && computed > available {
+						cellResumeAt = tree.ResumeStack{len(entry.box.Box().Children): nil}
+						heightSplit = true
+					}
+				}
 				if spanning {
 					// gopdfgo: komórka dzielona między strony nie jest wyrównywana w pionie: jej treść
 					// zaczyna się u góry każdego fragmentu (tak jak treść dzielonego bloku).
@@ -682,7 +696,9 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if resumeAt != nil {
 				// gopdfgo: komórka rozpięta z wcześniejszego wiersza, której treść przechodzi dalej (pendingEnd),
 				// też jest treścią tego wiersza, choć nie jest jego dzieckiem
-				allEmpty := len(pendingEnd) == 0
+				// gopdfgo: podobnie komórka dzielona według podanej wysokości: nie ma treści, ale wiersz z nią
+				// robi postęp (inaczej wiersz byłby porzucany i układany od nowa w nieskończoność)
+				allEmpty := len(pendingEnd) == 0 && !heightSplit
 				for _, child := range row.Children {
 					if !child.Box().Empty {
 						allEmpty = false

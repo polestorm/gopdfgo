@@ -127,3 +127,25 @@ func TestTableMaxWidthPreferredBoxSizing(t *testing.T) {
 			style+fmt.Sprintf(`<div class="c" style="width:%dpx">`, c.width)+c.table+`</div>`)
 	}
 }
+
+// Komórka o podanej wysokości większej niż strona, bez treści albo z treścią, która mieści się w całości,
+// jest dzielona według tej wysokości (CSS Fragmentation 3 § 5.1): wiersz zajmuje 100 + 100 + 50 pikseli
+// na trzech stronach, a następny wiersz stoi pod jego końcem. W źródle wiersz wystawał poza pierwszą
+// stronę, a następny wiersz lądował na drugiej. Wiersz, który zmieściłby się na następnej stronie, dalej
+// przechodzi na nią w całości (tu wiersz 60px pod akapitem 50px).
+func TestTallSpecifiedHeightCellSplits(t *testing.T) {
+	dir := t.TempDir()
+	page := `<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }
+		table { border-spacing: 0 } td { padding: 0; width: 50px; background: green } .n td { height: 20px; background: blue }</style>`
+	tcontSame(t, dir, "tall-empty-cell",
+		page+`<table><tr><td style="height:250px"></td></tr><tr class="n"><td></td></tr></table>`,
+		tcontPages(page,
+			tcontBox(0, 0, 50, 100, "green"),
+			tcontBox(0, 0, 50, 100, "green"),
+			tcontBox(0, 0, 50, 50, "green")+tcontBox(0, 50, 50, 20, "blue")))
+	tcontSame(t, dir, "tall-cell-moves-when-it-fits",
+		page+`<div style="height:50px;background:yellow"></div><table><tr><td style="height:60px"></td></tr></table>`,
+		tcontPages(page,
+			tcontBox(0, 0, 200, 50, "yellow"),
+			tcontBox(0, 0, 50, 60, "green")))
+}

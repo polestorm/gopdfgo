@@ -2159,8 +2159,12 @@ func TestTablePageBreaks(t *testing.T) {
 			  <tr><td>row 8</td></tr>
 			</table>
 		   `,
-			[]int{2, 3, 1, 2},
-			[]pr.Float{30, 70, 0, 40, 80, 0, 0, 40},
+			// gopdfgo: wiersz z komórką height: 300px na stronie 120px jest dzielony według podanej
+			// wysokości (CSS Fragmentation 3 § 5.1), a nie wystaje poza stronę: zajmuje strony 3 i 4 oraz
+			// początek strony 5, za nim wiersz 7; wiersz 8 nie mieści się i przechodzi na stronę 6.
+			// Źródło: [2, 3, 1, 2], pozycje {30, 70, 0, 40, 80, 0, 0, 40}.
+			[]int{2, 3, 1, 1, 2, 1},
+			[]pr.Float{30, 70, 0, 40, 80, 0, 0, 0, 60, 0},
 		},
 		{
 			`
@@ -2365,6 +2369,11 @@ func TestTablePageBreaksComplex1(t *testing.T) {
 				var rows []string
 				for _, row := range group.Box().Children {
 					cell := unpack1(row)
+					// gopdfgo: dalszy ciąg komórki dzielonej według podanej wysokości nie ma treści
+					if len(cell.Box().Children) == 0 {
+						rows = append(rows, "")
+						continue
+					}
 					line := unpack1(cell)
 					text := unpack1(line)
 					rows = append(rows, text.(*bo.TextBox).TextS())
@@ -2378,11 +2387,16 @@ func TestTablePageBreaksComplex1(t *testing.T) {
 		nil,
 		{{"Header"}, {"Row 1"}, {"Footer"}},
 		{{"Header"}, {"Row 2", "Row 3"}, {"Footer"}},
-		{{"Header"}, {"Row 4"}},
-		{{"Row 5"}},
-		// gopdfgo: stopka, która nie zmieściła się pod ostatnim wierszem, przechodzi na następną stronę
-		// (z powtórzonym nagłówkiem, bo tabela obejmuje i tę stronę; CSS Tables 3 § 6.2). Źródło ją gubiło.
-		{{"Header"}, {"Footer"}},
+		// gopdfgo: wiersze 4 (61px) i 5 (90px) nie mieszczą się między powtarzanym nagłówkiem a stopką
+		// nawet na początku strony, więc są dzielone według podanej wysokości komórki (CSS Fragmentation 3
+		// § 5.1): fragment sięga stopki, a reszta wysokości, bez treści, przechodzi na następną stronę,
+		// gdzie nagłówek i stopka są powtarzane jak na każdej stronie tabeli (CSS Tables 3 § 6.2).
+		// Wcześniej (źródło i gopdfgo) wiersz zostawał cały, a ustępowała mu stopka, a przy wierszu 5
+		// także nagłówek: {{"Header"}, {"Row 4"}}, {{"Row 5"}}, a stopka na osobnej stronie.
+		{{"Header"}, {"Row 4"}, {"Footer"}},
+		{{"Header"}, {""}, {"Footer"}},
+		{{"Header"}, {"Row 5"}, {"Footer"}},
+		{{"Header"}, {""}, {"Footer"}},
 	})
 }
 
@@ -3070,24 +3084,29 @@ func TestTableEmptyBody(t *testing.T) {
 		// tekstu, nie mieści się pod nim i przechodzi na stronę 3; źródło: obie na stronie 2, wystając poza
 		// nią), 30/110 i 30/60 (nagłówek 30px płynie i zostaje na stronie 1; źródło: przenosiło go albo
 		// gubiło), 110/30 (stopka nie znika, tylko przechodzi na stronę 3).
+		// gopdfgo: grupa płynąca jak zwykła grupa wierszy, której komórka o podanej wysokości nie mieści się
+		// na stronie, choć zaczyna się na jej początku, jest dzielona według tej wysokości (CSS Fragmentation 3
+		// § 5.1): reszta wysokości bez treści ("") przechodzi na następną stronę. Dotyczy 85/5 (nagłówek
+		// dzielony nad powtarzaną stopką, która stoi na obu stronach), 30/110, 110/30 i 110/110; wcześniej
+		// grupa wystawała poza stronę.
 		{[][]string{{"Header"}, {"Footer"}}, 45, 45, "<p>content</p>"},
-		{[][]string{nil, {"Header"}, {"Footer"}}, 85, 5, "<p>content</p>"},
+		{[][]string{nil, {"Header", "Footer"}, {"", "Footer"}}, 85, 5, "<p>content</p>"},
 		{[][]string{{"Header", "Footer"}}, 30, 30, "<p>content</p>"},
-		{[][]string{{"Header"}, {"Footer"}}, 30, 110, "<p>content</p>"},
+		{[][]string{{"Header"}, {"Footer"}, {""}}, 30, 110, "<p>content</p>"},
 		{[][]string{{"Header"}, {"Footer"}}, 30, 60, "<p>content</p>"},
-		{[][]string{nil, {"Header"}, {"Footer"}}, 110, 30, "<p>content</p>"},
+		{[][]string{nil, {"Header"}, {"", "Footer"}}, 110, 30, "<p>content</p>"},
 
 		// gopdfgo: nagłówek albo stopka wyższe niż strona nie są już pomijane, tylko płyną jak zwykła
 		// grupa wierszy; wtedy to one są treścią, dla której ustępuje druga, powtarzana grupa.
 		// Źródło oczekiwało, że za wysoka grupa zniknie (w ostatnim przypadku obie, czyli pusta tabela).
-		{[][]string{nil, {"Header"}, {"Footer"}}, 110, 110, "<p>content</p>"},
+		{[][]string{nil, {"Header"}, {""}, {"Footer"}, {""}}, 110, 110, "<p>content</p>"},
 
 		// gopdfgo: jak wyżej; 30/110 i 110/30: druga grupa nie znika, tylko przechodzi na stronę 2.
 		{[][]string{{"Header", "Footer"}}, 30, 30, ""},
-		{[][]string{{"Header"}, {"Footer"}}, 30, 110, ""},
+		{[][]string{{"Header"}, {"Footer"}, {""}}, 30, 110, ""},
 		{[][]string{{"Header", "Footer"}}, 30, 60, ""},
-		{[][]string{{"Header"}, {"Footer"}}, 110, 30, ""},
-		{[][]string{{"Header"}, {"Footer"}}, 110, 110, ""},
+		{[][]string{{"Header"}, {"", "Footer"}}, 110, 30, ""},
+		{[][]string{{"Header"}, {""}, {"Footer"}, {""}}, 110, 110, ""},
 	} {
 		html := fmt.Sprintf(`
       <style>
@@ -3117,6 +3136,11 @@ func TestTableEmptyBody(t *testing.T) {
 			for _, group := range table.Box().Children {
 				for _, row := range group.Box().Children {
 					cell := unpack1(row)
+					// gopdfgo: dalszy ciąg komórki dzielonej według podanej wysokości nie ma treści
+					if len(cell.Box().Children) == 0 {
+						rows = append(rows, "")
+						continue
+					}
 					line := unpack1(cell)
 					text := unpack1(line)
 					rows = append(rows, text.(*bo.TextBox).TextS())
