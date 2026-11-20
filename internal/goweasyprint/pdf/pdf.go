@@ -42,6 +42,10 @@ type cache struct {
 	// transfers (gopdfgo): funkcje przejścia masek miękkich według próbek (zob. SetSoftMask), żeby
 	// ta sama funkcja była zapisana w pliku raz
 	transfers map[string]*model.FunctionDict
+
+	// maskLimit (gopdfgo): największy rozmiar formy maski miękkiej, mniejszy od bieżącej strony
+	// w punktach (zob. contentstream.SetSoftMaskState)
+	maskLimit *[2]fl
 }
 
 func newCache() cache {
@@ -50,6 +54,7 @@ func newCache() cache {
 		fonts:     make(map[backend.Font]pdfFont),
 		fontFiles: make(map[text.FontOrigin]fontContent),
 		transfers: make(map[string]*model.FunctionDict),
+		maskLimit: new([2]fl),
 	}
 }
 
@@ -79,6 +84,9 @@ func NewOutput() *Output {
 }
 
 func (c *Output) AddPage(left, top, right, bottom fl) backend.Page {
+	// gopdfgo: argumenty to początek i rozmiar strony w pikselach CSS; w PDF strona ma 0.75 pt na
+	// piksel (przy powiększeniu większym mniej), z zapasem na zaokrąglenia
+	*c.cache.maskLimit = [2]fl{0.74 * right, 0.74 * bottom}
 	out := newContextPage(left, top, right, bottom, c.embeddedFiles, c.cache)
 	c.pages = append(c.pages, out)
 	return out

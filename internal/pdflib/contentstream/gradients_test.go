@@ -193,7 +193,7 @@ func TestGradientOpacity(t *testing.T) {
 		OpClip{},
 		OpEndPath{},
 	)
-	a.SetAlphaMask(transparency)
+	a.SetAlphaMask(transparency, [2]Fl{})
 	a.Ops(
 		OpShFill{Shading: shName},
 		OpRestore{},

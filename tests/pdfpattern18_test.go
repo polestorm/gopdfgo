@@ -92,7 +92,7 @@ func TestPatternsInTransparencyGroups(t *testing.T) {
 	// cień filtra SVG przy prawym brzegu strony (współrzędne maski większe niż szerokość strony w pt)
 	shadow := `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='150'><defs><filter id='f'>` +
 		`<feDropShadow dx='4' dy='4' stdDeviation='2'/></filter></defs>` +
-		`<rect x='160' y='20' width='120' height='50' fill='%2300c' filter='url(%23f)'/></svg>`
+		`<rect x='160' y='20' width='120' height='50' fill='%2300c' filter='url(%23f)'/><rect x='20' y='80' width='260' height='50' fill='%230a0' filter='url(%23f)'/></svg>`
 	pdf, _ = render("svg-shadow", `<img style="display:block" src="data:image/svg+xml,`+shadow+`">`)
 	checkUnitSoftMasks(t, "svg-shadow", pdf)
 
@@ -138,9 +138,9 @@ func checkNoPatternsInGroups(t *testing.T, name string, pdf []byte) {
 
 var softMaskGroup = regexp.MustCompile(`/SMask\s*<<[^>]*?/G (\d+) 0 R`)
 
-// checkUnitSoftMasks sprawdza, że w pliku są maski miękkie i grupa każdej z nich ma BBox [0 0 1 1]:
-// Apple PDFKit przycina maskę do prostokąta strony we współrzędnych jej formy (zob.
-// contentstream.SetSoftMaskState), więc treść maski leży w kwadracie jednostkowym.
+// checkUnitSoftMasks sprawdza, że w pliku są maski miękkie i BBox grupy każdej z nich mieści się
+// w prostokącie strony 300×150 px = 225×112.5 pt: Apple PDFKit przycina maskę do prostokąta strony
+// wziętego we współrzędnych jej formy (zob. contentstream.SetSoftMaskState).
 func checkUnitSoftMasks(t *testing.T, name string, pdf []byte) {
 	t.Helper()
 	groups := softMaskGroup.FindAllSubmatch(pdf, -1)
@@ -153,8 +153,10 @@ func checkUnitSoftMasks(t *testing.T, name string, pdf []byte) {
 			t.Errorf("%s: nie znaleziono grupy maski %s", name, m[1])
 			continue
 		}
-		if strings.Join(strings.Fields(string(obj[1])), " ") != "0 0 1 1" {
-			t.Errorf("%s: grupa maski %s ma BBox [%s], oczekiwano [0 0 1 1]", name, m[1], obj[1])
+		var box [4]float64
+		if _, err := fmt.Sscan(string(obj[1]), &box[0], &box[1], &box[2], &box[3]); err != nil ||
+			box[0] < 0 || box[1] < 0 || box[2] > 225 || box[3] > 112.5 {
+			t.Errorf("%s: grupa maski %s ma BBox [%s] poza prostokątem strony [0 0 225 112.5]", name, m[1], obj[1])
 		}
 	}
 }

@@ -3,6 +3,7 @@ package contentstream
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
@@ -297,7 +298,7 @@ func (gr GradientComplex) BuildShadings() (color, alpha *model.ShadingDict) {
 
 // SetAlphaMask adds the given `transparency` content as an alpha mask in
 // the graphic state.
-func (ap *GraphicStream) SetAlphaMask(transparency *model.XObjectForm) {
+func (ap *GraphicStream) SetAlphaMask(transparency *model.XObjectForm, limit [2]Fl) {
 	alphaState := model.GraphicState{
 		SMask: model.SoftMaskDict{
 			S: model.ObjName("Luminosity"),
@@ -306,8 +307,8 @@ func (ap *GraphicStream) SetAlphaMask(transparency *model.XObjectForm) {
 		AIS: false,
 	}
 
-	// gopdfgo: maska w układzie znormalizowanym (zob. SetSoftMaskState)
-	ap.SetSoftMaskState(&alphaState, transparency, transparency.BBox, model.TransparencyGroup{})
+	// gopdfgo: maska w układzie przesuniętym do początku (zob. SetSoftMaskState)
+	ap.SetSoftMaskState(&alphaState, transparency, transparency.BBox, model.TransparencyGroup{}, limit)
 }
 
 // SetSoftMaskState (gopdfgo) ustawia stan graficzny state z maską miękką, której treścią jest forma
@@ -315,32 +316,43 @@ func (ap *GraphicStream) SetAlphaMask(transparency *model.XObjectForm) {
 // słownik /Group grupy maski. Pole state.SMask.G jest tu wypełniane.
 //
 // Grupa maski ma układ CTM z chwili operatora gs (ISO 32000-1 § 11.6.5.2). Apple PDFKit (Podgląd,
-// Quick Look, Safari) przycina jednak maskę do prostokąta strony [0, szer.] × [0, wys.] (w punktach)
+// Quick Look, Safari) przycina jednak maskę do prostokąta [0, szer.] × [0, wys.] strony (w punktach)
 // wziętego we współrzędnych formy maski, z pominięciem CTM, także gdy maskę ustawiono w grupie
 // przezroczystości (sprawdzone na ręcznie zbudowanych plikach, 2026-11-20): maska o współrzędnych
 // w pikselach CSS dalej niż szerokość strony w punktach znikała (cienie filtrów przy prawym i dolnym
-// brzegu strony). Dlatego forma maski ma BBox [0 0 1 1]: jej treść to `T cm /XI0 Do`, gdzie T
-// odwzorowuje bbox na kwadrat jednostkowy, a XI0 to content; operator gs stoi pod CTM złożonym
-// z odwrotności T (`T⁻¹ cm /GS gs T cm`), więc według normy maska się nie zmienia.
-func (ap *GraphicStream) SetSoftMaskState(state *model.GraphicState, content model.XObject, bbox model.Rectangle, group model.TransparencyGroup) {
+// brzegu strony). Dlatego treść formy maski to `T cm /XI0 Do`, gdzie T przesuwa bbox do początku
+// układu i, gdy bbox nie mieści się w limit (rozmiar strony w punktach; zero: kwadrat jednostkowy),
+// zmniejsza go o potęgę dwójki, a XI0 to content. Operator gs stoi pod CTM złożonym z odwrotności T
+// (`T⁻¹ cm /GS gs T cm`), więc według normy maska się nie zmienia. Skala jest potęgą dwójki, bo przy
+// innej (np. 0.74) pdftoppm rasteryzował tekst maski inaczej (test WPT clip-text-scaled).
+func (ap *GraphicStream) SetSoftMaskState(state *model.GraphicState, content model.XObject, bbox model.Rectangle, group model.TransparencyGroup, limit [2]Fl) {
 	w, h := bbox.Urx-bbox.Llx, bbox.Ury-bbox.Lly
 	if !(w > 0 && h > 0) {
 		w, h = 1, 1
 	}
-	toUnit := model.Matrix{1 / w, 0, 0, 1 / h, -bbox.Llx / w, -bbox.Lly / h}
-	fromUnit := model.Matrix{w, 0, 0, h, bbox.Llx, bbox.Lly}
+	var scale Fl = 1
+	if limit[0] > 0 && limit[1] > 0 {
+		scale = min(1, limit[0]/w, limit[1]/h)
+	} else {
+		scale = min(1/w, 1/h)
+	}
+	if scale < 1 { // potęga dwójki: skala i jej odwrotność są dokładne
+		scale = Fl(math.Exp2(math.Floor(math.Log2(float64(scale)))))
+	}
+	toMask := model.Matrix{scale, 0, 0, scale, -bbox.Llx * scale, -bbox.Lly * scale}
+	fromMask := model.Matrix{1 / scale, 0, 0, 1 / scale, bbox.Llx, bbox.Lly}
 	wrapper := &model.XObjectTransparencyGroup{Group: group}
-	wrapper.BBox = model.Rectangle{Llx: 0, Lly: 0, Urx: 1, Ury: 1}
+	wrapper.BBox = model.Rectangle{Llx: 0, Lly: 0, Urx: w * scale, Ury: h * scale}
 	wrapper.Resources = model.ResourcesDict{XObject: map[model.ObjName]model.XObject{"XI0": content}}
-	wrapper.Content = WriteOperations(opPreciseConcat{toUnit}, OpXObject{XObject: "XI0"})
+	wrapper.Content = WriteOperations(opPreciseConcat{toMask}, OpXObject{XObject: "XI0"})
 	state.SMask.G = wrapper
-	ap.Ops(opPreciseConcat{fromUnit})
+	ap.Ops(opPreciseConcat{fromMask})
 	ap.SetGraphicState(state)
-	ap.Ops(opPreciseConcat{toUnit})
+	ap.Ops(opPreciseConcat{toMask})
 }
 
-// opPreciseConcat (gopdfgo) to operator cm z pełną dokładnością float32: skala do kwadratu
-// jednostkowego dla maski „bez granic” (BBox ±100000) jest rzędu 1e-5, czego FmtFloat (5 miejsc
+// opPreciseConcat (gopdfgo) to operator cm z pełną dokładnością float32: skala maski „bez granic”
+// (BBox ±100000) jest rzędu 1e-3–1e-5, czego FmtFloat (5 miejsc
 // po przecinku) nie zapisze. Zapis dziesiętny, bez wykładnika (ISO 32000-1 § 7.3.3).
 type opPreciseConcat struct{ m model.Matrix }
 

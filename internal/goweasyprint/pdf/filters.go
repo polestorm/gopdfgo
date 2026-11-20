@@ -47,7 +47,7 @@ func (g *group) SetSoftMask(mask backend.Canvas, alpha bool, transfer []fl) {
 		AIS: false,
 	}
 	// gopdfgo: maska w układzie znormalizowanym (zob. contentstream.SetSoftMaskState)
-	g.stream.SetSoftMaskState(&state, form, form.BBox, model.TransparencyGroup{CS: model.ColorSpaceRGB})
+	g.stream.SetSoftMaskState(&state, form, form.BBox, model.TransparencyGroup{CS: model.ColorSpaceRGB}, g.maskLimit())
 }
 
 // transferFunction zamienia próbki na funkcję próbkowaną; ta sama tablica próbek daje ten sam obiekt.

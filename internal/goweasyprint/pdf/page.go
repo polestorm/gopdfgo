@@ -187,7 +187,7 @@ func (g *group) SetAlphaMaskFromAlpha(mask backend.Canvas, transfer []fl) {
 	// gopdfgo: maska w układzie znormalizowanym, z grupą współdzieloną z DrawWithOpacity w środku
 	// (zob. contentstream.SetSoftMaskState)
 	g.stream.SetSoftMaskState(&model.GraphicState{SMask: soft}, inner, inner.BBox,
-		model.TransparencyGroup{CS: model.ColorSpaceRGB, I: true})
+		model.TransparencyGroup{CS: model.ColorSpaceRGB, I: true}, g.maskLimit())
 }
 
 func newGroup(cache cache,
@@ -377,9 +377,17 @@ func (g *group) DrawCopyWithOpacity(opacity fl, gr backend.Canvas) {
 	g.stream.Ops(cs.OpEndMarkedContent{})
 }
 
+// maskLimit (gopdfgo) zwraca limit rozmiaru formy maski miękkiej dla bieżącej strony.
+func (g *group) maskLimit() [2]fl {
+	if g.cache.maskLimit == nil {
+		return [2]fl{}
+	}
+	return *g.cache.maskLimit
+}
+
 func (g *group) drawMask(app *cs.GraphicStream) {
 	transparency := app.ToGroupXFormObject(compressStreams) // gopdfgo: jw.
-	g.stream.SetAlphaMask(transparency)
+	g.stream.SetAlphaMask(transparency, g.maskLimit())
 }
 
 // Adds a rectangle of the given size to the current path,
