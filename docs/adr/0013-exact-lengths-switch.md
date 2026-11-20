@@ -24,7 +24,8 @@ Trzecia różnica z pytania 21, pomniejszanie całej strony, gdy treść wystaje
    - `false` (domyślnie): długości, które Chromium zaokrągla, są zaokrąglane tak samo. Dziś: szerokości
      obramowań, konturów i linii między kolumnami (reguła z ADR 0009) oraz `border-spacing` (obcinane
      w dół); od ADR 0021 także szerokość i wysokość obszaru strony (w górę do całych pikseli) i jego lewa
-     krawędź (do najbliższego piksela);
+     krawędź (do najbliższego piksela); od 2026-11-20 także rozmiar pisma do składu tekstu (obcinany do
+     0,01 px, jak w kluczu pamięci fontów Blink; długości w em liczą się od pełnego font-size);
    - `true`: wszystkie długości zostają takie, jak w arkuszu, z dokładnością, na jaką pozwala PDF.
 2. `Options.ExactBorderWidths` i flaga `-exact-border-widths` znikają; zastępuje je przełącznik globalny.
 3. Każde następne zaokrąglenie Chromium, które zdecydujemy się naśladować, podlega temu samemu

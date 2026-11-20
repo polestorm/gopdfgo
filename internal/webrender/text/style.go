@@ -172,6 +172,15 @@ type TextStyle struct {
 	Autospace Autospace
 }
 
+// chromiumFontSize (gopdfgo) obcina rozmiar pisma do 0,01 px, jak Chromium: Blink zapisuje rozmiar
+// w kluczu pamięci fontów (FontCacheKey) jako liczbę całkowitą setnych piksela i z takiego rozmiaru
+// tworzy font, z którego biorą się szerokości znaków i metryki wiersza. Rozmiar 9,625 px (0.875rem
+// przy korzeniu 11 px) składa się więc jak 9,62 px, o 0,05% węższy. Długości w em liczą się dalej
+// od pełnego font-size. Norma nie określa dokładności rozmiaru fontu (ADR 0013, ExactLengths).
+func chromiumFontSize(size pr.Fl) pr.Fl {
+	return pr.Fl(math.Floor(float64(size)*100+1e-6) / 100)
+}
+
 // If ignoreSpacing is true, 'word-spacing' and 'letter-spacing' are
 // not queried from [style]
 func NewTextStyle(style pr.StyleAccessor, ignoreSpacing bool) *TextStyle {
@@ -188,6 +197,9 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.FontDescription.Weight = newFontWeight(style.GetFontWeight())
 	out.FontDescription.Stretch = newFontStretch(style.GetFontStretch())
 	out.FontDescription.Size = pr.Fl(style.GetFontSize().Value)
+	if s, ok := style.(interface{ SnapsLengths() bool }); ok && s.SnapsLengths() {
+		out.FontDescription.Size = chromiumFontSize(out.FontDescription.Size)
+	}
 	out.SizeAdjust = style.GetFontSizeAdjust() // gopdfgo: zob. adjustedTextStyle
 	out.FontDescription.VariationSettings = newFontVariationSettings(style.GetFontVariationSettings())
 	out.FontDescription.VariantCaps = newFontVariantCaps(style.GetFontVariantCaps())

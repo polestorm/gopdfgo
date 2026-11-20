@@ -95,6 +95,8 @@ type Options struct {
 	//   - border-spacing: obcinane w dół do całych pikseli (1mm daje 3 px);
 	//   - obszar strony: szerokość i wysokość w górę do całych pikseli, lewy margines do najbliższego
 	//     piksela (A4 z marginesami 15 mm: 681 px zamiast 680,31; ADR 0021).
+	//   - rozmiar pisma, którym składany jest tekst: obcinany do 0,01 px (9,625 px daje 9,62 px; em
+	//     liczy się dalej od pełnego font-size).
 	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
 	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
 	ExactLengths bool

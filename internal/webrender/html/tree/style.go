@@ -826,6 +826,10 @@ func (c *ComputedStyle) snapsLengths() bool {
 	return c.viewport != nil && c.viewport.html != nil && !c.viewport.html.Behavior.ExactLengths
 }
 
+// SnapsLengths (gopdfgo) udostępnia snapsLengths pakietowi text: rozmiar pisma do składu tekstu
+// obcinany jak w Chromium (ADR 0013, text.newTextStyle).
+func (c *ComputedStyle) SnapsLengths() bool { return c.snapsLengths() }
+
 func (c *ComputedStyle) Copy() pr.ElementStyle {
 	out := newComputedStyle(c.parentStyle, c.cascaded, c.element, c.pseudoType, c.rootStyle, c.baseUrl, c.textContext, c.share)
 	out.viewport = c.viewport
@@ -1206,6 +1210,12 @@ func (c *AnonymousStyle) Copy() pr.ElementStyle {
 	out := newAnonymousStyle(c.parentStyle)
 	out.propsCache.updateWith(c.propsCache)
 	return out
+}
+
+// SnapsLengths (gopdfgo): pudełko anonimowe dziedziczy tryb po rodzicu, zob. ComputedStyle.SnapsLengths.
+func (c *AnonymousStyle) SnapsLengths() bool {
+	s, ok := c.parentStyle.(interface{ SnapsLengths() bool })
+	return ok && s.SnapsLengths()
 }
 
 func (c *AnonymousStyle) ParentStyle() pr.ElementStyle       { return c.parentStyle }

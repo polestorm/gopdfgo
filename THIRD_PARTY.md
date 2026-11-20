@@ -919,6 +919,18 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- szerokości tekstu jak w Chromium, 2026-11-20 (`text/engine_gotext.go` `shapeAtSize`, `text/style.go`
+  `chromiumFontSize`, `tree/style.go` `SnapsLengths`):
+  - kształtowanie w rozmiarze dokładnym do 1/4096 px. Szerokości z siatki 1/64 px są przeliczane liniowo,
+    bo go-text zaokrągla rozmiar w górę do całych jednostek;
+  - przy `ExactLengths: false` rozmiar pisma do składu tekstu jest obcinany do 0,01 px, jak w Blink
+    (`FontCacheKey`). Długości w em liczą się dalej od pełnego font-size (ADR 0013).
+
+  Pomiar 2026-11-20, Noto Sans od 8 do 20 px co 0,125 px, 48 znaków: średnio 0,003 px różnicy wobec Chrome 157,
+  najwyżej 0,19 px; wcześniej przy rozmiarach w ósmych częściach piksela stale 0,13-0,25 px więcej. Szerokość
+  znaku nadal jest zaokrąglana do 1/64 px osobno dla każdego znaku: zaokrąglanie od sumy narastającej było
+  dokładniejsze, ale zależało od podziału tekstu na przebiegi i psuło 14 testów W3C (test i wzorzec dzielą ten
+  sam tekst inaczej);
 - wysokość elementów flex i bloków z `min-height` przez strony, 2026-11-20 (praca pomocnika; `layout/block.go`,
   `flex.go`): elementy flex korzystają z podziału bloku o podanej wysokości (`canSplitFixedHeight` nie wyklucza już
   elementów flex, tylko grid); kontener flex o podanej wysokości lub z min-height wyższymi niż strona dzieli

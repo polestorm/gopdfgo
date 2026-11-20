@@ -1127,7 +1127,8 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 			outputs = append(outputs, outs...)
 			continue
 		}
-		outputs = append(outputs, shapeWithResiduals(&fc.shaper, input, residuals))
+		fine := fixed.Int26_6(math.Round(float64(style.FontDescription.Size) * float64(fc.FaceSizeScale(style, input.Face)) * 64 * shapingPrecision))
+		outputs = append(outputs, shapeAtSize(&fc.shaper, input, residuals, fine))
 	}
 	fc.residuals = residuals
 
@@ -2350,9 +2351,31 @@ func shapePrecisely(shaper *shaping.HarfbuzzShaper, input shaping.Input) shaping
 // znaku w tekście) to, co zaokrąglenie odjęło od szerokości znaku, w jednostkach 1/4096 piksela.
 // Suma szerokości zaokrąglonych i reszt daje dokładną szerokość wiersza (zob. LineWrap).
 func shapeWithResiduals(shaper *shaping.HarfbuzzShaper, input shaping.Input, residuals []int32) shaping.Output {
+	return shapeAtSize(shaper, input, residuals, input.Size*shapingPrecision)
+}
+
+// shapeAtSize (gopdfgo) działa jak shapeWithResiduals, ale kształtuje w rozmiarze fine podanym
+// w 1/4096 piksela, a nie w input.Size (1/64 piksela). Rozmiar obcięty do 0,01 px jak w Chromium
+// (chromiumFontSize, np. 8,12 px) nie mieści się w siatce 1/64 px: zaokrąglony do niej różniłby się
+// od Chromium o więcej niż samo obcięcie.
+func shapeAtSize(shaper *shaping.HarfbuzzShaper, input shaping.Input, residuals []int32, fine fixed.Int26_6) shaping.Output {
 	size := input.Size
 	input.Size = size * shapingPrecision
 	out := shaper.Shape(input)
+	// go-text zaokrągla rozmiar w górę do całych jednostek, więc kształtujemy w rozmiarze z siatki
+	// 1/64 px, a szerokości i przesunięcia przeliczamy liniowo na rozmiar fine (bez hintingu zależą
+	// od rozmiaru liniowo).
+	if fine != input.Size && fine > 0 && input.Size > 0 {
+		r := float64(fine) / float64(input.Size)
+		mul := func(v fixed.Int26_6) fixed.Int26_6 { return fixed.Int26_6(math.Round(float64(v) * r)) }
+		for i := range out.Glyphs {
+			g := &out.Glyphs[i]
+			g.Width, g.Height, g.XBearing, g.YBearing = mul(g.Width), mul(g.Height), mul(g.XBearing), mul(g.YBearing)
+			g.Advance, g.XAdvance, g.YAdvance = mul(g.Advance), mul(g.XAdvance), mul(g.YAdvance)
+			g.XOffset, g.YOffset = mul(g.XOffset), mul(g.YOffset)
+		}
+		out.LineBounds.Ascent, out.LineBounds.Descent, out.LineBounds.Gap = mul(out.LineBounds.Ascent), mul(out.LineBounds.Descent), mul(out.LineBounds.Gap)
+	}
 	scale := func(v fixed.Int26_6) fixed.Int26_6 {
 		if v < 0 {
 			return -((-v + shapingPrecision/2) / shapingPrecision)
