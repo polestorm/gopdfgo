@@ -46,6 +46,11 @@ type cache struct {
 	// maskLimit (gopdfgo): największy rozmiar formy maski miękkiej, mniejszy od bieżącej strony
 	// w punktach (zob. contentstream.SetSoftMaskState)
 	maskLimit *[2]fl
+
+	// forms (gopdfgo): formy XObject treści powtarzanej (backend.SharedDrawer, zob. DrawShared); mapa
+	// służy tylko do wyszukiwania, nigdy nie jest przeglądana, więc kolejność zapisu w pliku zależy
+	// wyłącznie od kolejności rysowania
+	forms map[sharedFormKey]*model.XObjectForm
 }
 
 func newCache() cache {
@@ -55,6 +60,7 @@ func newCache() cache {
 		fontFiles: make(map[text.FontOrigin]fontContent),
 		transfers: make(map[string]*model.FunctionDict),
 		maskLimit: new([2]fl),
+		forms:     make(map[sharedFormKey]*model.XObjectForm),
 	}
 }
 

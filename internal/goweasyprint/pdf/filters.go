@@ -86,3 +86,34 @@ func (g *group) WithoutText(task func()) {
 	task()
 	g.stream.Ops(cs.OpEndMarkedContent{})
 }
+
+// sharedFormKey (gopdfgo): klucz formy treści powtarzanej: klucz podany przez rysującego, rozmiar formy
+// i granica rozmiaru form masek miękkich bieżącej strony (zob. maskLimit), od której zależy treść.
+type sharedFormKey struct {
+	key           any
+	width, height fl
+	maskLimit     [2]fl
+}
+
+var _ backend.SharedDrawer = (*group)(nil)
+
+// DrawShared (gopdfgo, backend.SharedDrawer) rysuje treść draw jako zwykłą formę XObject (bez grupy
+// przezroczystości, więc wynik jest taki sam jak przy rysowaniu wprost, ISO 32000-1 § 8.10) o prostokącie
+// /BBox (0, 0, width, height). Forma powstaje przy pierwszym wywołaniu z danym kluczem; kolejne, na tej
+// samej albo innej stronie, dopisują tylko operator Do. Forma dziedziczy stan graficzny z miejsca użycia
+// (ISO 32000-1 § 8.10.1), więc jej strumień nie zakłada znanych kolorów ani alfy (ForgetColors), a Do
+// przywraca stan po narysowaniu formy, więc stan śledzony w g.stream zostaje aktualny.
+func (g *group) DrawShared(key any, width, height fl, draw func(dst backend.Canvas)) {
+	k := sharedFormKey{key: key, width: width, height: height, maskLimit: g.maskLimit()}
+	form, has := g.cache.forms[k]
+	if !has {
+		content := newGroup(g.cache, 0, 0, width, height)
+		content.stream.ForgetColors()
+		draw(&content)
+		form = content.stream.ToXFormObject(compressStreams)
+		if g.cache.forms != nil {
+			g.cache.forms[k] = form
+		}
+	}
+	g.stream.AddXObject(form)
+}

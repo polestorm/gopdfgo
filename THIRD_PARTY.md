@@ -919,6 +919,18 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- obraz SVG powtórzony w dokumencie zapisany raz, 2026-11-21 (praca pomocnika; ADR 0028;
+  `backend/graphics.go` `SharedDrawer`, `goweasyprint/pdf/filters.go` `DrawShared`, `goweasyprint/pdf/pdf.go`
+  `cache.forms`, `images/images.go` `SVGImage.Draw`):
+  - źródło rysowało obraz SVG od nowa przy każdym wystąpieniu, więc ten sam plik na każdej stronie powielał
+    jego ścieżki w treści każdej strony (herb 100 kB na 41 stronach: 1,54 MB PDF); obraz SVG z pliku (`img`,
+    `object`, `embed`, tło, `border-image`, `content: url()`) jest teraz rysowany raz do zwykłej formy XObject
+    przyciętej do obszaru widoku, a kolejne wystąpienia tylko się do niej odwołują (67,8 kB); klucz: obraz,
+    tryb dokumentu, rozmiar konkretny i granica form masek strony; `<svg>` w HTML i `<image>` wewnątrz SVG
+    bez zmian; piksele korpusu (22 dokumenty, 23 pliki SVG) i testów W3C bez zmian;
+  - treść obrazu SVG wystająca poza jego obszar widoku jest odcinana, jak w przeglądarkach; przejęty
+    `TestImageOverflow` (`goweasyprint/pdf/draw_image_test.go`, wzorzec `centeredImageOverflow`) oczekiwał
+    jej widocznej aż do krawędzi strony i ma poprawiony wzorzec;
 - trwałe klucze stosów wznowienia, 2026-11-21 (praca pomocnika; `html/layout/block.go` `keepResumeKey`,
   zapisy w `block.go`, `column.go`, `flex.go`, `tables.go`):
   - mapy `fixedHeightRemaining`, `minHeightRemaining`, `cellHeightRemaining` i `flexPushOffset` są

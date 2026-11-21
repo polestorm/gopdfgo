@@ -23,15 +23,17 @@ const (
     ________
 `
 
+	// gopdfgo: obraz SVG jest przycinany do swojego obszaru widoku 4×4, jak w przeglądarkach (ADR 0028);
+	// źródło oczekiwało treści wystającej poza obraz aż do krawędzi strony
 	centeredImageOverflow = `
     ________
     ________
-    __rBBBBB
-    __BBBBBB
-    __BBBBBB
-    __BBBBBB
-    __BBBBBB
-    __BBBBBB
+    __rBBB__
+    __BBBB__
+    __BBBB__
+    __BBBB__
+    ________
+    ________
 `
 
 	resizedImage = `

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"math"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
@@ -169,6 +170,9 @@ type SVGImage struct {
 	icon *svg.SVGImage
 	// asDocument (gopdfgo): obraz z <object> albo <embed>, rysowany jak osobny dokument (zob. AsDocument)
 	asDocument bool
+	// inline (gopdfgo): element <svg> osadzony w HTML (NewSVGImageFromNode); jego treść zależy od kaskady
+	// i kontekstu dokumentu, więc nie jest współdzielona między wystąpieniami (zob. Draw)
+	inline bool
 }
 
 // AsDocument (gopdfgo) zwraca kopię obrazu rysowaną jak osobny dokument SVG (<object>, <embed>), bez
@@ -214,7 +218,7 @@ func NewSVGImageFromNode(node *html.Node, baseURL string, urlFetcher utils.UrlFe
 	if err != nil {
 		return SVGImage{}, imageLoadingError(err)
 	}
-	return SVGImage{icon: icon}, nil
+	return SVGImage{icon: icon, inline: true}, nil
 }
 
 func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.MaybeFloat, pr.MaybeFloat) {
@@ -249,7 +253,44 @@ func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.Mayb
 // (zob. svg.svgImageHolder).
 func (img SVGImage) SVG() *svg.SVGImage { return img.icon }
 
+// sharedSVGKey (gopdfgo): klucz formy współdzielonej obrazu SVG (zob. Draw). Wskaźnik jest tu tylko
+// tożsamością obrazu w mapie wyszukiwania; mapa trzyma go przy życiu i nigdy nie jest przeglądana.
+type sharedSVGKey struct {
+	icon          *svg.SVGImage
+	asDocument    bool
+	width, height pr.Fl
+}
+
+// SVGSharingDisabled (gopdfgo) wyłącza współdzielenie treści obrazów SVG (zob. Draw); służy testom, które
+// porównują wynik z rysowaniem każdego wystąpienia osobno.
+var SVGSharingDisabled bool
+
+// Draw rysuje obraz w rozmiarze konkretnym (concreteWidth, concreteHeight).
+//
+// gopdfgo: obraz SVG z pliku (img, object, embed, background-image, border-image, content: url()) jest
+// dokumentem odrębnym od strony: nie dziedziczy jej kaskady ani currentColor (SVG Integration § 2.2,
+// tryb „secure animated”), a image-rendering nie wpływa na grafikę wektorową. Wynik zależy więc tylko od
+// obrazu, rozmiaru konkretnego i trybu dokumentu (object, embed), a układ gospodarza (hostScale) jest
+// względny wobec miejsca rysowania. Taki obraz rysujemy raz do treści współdzielonej (backend.SharedDrawer,
+// w PDF jedna forma XObject) przyciętej do obszaru widoku (0, 0, szerokość, wysokość), jak w przeglądarkach,
+// które obraz SVG malują w granicach jego obszaru widoku; kolejne wystąpienia, także na innych stronach
+// i w polach marginesów, tylko się do niej odwołują. Źródło rysowało i zapisywało obraz przy każdym
+// wystąpieniu: herb (100 kB SVG) na 41 stronach dawał 1,5 MB PDF. SVG osadzony w HTML (inline) jest
+// rysowany jak dotąd.
 func (img SVGImage) Draw(dst backend.Canvas, textContext text.TextLayoutContext, concreteWidth, concreteHeight pr.Fl, imageRendering string) {
+	if shared, ok := dst.(backend.SharedDrawer); ok && !SVGSharingDisabled && !img.inline && img.icon != nil &&
+		concreteWidth > 0 && concreteHeight > 0 && !math.IsInf(float64(concreteWidth), 0) && !math.IsInf(float64(concreteHeight), 0) {
+		key := sharedSVGKey{icon: img.icon, asDocument: img.asDocument, width: concreteWidth, height: concreteHeight}
+		shared.DrawShared(key, concreteWidth, concreteHeight, func(form backend.Canvas) {
+			img.draw(form, textContext, concreteWidth, concreteHeight)
+		})
+		return
+	}
+	img.draw(dst, textContext, concreteWidth, concreteHeight)
+}
+
+// draw (gopdfgo) rysuje obraz wprost na dst.
+func (img SVGImage) draw(dst backend.Canvas, textContext text.TextLayoutContext, concreteWidth, concreteHeight pr.Fl) {
 	if img.asDocument {
 		img.icon.DrawAsDocument(dst, concreteWidth, concreteHeight, textContext)
 		return

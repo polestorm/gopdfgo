@@ -233,7 +233,10 @@ Supported:
 - inline `<svg>` in HTML, and SVG files used with `img`, `object`, `embed` and CSS `background-image`:
   - SVG files are parsed as XML;
   - a file with `width` and `height` but no `viewBox` stretches to the image box in `img` and backgrounds,
-    and stays unscaled in `object`/`embed`, as in Chrome.
+    and stays unscaled in `object`/`embed`, as in Chrome;
+  - an SVG file used many times (a logo in every page header, icons in table rows, a background) is
+    written once as a PDF form XObject and referenced from each use, like a raster image (ADR 0028):
+    a 100 kB coat of arms on 41 pages gives a 68 kB PDF instead of 1.5 MB (measured 2026-11-21).
 
 Not supported or incomplete:
 - filters: drop shadow and blur (`feGaussianBlur`, `feOffset`, `feFlood`, `feComposite`, `feMerge`,

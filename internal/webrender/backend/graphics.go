@@ -249,6 +249,18 @@ type CopyDrawer interface {
 	DrawCopyWithOpacity(opacity Fl, group Canvas)
 }
 
+// SharedDrawer (gopdfgo) to opcjonalne rozszerzenie Canvas dla treści powtarzanej w dokumencie (obraz
+// SVG w nagłówku każdej strony, ikona w wierszach tabeli). DrawShared rysuje w bieżącym punkcie treść,
+// którą draw maluje na płótnie o prostokącie (0, 0, width, height), przyciętą do tego prostokąta.
+// Przy pierwszym wywołaniu z danym kluczem draw jest wołane, a wynik zapamiętany; kolejne wywołania
+// z tym samym kluczem tylko wskazują zapamiętaną treść (w PDF: jedna forma XObject i operator Do).
+// Klucz musi być porównywalny i obejmować wszystko, od czego zależy wynik draw; treść nie może zależeć
+// od stanu graficznego w miejscu użycia poza tym, co forma dziedziczy (przekształcenie, przycięcie,
+// stała alfa).
+type SharedDrawer interface {
+	DrawShared(key any, width, height Fl, draw func(dst Canvas))
+}
+
 // Canvas represents a 2D surface which is the target of graphic operations.
 // It may be used as the final output (like a PDF page or the screen),
 // or as intermediate container (see for instance DrawWithOpacity or SetAlphaMask)

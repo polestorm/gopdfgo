@@ -19,6 +19,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | 0025 | Licencja projektu Apache-2.0 z `NOTICE` (atrybucja: Michał Głębowski) i `THIRD_PARTY_NOTICES`; repozytorium na razie prywatne | przyjęta |
 | 0026 | PDF/A-3b (`PDFA3b`, `-pdfa 3b`) i załączniki dokumentu (`Options.Attachments`, `/AFRelationship`, katalog `/AF`); w PDF/A-2b załącznik spoza PDF/A jest błędem | przyjęta |
 | 0027 | Strony rysowane zaraz po ułożeniu, pola marginesowe dorysowywane po ułożeniu wszystkich stron; wynik bajt w bajt taki sam, dokumenty z ponowną paginacją (spis treści z `target-counter`) wracają do rysowania po ułożeniu całości | przyjęta |
+| 0028 | Obraz SVG z pliku (`img`, `object`, `embed`, tło, `border-image`, `content: url()`) rysowany raz jako forma XObject (`backend.SharedDrawer`), kolejne wystąpienia to `Do`; klucz: obraz, tryb dokumentu, rozmiar; SVG inline bez zmian | przyjęta |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
 | 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page` | zastąpiona przez ADR 0019 |
 | 0011 | Element wiersza flex, który nie mieści się na stronie, przechodzi na następną sam (jak w przeglądarkach); gdy nie mieści się żaden, przechodzi cała linia | przyjęta |
