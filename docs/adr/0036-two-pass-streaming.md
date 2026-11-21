@@ -108,3 +108,39 @@ każdym nagłówku rozdziału `h2::after { content: "Strona " counter(page) " z 
   (dokument 3-stronicowy: „3/0”). CSS Generated Content 3 (`target-counter()`) każe podać wartość licznika
   w miejscu celu, a liczba stron jest wszędzie ta sama. Poprawka zmienia wynik, więc jest osobną decyzją;
   do tego czasu takie dokumenty idą starą drogą.
+
+## Dopisek 2026-11-21: liczniki kotwic (pytanie 27)
+
+Decyzja użytkownika z 2026-11-21: naprawić obie sprawy z ostatnich dwóch punktów „Konsekwencji”.
+
+1. Strona z odwołaniem do kotwicy jest oznaczana do ponownego układu (i treść odwołania przeliczana) tylko
+   wtedy, gdy liczniki stron kotwicy rzeczywiście się zmieniły (`CacheTargetPageCounters`). Treść odwołania
+   zależy wyłącznie od tych liczników i od liczników elementu kotwicy, które są stałe, więc wynik jest bajt
+   w bajt ten sam. Pozostałe znaczniki (`remakePage`: zmiana stanu następnej strony; `makePage`: zmiana
+   liczników stron samego pudełka, `PagesWanted`) już porównywały wartości albo zależą od liczby stron
+   porównywanej w `paginate`.
+2. `target-counter(…, pages)` podaje liczbę stron dokumentu. Po każdym obiegu paginacji
+   `TargetCollector.UpdateTargetPages` wpisuje ją do liczników wszystkich kotwic; odwołania z `pages`, których
+   wartość się zmieniła, są przeliczane, a ich strony oznaczane do ponownego układu. Dokument z takim
+   odwołaniem idzie teraz drogą dwuprzebiegową: `checkAnchor` porównuje wszystkie liczniki kotwicy, także
+   `pages` (punkt 3 i 6 decyzji w tym zakresie nieaktualne).
+
+Obiegi paginacji książki ze spisem treści i „Strona X z Y”: 8 (limit) → 3. Trzeci obieg jest potrzebny:
+w drugim strony z `counter(pages)` są układane z treścią przeliczoną po pierwszym (liczba stron 0)
+i dopiero po ułożeniu dostają liczbę stron (`ParseAgain` w `makePage`). Sam spis treści bez
+`counter(pages)`: 2 obiegi przed i po.
+
+Pomiar jak wyżej (Apple M4, `/usr/bin/time -l`, trzy przebiegi), porównanie z `f397bf0`:
+
+| dokument | stron | obiegi, przed → po | szczyt RSS, przed | szczyt RSS, po | czas, przed | czas, po |
+|---|---|---|---|---|---|---|
+| książka bez spisu (ścieżka strumieniowa) | 256 | — | 431–452 MB | 439–469 MB | 1,61–1,63 s | 1,62–1,63 s |
+| książka ze spisem i „Strona X z Y” | 259 | 8 → 3 | 467–478 MB | 461–493 MB | 3,04–3,06 s | 2,72–2,76 s |
+| książka ×4 ze spisem i „Strona X z Y” | 1027 | 8 → 3 | 804–889 MB | 834–931 MB | 12,40–12,44 s | 10,88–10,92 s |
+
+- Czas dokumentu ze spisem: −0,3 s (−10%) przy 259 stronach, −1,5 s (−12%) przy 1027; pamięć bez zmian
+  (rozrzut między przebiegami większy niż różnica).
+- Wynik bajt w bajt ten sam dla obu książek ze spisem, książki bez spisu, korpusu `testdata/documents`
+  i korpusu W3C (11 689 dokumentów, 46 756 renderowań, 0 różnic). Zmieniają się tylko dokumenty z `target-counter(…, pages)`; w korpusach takich
+  nie ma, przypadki są w `tests/twopass21_test.go` (`TestTargetCounterPages`, odwołania w przód i wstecz,
+  w obu drogach).

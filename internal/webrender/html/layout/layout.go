@@ -232,6 +232,8 @@ func (context *layoutContext) paginate(doc *tree.HTML, rootBox bo.BlockLevelBoxI
 		initialTotalPages := actualTotalPages
 		pages = context.makeAllPages(rootBox, doc, pages)
 		actualTotalPages = len(pages)
+		// gopdfgo: liczba stron w licznikach kotwic (target-counter(…, pages)), zob. UpdateTargetPages
+		context.TargetCollector.UpdateTargetPages(actualTotalPages, context.pageMaker)
 
 		// Check whether another round is required
 		reloopContent := false
@@ -514,9 +516,8 @@ type layoutContext struct {
 	pageDone func(index int, pages []*bo.PageBox) bool
 	// gopdfgo: verifying: drugi przebieg rysowania w dwóch przebiegach (ADR 0036) układa strony ze stanem
 	// paginacji z pierwszego; drift opisuje pierwszą różnicę względem niego ("" = brak)
-	verifying     bool
-	drift         string
-	pagesTargeted map[string]bool // zob. checkAnchor
+	verifying bool
+	drift     string
 
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)

@@ -149,7 +149,20 @@ table of contents of 61 chapter links at the front and "page X of Y" under every
 
 The extra layout pass costs 35–38% of time. A few cases still lay out the whole document before
 drawing: a positioned box continued on an earlier page, a `position: fixed` box that first appears on a
-later page, a margin box with a negative `z-index`, and `target-counter(…, pages)`.
+later page, and a margin box with a negative `z-index`.
+
+The inherited pagination loop marked a page with a reference to an anchor for another layout pass every
+time the anchor was laid out, even when its page number had not changed; the book with a table of
+contents ran 8 pagination passes (the limit) instead of 3. Pages are now marked only when the value
+changes (output is byte-identical). `target-counter(…, pages)` now gives the page count of the document,
+as CSS Generated Content 3 requires, instead of the page count of the pass in which the anchor was laid
+out (often 0, "3/0"); such documents now take the two-pass path too. Measured 2026-11-21 (three runs):
+
+| | passes | peak memory, before | peak memory, after | time, before | time, after |
+|---|---|---|---|---|---|
+| book, no TOC | — | 431–452 MB | 439–469 MB | 1.61–1.63 s | 1.62–1.63 s |
+| book with TOC (259 pages) | 8 → 3 | 467–478 MB | 461–493 MB | 3.04–3.06 s | 2.72–2.76 s |
+| book ×4 with TOC (1027 pages) | 8 → 3 | 804–889 MB | 834–931 MB | 12.40–12.44 s | 10.88–10.92 s |
 
 ## PDF file size
 

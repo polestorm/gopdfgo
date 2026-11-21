@@ -3,7 +3,6 @@ package layout
 import (
 	"fmt"
 	"io"
-	"slices"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/counters"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -382,7 +381,6 @@ func (s *streamer) run(doc *tree.HTML, rootBox bo.BlockLevelBoxITF) (int, pr.Flo
 		// stron zgłosił już pierwszy przebieg, więc tu są wyciszone (zob. pageDone)
 		context.footnotes = append([]Box(nil), s.originalFootnotes...)
 		context.verifying = true
-		context.pagesTargeted = targetedPages(&context.TargetCollector)
 		s.warnings = logger.WarningLogger.Writer()
 		logger.WarningLogger.SetOutput(io.Discard)
 	}
@@ -407,6 +405,7 @@ func (s *streamer) run(doc *tree.HTML, rootBox bo.BlockLevelBoxITF) (int, pr.Flo
 			return 0, 0, "two-pass layout: page count changed"
 		}
 	}
+	context.TargetCollector.UpdateTargetPages(actualTotalPages, context.pageMaker) // gopdfgo: zob. paginate
 	for _, pageData := range context.pageMaker {
 		pageData.PageState.CounterValues["pages"] = []int{actualTotalPages}
 		if s.verifying {
@@ -529,8 +528,8 @@ func (context *layoutContext) noteDrift(reason string) {
 
 // checkAnchor: przebieg sprawdzający układa strony z wartościami z pierwszego przebiegu (ADR 0036). Kotwica
 // na innej stronie albo z innymi licznikami stron znaczy, że narysowane odwołania do niej są nieaktualne.
-// Liczba stron w liczniku kotwicy pochodzi z obiegu, w którym kotwicę ułożono ostatnio (w pierwszym obiegu
-// 0), więc liczy się tylko wtedy, gdy któreś odwołanie jej używa (target-counter(…, pages)).
+// Liczba stron w licznikach kotwic jest po każdym obiegu liczbą stron dokumentu (UpdateTargetPages), więc
+// porównujemy wszystkie liczniki, także pages.
 func (context *layoutContext) checkAnchor(anchor string, pageIndex int, values tree.CounterValues) {
 	item := context.TargetCollector.TargetLookupItems[anchor]
 	if item == nil || !item.IsUpToDate() {
@@ -540,31 +539,7 @@ func (context *layoutContext) checkAnchor(anchor string, pageIndex int, values t
 		context.noteDrift(fmt.Sprintf("anchor %q moved to page %d", anchor, pageIndex+1))
 		return
 	}
-	cached := item.CachedPageCounterValues
-	if len(cached) != len(values) {
+	if !item.CachedPageCounterValues.Equal(values) {
 		context.noteDrift(fmt.Sprintf("page counters of anchor %q changed", anchor))
-		return
 	}
-	for name, v := range values {
-		if name == "pages" && !context.pagesTargeted[anchor] {
-			continue
-		}
-		if !slices.Equal(v, cached[name]) {
-			context.noteDrift(fmt.Sprintf("page counters of anchor %q changed", anchor))
-			return
-		}
-	}
-}
-
-// targetedPages zbiera kotwice, do których odwołuje się target-counter(…, pages) (zob. checkAnchor).
-func targetedPages(collector *tree.TargetCollector) map[string]bool {
-	out := map[string]bool{}
-	for _, item := range collector.CounterLookupItems {
-		for anchor, names := range item.MissingTargetCounters {
-			if names.Has("pages") {
-				out[anchor] = true
-			}
-		}
-	}
-	return out
 }

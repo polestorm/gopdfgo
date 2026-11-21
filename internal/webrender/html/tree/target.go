@@ -508,9 +508,13 @@ func (tc *TargetCollector) CacheTargetPageCounters(anchorName string, pageCounte
 	item := tc.TargetLookupItems[anchorName]
 	if item != nil && item.IsUpToDate() {
 		item.PageMakerIndex = pageMakerIndex
-		if !item.CachedPageCounterValues.Equal(pageCounterValues) {
-			item.CachedPageCounterValues = pageCounterValues.Copy()
+		if item.CachedPageCounterValues.Equal(pageCounterValues) {
+			// gopdfgo: liczniki stron kotwicy się nie zmieniły, więc treść odwołań do niej też nie; źródło
+			// (TODO poniżej) oznaczało strony z odwołaniami do ponownego układu przy każdym ułożeniu kotwicy,
+			// przez co książka ze spisem treści robiła 8 obiegów paginacji (limit) zamiast 2.
+			return
 		}
+		item.CachedPageCounterValues = pageCounterValues.Copy()
 	}
 
 	// Spread the news: update boxes affected by a change in the
@@ -546,5 +550,37 @@ func (tc *TargetCollector) CacheTargetPageCounters(anchorName string, pageCounte
 		}
 		// Hint: the box's own cached page counters trigger a
 		// separate "contentChanged".
+	}
+}
+
+// UpdateTargetPages (gopdfgo) wpisuje liczbę stron dokumentu do liczników stron wszystkich kotwic
+// i przelicza odwołania target-counter(…, pages), których wartość się zmieniła. Licznik pages ma tę samą
+// wartość na każdej stronie (CSS Paged Media 3, liczniki stron), więc target-counter() czyta liczbę stron
+// całego dokumentu (CSS Generated Content 3, target-counter()); w źródle kotwica zachowywała liczbę stron z obiegu, w którym
+// ją ułożono (w pierwszym obiegu 0), a dokument 3-stronicowy pokazywał „3/0”. Strony z odwołaniami
+// oznacza do ponownego układu jak CacheTargetPageCounters.
+func (tc *TargetCollector) UpdateTargetPages(totalPages int, pageMaker []PageMaker) {
+	if tc.collecting {
+		return
+	}
+	for anchorName, target := range tc.TargetLookupItems {
+		if !target.IsUpToDate() {
+			continue
+		}
+		if old := target.CachedPageCounterValues["pages"]; len(old) == 1 && old[0] == totalPages {
+			continue
+		}
+		target.CachedPageCounterValues["pages"] = []int{totalPages}
+		for key, item := range tc.CounterLookupItems {
+			if key.CssToken != "content" || !item.MissingTargetCounters[anchorName].Has("pages") {
+				continue
+			}
+			if item.PageMakerIndex.none || item.PageMakerIndex.int >= len(pageMaker) {
+				item.Pending = true
+				continue
+			}
+			pageMaker[item.PageMakerIndex.int].RemakeState.ContentChanged = true
+			item.ParseAgain(item.CachedPageCounterValues)
+		}
 	}
 }

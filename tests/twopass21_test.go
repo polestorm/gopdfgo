@@ -80,10 +80,11 @@ func twoPassCases() []struct{ name, html, want string } {
 		{"toc-backward-self", `<style>` + tocStyle + ` .back::after { content: " s. " target-counter(attr(href), page) }</style>` +
 			`<p><a class="back" href="#self" id="self">tu</a></p>` + toc(6) + chapters(6, 3) +
 			`<p><a class="back" href="#r0">wstecz do 1</a> <a class="back" href="#r5">wstecz do 6</a></p>`, ""},
-		// target-counter(…, pages): kotwica zapamiętuje liczbę stron z obiegu, w którym ją ułożono, więc drugi
-		// przebieg widzi inną wartość niż układ całego dokumentu i wraca do niego
+		// target-counter(…, pages): liczba stron dokumentu, ta sama dla każdej kotwicy (zob. TestTargetCounterPages)
 		{"target-counter-pages", `<style>@page { size: A6 } .toc a::after { content: target-counter(attr(href), page) "/" target-counter(attr(href), pages) }</style>` +
-			toc(6) + chapters(6, 3), "page counters of anchor"},
+			toc(6) + chapters(6, 3), ""},
+		{"target-counter-pages-backward", `<style>@page { size: A6 } .back::after { content: " s. " target-counter(attr(href), page) "/" target-counter(attr(href), pages) }</style>` +
+			chapters(6, 3) + `<p><a class="back" href="#r0">wstecz do 1</a> <a class="back" href="#r4">wstecz do 5</a></p>`, ""},
 		{"target-text", `<style>@page { size: A6 } .toc a::after { content: " — " target-text(attr(href)) " s. " target-counter(attr(href), page) }</style>` +
 			toc(6) + chapters(6, 3), ""},
 		{"string-set-pages", `<style>@page { size: A6; @top-center { content: string(head) } }
@@ -173,5 +174,41 @@ func TestTwoPassCorpus(t *testing.T) {
 			t.Errorf("%s: wynik różni się od układu całego dokumentu", filepath.Base(file))
 		}
 		t.Logf("%s: dwa przebiegi", filepath.Base(file))
+	}
+}
+
+// target-counter(…, pages) podaje liczbę stron dokumentu (CSS Generated Content 3: wartość licznika pages
+// w miejscu celu; CSS Paged Media 3: pages ma tę samą wartość na każdej stronie), w obu drogach układu
+// i dla odwołań w przód i wstecz. Przejęty kod dawał liczbę stron z obiegu, w którym ułożono kotwicę
+// (zwykle 0).
+func TestTargetCounterPages(t *testing.T) {
+	opts := streamOptions(t)
+	lorem := strings.Repeat("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. ", 6)
+	html := `<!doctype html><html lang=pl><meta charset=utf-8><style>@page { size: A6 }
+		a::after { content: " [" target-counter(attr(href), page) "/" target-counter(attr(href), pages) "]" }
+		h2 { break-before: page }</style>
+		<p><a href="#c">do C</a> <a href="#b">do B</a></p>
+		<h2 id="a">A</h2>` + paragraphs(2, lorem) + `<h2 id="b">B</h2>` + paragraphs(2, lorem) +
+		`<h2 id="c">C</h2><p><a href="#a">do A</a></p>`
+	for _, streaming := range []bool{true, false} {
+		document.StreamingDisabled = !streaming
+		result, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+		document.StreamingDisabled = false
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(extractText(t, result.PDF))
+		n := result.Pages
+		if n < 4 {
+			t.Fatalf("stron %d, oczekiwane co najmniej 4", n)
+		}
+		for _, want := range []string{fmt.Sprintf("do C [%d/%d]", n, n), fmt.Sprintf("do A [2/%d]", n)} {
+			if !strings.Contains(text, want) {
+				t.Errorf("rysowanie w trakcie układu %v: brak %q w tekście %q", streaming, want, text)
+			}
+		}
+		if got := strings.Count(text, fmt.Sprintf("/%d]", n)); got != 3 {
+			t.Errorf("rysowanie w trakcie układu %v: liczba stron %d w %d odwołaniach z 3: %q", streaming, n, got, text)
+		}
 	}
 }

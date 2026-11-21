@@ -181,11 +181,8 @@ element `Link` w miejscu elementu `a` z tekstem alternatywnym z `title`/`aria-la
 
 ## 27. Zbędne obiegi paginacji i `target-counter(…, pages)`
 
-Otwarte od 2026-11-21 (ADR 0036). Dwie sprawy w liczeniu odwołań przejętego kodu (`tree/target.go`
-`CacheTargetPageCounters`, `layout/pages.go` `makePage`):
-- kotwica ułożona od nowa oznacza stronę z odwołaniem do ponownego układu bez porównania wartości (`TODO`
-  w źródle), więc książka ze spisem treści robi 8 obiegów (limit) zamiast 2; to ok. 0,4 s na 259 stron
-  w obu drogach. Porównanie przed oznaczeniem może zmienić wynik dokumentów, w których obieg jeszcze coś
-  zmieniał, więc wymaga porównania bajtowego korpusu;
-- `target-counter(…, pages)` pokazuje liczbę stron z obiegu, w którym kotwicę ułożono (zwykle 0; dokument
-  3-stronicowy daje „3/0”), a według CSS Generated Content 3 powinien pokazać liczbę stron dokumentu.
+Rozstrzygnięte 2026-11-21 przez użytkownika: naprawić oba; dopisek w ADR 0036. Strony z odwołaniami do
+kotwicy są oznaczane do ponownego układu tylko przy zmianie liczników stron kotwicy (książka ze spisem
+treści i „Strona X z Y”: 8 obiegów → 3, czas −10–12%, wynik bajt w bajt ten sam), a `target-counter(…, pages)`
+podaje liczbę stron dokumentu (wynik zmienia się tylko w dokumentach z takim odwołaniem; idą teraz drogą
+dwuprzebiegową).

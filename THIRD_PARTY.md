@@ -1122,6 +1122,20 @@ Wspólne dla obu katalogów:
     małych obiektów; rejestr tabel z korpusu: +171% rozmiaru bez nich, +31% z nimi); bez opcji zapis bez zmian;
   - bez opcji wynik bajt w bajt ten sam (korpus W3C: 11 689 dokumentów, 46 756 renderowań, 0 różnic); przejęty
     test `html/document/document_test.go` `assertLinks` pomija przy porównaniu nowe pole elementu odnośnika;
+- liczniki kotwic w paginacji, 2026-11-21 (praca pomocnika; ADR 0036, dopisek; pytanie 27;
+  `html/tree/target.go` `CacheTargetPageCounters`, `UpdateTargetPages`; `html/layout/layout.go` `paginate`;
+  `html/layout/stream.go` `run`, `checkAnchor`; testy `tests/twopass21_test.go`):
+  - `CacheTargetPageCounters` oznacza stronę z odwołaniem do ponownego układu (`ContentChanged`) i przelicza
+    jego treść (`ParseAgain`) tylko wtedy, gdy liczniki stron kotwicy się zmieniły; źródło (WeasyPrint też,
+    `TODO` w `cache_target_page_counters`) robiło to przy każdym ułożeniu kotwicy. Strony z `counter(pages)`
+    są układane w każdym obiegu, ich kotwice też, więc książka ze spisem treści robiła 8 obiegów (limit)
+    zamiast 3. Wynik bajt w bajt ten sam;
+  - `target-counter(…, pages)` i `target-counters(…, pages)` podają liczbę stron dokumentu (CSS Generated
+    Content 3: wartość licznika w miejscu celu; CSS Paged Media 3: `pages` ma tę samą wartość na każdej
+    stronie). Źródło brało liczbę stron z obiegu, w którym ułożono kotwicę (zwykle 0: „3/0”). Po każdym
+    obiegu `UpdateTargetPages` wpisuje liczbę stron do liczników wszystkich kotwic i oznacza do ponownego
+    układu strony z odwołaniami, których wartość się zmieniła; dokument z takim odwołaniem idzie teraz
+    drogą dwuprzebiegową (`checkAnchor` porównuje wszystkie liczniki, pole `pagesTargeted` usunięte);
 - dokumenty z ponowną paginacją układane w dwóch przebiegach, 2026-11-21 (praca pomocnika; ADR 0036;
   `html/layout/layout.go` `layoutDocument`, `paginate`, `finishPages`, pola `verifying`, `drift`,
   `pagesTargeted`; `html/layout/pages.go` `makePage`, `remakePage`; `html/layout/stream.go`,
