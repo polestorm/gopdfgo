@@ -932,7 +932,7 @@ func (fc *FontConfigurationGotext) CanBreakText(t []rune) pr.MaybeBool {
 	if len(t) < 2 {
 		return nil
 	}
-	fc.unicodeSeg.Init(hyphensBeforeDigits(t)) // gopdfgo: zob. hyphensBeforeDigits
+	fc.unicodeSeg.Init(slashesWithinWords(hyphensBeforeDigits(t))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -960,7 +960,7 @@ func (fc *FontConfigurationGotext) wordBoundaries(t []rune) *[2]int {
 
 // return -1 if not found
 func (fc *FontConfigurationGotext) getNextBreakPoint(text []rune) int {
-	fc.unicodeSeg.Init(hyphensBeforeDigits(text)) // gopdfgo: zob. hyphensBeforeDigits
+	fc.unicodeSeg.Init(slashesWithinWords(hyphensBeforeDigits(text))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -1559,6 +1559,41 @@ func hyphensBeforeDigits(text []rune) []rune {
 	return out
 }
 
+// slashBreakMinDistance (gopdfgo) to najmniejsza odległość (w znakach) od ukośnika do następnej okazji
+// do złamania, przy której z okazji po ukośniku korzystamy; zob. slashesWithinWords.
+const slashBreakMinDistance = 20
+
+// slashesWithinWords (gopdfgo) zwraca tekst do wyznaczania miejsc podziału, w którym ukośnik (U+002F)
+// stojący między znakami niebiałymi jest zamieniony na literę, gdy następna okazja do złamania (biały
+// znak, kolejny ukośnik, dywiz) jest bliżej niż slashBreakMinDistance znaków.
+//
+// UAX #14 (rewizja 57, § 5.1, klasa SY) daje po ukośniku okazję do złamania, ale zaleca, by układ z niej
+// nie korzystał, chyba że odległość do następnej okazji przekracza minimum ustalone przez implementację;
+// inaczej „w/o”, „and/or”, „zyskiem/stratą” łamią się w środku. Chromium (ICU) po ukośniku przed literą
+// albo cyfrą nie łamie wcale, także w adresach URL (pomiar w Chrome 157, 2026-11-21; sprawozdania e-SF
+// z xml.pro). Litera zamiast ukośnika usuwa tylko okazję po nim: przed ukośnikiem UAX #14 łamać i tak
+// zabrania (LB13). Kształty i szerokości biorą się z tekstu oryginalnego.
+func slashesWithinWords(text []rune) []rune {
+	out := text
+	for i := 1; i+1 < len(text); i++ {
+		if text[i] != '/' || unicode.IsSpace(text[i-1]) || unicode.IsSpace(text[i+1]) {
+			continue
+		}
+		distance := 0
+		for j := i + 1; j < len(text) && !unicode.IsSpace(text[j]) && text[j] != '/' && text[j] != '-' && text[j] != '\u2010'; j++ {
+			distance++
+		}
+		if distance >= slashBreakMinDistance {
+			continue
+		}
+		if &out[0] == &text[0] {
+			out = slices.Clone(text)
+		}
+		out[i] = 'x'
+	}
+	return out
+}
+
 func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs shaping.Line, maxWidth pr.Float, allowWordBreak bool) (usedMaxWidth fixed.Int26_6, _ shaping.WrappedLine, _ bool) {
 	dir := di.DirectionLTR
 	if style.Direction == pr.Rtl {
@@ -1596,6 +1631,7 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	}
 	breakText = joinersAfterSpaces(breakText)
 	breakText = hyphensBeforeDigits(breakText)
+	breakText = slashesWithinWords(breakText)
 	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
 		fc.lineWrapper.Prepare(config, breakText, shaping.NewSliceIterator(runs))
 		line, done := fc.lineWrapper.WrapNextLineF(limit)
