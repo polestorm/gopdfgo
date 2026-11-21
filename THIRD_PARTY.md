@@ -973,6 +973,10 @@ Wspólne dla obu katalogów:
   - `images/images.go` `SVGImage.GetIntrinsicSize`: ujemne `width`/`height` elementu `<svg>` działają jak
     auto (SVG 2 § 8.2), a przy wymiarze zerowym proporcje pochodzą z `viewBox` (CSS Values 4 § 7.3,
     proporcje zdegenerowane); źródło brało ujemne wymiary dosłownie i zwracało proporcje 0;
+- `css/parser/tokenizer.go` `isIdentStart`, 2026-11-21: sprawdzenie zakresu przy „-” na końcu tekstu; wartość
+  zakończona samotnym łącznikiem (`color: -`, `fill="-"`) przerywała renderowanie paniką (wyjście poza
+  koniec tekstu). Ujawnił to losowy przejęty test `svg.TestInvalidAttributes`, który padał sporadycznie;
+  test `tests/svgfixes18_test.go` `TestLoneHyphenValue`;
 - pojedyncze poprawki SVG z sondażu W3C, 2026-11-21 (praca pomocnika; ADR 0031; test
   `tests/svgsingles18_test.go`; sondaż `svg/` z 181 na 194 z 235, bez strat; korpus: flaga Brazylii w `img`
   i inline bliżej oryginału, bo litery napisu wstawione przez `<use>` dziedziczą zielone wypełnienie, reszta

@@ -266,12 +266,14 @@ Not supported or incomplete:
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 181 pass (2026-11-21); on the morning of 2026-11-20 it was 83.
+or have no reference. Of those 235, 194 pass (2026-11-21); on the morning of 2026-11-20 it was 83.
 
 Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Remaining failures (54), the largest groups: CSS Linked Parameters (23, a proposal), blur shadows,
-CSS `zoom`, CSS animations, and single cases.
+Remaining failures (41), the largest groups: CSS Linked Parameters (23, a proposal), CSS `zoom` (6),
+the animated state in print and `use` in print (6), and single cases (`mask` on HTML elements, path bearing commands from an
+SVG 2 draft, `:visited`). Two `text-shadow` tests differ from their references within the tolerance the
+tests declare (`fuzzy`), which the survey does not apply.
 
 Real-world corpus: every file is within 2.3% of Chrome's pixels; the remaining differences are font
 substitution, the missing blur shadow, and anti-aliasing.

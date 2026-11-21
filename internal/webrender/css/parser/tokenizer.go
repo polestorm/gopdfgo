@@ -583,7 +583,8 @@ func (tk *tokenizer) isIdentStart() bool {
 		// Name-start code point
 		nameStart := pos < len(tk.src) && (isNameStart(tk.src, pos) || tk.src[pos] == '-')
 		// Valid escape
-		validEscape := tk.src[pos] == '\\' && !bytes.HasPrefix(tk.src[pos:], []byte("\\\n"))
+		// gopdfgo: sprawdzenie zakresu; samotny „-” na końcu wartości (np. fill="-") kończył się paniką
+		validEscape := pos < len(tk.src) && tk.src[pos] == '\\' && !bytes.HasPrefix(tk.src[pos:], []byte("\\\n"))
 		return nameStart || validEscape
 	} else if tk.src[tk.pos] == '\\' {
 		return !bytes.HasPrefix(tk.src[tk.pos:], []byte("\\\n"))

@@ -87,3 +87,9 @@ func TestSVGDocumentFixes(t *testing.T) {
 		})
 	}
 }
+
+// Samotny „-” na końcu wartości CSS (atrybut SVG albo deklaracja HTML) kończył renderowanie paniką
+// tokenizera (wyjście poza koniec tekstu w isIdentStart); teraz wartość jest po prostu błędna.
+func TestLoneHyphenValue(t *testing.T) {
+	renderString(t, `<!DOCTYPE html><p style="color: -">a</p><svg width="10" height="10"><rect width="10" height="10" fill="-" stroke="-"/></svg>`)
+}
