@@ -2201,3 +2201,64 @@ Reftesty druku 310 z 340, sondaż ekranowy 9502, korpus bez zmian; poprawki piln
 
 Otwarte: blok niepodzielny (`overflow: hidden` z wysokością, `contain: size`) wyższy niż strona jest ucinany na
 krawędzi strony (w tabeli i poza nią); reguła zamrożonego elementu kolumnowego flex działa tylko bez zawijania.
+
+## Niezaliczone reftesty druku: rozpoznanie 30 testów (2026-11-21)
+
+Stan wyjściowy `go test ./tests/ -run TestWPTReftests`: zaliczone 310 z 340 (ściśle 308, krawędziowo 2),
+niezaliczone 30. Każdy test obejrzany (rastry testu i wzorca, treść testu); zachowanie przeglądarki tam, gdzie
+było potrzebne, sprawdzone w Chrome 157 (`--headless --print-to-pdf`, pliki próbne w scratchpadzie sesji `rt30/x`).
+
+| Test | Przyczyna | Kategoria | Dokumenty | Naprawiony |
+|---|---|---|---|---|
+| `css-page/page-box-008`, `-009` | `writing-mode: vertical-rl` na korzeniu, logiczne marginesy i odstępy `@page` | pismo pionowe (ADR 0010) | nie | nie |
+| `css-page/page-margin-002` | dokument `vertical-rl`, bloki `100vw × 100vh` | pismo pionowe | nie | nie |
+| `css-page/page-size-012` | dokument `vertical-rl`, logiczne marginesy `@page :first` | pismo pionowe | nie | nie |
+| `css-page/body-background-{slr,srl,vlr,vrl}` (4) | dokument w piśmie pionowym, tło `body` na płótnie | pismo pionowe | nie | nie |
+| `css-page/page-name-orthogonal-writing-001`, `-003` | strony nazwane w poddrzewie o ortogonalnym `writing-mode` | pismo pionowe | nie | nie |
+| `margin-boxes/dimensions-004` | jedno pole narożne `vertical-rl`; reszta 15 pól zgodna co do piksela | pismo pionowe | nie | nie |
+| `margin-boxes/dimensions-006`, `-013`, `-014` | pola marginesów albo dokument w `vertical-rl` (wymiary pól zgodne, różni się tekst pionowy) | pismo pionowe | nie | nie |
+| `css-page/media-queries-002`, `-003` | `<iframe>` i `<frameset>` | poza zakresem (brak ramek) | nie | nie |
+| `tentative/safe-printable-inset-001`–`003` | `page-margin-safety` i niezadrukowywany obszar drukarki (`<meta name=safe-printable-inset>` z narzędzia testowego) | szkic, cecha drukarki; PDF nie ma takiego obszaru | nie | nie |
+| `css-page/fixedpos-010` | wzorzec chce pudełka `fixed` liczonego od rozmiaru pierwszej strony także na stronie nazwanej o innym rozmiarze | test sprzeczny z CSS 2.1 § 9.6.1 („fixed with respect to the page box”, każdej strony); model Chromium (jedno okno) | nie | nie (bez zmian, jak w dwunastej paczce) |
+| `css-break/transform-024` | `transform: rotate(180deg)` na bloku dzielonym między 3 strony z pudełkami `absolute` przesuniętymi `translateY` | fragmentacja przekształceń | nie | nie (oszacowanie: kilka dni; przekształcenie musiałoby obejmować fragmenty na wielu stronach) |
+| `css-break/underflow-from-next-page` | ujemny `margin-top: -50vh` za wymuszonym podziałem; wzorzec rysuje treść na poprzedniej stronie | przypadek brzegowy (treść przed początkiem fragmentatora); CSS Break 3 tego nie opisuje | nie | nie |
+| `css-page/monolithic-overflow-024`, `-025` | `line-height: 200px` na stronie 100 px: Chrome kroi pusty odstęp wiersza na dwie strony (6 i 8 stron), my dajemy wierszowi stronę i ucinamy glif | wiersz wyższy niż strona | nie | nie (oszacowanie: pół dnia; krojenie wierszy działa dziś tylko dla wysokich elementów atomowych, `hasTallAtomicInline`) |
+| `css-page/monolithic-overflow-031`, `-032` (tentative) | `box-decoration-break: clone` na bloku o podanej wysokości z treścią `contain: size` wyższą niż strona i rodzeństwem za nią (przepływy równoległe) | przypadek brzegowy; wzorzec `-032` sam przyznaje, że zachowanie „nie jest oczywiste” | nie | nie (oszacowanie: 1–2 dni, stosy wznowienia z kilkoma wpisami przy `clone`) |
+| `css-break/flexbox/multi-line-row-flex-fragmentation-064` | pusty blok o podanej wysokości mieszczący się na stronie przenoszony w całości | decyzja ADR 0004 | tak (karty) | nie (decyzja) |
+| `css-tables/table-cell-percent-height-row-groups` | wzorzec dzieli wiersz 90 px na granicy strony (67 + 23 px); my przenosimy wiersz niższy niż strona w całości | decyzja ADR 0020 (wiersz tabeli w całości) | tak (tabele) | nie (decyzja); procenty wysokości w komórkach nagłówka, stopki i ciał liczone dobrze |
+| `css-break/float-with-large-margin-bottom-cross-page-001` | reszta dolnego marginesu elementu pływającego za końcem strony nie wpływa na `clear` na następnej | świadomie bez zmian (trzynasta paczka; Chromium według wpt.fyi też nie) | nie | nie |
+| `CSS2/pagination/float-page-break-inside-avoid-8` | (1) element pływający z `break-inside: avoid`, który się nie mieści, zabierał ze sobą na następną stronę całą treść za nim; (2) blok `height: 60%` przechodzi w całości | (1) błąd układu, (2) decyzja ADR 0004 | tak | (1) tak, test nadal nie przechodzi z powodu (2) |
+
+Podsumowanie: 14 testów to pismo pionowe (ADR 0010), 5 to ramki i szkic `safe-printable-inset`, 3 to decyzje
+(ADR 0004, ADR 0020, `fixedpos-010` sprzeczny z normą), 1 świadomie bez zmian, 6 przypadków brzegowych
+fragmentacji. Jedyny błąd ważny dla zwykłych dokumentów kryje się w `float-page-break-inside-avoid-8`
+i jest naprawiony; sam test zostaje niezaliczony przez ADR 0004.
+
+### Naprawione: element pływający, który nie mieści się na stronie
+
+Obraz pływający (`float`) przy dole strony, który się nie mieści, w Chrome 157 i Gecko przechodzi na następną
+stronę sam, a tekst za nim zostaje na bieżącej i zajmuje całą szerokość (CSS 2.1 § 9.5.1: położenie elementu
+pływającego ograniczają tylko treści wcześniejsze w źródle). gopdfgo:
+
+- obraz na początku akapitu: cały akapit przechodził na następną stronę, reszta strony zostawała pusta;
+- obraz w środku akapitu (w wierszu): stawał na dole strony i był ucinany na jej krawędzi — **utrata treści**;
+- element pływający z `clear` za elementem pływającym ciągnącym się na następnej stronie dostawał w wierszu
+  położenie NaN i znikał z dokumentu — **utrata treści** (ujawniło się przy
+  `float-page-break-inside-avoid-5`, który przechodził tylko dlatego, że wzorzec gubił ten sam element);
+- wymuszony `break-before` na elemencie pływającym w wierszu nie działał.
+
+Teraz taki element przechodzi sam (jako dalszy ciąg bez miejsca wznowienia, `pushFloat` w `layout.go`), następne
+elementy pływające idą za nim (reguła 5), blok z `clear` staje pod nim na następnej stronie, pudełko z clearfix
+ciągnie się na następną stronę. Sprawdzone na siedmiu plikach próbnych wobec Chrome 157 (zgodne układem)
+i w `tests/floatpush21_test.go` (5 przypadków; bez poprawki wszystkie zawodzą).
+
+Ograniczenia (zachowanie jak dotąd): tylko w kontekście formatowania blokowego strony — element pływający
+wewnątrz `display: flow-root`, `overflow: hidden`, tabeli, flex, siatki, kolumn albo pudełka pozycjonowanego
+nadal zatrzymuje rodzica (pudełko zakładające kontekst musiałoby ciągnąć się na następną stronę, żeby objąć
+przeniesiony element; wzorce `css-page/page-size-007/008`). Gdy rodzic i tak przechodzi w całości na następną
+stronę (ADR 0004, `break-inside: avoid`), zgłoszenie przeniesienia jest cofane. Kilka przeniesionych
+elementów, które nie mieszczą się razem na następnej stronie, przechodzi dalej po kolei (przejęty test
+`TestFloatsPageBreaks3`).
+
+Sprawdzenia: reftesty druku 310 z 340 (ściśle 308, krawędziowo 2) bez zmian listy, sondaż CSS i SVG bez strat,
+korpus (22 dokumenty i 23 SVG) bez różnic pikseli wobec binarki sprzed zmiany.

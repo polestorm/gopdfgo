@@ -892,6 +892,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		contextOutOfFlow = context.brokenOutOfFlow
 	)
 	context.brokenOutOfFlow = make(map[Box]brokenBox) // new map
+	repushed := false                                 // gopdfgo: zob. niżej, przeniesiony element pływający
 	for _, v := range orderedBroken(contextOutOfFlow) {
 		box, containingBlock := v.box, v.containingBlock
 		if v.deferredPages > 0 {
@@ -950,8 +951,23 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			outOfFlowResumeAt tree.ResumeStack
 		)
 		if box.Box().IsFloated() {
+			if v.pushed { // gopdfgo: zob. layoutContext.canPushFloat
+				context.pushedFloatsPlaced[box] = pageNumber
+			}
 			outOfFlowBox, outOfFlowResumeAt = floatLayout(context, box, containingBlock.Box(),
 				&positionedBoxes, &positionedBoxes, 0, v.resumeAt)
+			// gopdfgo: przeniesiony element pływający, który nie mieści się także tutaj pod wcześniej
+			// przeniesionymi, przechodzi dalej; za nim wszystkie następne (CSS 2.1 § 9.5.1, reguła 5)
+			if v.pushed && len(outOfFlowBoxes) != 0 && (repushed || context.overflowsPage(0,
+				outOfFlowBox.Box().BorderBoxY()+outOfFlowBox.Box().BorderHeight())) {
+				removePlaceholders(context, []Box{outOfFlowBox}, &positionedBoxes, &positionedBoxes)
+				context.removeExcludedShape(outOfFlowBox.Box())
+				delete(context.pushedFloatsPlaced, box)
+				v.pushedFrom = nil // rodzic został na wcześniejszej stronie (zob. dropStalePushedFloats)
+				context.setBrokenOutOfFlow(box, v)
+				repushed = true
+				continue
+			}
 		} else {
 			if !box.Box().IsAbsolutelyPositioned() {
 				panic("internal error: box should be absolutely positioned")
@@ -1054,6 +1070,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	}
 
 	rootBox.Box().Children = append(outOfFlowBoxes, rootBox.Box().Children...)
+	context.dropStalePushedFloats(rootBox) // gopdfgo: zob. layoutContext.canPushFloat
 
 	footnoteArea = bo.CreateAnonymousBox(bo.Deepcopy(footnoteArea)).(*bo.FootnoteAreaBox)
 	tmpBox, _, _ := blockLevelLayout(

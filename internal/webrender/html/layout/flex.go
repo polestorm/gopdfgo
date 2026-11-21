@@ -203,6 +203,8 @@ func setPos(box *bo.BoxFields, position bool, value pr.Float) {
 func flexLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack, containingBlock containingBlock,
 	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder, discard bool,
 ) (bo.Box, blockLayout) {
+	context.independentDepth++ // gopdfgo: zob. layoutContext.canPushFloat
+	defer func() { context.independentDepth-- }()
 	if traceMode {
 		traceLogger.DumpTree(box_, "starting flexLayout")
 	}

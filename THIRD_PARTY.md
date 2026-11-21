@@ -1029,6 +1029,23 @@ Wspólne dla obu katalogów:
     zwolnieniu stosu ten sam adres mógł dostać nowy stos i odczytać cudzy wpis, więc wynik zależał od
     chwili odśmiecania (css-multicol/multicol-span-all-children-height-013 raz na ~150 przebiegów, przy
     GOGC=1 w większości); teraz stos z wpisem żyje do końca układu;
+- element pływający przenoszony sam na następną stronę, 2026-11-21 (test `tests/floatpush21_test.go`;
+  `html/layout/layout.go` `canPushFloat`, `pushFloat`, `hasPushedFloat`, `floatPushedAway`,
+  `pushedFloatPlaced`, `removeExcludedShape`, pola `brokenBox.pushed`, `independentDepth`,
+  `pushedFloatsPlaced`; `block.go` `outOfFlowLayout`; `inline.go` `inlineOutOfFlowLayout`, `splitInlineBox`,
+  pętla elementów czekających w `getNextLinebox`, nowe `pushFloatFromLine`; `pages.go` `makePage`; licznik
+  `independentDepth` w `tableLayout`, `flexLayout`, `gridLayout`):
+  - element pływający, który nie mieści się w reszcie strony i nie może się podzielić (treść niepodzielna,
+    `break-inside: avoid`, wymuszony `break-before`), w źródle zatrzymywał rodzica: cały akapit przechodził
+    z nim na następną stronę, a element w środku wiersza był ucinany na dole strony (utrata treści). Teraz
+    przechodzi sam jako dalszy ciąg bez miejsca wznowienia, treść za nim zostaje (CSS 2.1 § 9.5.1, jak
+    Chromium i Gecko); następne elementy pływające idą za nim (reguła 5). Tylko w kontekście formatowania
+    blokowego strony, poza kolumnami, tabelami, flex, siatką i pudełkami przycinającymi;
+  - element pływający z `clear` za elementem ciągnącym się na następnej stronie dostawał w wierszu
+    nieskończone clearance i położenie NaN, więc znikał z dokumentu; teraz też przechodzi na następną stronę;
+  - przeniesione elementy, które nie mieszczą się razem na następnej stronie, przechodzą dalej (`makePage`);
+    zgłoszenie z rodzica, który w całości przeszedł na następną stronę, jest cofane na końcu strony
+    (`dropStalePushedFloats`);
 - PDF z tagami, runda 2 (PDF/UA-1), 2026-11-21 (ADR 0033; pliki własne `backend/tagged.go`,
   `html/document/tags.go`, `goweasyprint/pdf/tagged.go`, test `tests/pdfua18_test.go`; zmiany w przejętym
   kodzie: `html/document/draw_text.go` `drawText` (`markText`), `html/document/document.go`

@@ -1162,6 +1162,8 @@ func findBoxIndex(l []Box, v Box) int {
 func gridLayout(context *layoutContext, box_ Box, bottomSpace pr.Float, skipStack tree.ResumeStack, containingBlock containingBlock,
 	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
 ) (Box, blockLayout) {
+	context.independentDepth++ // gopdfgo: zob. layoutContext.canPushFloat
+	defer func() { context.independentDepth-- }()
 	// gopdfgo: wyrównanie do linii bazowej powiększa wiersz, gdy elementy po przesunięciu przestają się
 	// w nim mieścić (CSS Grid 1 § 11.5 krok 1, CSS Align 3 § 9.3: do wkładu elementu w rozmiar ścieżki
 	// dolicza się odsunięcie od wspólnej linii bazowej, „shim”). Linie bazowe znamy dopiero po ułożeniu

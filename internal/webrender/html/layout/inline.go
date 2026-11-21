@@ -3,6 +3,7 @@ package layout
 import (
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"unicode"
@@ -644,7 +645,13 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 	for _, waitingFloat_ := range waitingFloats {
 		waitingFloat := waitingFloat_.Box()
 		waitingFloat.PositionY = waitingFloatsY
+		if context.pushedFloatPlaced(waitingFloat_) {
+			continue // gopdfgo: zob. layoutContext.canPushFloat
+		}
 		newWaitingFloat, waitingFloatResumeAt := floatLayout(context, waitingFloat_, containingBlock, absoluteBoxes, fixedBoxes, bottomSpace, nil)
+		if pushFloatFromLine(context, waitingFloat_, newWaitingFloat, waitingFloatResumeAt, containingBlock_, bottomSpace, absoluteBoxes, fixedBoxes) {
+			continue
+		}
 
 		if traceMode {
 			traceLogger.DumpTree(newWaitingFloat, "after float layout")
@@ -1682,7 +1689,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 				// gopdfgo: float lewy w wierszu przesunął już pozycję startową; odejmowanie jego
 				// szerokości także od prawej krawędzi zwężało wiersz dwukrotnie.
 				leftInLine := child.Style.GetFloat() == "left" && bo.LineT.IsInstance(box_)
-				if !isInBoxes(child_, *waitingFloats) && !leftInLine {
+				if !isInBoxes(child_, *waitingFloats) && !leftInLine && !context.floatPushedAway(child_) {
 					maxX -= child.MarginWidth()
 				}
 			}
@@ -2108,9 +2115,14 @@ func inlineOutOfFlowLayout(context *layoutContext, box Box, containingBlock Box,
 			// TODO: the absolute and fixed boxes in the floats must be
 			// added here, and not in iterLineBoxes
 			*waitingFloats = append(*waitingFloats, child_)
+		} else if context.pushedFloatPlaced(child_) {
+			// gopdfgo: element przeniesiony z poprzedniej strony już tu stoi (zob. layoutContext.canPushFloat)
 		} else {
 			newChild, floatResumeAt := floatLayout(context, child_, containingBlock.Box(), absoluteBoxes, fixedBoxes,
 				bottomSpace, nil)
+			if pushFloatFromLine(context, child_, newChild, floatResumeAt, containingBlock, bottomSpace, absoluteBoxes, fixedBoxes) {
+				return positionX
+			}
 
 			if floatResumeAt != nil {
 				context.setBrokenOutOfFlow(child_, brokenBox{box: child_, containingBlock: containingBlock, resumeAt: floatResumeAt})
@@ -3114,4 +3126,38 @@ func canBreakInside(ctx *layoutContext, box Box) pr.MaybeBool {
 		return pr.False
 	}
 	return pr.False
+}
+
+// pushFloatFromLine (gopdfgo) przenosi na następną stronę element pływający ułożony w wierszu albo pod nim,
+// który nie mieści się w reszcie strony i nie może się podzielić (zob. layoutContext.canPushFloat), a także
+// każdy element pływający za elementem już przeniesionym. Mówi, czy element przeniósł; wtedy laidOut nie
+// trafia do wiersza. Element ułożony na tej stronie kasuje zgłoszenie z wcześniejszego układu próbnego.
+func pushFloatFromLine(context *layoutContext, original, laidOut Box, resumeAt tree.ResumeStack, containingBlock Box,
+	bottomSpace pr.Float, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
+) bool {
+	box := laidOut.Box()
+	avoid := avoidPageBreak(string(box.Style.GetBreakInside()), context)
+	// clear za elementem pływającym ciągnącym się na następnej stronie daje nieskończone clearance
+	// (getClearance), a położenie nie jest wtedy liczbą; w źródle taki element ginął
+	beyondPage := math.IsNaN(float64(box.PositionY)) || math.IsInf(float64(box.PositionY), 1)
+	// wymuszony podział przed elementem pływającym (CSS 2.1 § 13.3.1: break-before dotyczy też elementów
+	// pływających; dla elementów w bloku robi to forcedBreakBeforeOutOfFlow); w źródle w wierszu nie działał
+	forced := false
+	switch box.Style.GetBreakBefore() {
+	case "page", "always", "left", "right", "recto", "verso":
+		forced = true
+	}
+	tooLow := beyondPage || forced || (resumeAt != nil && avoid) ||
+		(resumeAt == nil && context.overflowsPage(bottomSpace, box.BorderBoxY()+box.BorderHeight())) ||
+		(resumeAt == nil && avoid && context.overflowsPage(bottomSpace, box.PositionY+box.MarginHeight()))
+	if !context.canPushFloat(box) || !(tooLow || context.hasPushedFloat()) {
+		if v, ok := context.brokenOutOfFlow[original]; ok && v.pushed {
+			delete(context.brokenOutOfFlow, original)
+		}
+		return false
+	}
+	removePlaceholders(context, []Box{laidOut}, absoluteBoxes, fixedBoxes)
+	context.removeExcludedShape(box)
+	context.pushFloat(original, containingBlock)
+	return true
 }

@@ -20,6 +20,8 @@ import (
 func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.Float, skipStack tree.ResumeStack,
 	pageIsEmpty bool, absoluteBoxes, fixedBoxes *[]*AbsolutePlaceholder,
 ) (bo.BlockLevelBoxITF, blockLayout) {
+	context.independentDepth++ // gopdfgo: zob. layoutContext.canPushFloat
+	defer func() { context.independentDepth-- }()
 	table := table_.Table()
 
 	// Remove top and bottom decorations for split tables.

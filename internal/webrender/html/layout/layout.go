@@ -12,8 +12,10 @@ package layout
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/counters"
@@ -262,6 +264,11 @@ type brokenBox struct {
 	icb bool
 	// columnX (gopdfgo): położenie kolumny, w której pudełko zostało podzielone (zob. layoutContext.columnX)
 	columnX pr.Float
+	// pushed (gopdfgo): element pływający przeniesiony w całości na następną stronę (zob. pushFloat);
+	// pushedFrom to element jego rodzica (zob. dropStalePushedFloats), nil dla elementu przeniesionego
+	// dalej z początku strony
+	pushed     bool
+	pushedFrom *html.Node
 	// nextColumn (gopdfgo): pudełko pozycjonowane, które w kolumnie nie zmieściło żadnej treści i w całości
 	// zaczyna się w następnej kolumnie (zob. absoluteLayout)
 	nextColumn bool
@@ -282,6 +289,101 @@ func (l *layoutContext) setBrokenOutOfFlow(key Box, broken brokenBox) {
 	broken.owner = l.columnOwner
 	broken.fromPage = l.geometryPage
 	l.brokenOutOfFlow[key] = broken
+}
+
+// Elementy pływające przenoszone na następną stronę (gopdfgo). Element pływający, który nie mieści się
+// w reszcie strony i nie może się podzielić (treść niepodzielna, np. obraz, albo break-inside: avoid),
+// przechodzi na następną stronę sam, a treść w przepływie, która stoi za nim w źródle, zostaje na tej
+// stronie i zajmuje całą szerokość. CSS 2.1 § 9.5.1 (reguły 5 i 6) ogranicza położenie elementu
+// pływającego tylko przez treść wcześniejszą w źródle, więc późniejsze wiersze mogą stać wyżej; tak drukują
+// Chromium i Gecko (wzorzec WPT CSS2/pagination/float-page-break-inside-avoid-8; pomiar w Chrome 157
+// 2026-11-21, docs/feature-audit.md). W źródle element zatrzymywał rodzica: cały akapit przechodził razem
+// z nim i zostawiał pustą resztę strony, a element pływający w środku wiersza był ucinany na dole strony.
+//
+// Przeniesiony element pływający jest zgłaszany jak dalszy ciąg elementu podzielonego (brokenOutOfFlow)
+// bez miejsca wznowienia, więc na następnej stronie jest układany od początku przed treścią w przepływie
+// (makePage). Kluczem jest pudełko ze źródła: kolejne układy próbne tego samego miejsca nadpisują jedno
+// zgłoszenie. Gdy rodzic i tak przechodzi na następną stronę, przepływ dochodzi tam do tego samego elementu
+// jeszcze raz i go pomija (pushedFloatsPlaced).
+
+// canPushFloat mówi, czy element pływający może przejść na następną stronę bez treści, która stoi za nim.
+// Tylko w zwykłym przepływie stron: nie w kolumnach, tabelach, flex, siatce, pudełkach przycinających
+// ani w treści innych pudełek poza przepływem, gdzie dalszy ciąg na następnej stronie stawałby względem
+// strony, a nie swojego kontenera. Także tylko w kontekście formatowania blokowego strony: pudełko, które
+// zakłada własny kontekst (flow-root, overflow inny niż visible), musiałoby wtedy ciągnąć się na następną
+// stronę, żeby objąć przeniesiony element (CSS 2.1 § 10.6.7; wzorce WPT css-page/page-size-007/008), a tego
+// mechanizm nie robi; tam zostaje zachowanie źródła.
+func (l *layoutContext) canPushFloat(floatBox *bo.BoxFields) bool {
+	return !l.inColumn && l.flexMeasuring == 0 && l.clipDepth == 0 && l.outOfFlowDepth == 0 && l.independentDepth == 0 &&
+		len(l.excludedShapesLists) == 1 &&
+		l.pageBottom != pr.Inf && !l.behavior.Continuous &&
+		(floatBox.PositionY > l.pageBottom-l.pageHeight+0.5 || math.IsNaN(float64(floatBox.PositionY)))
+}
+
+// removeExcludedShape usuwa z listy wykluczeń element pływający, który jednak nie stanie na tej stronie.
+func (l *layoutContext) removeExcludedShape(box *bo.BoxFields) {
+	if l.excludedShapes == nil || l.excludedShapes.isFrozen {
+		return
+	}
+	l.excludedShapes.list = slices.DeleteFunc(l.excludedShapes.list, func(b *bo.BoxFields) bool { return b == box })
+}
+
+// pushFloat zgłasza element pływający box do ułożenia od początku na następnej stronie.
+func (l *layoutContext) pushFloat(box Box, containingBlock Box) {
+	l.setBrokenOutOfFlow(box, brokenBox{box: box, containingBlock: containingBlock, pushed: true,
+		pushedFrom: containingBlock.Box().Element})
+}
+
+// dropStalePushedFloats usuwa zgłoszenia przeniesienia z rodziców, których na ułożonej stronie nie ma, bo
+// w całości przeszli na następną (np. blok o podanej wysokości, ADR 0004, albo break-inside: avoid).
+// Rodzic ułożony od nowa na następnej stronie sam dojdzie do elementu pływającego; zgłoszenie stawiałoby go
+// tam przed rodzicem, który mógłby wtedy dostać pod nim clearance.
+func (l *layoutContext) dropStalePushedFloats(root Box) {
+	stale := false
+	for _, v := range l.brokenOutOfFlow {
+		stale = stale || v.pushed
+	}
+	if !stale {
+		return
+	}
+	present := map[*html.Node]bool{}
+	var walk func(Box)
+	walk = func(b Box) {
+		present[b.Box().Element] = true
+		for _, child := range b.Box().Children {
+			walk(child)
+		}
+	}
+	walk(root)
+	for key, v := range l.brokenOutOfFlow {
+		if v.pushed && v.pushedFrom != nil && !present[v.pushedFrom] {
+			delete(l.brokenOutOfFlow, key)
+		}
+	}
+}
+
+// hasPushedFloat mówi, czy na tej stronie jakiś element pływający przeszedł już na następną; późniejsze
+// elementy pływające nie mogą stanąć wyżej niż on (CSS 2.1 § 9.5.1, reguła 5), więc przechodzą za nim.
+func (l *layoutContext) hasPushedFloat() bool {
+	for _, v := range l.brokenOutOfFlow {
+		if v.pushed {
+			return true
+		}
+	}
+	return false
+}
+
+// floatPushedAway mówi, że element pływający nie stoi w układanym właśnie wierszu, bo przeszedł na
+// następną stronę albo już stoi na tej, przeniesiony z poprzedniej.
+func (l *layoutContext) floatPushedAway(box Box) bool {
+	v, ok := l.brokenOutOfFlow[box]
+	return (ok && v.pushed) || l.pushedFloatPlaced(box)
+}
+
+// pushedFloatPlaced mówi, że element pływający przeniesiony z poprzedniej strony stoi już na tej stronie.
+func (l *layoutContext) pushedFloatPlaced(box Box) bool {
+	page, ok := l.pushedFloatsPlaced[box]
+	return ok && page == l.currentPage
 }
 
 // orderedBroken zwraca wpisy mapy w kolejności zgłoszenia.
@@ -433,6 +535,12 @@ type layoutContext struct {
 	floatOnlyLine bool
 	// clipDepth > 0 oznacza układ wewnątrz pudełka przycinającego treść
 	clipDepth int
+	// gopdfgo: independentDepth > 0 w trakcie układu tabeli, kontenera flex albo siatki; elementy pływające
+	// nie są tam przenoszone osobno na następną stronę (zob. canPushFloat)
+	independentDepth int
+	// gopdfgo: pushedFloatsPlaced: element pływający przeniesiony na następną stronę (zob. pushFloat) →
+	// numer strony, na której stanął; przepływ, który na tej stronie znów do niego dojdzie, go pomija
+	pushedFloatsPlaced map[Box]int
 	// viewportClips: overflow inne niż visible przeniesione z elementu głównego na obszar strony
 	viewportClips bool
 
@@ -500,6 +608,7 @@ func newLayoutContext(html *tree.HTML, stylesheets []tree.CSS,
 	self.counterStyle = counterStyle
 	self.runningElements = make(map[string]map[int][]Box)
 	self.brokenOutOfFlow = make(map[Box]brokenBox)
+	self.pushedFloatsPlaced = make(map[Box]int)
 	self.lateBoxes = make(map[int][]lateBox)
 	self.fragmentStarts = make(map[Box]pr.Float)
 	self.shiftedBlocks = make(map[Box]bool)

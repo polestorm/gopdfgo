@@ -1613,6 +1613,10 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 			*fixedBoxes = append(*fixedBoxes, placeholder)
 		}
 	} else if child.IsFloated() { // Float child layout.
+		// gopdfgo: element przeniesiony z poprzedniej strony już tu stoi (zob. layoutContext.canPushFloat)
+		if context.pushedFloatPlaced(child_) {
+			return false, nil, nil, nil
+		}
 		brokenBefore := context.brokenSequence
 		newChild, outOfFlowLayoutResumeAt = floatLayout(context, child_, box.Box(), absoluteBoxes, fixedBoxes, bottomSpace, nil)
 		// Check that child doesn’t overflow page.
@@ -1650,7 +1654,20 @@ func outOfFlowLayout(context *layoutContext, box bo.Box, index int, child_ Box, 
 			pageOverflow, avoidedSplit = true, true
 		}
 		addChild := (pageIsEmpty && len(*newChildren) == 0) || !pageOverflow || bo.IsMonolithic(box)
+		// gopdfgo: element pływający, który się nie mieści, przechodzi na następną stronę sam, a treść za nim
+		// zostaje tutaj; za elementem już przeniesionym przechodzą też następne (zob. canPushFloat)
+		if context.canPushFloat(newChild.Box()) && !bo.IsMonolithic(box) &&
+			(!addChild || context.hasPushedFloat()) {
+			removePlaceholders(context, []Box{newChild}, absoluteBoxes, fixedBoxes)
+			context.removeExcludedShape(newChild.Box())
+			context.pushFloat(child_, box)
+			return false, nil, nil, nil
+		}
 		if addChild {
+			// gopdfgo: zgłoszenie przeniesienia z wcześniejszego układu próbnego już nie obowiązuje
+			if v, ok := context.brokenOutOfFlow[child_]; ok && v.pushed {
+				delete(context.brokenOutOfFlow, child_)
+			}
 			// Child fits or has to fit, add it.
 			newChild.Box().Index = index
 			*newChildren = append(*newChildren, newChild)
