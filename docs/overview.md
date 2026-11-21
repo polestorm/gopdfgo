@@ -203,8 +203,10 @@ Out of scope by design:
   documents as PDF/A-2a. PDF/UA-1 (`Options.Accessibility`, `-pdfua 1`, also together with PDF/A-2a) adds
   `pdfuaid` to the XMP metadata; veraPDF accepts 22 of 22 corpus documents. Defects gopdfgo does not repair (no title, no language, an image without
   alternative text, a skipped heading level, table rows with different numbers of columns) give warnings.
-  PDF/A-2b, PDF/A-3b and file attachments are supported (ADR 0016, 0026); the XMP extension schema that
-  Factur-X/ZUGFeRD require is not written;
+  PDF/A-2b, PDF/A-3b and file attachments are supported (ADR 0016, 0026), and so are Factur-X 1.0 /
+  ZUGFeRD 2.x hybrid invoices (`Options.FacturX`, ADR 0034: the invoice XML, the `fx` XMP properties with
+  their extension schema, PDF/A-3b or 3a); the invoice XML is not validated against the profile's XSD or
+  Schematron;
 - PNG or SVG output: the output is PDF only.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),

@@ -49,7 +49,11 @@ Comparison with Chromium, the list of what is not supported, and requirements:
     veraPDF accepts 22 of 22 corpus documents; defects of a source document (a skipped heading level,
     an image without alternative text) are reported as warnings;
   - file attachments (`Options.Attachments`, `<link rel="attachment">`), with MIME type and
-    `AFRelationship`, e.g. the XML of an e-invoice inside a PDF/A-3 file.
+    `AFRelationship`, e.g. the XML of an e-invoice inside a PDF/A-3 file;
+  - Factur-X 1.0 / ZUGFeRD 2.x hybrid invoices (`Options.FacturX`, `-facturx invoice.xml`; ADR 0034): the
+    CII invoice XML embedded as `factur-x.xml` (`xrechnung.xml` for XRECHNUNG) with the relationship the
+    specification gives for the profile, the `fx` XMP properties with their PDF/A extension schema, PDF/A-3b
+    (PDF/A-3a with tags, also with PDF/UA-1); veraPDF accepts the result.
 - Output is deterministic: the same input gives the same bytes.
 
 Where the specifications leave a choice, gopdfgo prints like Chromium, so documents designed in a browser
@@ -102,8 +106,9 @@ licences (list in `docs/overview.md`).
 - JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
 - System fonts.
 - Vertical writing and right-to-left/bidirectional text.
-- Structure inside SVG images and alternative text for generated content in tagged PDF; the XMP extension
-  schema of Factur-X/ZUGFeRD.
+- Structure inside SVG images and alternative text for generated content in tagged PDF.
+- Validation of invoice content: a Factur-X invoice XML is checked for being a CII document and for its
+  profile identifier, not against the XSD or Schematron of the profile.
 - `subgrid`, `grid-lanes`, `column-height`.
 - Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
   lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on
