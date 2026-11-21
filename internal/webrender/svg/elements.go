@@ -322,6 +322,9 @@ type svg struct {
 	preserveRatio    preserveAspectRatio
 	isRoot           bool
 	isOverflowHidden bool
+	// viewTransforms (gopdfgo): przekształcenie widoku svgView(transform(…)) elementu głównego, w układzie
+	// użytkownika po viewBox (zob. view.go)
+	viewTransforms []transform
 }
 
 func newSvg(node *cascadedNode, tree *svgContext) (drawable, error) {
@@ -380,6 +383,9 @@ func (s svg) draw(dst backend.Canvas, attrs *attributes, img *SVGImage, dims dra
 	}
 
 	dst.State().Transform(matrix.New(sx, 0, 0, sy, tx, ty))
+	if len(s.viewTransforms) != 0 { // gopdfgo: zob. view.go
+		dst.State().Transform(aggregateTransforms(s.viewTransforms, dims.fontSize, dims.innerDiagonal))
+	}
 	return nil
 }
 
