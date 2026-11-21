@@ -191,10 +191,14 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 
 	// start by walking the structure elements tree,
 	// so that pdf.structure is filled
+	// gopdfgo: elementy najwyższego poziomu mają rodzica /P w korzeniu drzewa (ISO 32000-1 § 14.7.2,
+	// tabela 323: P wymagany), a każdy element trafia do pdf.structure, z której korzystają ParentTree
+	// i IDTree. Źródło podawało rodzica 0 i nie wypełniało mapy (nie była nawet utworzona).
 	refs := make([]Reference, len(s.K))
 	for i, k := range s.K {
 		kidRef := pdf.CreateObject()
-		pdf.WriteObject(k.pdfString(pdf, kidRef, 0), kidRef)
+		pdf.structure[k] = kidRef
+		pdf.WriteObject(k.pdfString(pdf, kidRef, ref), kidRef)
 		refs[i] = kidRef
 	}
 
@@ -213,13 +217,23 @@ func (s StructureTree) pdfString(pdf pdfWriter, ref Reference) string {
 		classChunks = append(classChunks, fmt.Sprintf("%s [%s]", k, strings.Join(attrChunks, " ")))
 	}
 
-	idTreeRef := pdf.CreateObject()
-	pdf.WriteObject(s.IDTree.pdfString(pdf, idTreeRef), idTreeRef)
-
-	b.line("<</Type/StructTreeRoot/K %s/IDTree %s/ParentTree %s/ParentTreeNextKey %d",
-		writeRefArray(refs), idTreeRef, s.ParentTree.pdfString(pdf), s.ParentTreeNextKey())
-	b.line("/RoleMap <<%s>>", strings.Join(roleChunks, ""))
-	b.line("/ClassMap<<%s>> ", strings.Join(classChunks, ""))
+	// gopdfgo: puste IDTree, RoleMap i ClassMap są pomijane (wszystkie opcjonalne), a ParentTree jest
+	// obiektem pośrednim bez /Limits w korzeniu (ISO 32000-1 § 7.9.7: Limits tylko w węzłach pośrednich
+	// i liściach). Źródło zapisywało puste drzewo IDTree z /Limits [() ()] i oba słowniki zawsze.
+	b.line("<</Type/StructTreeRoot/K %s", writeRefArray(refs))
+	if len(s.IDTree.Kids) != 0 || len(s.IDTree.Names) != 0 {
+		idTreeRef := pdf.CreateObject()
+		pdf.WriteObject(s.IDTree.pdfString(pdf, idTreeRef), idTreeRef)
+		b.line("/IDTree %s", idTreeRef)
+	}
+	parentTreeRef := pdf.addObject(s.ParentTree.rootPDFString(pdf))
+	b.line("/ParentTree %s/ParentTreeNextKey %d", parentTreeRef, s.ParentTreeNextKey())
+	if len(roleChunks) != 0 {
+		b.line("/RoleMap <<%s>>", strings.Join(roleChunks, ""))
+	}
+	if len(classChunks) != 0 {
+		b.line("/ClassMap<<%s>> ", strings.Join(classChunks, ""))
+	}
 	b.WriteString(">>")
 	return b.String()
 }
@@ -258,7 +272,9 @@ type StructureElement struct {
 func (s *StructureElement) pdfString(pdf pdfWriter, own, parent Reference) string {
 	b := newBuffer()
 	b.fmt("<</S%s", s.S)
-	if s.P != nil {
+	// gopdfgo: /P zawsze, gdy rodzic jest znany, także korzeń drzewa dla elementów najwyższego poziomu
+	// (P wymagany, ISO 32000-1 tabela 323); źródło pisało /P tylko przy niepustym polu P
+	if parent != 0 {
 		b.fmt("/P %s", parent)
 	}
 	if s.ID != "" {
@@ -271,21 +287,34 @@ func (s *StructureElement) pdfString(pdf pdfWriter, own, parent Reference) strin
 	b.WriteString("/K [")
 	for _, k := range s.K {
 		if k != nil {
+			// gopdfgo: odwołanie do treści oznaczonej na stronie elementu (/Pg) jako sama liczba MCID
+			// (ISO 32000-1 § 14.7.4.2); źródło zawsze pisało słownik /MCR
+			if mcr, ok := k.(ContentItemMarkedReference); ok && s.Pg != nil {
+				if page, ok := mcr.Container.(*PageObject); ok && page == s.Pg {
+					b.fmt("%d ", mcr.MCID)
+					continue
+				}
+			}
 			s := writeContentItem(k, pdf, own)
 			b.WriteString(s + " ")
 		}
 	}
 	b.line("]")
-	chunks := make([]string, len(s.A))
-	for i, at := range s.A {
-		chunks[i] = at.pdfString(pdf, own)
+	// gopdfgo: puste /A i /C pomijane (oba opcjonalne)
+	if len(s.A) != 0 {
+		chunks := make([]string, len(s.A))
+		for i, at := range s.A {
+			chunks[i] = at.pdfString(pdf, own)
+		}
+		b.line("/A [%s]", strings.Join(chunks, " "))
 	}
-	b.line("/A [%s]", strings.Join(chunks, " "))
-	chunks = make([]string, len(s.C))
-	for i, c := range s.C {
-		chunks[i] = c.String()
+	if len(s.C) != 0 {
+		chunks := make([]string, len(s.C))
+		for i, c := range s.C {
+			chunks[i] = c.String()
+		}
+		b.line("/C [%s]", strings.Join(chunks, " "))
 	}
-	b.line("/C [%s]", strings.Join(chunks, " "))
 	if s.R != 0 {
 		b.fmt("/R %d", s.R)
 	}
@@ -357,6 +386,7 @@ func writeContentItem(c ContentItem, pdf pdfWriter, parent Reference) string {
 	switch c := c.(type) {
 	case *StructureElement:
 		ownRef := pdf.CreateObject()
+		pdf.structure[c] = ownRef // gopdfgo: zob. StructureTree.pdfString
 		pdf.WriteObject(c.pdfString(pdf, ownRef, parent), ownRef)
 		return ownRef.String()
 	case ContentItemMarkedReference:

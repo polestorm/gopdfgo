@@ -24,16 +24,27 @@ const (
 	// jako pliki stowarzyszone z dokumentem (/AF katalogu, /AFRelationship; § 6.8), np. XML e-faktury
 	// (ADR 0026).
 	PDFA3b Conformance = "PDF/A-3b"
+	// PDFA2a: PDF/A-2a (ISO 19005-2, poziom A): to samo co PDFA2b, a ponadto struktura logiczna (PDF
+	// z tagami, ISO 19005-2 § 6.8, ADR 0033); włącza Options.Tagged.
+	PDFA2a Conformance = "PDF/A-2a"
+	// PDFA3a: PDF/A-3a (ISO 19005-3, poziom A): PDFA3b z tagami, jak PDFA2a.
+	PDFA3a Conformance = "PDF/A-3a"
 )
+
+// tagged mówi, czy norma wymaga PDF z tagami.
+func (c Conformance) tagged() bool { return c == PDFA2a || c == PDFA3a }
 
 // applyConformance uzupełnia dokument o to, czego wymaga wybrana norma; files to wszystkie pliki
 // osadzone w dokumencie (pdf.Output.EmbeddedFiles).
 func applyConformance(file *pdfmodel.Document, conformance Conformance, files []pdf.EmbeddedFile) error {
-	part := 2
+	part, level := 2, "B"
+	if conformance.tagged() {
+		level = "A"
+	}
 	switch conformance {
 	case ConformanceNone:
 		return nil
-	case PDFA3b:
+	case PDFA3b, PDFA3a:
 		part = 3
 		// ISO 19005-3 § 6.8: każdy osadzony plik ma być stowarzyszony z dokumentem albo jego częścią
 		// przez klucz AF. Pliki z <link rel=attachment> i Options.Attachments dotyczą całego dokumentu;
@@ -44,9 +55,9 @@ func applyConformance(file *pdfmodel.Document, conformance Conformance, files []
 			file.Catalog.AF = append(file.Catalog.AF, f.Spec)
 		}
 		fallthrough
-	case PDFA2b:
+	case PDFA2b, PDFA2a:
 		file.Trailer.ContentID = true
-		file.Catalog.Metadata = xmpPacket(file.Trailer.Info, part, "B")
+		file.Catalog.Metadata = xmpPacket(file.Trailer.Info, part, level)
 		file.Catalog.OutputIntents = []pdfmodel.OutputIntent{{
 			S:                         "GTS_PDFA1",
 			OutputConditionIdentifier: "sRGB IEC61966-2.1",

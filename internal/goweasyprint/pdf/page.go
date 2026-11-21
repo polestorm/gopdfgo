@@ -75,6 +75,7 @@ func (g *group) SetBlendingMode(mode string) {
 }
 
 func (g *group) Clip(evenOdd bool) {
+	g.paintPath(false) // gopdfgo: ścieżka przycinająca nie jest treścią (zob. tagged.go)
 	if evenOdd {
 		g.stream.Ops(cs.OpEOClip{}, cs.OpEndPath{})
 	} else {
@@ -146,6 +147,10 @@ type group struct {
 	// pliku raz
 	form    *model.XObjectTransparencyGroup
 	formLen int
+
+	// marking (gopdfgo): oznaczanie treści strony w PDF z tagami (ADR 0033, tagged.go); nil w grupach,
+	// wzorcach i maskach oraz bez tagów
+	marking *markState
 }
 
 // transparencyGroup (gopdfgo) zwraca grupę przezroczystości z treścią g, tę samą przy kolejnych
@@ -242,7 +247,7 @@ func (cp *outputPage) AddInternalLink(xMin, yMin, xMax, yMax fl, anchorName stri
 			Dest: model.DestinationString(anchorName),
 		},
 	}
-	cp.page.Annots = append(cp.page.Annots, &an)
+	cp.addAnnotation(&an) // gopdfgo: z elementem odnośnika dla PDF z tagami (tagged.go)
 }
 
 func (cp *outputPage) AddExternalLink(xMin, yMin, xMax, yMax fl, url string) {
@@ -256,7 +261,7 @@ func (cp *outputPage) AddExternalLink(xMin, yMin, xMax, yMax fl, url string) {
 			A:  model.Action{ActionType: model.ActionURI{URI: url}},
 		},
 	}
-	cp.page.Annots = append(cp.page.Annots, &an)
+	cp.addAnnotation(&an) // gopdfgo: z elementem odnośnika dla PDF z tagami (tagged.go)
 }
 
 // Add file annotation on the current page
@@ -286,7 +291,7 @@ func (cp *outputPage) AddFileAnnotation(xMin, yMin, xMax, yMax fl, fileID string
 			FS: cp.embeddedFiles[fileID],
 		},
 	}
-	cp.page.Annots = append(cp.page.Annots, &an)
+	cp.addAnnotation(&an) // gopdfgo: z elementem odnośnika dla PDF z tagami (tagged.go)
 }
 
 // pageMark (gopdfgo): miejsce w treści strony (backend.ResumablePage) i granica form masek tej strony.
@@ -381,8 +386,10 @@ func (g *group) SetBoundingBox(left, top, right, bottom fl) {
 // If an error is encoutered, the stack is still restored
 // and the error is returned
 func (g *group) OnNewStack(task func()) {
+	g.closeAtStack() // gopdfgo: ciąg treści oznaczonej nie przecina q i Q (zob. tagged.go)
 	g.stream.SaveState()
 	task()
+	g.closeAtStack()
 	_ = g.stream.RestoreState() // the calls are balanced
 }
 
@@ -402,6 +409,7 @@ func (g *group) DrawWithOpacity(opacity fl, gr backend.Canvas) {
 	// gopdfgo: grupa rysowana kilka razy jest zapisywana raz (zob. transparencyGroup); źródło tworzyło
 	// nowy obiekt przy każdym rysowaniu
 	form := gr.(*group).transparencyGroup()
+	g.beginContent() // gopdfgo: zob. tagged.go
 	g.stream.SetFillAlpha(opacity)
 	g.stream.SetStrokeAlpha(opacity)
 	g.stream.AddXObject(form)
@@ -412,12 +420,14 @@ func (g *group) DrawWithOpacity(opacity fl, gr backend.Canvas) {
 // (ISO 32000-1 § 14.9.4). Służy powtórzeniom treści (kopie rozmycia filtra CSS), które inaczej
 // pdftotext i kopiowanie z przeglądarki zwracałyby wielokrotnie.
 func (g *group) DrawCopyWithOpacity(opacity fl, gr backend.Canvas) {
-	g.stream.Ops(cs.OpBeginMarkedContent{
-		Tag:        "Span",
-		Properties: cs.PropertyListDict{"ActualText": model.ObjStringLiteral("")},
+	g.holdMarked(func() { // gopdfgo: ciąg /Span wewnątrz treści oznaczonej (zob. tagged.go)
+		g.stream.Ops(cs.OpBeginMarkedContent{
+			Tag:        "Span",
+			Properties: cs.PropertyListDict{"ActualText": model.ObjStringLiteral("")},
+		})
+		g.DrawWithOpacity(opacity, gr)
+		g.stream.Ops(cs.OpEndMarkedContent{})
 	})
-	g.DrawWithOpacity(opacity, gr)
-	g.stream.Ops(cs.OpEndMarkedContent{})
 }
 
 // maskLimit (gopdfgo) zwraca limit rozmiaru formy maski miękkiej dla bieżącej strony.
@@ -437,6 +447,7 @@ func (g *group) drawMask(app *cs.GraphicStream) {
 // at position “(x, y)“ in user-space coordinates.
 // (X,Y) coordinates are the top left corner of the rectangle.
 func (g *group) Rectangle(x fl, y fl, width fl, height fl) {
+	g.startPath() // gopdfgo: zob. tagged.go
 	g.stream.Ops(cs.OpRectangle{X: x, Y: y, W: width, H: height})
 }
 
@@ -448,6 +459,7 @@ func (g *group) Paint(op backend.PaintOp) {
 	fill := op&(backend.FillEvenOdd|backend.FillNonZero) != 0
 	stroke := op&backend.Stroke != 0
 	evenOdd := op&backend.FillEvenOdd != 0
+	g.paintPath(fill || stroke) // gopdfgo: zob. tagged.go
 	if fill && stroke {
 		if evenOdd {
 			g.stream.Ops(cs.OpEOFillStroke{})
@@ -470,6 +482,7 @@ func (g *group) Paint(op backend.PaintOp) {
 // Begin a new sub-path.
 // After this call the current point will be “(x, y)“.
 func (g *group) MoveTo(x fl, y fl) {
+	g.startPath() // gopdfgo: zob. tagged.go
 	g.stream.Ops(cs.OpMoveTo{X: x, Y: y})
 }
 
@@ -506,6 +519,7 @@ func (g *group) DrawRasterImage(img backend.RasterImage, width fl, height fl) {
 		g.images[img.ID] = obj
 	}
 
+	g.beginContent() // gopdfgo: zob. tagged.go
 	g.stream.AddXObjectDims(obj, 0, height, width, -height)
 }
 
@@ -513,6 +527,7 @@ func (g *group) DrawRasterImage(img backend.RasterImage, width fl, height fl) {
 // Solid gradient are already handled, meaning that only linear and radial
 // must be taken care of.
 func (g *group) DrawGradient(layout backend.GradientLayout, width fl, height fl) {
+	g.beginContent()            // gopdfgo: zob. tagged.go
 	if layout.Kind == "conic" { // gopdfgo: gradient stożkowy, zob. drawConicGradient
 		g.drawConicGradient(layout, width, height)
 		return

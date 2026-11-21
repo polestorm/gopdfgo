@@ -45,6 +45,12 @@ func (g *group) SetTextPaint(op backend.PaintOp) {
 
 // DrawText draws the given text using the current fill color.
 func (g *group) DrawText(texts []backend.TextDrawing) {
+	// gopdfgo: treść oznaczona wokół obiektu tekstowego; w nim q i Q (emoji) nie zamykają ciągu
+	if m := g.marking; m != nil {
+		g.beginContent()
+		m.hold++
+		defer func() { m.hold-- }()
+	}
 	g.stream.BeginText()
 	defer g.stream.EndText()
 

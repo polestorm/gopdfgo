@@ -32,6 +32,7 @@ func (ctx *drawContext) setMaskBorder(box_ Box) {
 
 // Draw column rules.
 func (ctx drawContext) drawColumnRules(box *bo.BoxFields) {
+	ctx.markArtifact() // gopdfgo: linie między kolumnami to artefakt (ADR 0033)
 	ruleWidth := box.Style.GetColumnRuleWidth().Value
 	ruleStyle := box.Style.GetColumnRuleStyle()
 	// gopdfgo: style linii między kolumnami czyta się jak w modelu obramowań zwijanych (CSS Multicol 1
@@ -134,6 +135,7 @@ func (ctx drawContext) drawBoxShadows(box *bo.BoxFields, inset bool) {
 	if len(shadows) == 0 || box.Style.GetVisibility() != "visible" {
 		return
 	}
+	ctx.markArtifact() // gopdfgo: cień to artefakt (ADR 0033)
 	const layers = 12
 	// narożnik bez promienia zostaje ostry także po rozszerzeniu cienia (CSS Backgrounds 3 § 6.1.1)
 	sharpen := func(shape bo.RoundedBox) bo.RoundedBox {
@@ -273,6 +275,7 @@ func (ctx drawContext) drawBorder(box_ Box) {
 	if box.Style.GetVisibility() != "visible" {
 		return
 	}
+	ctx.markArtifact() // gopdfgo: obramowanie to artefakt (ADR 0033)
 
 	// gopdfgo: górne obramowanie ramki fieldset jest przerwane pod legendą: rysujemy obramowanie
 	// z wyciętym prostokątem (reguła parzystości).
@@ -991,6 +994,7 @@ func (ctx drawContext) drawOutline(box_ Box) {
 	color := tree.ResolveColor(box.Style, pr.POutlineColor).RGBA
 	style := box.Style.GetOutlineStyle()
 	if box.Style.GetVisibility() == "visible" && width_.Value != 0 && color.A != 0 {
+		ctx.markArtifact() // gopdfgo: obrys to artefakt (ADR 0033)
 		width := width_.Value
 		// gopdfgo: outline-offset odsuwa obrys od krawędzi obramowania; ujemny nie zwija obrysu poniżej zera
 		offset := box.Style.GetOutlineOffset().Value

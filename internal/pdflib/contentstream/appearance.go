@@ -236,6 +236,18 @@ func (ap *GraphicStream) Ops(op ...Operation) {
 	ap.ops = append(ap.ops, op...)
 }
 
+// InsertOps (gopdfgo) wstawia operacje przed operacją numer at (licząc od początku strumienia, jak
+// OpsLen); at równe OpsLen dopisuje je na końcu. Operacje zapisane przez Flush są nienaruszalne.
+// Służy treści oznaczonej (ADR 0033): początek ciągu BDC trafia przed konstrukcję ścieżki, której
+// wypełnienie dopiero rozstrzyga, że ścieżka jest treścią.
+func (ap *GraphicStream) InsertOps(at int, op ...Operation) {
+	i := at - ap.flushedOps
+	if i < 0 || i > len(ap.ops) {
+		panic(fmt.Sprintf("contentstream: InsertOps at %d outside %d..%d", at, ap.flushedOps, ap.OpsLen()))
+	}
+	ap.ops = append(ap.ops[:i], append(op, ap.ops[i:]...)...)
+}
+
 // ForgetColors (gopdfgo) oznacza kolory i stałe alfa jako nieznane, tak że następne ustawienie zawsze
 // trafia do strumienia. Potrzebne w formach XObject (grupach): dziedziczą stan graficzny z miejsca
 // użycia, więc domyślna czerń i alfa 1 nie są w nich pewne (PDF 32000-1 § 8.10.1, § 11.6.5.2).

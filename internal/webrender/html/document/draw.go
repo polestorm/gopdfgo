@@ -132,6 +132,12 @@ type drawContext struct {
 	// dzieci, przed zamknięciem stanów; tam rysowanie w trakcie układu dorysowuje pola marginesowe
 	// (ADR 0027, zob. streamSink)
 	pageMark func(ctx drawContext)
+
+	// gopdfgo: tags – oznaczanie treści w PDF z tagami (ADR 0033, tags.go); nil bez tagów.
+	// pagination – rysowane jest pole marginesu: cała treść to artefakt paginacji.
+	tags       *tagger
+	pagination bool
+	pageIndex  int // numer rysowanej strony (od 0), dla powtarzanych nagłówków i stopek tabel
 }
 
 // context3D (gopdfgo): skumulowana macierz 3D elementu z transform-style: preserve-3d i macierz 2D
@@ -183,6 +189,9 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 	ctx.dst.OnNewStack(func() {
 		box_ := stackingContext.box
 		box := box_.Box()
+		if ctx.tags != nil && bo.MarginT.IsInstance(box_) {
+			ctx.pagination = true // gopdfgo: pole marginesu i jego treść to artefakty paginacji (ADR 0033)
+		}
 
 		// gopdfgo: pas pudełka krojonego między strony jako całość (zob. BoxFields.SliceVisible): całość
 		// przycięta do części widocznej na tej stronie
@@ -453,6 +462,11 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 					drawChild(childContext)
 				}
 
+				// gopdfgo: w PDF z tagami ciąg treści oznaczonej kończy się przed miejscem na pola
+				// marginesowe, w obu drogach rysowania (ADR 0033)
+				if bo.PageT.IsInstance(box_) {
+					ctx.closeMarked()
+				}
 				// gopdfgo: miejsce na pola marginesowe dorysowywane po ułożeniu wszystkich stron (ADR 0027)
 				if ctx.pageMark != nil && bo.PageT.IsInstance(box_) {
 					ctx.pageMark(ctx)
@@ -464,11 +478,18 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 				ctx.drawOutline(box_)
 			}
 		}
-		ctx.drawFiltered(filterStages(box.Style), paint)
+		// gopdfgo: treść rysowana w grupie filtra albo krycia trafia na stronę jako jedna forma, oznaczona
+		// jako treść elementu tworzącego kontekst (ADR 0033)
+		stages := filterStages(box.Style)
+		if len(stages) != 0 {
+			ctx.markBox(box_)
+		}
+		ctx.drawFiltered(stages, paint)
 
 		if opacity < 1 || blendMode != "" {
 			group := ctx.dst
 			ctx.dst = originalDst
+			ctx.markBox(box_)
 			ctx.dst.OnNewStack(func() {
 				if blendMode != "" {
 					ctx.dst.State().SetBlendingMode(blendMode)
@@ -518,6 +539,7 @@ func zeroPaintingArea(bg *bo.Background) bool {
 }
 
 func (ctx drawContext) drawBackground(bg *bo.Background, clipBox bool, bleed bo.Bleed, marks pr.Marks) {
+	ctx.markArtifact() // gopdfgo: tło to artefakt (ADR 0033)
 	if bg == nil {
 		return
 	}
@@ -932,6 +954,7 @@ func (ctx drawContext) drawTableGroup(table *bo.TableBox, group Box) {
 }
 
 func (ctx drawContext) drawTableGroupBackgrounds(table *bo.TableBox, rowGroup Box) {
+	ctx.noteRepeatedGroup(rowGroup) // gopdfgo: powtórzony nagłówek tabeli to artefakt (ADR 0033)
 	ctx.drawBackgroundDefaut(rowGroup.Box().Background)
 	for _, row := range rowGroup.Box().Children {
 		// gopdfgo: cień wiersza tabeli (box-shadow dotyczy wszystkich elementów, CSS Backgrounds 3
@@ -1069,6 +1092,7 @@ func boolToInt(b bool) int {
 
 // Draw borders of table cells when they collapse.
 func (ctx drawContext) drawCollapsedBorders(table *bo.TableBox) {
+	ctx.markArtifact() // gopdfgo: obramowanie to artefakt (ADR 0033)
 	var rowHeights, rowPositions []pr.Float
 	for _, rowGroup := range table.Children {
 		for _, row := range rowGroup.Box().Children {
@@ -1243,6 +1267,7 @@ func (ctx drawContext) drawReplacedbox(box_ bo.ReplacedBoxITF) {
 		return
 	}
 
+	ctx.markReplaced(&box.BoxFields) // gopdfgo: obraz elementu to Figure (ADR 0033)
 	ctx.dst.OnNewStack(func() {
 		if sliced {
 			ctx.dst.Rectangle(fl(box.ContentBoxX()), fl(box.ContentBoxY()), fl(box.Width.V()), fl(visibleHeight.V()))

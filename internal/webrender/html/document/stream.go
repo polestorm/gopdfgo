@@ -39,7 +39,7 @@ func Stream(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, f
 	var sink *streamSink
 	pages, fallback = layout.LayoutStreaming(html, stylesheets, presentationalHints, fontConfig, func() layout.PageSink {
 		sink = &streamSink{
-			doc:    Document{urlFetcher: html.UrlFetcher, fontconfig: fontConfig},
+			doc:    Document{urlFetcher: html.UrlFetcher, fontconfig: fontConfig, root: html.Root.AsHtmlNode()},
 			target: newTarget(),
 			scale:  zoom * 0.75, // 0.75 = 72 PDF point per inch / 96 CSS pixel per inch
 		}
@@ -119,6 +119,8 @@ func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
 			hyphenCache:       make(map[text.HyphenDictKey]hyphen.Hyphener),
 			strutLayoutsCache: make(map[text.StrutLayoutKey][2]pr.Float),
 			filteredImages:    make(map[string]*filteredImage),
+			tags:              s.doc.pageTagger(outputPage), // gopdfgo: zob. tags.go
+			pageIndex:         index,
 		}
 		ctx.pageMark = func(at drawContext) {
 			if streamed.marked || any(at.dst) != any(outputPage) {
@@ -227,4 +229,5 @@ func (s *streamSink) finish(attachments []backend.Attachment) {
 	target.SetAttachments(as)
 	target.SetBookmarks(d.makeBookmarkTree())
 	target.SetMetadata(utils.VersionString, d.Metadata)
+	d.setStructure(target) // gopdfgo: zob. tags.go
 }

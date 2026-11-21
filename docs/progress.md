@@ -39,6 +39,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
 | Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |
 | PDF/A-2b (`Options.Conformance`, ADR 0016) | 22 z 22 dokumentów korpusu zgodne według veraPDF 1.30, bez ostrzeżeń | 2026-11-16 |
+| PDF z tagami (`Options.Tagged`, ADR 0033, runda 1) i PDF/A-2a | 22 z 22 dokumentów korpusu zgodne z PDF/A-2a według veraPDF; PDF/UA-1 jeszcze nie | 2026-11-21 |
 | Rozmiar binarki | 23,35 MB (macOS arm64, `-s -w`) | 17 razy mniej niż Chromium z bibliotekami |
 | Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
 | Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |

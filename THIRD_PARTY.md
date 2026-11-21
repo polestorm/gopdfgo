@@ -1029,6 +1029,35 @@ Wspólne dla obu katalogów:
     zwolnieniu stosu ten sam adres mógł dostać nowy stos i odczytać cudzy wpis, więc wynik zależał od
     chwili odśmiecania (css-multicol/multicol-span-all-children-height-013 raz na ~150 przebiegów, przy
     GOGC=1 w większości); teraz stos z wpisem żyje do końca układu;
+- PDF z tagami, runda 1, 2026-11-21 (ADR 0033; nowe pliki `backend/tagged.go`, `html/document/tags.go`,
+  `goweasyprint/pdf/tagged.go`, test `tests/tagged18_test.go`; zmiany w `html/document/draw.go`
+  `drawContext.tags`, `pagination`, `pageIndex`, `drawStackingContext`, `drawBackground`,
+  `drawCollapsedBorders`, `drawReplacedbox`, `drawTableGroupBackgrounds`, `draw_border.go`, `draw_text.go`
+  `drawText`, `draw_filter.go` `filterCanvas.SetMarkedContent`, `document.go` `Link.element`, `Link.svg`,
+  `Page.tags`, `Document.root`, `addHyperlinks`, `Write`, `stream.go`, `svg_links.go`; w
+  `goweasyprint/pdf/page.go` `group.marking`, `OnNewStack`, `Rectangle`, `MoveTo`, `Paint`, `Clip`,
+  `DrawWithOpacity`, `DrawCopyWithOpacity`, `DrawRasterImage`, `DrawGradient`, adnotacje odnośników,
+  `filters.go`, `text.go` `DrawText`, `pdf.go` `Output.tagged`, `AddPage`, `Finalize`; w
+  `pdflib/contentstream` `InsertOps`, `PropertyListRaw`; w `pdflib/model` zapis drzewa struktury
+  (`structure.go`, `trees.go`, `write.go`), `ViewerPreferences.DisplayDocTitle`, `Trailer.ObjectStreams`):
+  - źródło nie tworzyło struktury logicznej; z opcją `Tagged` rysowanie oznacza treść stron (`BDC /Typ
+    <</MCID n>> … EMC`) jako należącą do elementu HTML, a tła, obramowania, cienie, obrysy i linie kolumn
+    jako `/Artifact`, pola marginesów i powtórzone nagłówki i stopki tabel jako `/Artifact
+    <</Type/Pagination>>`; ciąg otwiera się leniwie przed pierwszym operatorem malującym (ścieżka tylko
+    przycinająca go nie otwiera) i zamyka przed każdym `q` i `Q`, więc treść oznaczona i stany graficzne
+    zagnieżdżają się poprawnie; treść grupy (krycie, filtr) i formy współdzielonej jest oznaczona w miejscu
+    `Do` na stronie, wnętrza form zostają bez znaczników; drzewo struktury powstaje na końcu z drzewa
+    elementów (ADR 0033 pkt 2), a odcinki treści i adnotacje odnośników (`OBJR`) są przypinane do elementów;
+  - `pdflib/model`: przejęty zapis drzewa struktury nie działał: mapa `pdfWriter.structure` nie była tworzona
+    ani wypełniana (`ParentTree` wskazywałoby obiekt 0), elementy najwyższego poziomu dostawały rodzica
+    `0 0 R`, korzeń `ParentTree` miał `/Limits` (ISO 32000-1 § 7.9.7 zabrania), puste `IDTree`, `RoleMap`,
+    `ClassMap`, `/A`, `/C` były zapisywane zawsze; poprawione według ISO 32000-1 § 14.7, odwołania do treści
+    na stronie elementu zapisywane jako liczba MCID (§ 14.7.4.2);
+  - `pdflib/model` `Trailer.ObjectStreams`: obiekty niebędące strumieniami w strumieniach obiektów
+    i strumień odsyłaczy (ISO 32000-1 § 7.5.7, § 7.5.8), włączane tylko z tagami (drzewo struktury to tysiące
+    małych obiektów; rejestr tabel z korpusu: +171% rozmiaru bez nich, +31% z nimi); bez opcji zapis bez zmian;
+  - bez opcji wynik bajt w bajt ten sam (korpus W3C: 11 689 dokumentów, 46 756 renderowań, 0 różnic); przejęty
+    test `html/document/document_test.go` `assertLinks` pomija przy porównaniu nowe pole elementu odnośnika;
 - rysowanie stron w trakcie układu, 2026-11-20 (praca pomocnika; ADR 0027; `html/layout/stream.go`,
   `html/layout/layout.go` `layoutDocument`, `html/layout/pages.go` `makeAllPages`, `html/document/stream.go`,
   `html/document/draw.go` `drawStackingContext`, `backend/document.go` `ResumablePage`,

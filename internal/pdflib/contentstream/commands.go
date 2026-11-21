@@ -56,6 +56,13 @@ func (n PropertyListName) contentStreamString() string {
 	return model.ObjName(n).String()
 }
 
+// PropertyListRaw (gopdfgo) to słownik właściwości zapisany wprost, np. <</MCID 3>> (ADR 0033):
+// PropertyListDict zapisuje każdy klucz i wartość w osobnym wierszu, a treść oznaczona powtarza się
+// w strumieniu strony setki razy.
+type PropertyListRaw string
+
+func (p PropertyListRaw) contentStreamString() string { return string(p) }
+
 // PropertyListDict is a dictionary, where indirect
 // references and streams are not allowed.
 type PropertyListDict model.ObjDict

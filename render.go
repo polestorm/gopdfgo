@@ -117,9 +117,18 @@ type Options struct {
 	// (ADR 0017).
 	Continuous bool
 	// Conformance wybiera normę pliku wynikowego; wartość pusta to zwykły PDF 1.7, PDFA2b to PDF/A-2b
-	// (ADR 0016), PDFA3b to PDF/A-3b z plikami stowarzyszonymi (ADR 0026). W trybie PDF/A plik dostaje metadane XMP, profil sRGB i identyfikator wyliczony
-	// z treści; układ i wygląd stron się nie zmieniają.
+	// (ADR 0016), PDFA3b to PDF/A-3b z plikami stowarzyszonymi (ADR 0026), PDFA2a i PDFA3a to te same
+	// normy na poziomie A, z tagami (ADR 0033). W trybie PDF/A plik dostaje metadane XMP, profil sRGB
+	// i identyfikator wyliczony z treści; układ i wygląd stron się nie zmieniają.
 	Conformance Conformance
+	// Tagged tworzy PDF z tagami (ADR 0033): drzewo struktury logicznej z elementów HTML w kolejności
+	// dokumentu (nagłówki, akapity, listy, tabele, odnośniki, obrazy z tekstem alternatywnym), treść
+	// stron oznaczoną jako należąca do elementów, a tła, obramowania i pola marginesów jako artefakty,
+	// język z atrybutu lang i tytuł z <title> wyświetlany przez czytnik. Czytniki ekranu i eksport
+	// tekstu korzystają z kolejności i znaczenia elementów. Plik jest większy i powstaje trochę dłużej,
+	// wygląd stron się nie zmienia. Conformance PDFA2a i PDFA3a włączają tagi same. Obraz bez tekstu
+	// alternatywnego i dokument bez tytułu dają ostrzeżenia.
+	Tagged bool
 	// Uncompressed zapisuje strumienie treści stron, fontów i map ToUnicode bez kompresji, żeby dało się je
 	// czytać w edytorze tekstu (diagnostyka). Obrazy zostają skompresowane bezstratnie stopniem 0, bo ich
 	// filtr jest częścią formatu. Domyślnie (false) wszystko jest kompresowane zlib w stopniu 6.
@@ -326,12 +335,13 @@ func render(html []byte, opts Options) (result Result, err error) {
 		output *pdf.Output
 		pages  int
 	)
+	tagged := opts.Tagged || opts.Conformance.tagged()
 	fallback := "streaming disabled"
 	if !document.StreamingDisabled {
 		warningsBefore := warnings.Len()
 		pages, fallback = document.Stream(parsed, sheets, true, fontConfig, func() backend.Document {
 			pdfmodel.NonFiniteNumbers.Store(0)
-			output = pdf.NewOutput()
+			output = newOutput(tagged)
 			return output
 		}, 1, attachments)
 		if fallback != "" {
@@ -341,7 +351,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if fallback != "" {
 		laidOut := document.Render(parsed, sheets, true, fontConfig)
 		pdfmodel.NonFiniteNumbers.Store(0)
-		output = pdf.NewOutput()
+		output = newOutput(tagged)
 		laidOut.ReleaseDrawnPages = true // strony zwalniane zaraz po narysowaniu, zob. document.Document
 		laidOut.Write(output, 1, attachments)
 		pages = len(laidOut.Pages)
@@ -354,6 +364,8 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 	file := output.Finalize()
 	file.Trailer.Info.Producer = EngineName + " " + EngineVersion
+	// drzewo struktury to tysiące małych obiektów: w strumieniach obiektów (ADR 0033)
+	file.Trailer.ObjectStreams = tagged
 	embedded := output.EmbeddedFiles()
 	if err := checkAttachments(embedded, opts.Conformance); err != nil {
 		return Result{}, err
@@ -367,6 +379,10 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 
 	result = Result{PDF: out.Bytes(), Pages: pages, EngineName: EngineName, EngineVersion: EngineVersion}
+	// PDF z tagami bez tytułu: czytnik pokazuje wtedy nazwę pliku, a PDF/UA wymaga tytułu (ISO 14289-1 § 7.1)
+	if tagged && strings.TrimSpace(file.Trailer.Info.Title) == "" {
+		result.Warnings = append(result.Warnings, Warning{Message: "Tagged PDF: document without a title (<title>)"})
+	}
 	// Wartość nieskończona albo NaN w rysunku oznacza błąd układu: zapisujemy ją jako 0, żeby plik
 	// pozostał poprawny składniowo, i zgłaszamy, bo fragment strony może leżeć nie tam, gdzie powinien.
 	if count := pdfmodel.NonFiniteNumbers.Load(); count > 0 {
@@ -382,6 +398,15 @@ func render(html []byte, opts Options) (result Result, err error) {
 		}
 	}
 	return result, nil
+}
+
+// newOutput tworzy cel rysowania; tagged włącza oznaczanie treści i drzewo struktury (ADR 0033).
+func newOutput(tagged bool) *pdf.Output {
+	output := pdf.NewOutput()
+	if tagged {
+		output.SetTagged()
+	}
+	return output
 }
 
 // mediaType zwraca typ bez parametrów (silnik porównuje go dosłownie, "text/css; charset=utf-8" odrzuca),

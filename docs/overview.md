@@ -153,6 +153,11 @@ shows „Tagged: yes”. Through DevTools, with default settings, Chrome writes 
 gopdfgo. Those two are comparable, and gopdfgo's files are 4–7% smaller. The e-SF statements were not
 measured through DevTools with the same fonts.
 
+gopdfgo writes a tagged PDF with `Options.Tagged` (ADR 0033); its objects then go into compressed object
+streams. Measured 2026-11-21 (median of 5 runs, whole process, macOS arm64): corpus invoice
+(`20-invoice`) 28.5 → 34.7 kB, register table (`02-register-table`, 1466 structure elements) 81.1 →
+106.0 kB, mixed report (`21-mixed-report`) 37.7 → 35.1 kB; rendering 1–4% longer.
+
 gopdfgo's file size comes from:
 - zlib compression at level 6 (ADR 0023);
 - font subsets that keep only the glyphs used and short tables.
@@ -170,7 +175,8 @@ gopdfgo's file size comes from:
     down in Chrome by the document's script, and gopdfgo does not run scripts.
 - W3C screen reftests across 11 CSS areas: 9502 of 10962 pass.
 - W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).
-- Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b valid in veraPDF for 22 of 22.
+- Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
+  veraPDF for 22 of 22.
 
 Where the specifications leave a choice, gopdfgo follows Chromium; each such case is recorded in
 `docs/adr/`. `Options.ExactLengths` turns off the pixel rounding that imitates Chromium (ADR 0013).
@@ -183,8 +189,17 @@ Out of scope by design:
 - system fonts: only the fonts supplied by the caller are used, so the output is reproducible;
 - vertical writing (`writing-mode`) and bidirectional or right-to-left text (ADR 0010);
 - state pseudo-classes (`:hover` and similar), `@container`, `@property`, `::selection`;
-- tagged PDF (PDF/UA, PDF/A-2a, PDF/A-3a). PDF/A-2b, PDF/A-3b and file attachments are supported
-  (ADR 0016, 0026); the XMP extension schema that Factur-X/ZUGFeRD require is not written;
+- PDF/UA-1. Tagged PDF works since 2026-11-21, off by default (`Options.Tagged`, ADR 0033): a structure
+  tree from the HTML elements in document order (`Document`, `Div`/`Sect`/`Art`, `P`, `H1`–`H6`, `L`/`LI`,
+  `Table`/`THead`/`TBody`/`TFoot`/`TR`/`TH`/`TD`, `Link` with a reference to its annotation, `Figure` with
+  `Alt` from `alt`, `aria-label` or the SVG `<title>`, `Span` for inline elements), marked page content,
+  backgrounds, borders and shadows as artifacts, margin boxes and repeated table headers as pagination
+  artifacts, `/Lang` from `lang`, the document title shown by the viewer. PDF/A-2a and PDF/A-3a turn it on;
+  veraPDF accepts all 22 corpus documents as PDF/A-2a. Missing for PDF/UA-1: list labels and bodies
+  (`Lbl`/`LBody`), table header scopes and spans, `Alt` on links, `pdfuaid` metadata, structure inside
+  SVG. Images without alternative text and documents without a title give warnings. PDF/A-2b, PDF/A-3b and
+  file attachments are supported (ADR 0016, 0026); the XMP extension schema that Factur-X/ZUGFeRD require
+  is not written;
 - PNG or SVG output: the output is PDF only.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),

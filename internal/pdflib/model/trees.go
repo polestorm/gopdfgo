@@ -784,10 +784,23 @@ func (d ParentTree) clone(cache cloneCache) ParentTree {
 	return out
 }
 
+// rootPDFString (gopdfgo) zapisuje korzeń drzewa: bez /Limits (ISO 32000-1 § 7.9.7, tabela 37).
+func (d ParentTree) rootPDFString(pdf pdfWriter) string {
+	return d.write(pdf, true)
+}
+
 func (d ParentTree) pdfString(pdf pdfWriter) string {
+	return d.write(pdf, false)
+}
+
+func (d ParentTree) write(pdf pdfWriter, root bool) string {
 	b := newBuffer()
-	limits := d.Limits()
-	b.line("<</Limits [%d %d]", limits[0], limits[1])
+	if root {
+		b.WriteString("<<")
+	} else {
+		limits := d.Limits()
+		b.line("<</Limits [%d %d]", limits[0], limits[1])
+	}
 	if len(d.Kids) != 0 {
 		b.fmt("/Kids [")
 		for _, kid := range d.Kids {

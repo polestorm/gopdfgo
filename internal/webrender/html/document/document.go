@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"path"
 
+	"golang.org/x/net/html"
+
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 	mt "github.com/polestorm/gopdfgo/internal/webrender/matrix"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
@@ -205,6 +207,11 @@ type Link struct {
 	// [x_min, y_min, x_max, y_max] in CSS
 	// pixels from the top-left of the page.
 	Rectangle [4]fl
+
+	// gopdfgo: element, z którego pochodzi odnośnik (dla PDF z tagami, ADR 0033); svg – odnośnik
+	// elementu <a> wewnątrz obrazu SVG, element to wtedy element obrazu
+	element *html.Node
+	svg     bool
 }
 
 type bookmarkData struct {
@@ -247,7 +254,7 @@ func gatherAnchors(box_ bo.Box, anchors anchors, links *[]Link, bookmarks *[]boo
 			if linkType == pr.External && isAttachment {
 				linkType = pr.Attachment
 			}
-			linkS := Link{Type: linkType, Target: target}
+			linkS := Link{Type: linkType, Target: target, element: box.Element}
 			if matrix != nil {
 				linkS.Rectangle = rectangleAabb(*matrix, posX, posY, width, height)
 			} else {
@@ -307,6 +314,10 @@ type Page struct {
 
 	// The page height, including margins, in CSS pixels.
 	Height fl
+
+	// tags (gopdfgo): oznaczanie treści w PDF z tagami (ADR 0033); nil bez tagów; index – numer strony
+	tags  *tagger
+	index int
 }
 
 // newPage post-process a laid out `PageBox`.
@@ -343,6 +354,8 @@ func (d Page) Paint(dst backend.Page, fc text.FontConfiguration, leftX, topY, sc
 			hyphenCache:       make(map[text.HyphenDictKey]hyphen.Hyphener),
 			strutLayoutsCache: make(map[text.StrutLayoutKey][2]pr.Float),
 			filteredImages:    make(map[string]*filteredImage), // gopdfgo: zob. filterRasterImage
+			tags:              d.tags,                          // gopdfgo: zob. tags.go
+			pageIndex:         d.index,
 		}
 		ctx.drawPage(d.pageBox)
 	})
@@ -372,6 +385,11 @@ type Document struct {
 	// ilustracjami szczyt pamięci spada o około jedną trzecią. Dokumentu nie da się potem narysować
 	// drugi raz, dlatego to opcja, a nie zachowanie domyślne.
 	ReleaseDrawnPages bool
+
+	// gopdfgo: root – element główny dokumentu, z którego powstaje drzewo struktury PDF z tagami;
+	// tags – stan oznaczania treści, tworzony przy pierwszej stronie celu z tagami (ADR 0033)
+	root *html.Node
+	tags *tagger
 }
 
 // Render performs the layout of the whole document and returns a document
@@ -385,7 +403,8 @@ func Render(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, f
 	for i, pageBox := range pageBoxes {
 		pages[i] = newPage(pageBox)
 	}
-	return Document{Pages: pages, Metadata: html.GetMetadata(), urlFetcher: html.UrlFetcher, fontconfig: fontConfig}
+	return Document{Pages: pages, Metadata: html.GetMetadata(), urlFetcher: html.UrlFetcher, fontconfig: fontConfig,
+		root: html.Root.AsHtmlNode()}
 }
 
 // Take a subset of the pages.
@@ -493,7 +512,12 @@ func (d Document) makeBookmarkTree() []backend.BookmarkNode {
 
 // Include hyperlinks in current PDF page.
 func (d Document) addHyperlinks(links []Link, context backend.Page, scale mt.Transform) {
+	tagged, _ := context.(backend.TaggedPage)
 	for _, link := range links {
+		// gopdfgo: adnotacja należy do elementu odnośnika w drzewie struktury (ADR 0033)
+		if d.tags != nil && tagged != nil && tagged.Tagged() {
+			tagged.SetAnnotationOwner(d.tags.linkOwner(link))
+		}
 		linkType, linkTarget, rectangle := link.Type, link.Target, link.Rectangle
 		xMin, yMin := scale.Apply(rectangle[0], rectangle[1])
 		xMax, yMax := scale.Apply(rectangle[2], rectangle[3])
@@ -600,6 +624,7 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 
 		outputPage := target.AddPage(left/scale, top/scale, (right-left)/scale, (bottom-top)/scale)
 		outputPage.State().Transform(mt.New(1, 0, 0, -1, 0, page.Height*scale))
+		page.tags, page.index = d.pageTagger(outputPage), i // gopdfgo: zob. tags.go
 		page.Paint(outputPage, d.fontconfig, 0, 0, scale, false)
 		// gopdfgo: odnośniki SVG po narysowaniu strony (zob. gatherSVGLinks), za odnośnikami HTML jak w Stream
 		var svgLinks []Link
@@ -647,6 +672,7 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 
 	// Set document information
 	target.SetMetadata(utils.VersionString, d.Metadata)
+	d.setStructure(target) // gopdfgo: zob. tags.go
 }
 
 func (d *Document) embedFileAnnotations(pagedLinks [][]Link, context backend.Document) {

@@ -90,7 +90,7 @@ func backendAttachments(list []Attachment) ([]backend.Attachment, error) {
 
 // checkAttachments zwraca błąd, gdy wybrana norma nie dopuszcza któregoś z osadzonych plików.
 func checkAttachments(files []pdf.EmbeddedFile, conformance Conformance) error {
-	if conformance != PDFA2b {
+	if conformance != PDFA2b && conformance != PDFA2a {
 		return nil
 	}
 	for _, file := range files {

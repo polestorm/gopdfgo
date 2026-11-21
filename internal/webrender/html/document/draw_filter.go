@@ -443,6 +443,14 @@ func (c *filterCanvas) OnNewStack(f func()) {
 
 func (c *filterCanvas) State() backend.GraphicState { return c }
 
+// SetMarkedContent (gopdfgo, backend.MarkingCanvas) przekazuje rodzaj treści płótnu docelowemu
+// (strona oznacza treść, grupy wywołanie ignorują; ADR 0033).
+func (c *filterCanvas) SetMarkedContent(m *backend.MarkedContent) {
+	if marking, ok := c.out.(backend.MarkingCanvas); ok {
+		marking.SetMarkedContent(m)
+	}
+}
+
 func (c *filterCanvas) NewGroup(x, y, width, height fl) backend.Canvas {
 	raw := c.raw
 	if raw == nil {

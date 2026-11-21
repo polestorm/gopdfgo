@@ -314,10 +314,24 @@ func assertLinks(t *testing.T, html string, expectedLinksByPage [][]Link, expect
 		gotLinksByPage   [][]Link
 		gotAnchorsByPage []map[string][4]fl
 	)
+	// gopdfgo: element odnośnika (pole dla PDF z tagami, ADR 0033) nie należy do porównania
+	withoutElements := func(pages [][]Link) [][]Link {
+		var out [][]Link
+		for _, links := range pages {
+			var page []Link
+			for _, link := range links {
+				link.element, link.svg = nil, false
+				page = append(page, link)
+			}
+			out = append(out, page)
+		}
+		return out
+	}
 	for _, p := range document.Pages {
 		gotLinksByPage = append(gotLinksByPage, p.links)
 		gotAnchorsByPage = append(gotAnchorsByPage, p.anchors)
 	}
+	gotLinksByPage, resolvedLinks = withoutElements(gotLinksByPage), withoutElements(resolvedLinks)
 	if !reflect.DeepEqual(gotLinksByPage, expectedLinksByPage) {
 		t.Fatalf("unexpected gotLinksByPage: %v", gotLinksByPage)
 	}

@@ -33,7 +33,8 @@ func main() {
 	continuous := flag.Bool("continuous", false, "bez podziału na strony: jedna strona rosnąca do wysokości treści")
 	hyphenDicts := flag.String("hyphenation", "", "słowniki dzielenia wyrazów spoza wbudowanych, np. \"cs=hyph-cs.pat.txt,sv=hyph-sv.pat.txt\"")
 	uncompressed := flag.Bool("uncompressed", false, "strumienie treści, fontów i ToUnicode bez kompresji (diagnostyka)")
-	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b (PDF/A-2b) albo 3b (PDF/A-3b); domyślnie zwykły PDF")
+	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b, 3b (PDF/A-2b, PDF/A-3b), 2a, 3a (poziom A, z tagami); domyślnie zwykły PDF")
+	tagged := flag.Bool("tagged", false, "PDF z tagami: struktura logiczna z elementów HTML dla czytników ekranu (ADR 0033)")
 	flag.Func("attach", "załącznik dokumentu: plik[,związek[,typ MIME]], związek: Source, Data, Alternative, Supplement, Unspecified (domyślnie); flaga może się powtarzać", func(value string) error {
 		parts := strings.Split(value, ",")
 		data, err := os.ReadFile(parts[0])
@@ -71,6 +72,7 @@ func main() {
 	}
 	flag.Parse()
 	continuousMode = *continuous
+	taggedMode = *tagged
 	uncompressedMode = *uncompressed
 	for _, item := range strings.Split(*hyphenDicts, ",") {
 		if item = strings.TrimSpace(item); item == "" {
@@ -93,8 +95,12 @@ func main() {
 		conformance = gopdfgo.PDFA2b
 	case "3b", "3B":
 		conformance = gopdfgo.PDFA3b
+	case "2a", "2A":
+		conformance = gopdfgo.PDFA2a
+	case "3a", "3A":
+		conformance = gopdfgo.PDFA3a
 	default:
-		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b, 3b)")
+		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b, 3b, 2a, 3a)")
 		os.Exit(2)
 	}
 	if *in == "" || *out == "" || *fontDir == "" {
@@ -113,6 +119,7 @@ var (
 	conformance      gopdfgo.Conformance
 	continuousMode   bool
 	uncompressedMode bool
+	taggedMode       bool                 // flaga -tagged
 	hyphenation      map[string][]byte    // flaga -hyphenation
 	attachments      []gopdfgo.Attachment // flaga -attach
 )
@@ -180,7 +187,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
 		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation,
-		Attachments: attachments})
+		Attachments: attachments, Tagged: taggedMode})
 	if err != nil {
 		return err
 	}

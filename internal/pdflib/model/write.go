@@ -37,6 +37,94 @@ type output struct {
 	// encode the object numbers as index (starting from 1)
 	// and the byte offsets of objects (starts at 1, [0] is unused)
 	objOffsets []int
+
+	// gopdfgo: packed – obiekty czekające na zapis w strumieniu obiektów (Trailer.ObjectStreams); nil:
+	// zapis zwykły
+	packed *objectStreams
+}
+
+// objectStreams (gopdfgo) zbiera obiekty niebędące strumieniami w strumienie obiektów (ISO 32000-1
+// § 7.5.7) po objectsPerStream; entries to położenie obiektu: numer strumienia i indeks w nim.
+type objectStreams struct {
+	refs    []Reference
+	offsets []int
+	body    bytes.Buffer
+	entries map[Reference][2]int
+}
+
+const objectsPerStream = 200
+
+// writePacked (gopdfgo) dopisuje obiekt do bieżącego strumienia obiektów.
+func (w *output) writePacked(content string, ref Reference) {
+	p := w.packed
+	if p.body.Len() != 0 {
+		p.body.WriteByte('\n')
+	}
+	p.refs = append(p.refs, ref)
+	p.offsets = append(p.offsets, p.body.Len())
+	p.body.WriteString(content)
+	if len(p.refs) == objectsPerStream {
+		w.flushPacked()
+	}
+}
+
+// flushPacked (gopdfgo) zapisuje zebrane obiekty jako strumień obiektów, skompresowany jak inne strumienie.
+func (w *output) flushPacked() {
+	p := w.packed
+	if len(p.refs) == 0 {
+		return
+	}
+	var index bytes.Buffer
+	for i, ref := range p.refs {
+		fmt.Fprintf(&index, "%d %d ", ref, p.offsets[i])
+	}
+	index.WriteByte('\n')
+	stream := w.CreateObject()
+	for i, ref := range p.refs {
+		p.entries[ref] = [2]int{int(stream), i}
+	}
+	data := NewCompressedStream(append(index.Bytes(), p.body.Bytes()...))
+	w.objOffsets[stream] = w.written
+	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n<</Type/ObjStm/N %d/First %d/Filter/FlateDecode/Length %d>>\nstream\n",
+		stream, len(p.refs), index.Len(), len(data.Content))))
+	w.bytes(data.Content)
+	w.bytes([]byte("\nendstream\nendobj\n"))
+	p.refs, p.offsets = p.refs[:0], p.offsets[:0]
+	p.body.Reset()
+}
+
+// writeXRefStream (gopdfgo) kończy plik strumieniem odsyłaczy (ISO 32000-1 § 7.5.8) zamiast tabeli
+// odsyłaczy i słownika trailer; identyfikator pliku jak w writeFooter.
+func (w *output) writeXRefStream(trailer Trailer, root, info Reference) {
+	w.flushPacked()
+	xref := w.CreateObject()
+	offset := w.written
+	w.objOffsets[xref] = offset
+	size := len(w.objOffsets)
+	rows := make([]byte, 0, 7*size)
+	for j := 0; j < size; j++ {
+		var kind byte
+		var field2, field3 int
+		switch entry, packed := w.packed.entries[Reference(j)]; {
+		case j == 0:
+			kind, field3 = 0, 65535
+		case packed:
+			kind, field2, field3 = 2, entry[0], entry[1]
+		default:
+			kind, field2 = 1, w.objOffsets[j]
+		}
+		rows = append(rows, kind, byte(field2>>24), byte(field2>>16), byte(field2>>8), byte(field2), byte(field3>>8), byte(field3))
+	}
+	data := NewCompressedStream(rows)
+	var id string
+	if trailer.ContentID && w.digest != nil {
+		sum := hex.EncodeToString(w.digest.Sum(nil)[:16])
+		id = fmt.Sprintf("/ID [<%s> <%s>]", sum, sum)
+	}
+	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n<</Type/XRef/Size %d/W [1 4 2]/Root %d 0 R/Info %d 0 R%s/Filter/FlateDecode/Length %d>>\nstream\n",
+		xref, size, root, info, id, len(data.Content))))
+	w.bytes(data.Content)
+	w.bytes([]byte(fmt.Sprintf("\nendstream\nendobj\nstartxref\n%d\n%%%%EOF", offset)))
 }
 
 func (w *output) bytes(b []byte) {
@@ -132,6 +220,7 @@ func newWriter(dest io.Writer, encrypt *Encrypt) pdfWriter {
 		pages:             make(map[PageNode]Reference),
 		outlines:          make(map[*OutlineItem]Reference),
 		fields:            make(map[*FormFieldDict]Reference),
+		structure:         make(map[*StructureElement]Reference), // gopdfgo: zob. StructureTree.pdfString
 		mergedAccroFields: make(map[*AnnotationDict]*FormFieldDict),
 		encrypt:           encrypt,
 	}
@@ -274,6 +363,10 @@ func (p pdfWriter) EncodeString(s string, mode PDFStringEncoding, context Refere
 // and `stream` the inner stream bytes. For other objects, `stream` will be nil.
 // Stream content will be encrypted if needed.
 func (w pdfWriter) WriteObject(content string, ref Reference) {
+	if w.packed != nil { // gopdfgo: zob. Trailer.ObjectStreams
+		w.writePacked(content, ref)
+		return
+	}
 	w.objOffsets[ref] = w.written
 	w.bytes([]byte(fmt.Sprintf("%d 0 obj\n", ref)))
 	w.bytes([]byte(content))

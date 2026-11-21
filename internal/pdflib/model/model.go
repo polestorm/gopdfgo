@@ -15,6 +15,7 @@
 package model
 
 import (
+	"compress/zlib"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -66,6 +67,9 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 	if doc.Trailer.ContentID {
 		wr.digest = sha256.New()
 	}
+	if doc.Trailer.ObjectStreams && encryption == nil && CompressionLevel() != zlib.NoCompression {
+		wr.packed = &objectStreams{entries: map[Reference][2]int{}}
+	}
 
 	wr.writeHeader()
 
@@ -80,6 +84,10 @@ func (doc *Document) Write(output io.Writer, encryption *Encrypt) error {
 		encRef = wr.addObject(encryption.pdfString())
 	}
 
+	if wr.packed != nil { // gopdfgo: zob. Trailer.ObjectStreams
+		wr.writeXRefStream(doc.Trailer, wr.catalog, info)
+		return wr.err
+	}
 	wr.writeFooter(doc.Trailer, wr.catalog, info, encRef)
 
 	return wr.err
@@ -388,12 +396,19 @@ type ViewerPreferences struct {
 	// right to left: determine the relative positioning
 	// of pages when displayed side by side or printed n-up
 	DirectionRTL bool
+	// gopdfgo: DisplayDocTitle – okno czytnika pokazuje tytuł z metadanych zamiast nazwy pliku
+	// (ISO 32000-1 § 12.2, tabela 150; wymagane przez PDF/UA, ISO 14289-1 § 7.1)
+	DisplayDocTitle bool
 }
 
 func (p ViewerPreferences) pdfString(pdf pdfWriter) string {
 	direction := Name("L2R")
 	if p.DirectionRTL {
 		direction = "R2L"
+	}
+	// gopdfgo: /DisplayDocTitle tylko gdy prawda, żeby dotychczasowy zapis się nie zmienił
+	if p.DisplayDocTitle {
+		return fmt.Sprintf("<</FitWindow %v /CenterWindow %v /Direction %s /DisplayDocTitle true>>", p.FitWindow, p.CenterWindow, direction)
 	}
 	return fmt.Sprintf("<</FitWindow %v /CenterWindow %v /Direction %s>>", p.FitWindow, p.CenterWindow, direction)
 }
@@ -408,6 +423,12 @@ type Trailer struct {
 	// poprzedzających tabelę odsyłaczy: te same wejścia dają ten sam identyfikator, a wywołujący nie
 	// musi go podawać. Identyfikatora wymaga PDF/A (ISO 19005-2 § 6.1.3).
 	ContentID bool
+	// gopdfgo: ObjectStreams każe zapisać obiekty niebędące strumieniami w strumieniach obiektów
+	// (ISO 32000-1 § 7.5.7), skompresowanych jak inne strumienie, a tabelę odsyłaczy jako strumień
+	// odsyłaczy (§ 7.5.8). Drzewo struktury PDF z tagami to tysiące małych obiektów, które w zwykłym
+	// zapisie z wpisami tabeli odsyłaczy powiększały plik nawet dwukrotnie (ADR 0033). Bez szyfrowania
+	// i przy kompresji innej niż zlib.NoCompression; inaczej zapis zwykły.
+	ObjectStreams bool
 }
 
 func (t Trailer) Clone() Trailer {

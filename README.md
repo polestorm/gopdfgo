@@ -39,6 +39,11 @@ Comparison with Chromium, the list of what is not supported, and requirements:
   - font subsets;
   - internal and external links, bookmarks from headings;
   - PDF/A-2b and PDF/A-3b on request (`Options.Conformance`);
+  - tagged PDF on request (`Options.Tagged`, `-tagged`; ADR 0033): a structure tree from the HTML elements
+    in document order (headings, paragraphs, lists, tables, links, images with alternative text), page
+    content marked as belonging to elements, backgrounds, borders and margin boxes marked as artifacts;
+    PDF/A-2a and PDF/A-3a (`Options.Conformance`, `-pdfa 2a`) turn it on and pass veraPDF on all 22
+    documents of the corpus. PDF/UA-1 is not claimed yet;
   - file attachments (`Options.Attachments`, `<link rel="attachment">`), with MIME type and
     `AFRelationship`, e.g. the XML of an e-invoice inside a PDF/A-3 file.
 - Output is deterministic: the same input gives the same bytes.
@@ -93,7 +98,8 @@ licences (list in `docs/overview.md`).
 - JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
 - System fonts.
 - Vertical writing and right-to-left/bidirectional text.
-- Tagged PDF (PDF/UA, PDF/A-2a, PDF/A-3a); the XMP extension schema of Factur-X/ZUGFeRD.
+- PDF/UA-1 (the tagged PDF lacks list labels and bodies, table header scopes, `Alt` on links and
+  `pdfuaid` metadata); the XMP extension schema of Factur-X/ZUGFeRD.
 - `subgrid`, `grid-lanes`, `column-height`.
 - Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
   lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on

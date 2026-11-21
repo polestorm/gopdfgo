@@ -56,6 +56,11 @@ func renderFile(path, resourceRoot, userCSS string) ([]byte, error) {
 }
 
 func renderFileResult(path, resourceRoot, userCSS string) (gopdfgo.Result, error) {
+	return renderFileOptions(path, resourceRoot, userCSS, nil)
+}
+
+// renderFileOptions działa jak renderFileResult, a adjust (gdy nie nil) zmienia opcje przed renderowaniem.
+func renderFileOptions(path, resourceRoot, userCSS string, adjust func(*gopdfgo.Options)) (gopdfgo.Result, error) {
 	root, err := filepath.Abs(resourceRoot)
 	if err != nil {
 		return gopdfgo.Result{}, err
@@ -88,8 +93,12 @@ func renderFileResult(path, resourceRoot, userCSS string) (gopdfgo.Result, error
 	absolute, _ := filepath.Abs(path)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS,
-		GenericFamilies: families})
+	opts := gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS,
+		GenericFamilies: families}
+	if adjust != nil {
+		adjust(&opts)
+	}
+	return gopdfgo.Render(ctx, html, opts)
 }
 
 // corpusFonts wczytuje wszystkie fonty z testdata/fonts i jego podkatalogów oraz przypisanie fontów

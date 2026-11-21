@@ -27,6 +27,7 @@ func (g *group) DrawSharedGroup(opacity fl, gr backend.Canvas) {
 	}
 	// grupę rysowaną przez Do składa się ze stałą alfa wypełnienia ca (PDF 32000-1 § 11.6.4.4), więc
 	// CA pomijamy: kopie rozmycia mają wiele różnych krycia i każde to osobny słownik ExtGState
+	g.beginContent() // gopdfgo: zob. tagged.go
 	g.stream.SetFillAlpha(opacity)
 	g.stream.AddXObject(other.shared)
 }
@@ -82,9 +83,11 @@ func (g *group) transferFunction(samples []fl) *model.FunctionDict {
 // (/Span <</ActualText ()>> BDC … EMC, ISO 32000-1 § 14.9.4): czytniki i narzędzia wyodrębniające
 // tekst (pdftotext, kopiowanie) biorą wtedy pusty tekst zamiast glifów z kopii.
 func (g *group) WithoutText(task func()) {
-	g.stream.Ops(cs.OpBeginMarkedContent{Tag: "Span", Properties: cs.PropertyListDict{"ActualText": model.ObjStringLiteral("")}})
-	task()
-	g.stream.Ops(cs.OpEndMarkedContent{})
+	g.holdMarked(func() { // gopdfgo: ciąg /Span wewnątrz treści oznaczonej (zob. tagged.go)
+		g.stream.Ops(cs.OpBeginMarkedContent{Tag: "Span", Properties: cs.PropertyListDict{"ActualText": model.ObjStringLiteral("")}})
+		task()
+		g.stream.Ops(cs.OpEndMarkedContent{})
+	})
 }
 
 // sharedFormKey (gopdfgo): klucz formy treści powtarzanej: klucz podany przez rysującego, rozmiar formy
@@ -115,5 +118,6 @@ func (g *group) DrawShared(key any, width, height fl, draw func(dst backend.Canv
 			g.cache.forms[k] = form
 		}
 	}
+	g.beginContent() // gopdfgo: zob. tagged.go
 	g.stream.AddXObject(form)
 }

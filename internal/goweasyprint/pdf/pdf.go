@@ -79,6 +79,12 @@ type Output struct {
 
 	// temporary content, will be copied in the document (see `finalize`)
 	pages []*outputPage
+
+	// gopdfgo: PDF z tagami (ADR 0033, tagged.go): tagged włącza oznaczanie treści stron, structure
+	// to drzewo elementów z SetStructure, lang język dokumentu
+	tagged    bool
+	structure *backend.StructureNode
+	lang      string
 }
 
 func NewOutput() *Output {
@@ -94,6 +100,9 @@ func (c *Output) AddPage(left, top, right, bottom fl) backend.Page {
 	// piksel (przy powiększeniu większym mniej), z zapasem na zaokrąglenia
 	*c.cache.maskLimit = [2]fl{0.74 * right, 0.74 * bottom}
 	out := newContextPage(left, top, right, bottom, c.embeddedFiles, c.cache)
+	if c.tagged { // gopdfgo: zob. tagged.go
+		out.marking = &markState{tags: map[any]string{}}
+	}
 	c.pages = append(c.pages, out)
 	return out
 }
@@ -282,6 +291,10 @@ func (c *Output) Finalize() model.Document {
 
 	// fonts
 	c.writeFonts()
+
+	if c.tagged { // gopdfgo: drzewo struktury (tagged.go)
+		c.buildStructure()
+	}
 
 	return c.document
 }

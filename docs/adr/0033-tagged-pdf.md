@@ -1,6 +1,7 @@
 # ADR 0033: PDF z tagami (PDF/UA-1, PDF/A-2a, PDF/A-3a)
 
-Status: przyjęta 2026-11-21 (decyzje w sekcji „Rozstrzygnięcia”); wdrażana rundami.
+Status: przyjęta 2026-11-21 (decyzje w sekcji „Rozstrzygnięcia”); wdrażana rundami, runda 1 zrobiona
+2026-11-21 (sekcja „Stan rundy 1”).
 
 ## Kontekst
 
@@ -79,3 +80,61 @@ Ryzyko: kontekst nakładania i elementy pozycjonowane rysowane poza kolejności�
   stronach nie trafiają do drzewa.
 - **Braki dostępności (obraz bez `alt`, dokument bez tytułu) dają ostrzeżenia**, nie błąd: renderowanie
   kończy się, plik powstaje, a ostrzeżenia mówią, co poprawić, żeby veraPDF przyjął plik jako PDF/UA.
+
+## Stan rundy 1 (2026-11-21)
+
+Działa:
+- `Options.Tagged` i flaga `-tagged`; `Conformance` `PDFA2a` i `PDFA3a` (`-pdfa 2a`, `-pdfa 3a`) włączają tagi
+  i piszą `pdfaid:conformance A`. „ua1” zostaje na rundę 2 (veraPDF z profilem PDF/UA-1 odrzuca dziś każdy
+  plik korpusu, niżej lista reguł).
+- Drzewo z elementów HTML w kolejności dokumentu według pkt 2: `Document`, `Div`, `Sect`, `Art`,
+  `BlockQuote`, `P` (także `pre`, `address`), `H1`–`H6`, `L`/`LI`, `Table`/`THead`/`TBody`/`TFoot`/`TR`/`TH`/
+  `TD`, `Caption`, `Figure` (`img`, `svg`, `object`, `embed`, `iframe`, `figure`) z `Alt` z `alt`,
+  `aria-label`, `<title>` SVG albo `title`, `Link` (`a` i `area` z `href`) z `OBJR` do adnotacji, odnośniki
+  SVG jako `Link` wewnątrz `Figure` obrazu, `Quote`, `Code`, `Formula` (MathML), `Ruby`/`RB`/`RT`/`RP`,
+  `Span` dla pozostałych liniowych; `body` i `picture` są przezroczyste; element bez treści na stronach nie
+  trafia do drzewa; `lang` elementu różny od rodzica daje `/Lang` elementu. Odcinki treści elementu stoją
+  między potomkami według kolejności rysowania, potomkowie według kolejności dokumentu.
+- Treść oznaczona przy rysowaniu, leniwie: `BDC` przed pierwszym operatorem malującym (ścieżka tylko
+  przycinająca go nie otwiera), kolejne malowanie tego samego elementu w tym samym ciągu, zamknięcie przed
+  każdym `q` i `Q`, więc ciągi i stany graficzne zagnieżdżają się poprawnie; MCID kolejne w obrębie strony.
+  Grupy (krycie, `mix-blend-mode`, filtry) i formy współdzielone (ADR 0028) są oznaczone w miejscu `Do` jako
+  treść elementu tworzącego kontekst albo obrazu; wnętrza form zostają bez znaczników.
+- Artefakty: tła, obramowania (także zwinięte), cienie, obrysy, linie kolumn, cienie tekstu (`/Artifact`);
+  pola marginesów z elementami biegnącymi i powtórzone na kolejnych stronach nagłówki i stopki tabel
+  (`/Artifact <</Type/Pagination>>`); obraz z pustym `alt` (ozdobny według HTML) i obraz treści generowanej.
+- Poziom dokumentu: `/MarkInfo <</Marked true>>`, `/StructTreeRoot` z `ParentTree` (korzeń bez `/Limits`),
+  `/Lang` z `lang` elementu głównego, `/ViewerPreferences <</DisplayDocTitle true>>`, `/StructParents` na
+  stronach z treścią oznaczoną, `/StructParent` na adnotacjach, `/Tabs /S` na stronach z adnotacjami.
+- Ostrzeżenia: „Tagged PDF: image without alternative text …” (raz na element) i „Tagged PDF: document
+  without a title (<title>)”.
+- Obie drogi rysowania (ADR 0027 i `document.StreamingDisabled`) dają te same bajty: ciąg treści oznaczonej
+  jest zamykany przed miejscem na pola marginesowe, a pola marginesów są artefaktami, więc nie zmieniają
+  numeracji MCID strony.
+- Rozmiar: drzewo struktury to tysiące małych obiektów (rejestr z tabelą: 1466 elementów), które w zwykłym
+  zapisie powiększały plik o 23–171%. Z tagami obiekty niebędące strumieniami trafiają do skompresowanych
+  strumieni obiektów, a tabela odsyłaczy jest strumieniem (ISO 32000-1 § 7.5.7–7.5.8; PDF/A-2 je dopuszcza);
+  `Uncompressed` zostawia zapis zwykły do czytania w edytorze.
+
+Pomiar 2026-11-21 (macOS arm64, cały proces, mediana 5 przebiegów, książka 3; bez tagów → z tagami):
+
+| Dokument | Rozmiar | Czas |
+|---|---|---|
+| `02-register-table` (8 stron) | 81 052 → 105 987 B (+30,8%; bez strumieni obiektów 219 670 B, +171%) | 0,114 → 0,119 s (+4%) |
+| `20-invoice` (3 strony) | 28 525 → 34 680 B (+21,6%; bez strumieni obiektów +136%) | 0,080 → 0,081 s (+1,5%) |
+| `21-mixed-report` (3 strony) | 37 665 → 35 128 B (−6,7%; bez strumieni obiektów +23%) | 0,071 → 0,071 s |
+| książka `1342-bench.htm` | 26 247 339 → 26 232 456 B (−0,1%; bez strumieni obiektów +1,8%) | 1,610 → 1,629 s (+1,2%) |
+
+Sprawdzenia: veraPDF (profil PDF/A-2a) przyjmuje 22 z 22 dokumentów `testdata/documents` z `-pdfa 2a`;
+rastry stron z tagami i bez są identyczne (22 dokumenty, 48 dpi); porównanie bajtowe całego korpusu W3C bez
+opcji: 0 różnic. veraPDF z profilem PDF/UA-1 (na rundę 2; reguła: liczba plików z błędem na 22): 5-1
+(brak schematu `pdfuaid`) 22; 7.5-1 (`TH` bez `Scope`) 4; 7.4.2-1 (pierwszy nagłówek nie `H1` albo pominięty
+poziom w dokumencie bez `H`) 4; 7.3-1 (`Figure` bez `Alt`, np. element `figure`) 3; 7.2-42 i 7.2-43 (wiersze
+tabeli o różnej liczbie kolumn: brak `ColSpan`/`RowSpan`) 2; 7.2-20 (`LI` może zawierać tylko `Lbl` i `LBody`)
+2; 7.18.5-2 (odnośnik bez `/Contents`) 2; 7.18.1-2 (adnotacja bez `/Contents` i bez `Alt` elementu) 2; 7.2-14
+(`Table` z `THead` bez `TBody`) 1.
+
+Przesunięte na rundę 2: `Lbl`/`LBody` (znacznik `::marker` stoi dziś w `LI` za treścią), `Scope`, `RowSpan`,
+`ColSpan`, `Headers` w tabelach, `/Contents` i `Alt` odnośników, `pdfuaid:part 1` i „ua1”, `figure` z `Alt`
+z `figcaption` albo jako grupa, treść generowana jako artefakt, struktura wewnątrz SVG, `RoleMap`
+(dziś nie jest potrzebna: wszystkie typy są standardowe).

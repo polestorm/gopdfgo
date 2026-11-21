@@ -18,6 +18,7 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	if textbox.Style.GetVisibility() != "visible" {
 		return
 	}
+	ctx.markElement(textbox.Element) // gopdfgo: tekst i jego dekoracje należą do elementu (ADR 0033)
 
 	// Draw text decoration
 
@@ -46,6 +47,9 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	// wierzchu. PDF nie ma rozmycia, więc cień rozmyty przybliżamy kopiami tekstu na dwóch okręgach
 	// wokół przesunięcia, każda o ułamku krycia; cień ostry to jedna kopia.
 	shadows := textbox.Style.GetTextShadow()
+	if len(shadows) != 0 {
+		ctx.markArtifact() // gopdfgo: cień tekstu to artefakt (ADR 0033)
+	}
 	for index := len(shadows) - 1; index >= 0; index-- {
 		shadow := shadows[index]
 		// gopdfgo: także barwy względne zależne od currentColor (CSS Color 5)
@@ -78,6 +82,9 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	// currentcolor, czyli color
 	fill := textbox.Style.GetWebkitTextFillColor()
 	fillColor := fill.ResolveCurrentColor(textbox.Style.GetColor()).RGBA // gopdfgo: zob. ResolveCurrentColor
+	if len(shadows) != 0 {
+		ctx.markElement(textbox.Element)
+	}
 	ctx.dst.State().SetColorRgba(fillColor, false)
 	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y, fillColor)
 
