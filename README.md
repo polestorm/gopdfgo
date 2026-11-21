@@ -65,7 +65,8 @@ Comparison with Chromium, the list of what is not supported, and requirements:
   - Factur-X 1.0 / ZUGFeRD 2.x hybrid invoices (`Options.FacturX`, `-facturx invoice.xml`; ADR 0034): the
     CII invoice XML embedded as `factur-x.xml` (`xrechnung.xml` for XRECHNUNG) with the relationship the
     specification gives for the profile, the `fx` XMP properties with their PDF/A extension schema, PDF/A-3b
-    (PDF/A-3a with tags, also with PDF/UA-1); veraPDF accepts the result.
+    (PDF/A-3a with tags, also with PDF/UA-1); veraPDF accepts the result, and the Mustang validator 2.26.0
+    accepts both the PDF and the invoice XML (MINIMUM profile, measured 2026-11-21).
 - Output is deterministic: the same input gives the same bytes.
 
 Where the specifications leave a choice, gopdfgo prints like Chromium, so documents designed in a browser
