@@ -57,7 +57,7 @@ type FontConfigurationGotext struct {
 	// konfiguracja współdzielona między dokumentami (testy przejęte) zachowuje zachowanie źródła.
 	ReuseLoadedFaces bool
 
-	textLayoutCache map[textKey]FirstLine
+	textLayoutCache layoutCache // gopdfgo: ograniczony rozmiar, zob. layout_cache.go
 
 	// GenericFamilies (gopdfgo) przypisuje rodzinom generycznym CSS ("serif", "sans-serif", "monospace", ...)
 	// rodziny fontów próbowane w podanej kolejności, zanim zadziała tablica podstawień biblioteki go-text.
@@ -76,7 +76,7 @@ func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
 		fm:              fm,
 		fontsContent:    make(map[string][]byte),
 		fontsFeatures:   make(map[*font.Font][]Feature), // as loaded by loadOneFont
-		textLayoutCache: make(map[textKey]FirstLine),
+		textLayoutCache: newLayoutCache(),
 	}
 	out.shaper.SetFontCacheSize(64)
 	return &out
@@ -1050,7 +1050,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}
 
 	key := textKey{string(text), style.key(), maxWidth, allowWordBreak}
-	if l, ok := fc.textLayoutCache[key]; ok {
+	if l, ok := fc.textLayoutCache.get(key); ok {
 		return privateLayout(l)
 	}
 
@@ -1508,7 +1508,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		Baseline:     top,
 	}
 
-	fc.textLayoutCache[key] = out
+	fc.textLayoutCache.put(key, out)
 
 	return privateLayout(out)
 }

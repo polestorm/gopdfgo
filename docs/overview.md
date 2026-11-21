@@ -74,7 +74,7 @@ whole process including program or browser start.
 |---|---|---|
 | pages | 253 | 256 |
 | time | 2.13–2.47 s | 1.60 s (1.54–1.58 s before the memory optimisations below) |
-| peak memory | 1672–1701 MB (all browser processes) | 555–626 MB (after the optimisations below) |
+| peak memory | 1672–1701 MB (all browser processes) | 423–456 MB (after the optimisations below) |
 | PDF size | 27.58 MB (tagged PDF) | 26.25 MB |
 | of which images | 25.21 MB (171 image objects) | 24.76 MB (164 image objects) |
 | of which text, pages, fonts and structure | 2.37 MB | 1.49 MB |
@@ -110,7 +110,7 @@ The Go garbage collector lets the heap grow to about twice the live size before 
 which gives the peak of about 1 GB for the book. With `GOGC=50` the peak was 740 MB and with `GOGC=25`
 660 MB; wall time stays about the same, CPU time grows by 25% and 70%.
 
-The table was measured before four optimisations, which give byte-identical output:
+The table was measured before five optimisations, which give byte-identical output:
 
 - laid-out lines keep their glyphs in a compact form (44 B per glyph instead of the 80 B record of the
   go-text shaper);
@@ -118,10 +118,17 @@ The table was measured before four optimisations, which give byte-identical outp
   for the 1021-page book);
 - each page's boxes are released right after the page is drawn;
 - each page is drawn as soon as its layout is final; margin boxes are added to its content after all
-  pages are laid out, so "page X of Y" needs no second pass (ADR 0027).
+  pages are laid out, so "page X of Y" needs no second pass (ADR 0027);
+- the cache of broken lines has a size limit (two generations of about 16 MB each) instead of growing
+  for the whole document. Its key is the remaining text of the paragraph, so it took about 400 MB for
+  1021 pages.
 
-Peak memory after them: book 0.92–1.07 → 0.56–0.63 GB, book ×4 (1021 pages, 4.8 s, Chromium 2.44 GB)
-2.25–2.31 → 0.90–0.96 GB.
+Peak memory after the first four: book 0.92–1.07 → 0.56–0.63 GB, book ×4 (1021 pages, 4.8 s, Chromium
+2.44 GB) 2.25–2.31 → 0.90–0.96 GB. After the fifth (measured 2026-11-21, three runs): book 0.51–0.58 →
+0.42–0.46 GB, same time; book ×4 0.83–0.85 → 0.73–0.79 GB, but 4.8 → 6.4 s, because the ×4 file repeats the
+same text four times and the unlimited cache reused whole paragraphs from earlier copies. On a 1021-page
+variant with different text in each copy (one vowel replaced per copy) time is the same, 6.5 s, and memory
+drops from 1.30–1.54 to 0.73 GB.
 
 Memory is now bounded mainly by the input (styles, box tree, images) rather than by the laid-out
 document; the peak is reached during layout. Documents that need a second pagination pass, such as a

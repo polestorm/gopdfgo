@@ -977,6 +977,10 @@ Wspólne dla obu katalogów:
   zakończona samotnym łącznikiem (`color: -`, `fill="-"`) przerywała renderowanie paniką (wyjście poza
   koniec tekstu). Ujawnił to losowy przejęty test `svg.TestInvalidAttributes`, który padał sporadycznie;
   test `tests/svgfixes18_test.go` `TestLoneHyphenValue`;
+- pamięć złamanych wierszy z limitem, 2026-11-21 (ADR 0032; nowy plik `text/layout_cache.go`, zmiany
+  w `text/engine_gotext.go` `textLayoutCache`, `WrapWordBreak`): mapa bez limitu zastąpiona pamięcią
+  dwupokoleniową po ok. 16 MB szacowanego rozmiaru; wynik bajt w bajt ten sam (korpus W3C: 0 różnic),
+  pamięć szczytowa książki 1021 stron 1,30–1,54 → 0,73 GB;
 - pojedyncze poprawki SVG z sondażu W3C, 2026-11-21 (praca pomocnika; ADR 0031; test
   `tests/svgsingles18_test.go`; sondaż `svg/` z 181 na 194 z 235, bez strat; korpus: flaga Brazylii w `img`
   i inline bliżej oryginału, bo litery napisu wstawione przez `<use>` dziedziczą zielone wypełnienie, reszta
