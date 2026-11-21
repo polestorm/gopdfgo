@@ -1122,6 +1122,26 @@ Wspólne dla obu katalogów:
     małych obiektów; rejestr tabel z korpusu: +171% rozmiaru bez nich, +31% z nimi); bez opcji zapis bez zmian;
   - bez opcji wynik bajt w bajt ten sam (korpus W3C: 11 689 dokumentów, 46 756 renderowań, 0 różnic); przejęty
     test `html/document/document_test.go` `assertLinks` pomija przy porównaniu nowe pole elementu odnośnika;
+- dokumenty z ponowną paginacją układane w dwóch przebiegach, 2026-11-21 (praca pomocnika; ADR 0036;
+  `html/layout/layout.go` `layoutDocument`, `paginate`, `finishPages`, pola `verifying`, `drift`,
+  `pagesTargeted`; `html/layout/pages.go` `makePage`, `remakePage`; `html/layout/stream.go`,
+  `html/document/stream.go`, `render.go`; test `tests/twopass21_test.go`):
+  - obiegi paginacji z `layoutDocument` są wydzielone do `layoutContext.paginate`, a obróbka stron po
+    paginacji do `finishPages`; `layoutDocument` woła obie, kolejność kroków bez zmian;
+  - dokument, który przy rysowaniu w trakcie układu (ADR 0027) wymaga ponownej paginacji (`target-counter`,
+    `target-text`, `counter(pages)` w treści, `string-set` i `bookmark-label` z liczbą stron albo licznikiem
+    celu), nie wraca już do układu całości: przebieg pierwszy wykonuje `paginate` i zwalnia drzewa stron
+    zaraz po ułożeniu, przebieg drugi układa od nowa wszystkie strony z ustalonym stanem, rysuje je
+    i zwalnia; dokument do 32 stron przebieg pierwszy układa w całości jak `layoutDocument`;
+  - w przebiegu drugim `makePage` i `remakePage` zgłaszają różnicę względem przebiegu pierwszego (kotwica na
+    innej stronie albo z innymi licznikami, przeliczenie treści z licznikami stron, inny stan następnej
+    strony), a dokument idzie wtedy starą drogą; algorytm znaczników ponownego układu bez zmian;
+  - ostrzeżenia z układu stron w przebiegu drugim są wyciszone (zgłosił je przebieg pierwszy), więc ich liczba
+    jest taka jak w starej drodze;
+  - wynik bajt w bajt taki sam (korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic, także z drugim
+    przebiegiem dla dokumentów krótkich; książka i jej czterokrotność ze spisem treści); szczyt pamięci
+    książki ze spisem treści i „Strona X z Y” 0,60–0,61 → 0,47–0,48 GB (bez spisu 0,44–0,47 GB), czas
+    2,24 → 3,0 s; czterokrotność 1,45–1,53 → 0,80–0,84 GB, 8,9 → 12,3 s;
 - rysowanie stron w trakcie układu, 2026-11-20 (praca pomocnika; ADR 0027; `html/layout/stream.go`,
   `html/layout/layout.go` `layoutDocument`, `html/layout/pages.go` `makeAllPages`, `html/document/stream.go`,
   `html/document/draw.go` `drawStackingContext`, `backend/document.go` `ResumablePage`,

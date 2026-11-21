@@ -131,8 +131,25 @@ variant with different text in each copy (one vowel replaced per copy) time is t
 drops from 1.30–1.54 to 0.73 GB.
 
 Memory is now bounded mainly by the input (styles, box tree, images) rather than by the laid-out
-document; the peak is reached during layout. Documents that need a second pagination pass, such as a
-table of contents with `target-counter()`, are still laid out whole before drawing (ADR 0027).
+document; the peak is reached during layout.
+
+Documents that need a second pagination pass, such as a table of contents with `target-counter()` or
+"page X of Y" with `counter(pages)` in the page content (not in margin boxes), are laid out twice
+(ADR 0036): the first pass settles page numbers and the page count and releases each page right after
+laying it out; the second lays out every page again with those values and draws it at once. Output is
+byte-identical. Documents of up to 32 pages are laid out whole, as before, because the second pass costs
+time and would save little memory there. Measured 2026-11-21 (three runs) on a variant of the book with a
+table of contents of 61 chapter links at the front and "page X of Y" under every chapter heading:
+
+| | book, no TOC | book with TOC, before | book with TOC, after | book ×4 with TOC, before | book ×4 with TOC, after |
+|---|---|---|---|---|---|
+| pages | 256 | 259 | 259 | 1027 | 1027 |
+| peak memory | 440–483 MB | 598–613 MB | 472–479 MB | 1450–1531 MB | 802–839 MB |
+| time | 1.60 s | 2.24 s | 3.00–3.02 s | 8.93–8.94 s | 12.27–12.34 s |
+
+The extra layout pass costs 35–38% of time. A few cases still lay out the whole document before
+drawing: a positioned box continued on an earlier page, a `position: fixed` box that first appears on a
+later page, a margin box with a negative `z-index`, and `target-counter(…, pages)`.
 
 ## PDF file size
 

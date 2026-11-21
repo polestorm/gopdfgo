@@ -2,6 +2,8 @@ package layout
 
 import (
 	"fmt"
+	"io"
+	"slices"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/counters"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -198,25 +200,76 @@ type PageSink interface {
 // LayoutStreaming (gopdfgo) układa dokument jak Layout, ale każdą stronę oddaje do sink zaraz po
 // ułożeniu (ADR 0027). newSink jest wywoływane przed każdym przebiegiem: przy pomniejszaniu treści
 // szerszej niż strona (ADR 0014) pierwszy przebieg tylko mierzy, a strony rysuje drugi, w skali.
-// Zwraca liczbę stron albo, gdy wynik różniłby się od Layout, opis przeszkody; wywołujący odrzuca wtedy
-// wszystko, co dostał sink, i układa dokument przez Layout.
+//
+// Dokument, który wymaga ponownej paginacji (spis treści z target-counter, counter(pages) w treści),
+// jest układany w dwóch przebiegach (ADR 0036): pierwszy ustala stan paginacji bez zachowywania stron,
+// drugi układa i rysuje strony od nowa. restart, gdy nie jest nil, jest wywoływane przed pierwszym
+// z nich, bo wszystko, co sink dostał wcześniej, idzie do kosza. Dokument, który ma najwyżej
+// TwoPassMinPages stron, pierwszy przebieg układa w całości, tak jak Layout, i zwraca strony w laidOut;
+// wywołujący rysuje je wtedy po ułożeniu, jak wynik Layout.
+//
+// Zwraca liczbę stron i twoPass, gdy dokument był układany w dwóch przebiegach, albo, gdy wynik różniłby
+// się od Layout, opis przeszkody; wywołujący odrzuca wtedy wszystko, co dostał sink, i układa dokument
+// przez Layout.
 func LayoutStreaming(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
-	newSink func() PageSink,
-) (pages int, fallback string) {
+	newSink func() PageSink, restart func(),
+) (pages int, laidOut []*bo.PageBox, twoPass bool, fallback string) {
 	limit := pr.Float(html.Behavior.MaxShrink)
-	pages, scale, fallback := streamScaled(html, stylesheets, presentationalHints, fontConfig, 1, newSink(), limit > 1)
-	if fallback != "" {
-		return 0, fallback
+	r := streamScaled(html, stylesheets, presentationalHints, fontConfig, 1, newSink(), limit > 1, false)
+	if r.repaginate && !TwoPassDisabled {
+		if restart != nil {
+			restart()
+		}
+		twoPass = true
+		r = streamScaled(html, stylesheets, presentationalHints, fontConfig, 1, newSink(), limit > 1, true)
+		if r.laidOut != nil {
+			// jak w Layout: pomniejszanie po ułożeniu całego dokumentu w skali 1
+			if limit > 1 {
+				if scale := min(contentOverflowScale(r.laidOut), limit); scale > 1.001 {
+					r.laidOut = layoutScaled(html, stylesheets, presentationalHints, fontConfig, scale)
+				}
+			}
+			return len(r.laidOut), r.laidOut, true, ""
+		}
 	}
-	if scale = min(scale, limit); limit > 1 && scale > 1.001 {
-		pages, _, fallback = streamScaled(html, stylesheets, presentationalHints, fontConfig, scale, newSink(), false)
+	if r.fallback != "" {
+		return 0, nil, twoPass, r.fallback
 	}
-	return pages, fallback
+	if scale := min(r.overflow, limit); limit > 1 && scale > 1.001 {
+		r = streamScaled(html, stylesheets, presentationalHints, fontConfig, scale, newSink(), false, twoPass)
+		if r.laidOut != nil {
+			return len(r.laidOut), r.laidOut, twoPass, ""
+		}
+	}
+	return r.pages, nil, twoPass, r.fallback
 }
 
+// TwoPassDisabled (gopdfgo) wyłącza układ w dwóch przebiegach (ADR 0036): dokument wymagający ponownej
+// paginacji wraca wtedy do układu całego dokumentu przed rysowaniem, jak przed tą decyzją. Służy testom
+// i pomiarom.
+var TwoPassDisabled bool
+
+// TwoPassMinPages (gopdfgo): dokument wymagający ponownej paginacji, który ma najwyżej tyle stron, jest
+// układany w całości przed rysowaniem, bo drugi przebieg układu kosztuje czas, a przy kilkudziesięciu
+// stronach oszczędza mało pamięci (ADR 0036). Zmienna dla testów i pomiarów.
+var TwoPassMinPages = 32
+
+// streamResult: wynik jednego przebiegu LayoutStreaming.
+type streamResult struct {
+	pages    int
+	overflow pr.Float // ile razy treść jest szersza niż strona (gdy przebieg to mierzył)
+	fallback string
+	// repaginate: przebieg przerwała potrzeba ponownej paginacji, którą rozwiązuje układ w dwóch przebiegach
+	repaginate bool
+	// laidOut: krótki dokument ułożony w całości przez pierwszy z dwóch przebiegów (zob. LayoutStreaming)
+	laidOut []*bo.PageBox
+}
+
+// streamScaled prowadzi jeden przebieg LayoutStreaming w skali contentScale. twoPass: najpierw ustalić
+// stan paginacji (streamer.paginate), potem układać i rysować strony z tym stanem.
 func streamScaled(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
-	contentScale pr.Float, sink PageSink, measureOverflow bool,
-) (pages int, overflow pr.Float, fallback string) {
+	contentScale pr.Float, sink PageSink, measureOverflow, twoPass bool,
+) streamResult {
 	context := newLayoutContext(html, stylesheets, presentationalHints, fontConfig, make(counters.CounterStyle))
 	counterStyle := context.counterStyle
 	context.contentScale = contentScale
@@ -228,7 +281,17 @@ func streamScaled(html *tree.HTML, stylesheets []tree.CSS, presentationalHints b
 
 	s := &streamer{context: context, finisher: newPageFinisher(context), sink: sink,
 		measureOverflow: measureOverflow, overflow: 1}
-	return s.run(html, rootBox)
+	// jak w layoutDocument
+	initializePageMaker(context, *rootBox.Box())
+	markTablesWithoutColumnPercentages(rootBox, false)
+	if twoPass {
+		laidOut, reason := s.paginate(html, rootBox)
+		if reason != "" || laidOut != nil {
+			return streamResult{fallback: reason, laidOut: laidOut}
+		}
+	}
+	pages, overflow, fallback := s.run(html, rootBox)
+	return streamResult{pages: pages, overflow: overflow, fallback: fallback, repaginate: s.repaginate}
 }
 
 // streamer prowadzi jeden przebieg LayoutStreaming.
@@ -246,6 +309,15 @@ type streamer struct {
 	fixedSeen []map[fixedKey]bool
 
 	fallback string
+	// repaginate: przeszkodą jest ponowna paginacja (zob. LayoutStreaming)
+	repaginate bool
+	// verifying: drugi przebieg układu w dwóch przebiegach (ADR 0036); totalPages: liczba stron
+	// z pierwszego, originalFootnotes: przypisy sprzed paginacji
+	verifying         bool
+	totalPages        int
+	originalFootnotes []Box
+	// warnings: miejsce docelowe ostrzeżeń, wyciszonych na czas układu stron w przebiegu drugim
+	warnings io.Writer
 }
 
 func (s *streamer) fail(reason string) bool {
@@ -253,27 +325,99 @@ func (s *streamer) fail(reason string) bool {
 	return false
 }
 
+func (s *streamer) failRepaginate(reason string) bool {
+	s.repaginate = true
+	return s.fail(reason)
+}
+
+// paginate: pierwszy przebieg układu w dwóch przebiegach (ADR 0036). Wykonuje obiegi paginacji
+// z layoutDocument (layoutContext.paginate), ale drzewa stron zwalnia zaraz po ułożeniu: zostają stan
+// paginacji (pageMaker), numery stron i liczniki kotwic (TargetCollector), liczba stron i treść pudełek
+// przeliczona przez ParseAgain. Strona, której layoutDocument nie układa od nowa w ostatnim obiegu, jest
+// tam brana z obiegu wcześniejszego; drugi przebieg układa ją jeszcze raz z tym samym stanem, a każdą
+// różnicę stanu zgłasza jako przeszkodę (layoutContext.drift).
+//
+// Dopóki dokument ma najwyżej TwoPassMinPages stron, strony zostają; gdy tak jest do końca paginacji,
+// paginate kończy układ jak layoutDocument i zwraca strony w laidOut.
+func (s *streamer) paginate(doc *tree.HTML, rootBox bo.BlockLevelBoxITF) (laidOut []*bo.PageBox, fallback string) {
+	context := s.context
+	released := false
+	context.pageDone = func(i int, pages []*bo.PageBox) bool {
+		if !released && len(pages) <= TwoPassMinPages {
+			return true
+		}
+		// fragmenty pudełek pozycjonowanych dokładane do stron po paginacji (attachLateBoxes)
+		for _, late := range context.lateBoxes {
+			if len(late) != 0 {
+				return s.fail("positioned box continued on an earlier page")
+			}
+		}
+		if !released {
+			released = true
+			for _, page := range pages[:i] {
+				page.Children = nil
+			}
+		}
+		pages[i].Children = nil
+		return true
+	}
+	pages, originalFootnotes := context.paginate(doc, rootBox, -1)
+	context.pageDone = nil
+	if s.fallback != "" {
+		return nil, s.fallback
+	}
+	if !released {
+		return finishPages(context, pages), ""
+	}
+	s.verifying, s.totalPages, s.originalFootnotes = true, len(pages), originalFootnotes
+	return nil, ""
+}
+
 // run odpowiada pierwszemu obiegowi pętli w layoutDocument; obiegu drugiego nie ma: gdy byłby potrzebny,
 // przebieg kończy się przeszkodą.
 func (s *streamer) run(doc *tree.HTML, rootBox bo.BlockLevelBoxITF) (int, pr.Float, string) {
 	context := s.context
-	initializePageMaker(context, *rootBox.Box())
-	markTablesWithoutColumnPercentages(rootBox, false)
+	if s.verifying {
+		// jak kolejny obieg w layoutDocument, ale z układaniem wszystkich stron od nowa; ostrzeżenia z układu
+		// stron zgłosił już pierwszy przebieg, więc tu są wyciszone (zob. pageDone)
+		context.footnotes = append([]Box(nil), s.originalFootnotes...)
+		context.verifying = true
+		context.pagesTargeted = targetedPages(&context.TargetCollector)
+		s.warnings = logger.WarningLogger.Writer()
+		logger.WarningLogger.SetOutput(io.Discard)
+	}
 
 	context.pageDone = s.pageDone
 	pages := context.makeAllPages(rootBox, doc, nil)
 	context.pageDone = nil
+	if s.verifying {
+		logger.WarningLogger.SetOutput(s.warnings)
+		context.verifying = false
+	}
 	if s.fallback != "" {
 		return 0, 0, s.fallback
 	}
 
 	actualTotalPages := len(pages)
+	if s.verifying {
+		if context.drift != "" {
+			return 0, 0, "two-pass layout: " + context.drift
+		}
+		if actualTotalPages != s.totalPages {
+			return 0, 0, "two-pass layout: page count changed"
+		}
+	}
 	for _, pageData := range context.pageMaker {
 		pageData.PageState.CounterValues["pages"] = []int{actualTotalPages}
+		if s.verifying {
+			continue // znaczniki ponownego układu: stan paginacji jest już ustalony (ADR 0036)
+		}
 		if pageData.RemakeState.ContentChanged {
+			s.repaginate = true
 			return 0, 0, "content changed after its page was laid out (repagination)"
 		}
 		if pageData.RemakeState.PagesWanted {
+			s.repaginate = true
 			return 0, 0, "counter(pages) in page content (repagination)"
 		}
 	}
@@ -301,16 +445,31 @@ func (s *streamer) run(doc *tree.HTML, rootBox bo.BlockLevelBoxITF) (int, pr.Flo
 // z layoutDocument (oprócz pól marginesowych), oddaje ją do sink i zwalnia jej drzewo. Zwraca false, gdy
 // strona albo strony wcześniejsze mogą się jeszcze zmienić.
 func (s *streamer) pageDone(i int, pages []*bo.PageBox) bool {
+	if !s.verifying {
+		return s.finishPage(i, pages)
+	}
+	// obróbka i rysowanie strony zgłaszają ostrzeżenia, układ stron nie (zob. run)
+	if s.context.drift != "" {
+		return s.fail("two-pass layout: " + s.context.drift)
+	}
+	logger.WarningLogger.SetOutput(s.warnings)
+	ok := s.finishPage(i, pages)
+	logger.WarningLogger.SetOutput(io.Discard)
+	return ok
+}
+
+func (s *streamer) finishPage(i int, pages []*bo.PageBox) bool {
 	context := s.context
 	page := pages[i]
 
 	// Drugi obieg pętli w layoutDocument jest już przesądzony: znacznik na stronie ułożonej nie jest
-	// zerowany do końca obiegu.
-	for k := 0; k <= i && k < len(context.pageMaker); k++ {
+	// zerowany do końca obiegu. W przebiegu sprawdzającym znaczniki nie znaczą nic: stan paginacji
+	// jest ustalony, a zmianę wartości wykrywa layoutContext.drift.
+	for k := 0; !s.verifying && k <= i && k < len(context.pageMaker); k++ {
 		if remake := context.pageMaker[k].RemakeState; remake.ContentChanged {
-			return s.fail(fmt.Sprintf("content of page %d changed after layout (target-counter, target-text or counter(pages))", k+1))
+			return s.failRepaginate(fmt.Sprintf("content of page %d changed after layout (target-counter, target-text or counter(pages))", k+1))
 		} else if remake.PagesWanted {
-			return s.fail("counter(pages) in page content (repagination)")
+			return s.failRepaginate("counter(pages) in page content (repagination)")
 		}
 	}
 	// fragmenty pudełek pozycjonowanych dokładane do stron po paginacji (attachLateBoxes)
@@ -320,8 +479,8 @@ func (s *streamer) pageDone(i int, pages []*bo.PageBox) bool {
 		}
 	}
 
-	if s.finisher.collect(i, page) {
-		return s.fail("string-set or bookmark-label with counter(pages) or target-counter")
+	if s.finisher.collect(i, page) && !s.verifying {
+		return s.failRepaginate("string-set or bookmark-label with counter(pages) or target-counter")
 	}
 
 	if i > 0 {
@@ -359,4 +518,53 @@ func (s *streamer) pageDone(i int, pages []*bo.PageBox) bool {
 	context.startChains[i+1] = startChain(page)
 	page.Children = nil
 	return true
+}
+
+// noteDrift zapamiętuje pierwszą różnicę przebiegu sprawdzającego względem stanu paginacji (ADR 0036).
+func (context *layoutContext) noteDrift(reason string) {
+	if context.drift == "" {
+		context.drift = reason
+	}
+}
+
+// checkAnchor: przebieg sprawdzający układa strony z wartościami z pierwszego przebiegu (ADR 0036). Kotwica
+// na innej stronie albo z innymi licznikami stron znaczy, że narysowane odwołania do niej są nieaktualne.
+// Liczba stron w liczniku kotwicy pochodzi z obiegu, w którym kotwicę ułożono ostatnio (w pierwszym obiegu
+// 0), więc liczy się tylko wtedy, gdy któreś odwołanie jej używa (target-counter(…, pages)).
+func (context *layoutContext) checkAnchor(anchor string, pageIndex int, values tree.CounterValues) {
+	item := context.TargetCollector.TargetLookupItems[anchor]
+	if item == nil || !item.IsUpToDate() {
+		return
+	}
+	if item.PageMakerIndex != pageIndex {
+		context.noteDrift(fmt.Sprintf("anchor %q moved to page %d", anchor, pageIndex+1))
+		return
+	}
+	cached := item.CachedPageCounterValues
+	if len(cached) != len(values) {
+		context.noteDrift(fmt.Sprintf("page counters of anchor %q changed", anchor))
+		return
+	}
+	for name, v := range values {
+		if name == "pages" && !context.pagesTargeted[anchor] {
+			continue
+		}
+		if !slices.Equal(v, cached[name]) {
+			context.noteDrift(fmt.Sprintf("page counters of anchor %q changed", anchor))
+			return
+		}
+	}
+}
+
+// targetedPages zbiera kotwice, do których odwołuje się target-counter(…, pages) (zob. checkAnchor).
+func targetedPages(collector *tree.TargetCollector) map[string]bool {
+	out := map[string]bool{}
+	for _, item := range collector.CounterLookupItems {
+		for anchor, names := range item.MissingTargetCounters {
+			if names.Has("pages") {
+				out[anchor] = true
+			}
+		}
+	}
+	return out
 }

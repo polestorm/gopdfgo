@@ -101,7 +101,8 @@ czterokrotność `x4.htm` (1021 stron, 656 ilustracji). Porównanie z commitem `
   z rysowania, a nie przed nimi. Liczba i treść ostrzeżeń się nie zmieniają.
 - Dokument z pomniejszaniem zgłasza ostrzeżenia z pól marginesowych pierwszego przebiegu raz, a nie dwa razy:
   przebieg mierzący ich nie układa.
-- Spis treści z `target-counter()` do stron dalszych zawsze wraca do dotychczasowej drogi. Wstępny przebieg,
+- Spis treści z `target-counter()` do stron dalszych zawsze wraca do dotychczasowej drogi (od 2026-11-21
+  już nie: ADR 0036 układa takie dokumenty w dwóch przebiegach). Wstępny przebieg,
   który zapisałby tylko numery stron kotwic, nie daje dziś tych samych bajtów. W drugim obiegu paginacji
   `layoutDocument` układa od nowa tylko strony oznaczone, a resztę bierze z pierwszego obiegu.
   `TargetCollector.CacheTargetPageCounters` oznacza stronę z odwołaniem przy każdym ułożeniu strony

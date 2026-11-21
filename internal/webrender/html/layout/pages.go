@@ -1143,6 +1143,9 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		if anchor != "" && !cachedAnchors.Has(anchor) {
 			remakeState.Anchors = append(remakeState.Anchors, anchor)
 			cachedAnchors.Add(anchor)
+			if context.verifying { // gopdfgo: zob. checkAnchor (ADR 0036)
+				context.checkAnchor(anchor, pageNumber-1, pageCounterValues)
+			}
 			// Re-make of affected targeting boxes is inclusive
 			targetCollector.CacheTargetPageCounters(anchor, pageCounterValues, pageNumber-1, pageMaker)
 		}
@@ -1217,6 +1220,9 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			}
 
 			if callParseAgain {
+				if context.verifying { // gopdfgo: treść strony przeliczona po jej ułożeniu (ADR 0036)
+					context.noteDrift("page-based counters changed")
+				}
 				remakeState.ContentChanged = true
 				counterLookup.ParseAgain(pageCounterValues)
 			}
@@ -1422,6 +1428,10 @@ func (context *layoutContext) remakePage(index int, pageGroups *[]pageGroup, roo
 			!next.PageState.Equal(pageState)
 	}
 
+	// gopdfgo: w przebiegu sprawdzającym (ADR 0036) stan następnej strony ma być taki jak w pierwszym
+	if pageMakerNextChanged && context.verifying {
+		context.noteDrift(fmt.Sprintf("state after page %d changed", pageNumber))
+	}
 	if pageMakerNextChanged {
 		// Reset remakeState
 		remakeState := tree.RemakeState{}

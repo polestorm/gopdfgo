@@ -368,7 +368,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 			pdfmodel.NonFiniteNumbers.Store(0)
 			output = newOutput(tagged)
 			return output
-		}, 1, attachments)
+		}, 1, attachments, func() { warnings.Truncate(warningsBefore) })
 		if fallback != "" {
 			warnings.Truncate(warningsBefore)
 		}

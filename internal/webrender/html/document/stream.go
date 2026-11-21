@@ -22,6 +22,9 @@ import (
 var (
 	StreamingDisabled bool
 	OnStream          func(fallback string)
+	// OnTwoPass, gdy nie jest nil, jest wywoływane, gdy dokument wymagał ponownej paginacji i był układany
+	// w dwóch przebiegach (ADR 0036); whole: krótki dokument, ułożony w całości przed rysowaniem.
+	OnTwoPass func(whole bool)
 )
 
 // Stream (gopdfgo) układa dokument i rysuje każdą stronę zaraz po tym, jak jej obszar jest ostateczny
@@ -31,25 +34,45 @@ var (
 // i Write z ReleaseDrawnPages.
 //
 // newTarget jest wywoływane przed każdym przebiegiem rysowania; poprzedni cel jest wtedy nieważny.
+// restart jest wywoływane, gdy dokument wymaga ponownej paginacji i jest układany od nowa w dwóch
+// przebiegach (ADR 0036): wszystko, co powstało wcześniej, łącznie z ostrzeżeniami, idzie do kosza.
 // Gdy wynik różniłby się od Render i Write, Stream zwraca opis przeszkody, a wywołujący odrzuca cel
 // i układa dokument przez Render.
 func Stream(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, fontConfig text.FontConfiguration,
-	newTarget func() backend.Document, zoom pr.Fl, attachments []backend.Attachment,
+	newTarget func() backend.Document, zoom pr.Fl, attachments []backend.Attachment, restart func(),
 ) (pages int, fallback string) {
-	var sink *streamSink
-	pages, fallback = layout.LayoutStreaming(html, stylesheets, presentationalHints, fontConfig, func() layout.PageSink {
+	var (
+		sink    *streamSink
+		laidOut []*bo.PageBox
+		twoPass bool
+	)
+	pages, laidOut, twoPass, fallback = layout.LayoutStreaming(html, stylesheets, presentationalHints, fontConfig, func() layout.PageSink {
 		sink = &streamSink{
 			doc:    Document{urlFetcher: html.UrlFetcher, fontconfig: fontConfig, root: html.Root.AsHtmlNode()},
 			target: newTarget(),
 			scale:  zoom * 0.75, // 0.75 = 72 PDF point per inch / 96 CSS pixel per inch
 		}
 		return sink
-	})
+	}, restart)
+	if OnTwoPass != nil && twoPass {
+		OnTwoPass(laidOut != nil)
+	}
 	if fallback == "" && sink.fallback != "" {
 		fallback = sink.fallback
 	}
 	if fallback != "" {
 		return 0, fallback
+	}
+	if laidOut != nil {
+		// krótki dokument z ponowną paginacją, ułożony w całości (ADR 0036): jak Render i Write
+		d := Document{Metadata: html.GetMetadata(), urlFetcher: html.UrlFetcher, fontconfig: fontConfig,
+			root: html.Root.AsHtmlNode(), ReleaseDrawnPages: true}
+		d.Pages = make([]Page, len(laidOut))
+		for i, pageBox := range laidOut {
+			d.Pages[i] = newPage(pageBox)
+		}
+		d.Write(newTarget(), zoom, attachments)
+		return pages, ""
 	}
 	sink.doc.Metadata = html.GetMetadata()
 	sink.finish(attachments)

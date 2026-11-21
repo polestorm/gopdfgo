@@ -78,6 +78,8 @@ konkretnego odbiorcy.
     działać jak dziś; (c) przebudować układ na strumieniowy także dla tych przypadków (dwa przebiegi).
     Propozycja: (b), po pomiarze na dokumencie 1000 stron i rozpoznaniu, jak rozdzielić układ, rysowanie i zapis PDF.
     Decyzja użytkownika 2026-11-14: odłożone, pomysł zanotowany na przyszłość; pierwszeństwo mają reftesty W3C.
+    Stan 2026-11-21: (b) w ADR 0027, (c) dla dokumentów z ponowną paginacją w ADR 0036; zostają przypadki
+    z punktu 6 ADR 0036.
 18. ~~**Dolny margines dziecka w pudełku z `min-height` lub `max-height`.**~~ Rozstrzygnięte 2026-11-15 przez
     użytkownika: domyślnie jak w Chromium, drugie zachowanie pod jednym parametrem (ADR 0006). Zapis rozważań: Tekst CSS 2.2 § 10.7 mówi, że
     `min-height` i `max-height` nie wpływają na zwijanie marginesów, więc dolny margines ostatniego dziecka
@@ -176,3 +178,14 @@ HTML i SVG (ADR 0029) są tylko adnotacjami `/Link` bez elementu struktury `Link
 i bez `/StructParent` (ISO 32000-1 § 14.7.4.4; PDF/UA-1, ISO 14289-1 § 7.18.5, wymaga też `/Contents`
 z opisem odnośnika). ADR 0002 przewiduje tagowanie z folio; gdy powstanie, odnośniki SVG powinny dostać
 element `Link` w miejscu elementu `a` z tekstem alternatywnym z `title`/`aria-label` albo treści tekstowej.
+
+## 27. Zbędne obiegi paginacji i `target-counter(…, pages)`
+
+Otwarte od 2026-11-21 (ADR 0036). Dwie sprawy w liczeniu odwołań przejętego kodu (`tree/target.go`
+`CacheTargetPageCounters`, `layout/pages.go` `makePage`):
+- kotwica ułożona od nowa oznacza stronę z odwołaniem do ponownego układu bez porównania wartości (`TODO`
+  w źródle), więc książka ze spisem treści robi 8 obiegów (limit) zamiast 2; to ok. 0,4 s na 259 stron
+  w obu drogach. Porównanie przed oznaczeniem może zmienić wynik dokumentów, w których obieg jeszcze coś
+  zmieniał, więc wymaga porównania bajtowego korpusu;
+- `target-counter(…, pages)` pokazuje liczbę stron z obiegu, w którym kotwicę ułożono (zwykle 0; dokument
+  3-stronicowy daje „3/0”), a według CSS Generated Content 3 powinien pokazać liczbę stron dokumentu.

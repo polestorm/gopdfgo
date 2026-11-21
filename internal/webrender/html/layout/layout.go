@@ -180,13 +180,47 @@ func layoutFixedBoxes(context *layoutContext, pages []*bo.PageBox, containingPag
 func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layoutContext, maxLoops int) []*bo.PageBox {
 	initializePageMaker(context, *rootBox.Box())
 	markTablesWithoutColumnPercentages(rootBox, false) // gopdfgo: zob. TableBox.NoColumnPercentages
+	pages, _ := context.paginate(doc, rootBox, maxLoops)
+	return finishPages(context, pages)
+}
+
+// finishPages: obróbka stron po paginacji z layoutDocument (gopdfgo: wydzielona, zob. streamer.paginate).
+func finishPages(context *layoutContext, pages []*bo.PageBox) []*bo.PageBox {
+	// gopdfgo: dalsza obróbka stron (zakładki, liczniki stron w string-set i bookmark-label, pudełka
+	// fixed, pola marginesowe, tła) jest w pageFinisher (stream.go), wspólnym z rysowaniem w trakcie
+	// układu (ADR 0027); kolejność kroków jest taka jak w źródle.
+	finisher := newPageFinisher(context)
+	for i, page := range pages {
+		finisher.collect(i, page)
+	}
+
+	attachLateBoxes(context, pages)
+
+	out := make([]*bo.PageBox, len(pages))
+	// Add margin boxes
+	for i, page := range pages {
+		finisher.placeFixedBoxes(pages[:i], pages[i+1:], page)
+		scaledHeight := finisher.prepare(i, page)
+		page.Children = append(page.Children, finisher.marginBoxes(i, page)...)
+		finisher.backgrounds(i, page, scaledHeight)
+		out[i] = page
+
+		if traceMode {
+			traceLogger.DumpTree(page, fmt.Sprintf("Final page %d", i))
+		}
+	}
+	return out
+}
+
+// paginate wykonuje obiegi paginacji z layoutDocument, dopóki strony nie przestaną się zmieniać.
+// gopdfgo: wydzielone z layoutDocument, żeby ten sam algorytm służył też pierwszemu przebiegowi
+// rysowania w dwóch przebiegach (ADR 0036, zob. streamer.paginate); originalFootnotes to przypisy sprzed
+// pierwszego obiegu, od których zaczyna każdy następny.
+func (context *layoutContext) paginate(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, maxLoops int) (pages []*bo.PageBox, originalFootnotes []Box) {
 	if maxLoops == -1 {
 		maxLoops = 8 // default value
 	}
-	var (
-		pages             []*bo.PageBox
-		originalFootnotes = append([]Box(nil), context.footnotes...) // copy
-	)
+	originalFootnotes = append([]Box(nil), context.footnotes...) // copy
 	actualTotalPages := 0
 
 	for loop := 0; loop < maxLoops; loop += 1 {
@@ -219,31 +253,7 @@ func layoutDocument(doc *tree.HTML, rootBox bo.BlockLevelBoxITF, context *layout
 			break
 		}
 	}
-
-	// gopdfgo: dalsza obróbka stron (zakładki, liczniki stron w string-set i bookmark-label, pudełka
-	// fixed, pola marginesowe, tła) jest w pageFinisher (stream.go), wspólnym z rysowaniem w trakcie
-	// układu (ADR 0027); kolejność kroków jest taka jak w źródle.
-	finisher := newPageFinisher(context)
-	for i, page := range pages {
-		finisher.collect(i, page)
-	}
-
-	attachLateBoxes(context, pages)
-
-	out := make([]*bo.PageBox, len(pages))
-	// Add margin boxes
-	for i, page := range pages {
-		finisher.placeFixedBoxes(pages[:i], pages[i+1:], page)
-		scaledHeight := finisher.prepare(i, page)
-		page.Children = append(page.Children, finisher.marginBoxes(i, page)...)
-		finisher.backgrounds(i, page, scaledHeight)
-		out[i] = page
-
-		if traceMode {
-			traceLogger.DumpTree(page, fmt.Sprintf("Final page %d", i))
-		}
-	}
-	return out
+	return pages, originalFootnotes
 }
 
 var _ text.TextLayoutContext = (*layoutContext)(nil)
@@ -502,6 +512,11 @@ type layoutContext struct {
 	// gopdfgo: pageDone, gdy nie jest nil, makeAllPages wywołuje po ułożeniu każdej strony; false
 	// przerywa układ (rysowanie w trakcie układu, ADR 0027, zob. streamer.pageDone)
 	pageDone func(index int, pages []*bo.PageBox) bool
+	// gopdfgo: verifying: drugi przebieg rysowania w dwóch przebiegach (ADR 0036) układa strony ze stanem
+	// paginacji z pierwszego; drift opisuje pierwszą różnicę względem niego ("" = brak)
+	verifying     bool
+	drift         string
+	pagesTargeted map[string]bool // zob. checkAnchor
 
 	// gopdfgo: reszta wysokości bloku o podanej wysokości podzielonego razem z dziećmi; klucz to stos
 	// wznowienia zwrócony przez układ fragmentu (resumeKey)

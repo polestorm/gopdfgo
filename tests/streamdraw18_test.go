@@ -105,8 +105,9 @@ func streamCases(t *testing.T) []struct{ name, html, want string } {
 			.b { page: big; opacity: .6 }</style>` + paragraphs(4, lorem) + `<div class="b">` + paragraphs(6, lorem) + `</div>`, ""},
 		{"root-display-none", `<style>html { display: none } @page { @top-center { content: "x" } }</style><p>niewidoczne</p>`, ""},
 		{"target-counter-toc", `<style>@page { size: A6 } a::after { content: leader('.') target-counter(attr(href), page) }</style>
-			<p><a href="#a">A</a></p><p><a href="#b">B</a></p>` + paragraphs(10, lorem) + `<h2 id="a">A</h2>` + paragraphs(10, lorem) + `<h2 id="b">B</h2>`, "changed after layout"},
-		{"counter-pages-content", `<style>@page { size: A6 } .n::after { content: counter(pages) }</style><p class="n">Stron: </p>` + paragraphs(10, lorem), "after layout"},
+			<p><a href="#a">A</a></p><p><a href="#b">B</a></p>` + paragraphs(10, lorem) + `<h2 id="a">A</h2>` + paragraphs(10, lorem) + `<h2 id="b">B</h2>`, ""},
+		// ponowna paginacja: dwa przebiegi (ADR 0036), krótki dokument ułożony w całości; zob. twopass21_test.go
+		{"counter-pages-content", `<style>@page { size: A6 } .n::after { content: counter(pages) }</style><p class="n">Stron: </p>` + paragraphs(10, lorem), ""},
 		{"negative-z-margin", `<style>@page { size: A6; @top-center { content: "pod"; z-index: -1 } }</style>` + paragraphs(5, lorem), "negative z-index"},
 		{"attachments", `<link rel="attachment" href="data:text/plain,dokument" title="opis"><style>@page { size: A6 }</style>
 			<p><a rel="attachment" href="data:text/plain,za%C5%82%C4%85cznik">załącznik</a></p>` + paragraphs(8, lorem) +
