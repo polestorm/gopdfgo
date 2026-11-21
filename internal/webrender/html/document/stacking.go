@@ -206,7 +206,10 @@ func dispatch(box Box, in3D bool, page *bo.PageBox, childContexts, escape *[]Sta
 	if position == "fixed" || position == "sticky" {
 		absoluteAndZIndex = true
 	}
-	if absoluteAndZIndex || style.GetOpacity() < 1 ||
+	// gopdfgo: mix-blend-mode inne niż normal i isolation: isolate tworzą kontekst nakładania
+	// (CSS Compositing 1 § 3.1, § 3.4)
+	compositing := (style.GetMixBlendMode() != "" && style.GetMixBlendMode() != "normal") || style.GetIsolation() == "isolate"
+	if absoluteAndZIndex || style.GetOpacity() < 1 || compositing ||
 		// "transform: none" gives a "falsy" empty list here
 		hasTransform || bo.ClipsOverflow(box) ||
 		// gopdfgo: clip-path inne niż none tworzy kontekst nakładania (CSS Masking 1 § 5.1)
@@ -228,7 +231,7 @@ func dispatch(box Box, in3D bool, page *bo.PageBox, childContexts, escape *[]Sta
 		// abspos-overflow-011); w CSS jego potomkowie należą do zwykłych warstw rodzica, czego tu nie
 		// odtwarzamy (test overflow-scroll-paint-order nadal nie przechodzi).
 		if (box.Box().IsFloated() || (bo.BlockLevelT.IsInstance(box) && box.Box().IsInNormalFlow())) &&
-			!absoluteAndZIndex && style.GetOpacity() >= 1 && !hasTransform && !positioned && !hasClipPath {
+			!absoluteAndZIndex && style.GetOpacity() >= 1 && !compositing && !hasTransform && !positioned && !hasClipPath {
 			*floats = append(*floats, withParent3D(newStackingContextFromBox(box, page, nil, innerEscape), in3D))
 			*childContexts = append(*childContexts, escaped...)
 			return nil

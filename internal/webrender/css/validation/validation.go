@@ -278,6 +278,8 @@ var (
 		pr.PBackgroundBlendMode:     backgroundBlendMode,
 		pr.PClipPath:                clipPath,
 		pr.PFilter:                  filter,
+		pr.PMixBlendMode:            mixBlendMode,
+		pr.PIsolation:               isolation,
 		pr.PHyphenateLimitLines:     hyphenateLimitLines,
 		pr.PWordSpaceTransform:      wordSpaceTransform,
 		pr.PTextAutospace:           textAutospace,

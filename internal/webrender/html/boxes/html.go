@@ -256,6 +256,7 @@ func handleSVG(element *utils.HTMLNode, box Box, resolver URLResolver, baseUrl s
 type svgCascade interface {
 	SVGDeclarations(element *html.Node) []validation.RawDeclaration
 	SVGInherited(svgElement *html.Node) (map[string]string, float64)
+	SVGVariable(element *html.Node, name string) (string, bool)
 }
 
 // handleInlineSVG (gopdfgo) to handleSVG z kaskadą dokumentu: arkusze strony i arkusz użytkownika
@@ -265,7 +266,8 @@ func handleInlineSVG(element *utils.HTMLNode, box Box, resolver URLResolver, bas
 	var doc *svg.DocumentStyle
 	if cascade != nil {
 		inherited, fontSize := cascade.SVGInherited((*html.Node)(element))
-		doc = &svg.DocumentStyle{Declarations: cascade.SVGDeclarations, Inherited: inherited, FontSize: svg.Fl(fontSize)}
+		doc = &svg.DocumentStyle{Declarations: cascade.SVGDeclarations, Inherited: inherited, FontSize: svg.Fl(fontSize),
+			Variable: cascade.SVGVariable, Quirks: quirksMode((*html.Node)(element))}
 	}
 	img, err := images.NewSVGImageFromNode((*html.Node)(element), baseUrl, resolver.Fetch, doc)
 	if err != nil {
@@ -273,4 +275,19 @@ func handleInlineSVG(element *utils.HTMLNode, box Box, resolver URLResolver, bas
 		return nil
 	}
 	return []Box{makeReplacedBox(element, box, img)}
+}
+
+// quirksMode (gopdfgo) mówi, czy dokument elementu jest w trybie zgodności wstecznej (HTML § 13.2.6.4.1,
+// uproszczone): bez deklaracji DOCTYPE albo z nazwą inną niż „html”.
+func quirksMode(element *html.Node) bool {
+	doc := element
+	for doc.Parent != nil {
+		doc = doc.Parent
+	}
+	for c := doc.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.DoctypeNode {
+			return !strings.EqualFold(c.Data, "html")
+		}
+	}
+	return true
 }

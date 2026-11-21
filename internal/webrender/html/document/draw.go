@@ -227,7 +227,13 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 
 		originalDst := ctx.dst
 		opacity := fl(box.Style.GetOpacity())
-		if opacity < 1 { // we draw all the following to a separate group
+		// gopdfgo: mix-blend-mode (CSS Compositing 1 § 3.1): element z potomkami rysowany do grupy,
+		// a grupa mieszana z tłem kontekstu nakładania; źródło tej właściwości nie znało
+		blendMode := string(box.Style.GetMixBlendMode())
+		if blendMode == "normal" {
+			blendMode = ""
+		}
+		if opacity < 1 || blendMode != "" { // we draw all the following to a separate group
 			// gopdfgo: grupa krycia nie przycina treści do pudełka obramowania: opacity dotyczy elementu
 			// razem z potomkami wystającymi poza niego (CSS Color 4 § 15.1); źródło dawało grupie ramkę
 			// pudełka obramowania, więc wystające potomki i cienie znikały
@@ -460,11 +466,14 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 		}
 		ctx.drawFiltered(filterStages(box.Style), paint)
 
-		if opacity < 1 {
+		if opacity < 1 || blendMode != "" {
 			group := ctx.dst
 			ctx.dst = originalDst
 			ctx.dst.OnNewStack(func() {
-				ctx.dst.DrawWithOpacity(opacity, group)
+				if blendMode != "" {
+					ctx.dst.State().SetBlendingMode(blendMode)
+				}
+				ctx.dst.DrawWithOpacity(min(opacity, 1), group)
 			})
 		}
 	})

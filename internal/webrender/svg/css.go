@@ -90,13 +90,18 @@ type declaration struct {
 func parseDeclarations(input []pa.Token) (normalDeclarations, importantDeclarations []declaration) {
 	for _, decl := range pa.ParseBlocksContents(input, false) {
 		if decl, ok := decl.(pa.Declaration); ok {
-			if strings.HasPrefix(string(decl.Name), "-") {
+			// gopdfgo: właściwości niestandardowe („--x”) zostają, zachowując wielkość liter, dla var()
+			// (zob. substituteAttributeVars); pomijane są tylko rozszerzenia producentów („-webkit-”)
+			name := utils.AsciiLower(decl.Name)
+			if strings.HasPrefix(decl.Name, "--") {
+				name = decl.Name
+			} else if strings.HasPrefix(decl.Name, "-") {
 				continue
 			}
 			if decl.Important {
-				importantDeclarations = append(importantDeclarations, declaration{utils.AsciiLower(decl.Name), pa.Serialize(decl.Value)})
+				importantDeclarations = append(importantDeclarations, declaration{name, pa.Serialize(decl.Value)})
 			} else {
-				normalDeclarations = append(normalDeclarations, declaration{utils.AsciiLower(decl.Name), pa.Serialize(decl.Value)})
+				normalDeclarations = append(normalDeclarations, declaration{name, pa.Serialize(decl.Value)})
 			}
 		}
 	}
@@ -189,7 +194,29 @@ func (attrs nodeAttributes) applyStyle(_ string, node *html.Node, normal, import
 
 // rootBoxProperties (gopdfgo): zob. applyDocumentStyle
 var rootBoxProperties = utils.NewSet("width", "height", "x", "y", "transform", "translate", "rotate", "scale",
-	"transform-origin", "transform-box", "opacity", "filter", "clip-path", "mask", "mix-blend-mode")
+	"transform-origin", "transform-box", "opacity", "filter", "clip-path", "mix-blend-mode")
+
+// rootBoxEffects (gopdfgo): właściwości efektów spośród rootBoxProperties, które pudełko CSS stosuje
+// także z atrybutu style (zob. applyDocumentStyle)
+var rootBoxEffects = utils.NewSet("opacity", "filter", "clip-path", "mix-blend-mode")
+
+// appliedByRootBox (gopdfgo) mówi, czy deklarację na elemencie głównym stosuje pudełko CSS w układzie
+// HTML. clip-path z odwołaniem url() do <clipPath> i filter złożony z samego url() stosuje rysowanie SVG,
+// bo układ HTML takich odwołań nie zna (tak samo mask, której układ HTML nie obsługuje).
+func appliedByRootBox(names utils.Set, name, value string) bool {
+	if !names.Has(name) {
+		return false
+	}
+	v := strings.ToLower(strings.TrimSpace(value))
+	if name == "clip-path" && strings.Contains(v, "url(") {
+		return false
+	}
+	// sam url(): lista filtrów z funkcjami CSS stosuje pudełko (bez url(), które pomija)
+	if name == "filter" && strings.HasPrefix(v, "url(") && strings.Count(v, "(") == 1 {
+		return false
+	}
+	return true
+}
 
 // applyDocumentStyle (gopdfgo) stosuje kaskadę dokumentu HTML do elementu SVG osadzonego w HTML
 // (zob. DocumentStyle). decls są w rosnącej kolejności kaskady; presentation to nazwy atrybutów
@@ -199,14 +226,16 @@ var rootBoxProperties = utils.NewSet("width", "height", "x", "y", "transform", "
 // !important autora i pod !important użytkownika (CSS Cascade 4 § 6.1).
 //
 // Na elemencie głównym pomijamy deklaracje arkuszy dla właściwości, które stosuje już pudełko CSS
-// elementu <svg> w układzie HTML (rozmiar i położenie, przekształcenia, opacity, filter, clip-path, mask,
+// elementu <svg> w układzie HTML (rozmiar i położenie, przekształcenia, opacity, filter, clip-path,
 // mix-blend-mode): np. „figure svg { width: 100%; height: auto }” ustala rozmiar pudełka, a nie
-// rozmiar wewnętrzny obrazu, a opacity zastosowana drugi raz wewnątrz obrazu by się podwoiła.
+// rozmiar wewnętrzny obrazu, a opacity zastosowana drugi raz wewnątrz obrazu by się podwoiła. Z atrybutu
+// style pomijamy właściwości efektów (rootBoxEffects; wcześniej opacity z atrybutu style działała
+// podwójnie). mask zostaje dla rysowania SVG, bo układ HTML jej nie obsługuje (test WPT outer-svg-mask).
 func (attrs nodeAttributes) applyDocumentStyle(decls []validation.RawDeclaration, presentation nodeAttributes, root bool) {
 	if root {
 		kept := decls[:0:0]
 		for _, d := range decls {
-			if !rootBoxProperties.Has(d.Name) {
+			if !appliedByRootBox(rootBoxProperties, d.Name, d.Value) {
 				kept = append(kept, d)
 			}
 		}
@@ -217,6 +246,18 @@ func (attrs nodeAttributes) applyDocumentStyle(decls []validation.RawDeclaration
 		normalAttr, importantAttr = parseDeclarations(pa.Tokenize([]byte(styleAttr), false))
 	}
 	delete(attrs, "style")
+	if root {
+		dropEffects := func(ds []declaration) []declaration {
+			kept := ds[:0:0]
+			for _, d := range ds {
+				if !appliedByRootBox(rootBoxEffects, d.property, d.value) {
+					kept = append(kept, d)
+				}
+			}
+			return kept
+		}
+		normalAttr, importantAttr = dropEffects(normalAttr), dropEffects(importantAttr)
+	}
 
 	set := func(d declaration) {
 		for _, exp := range expandProperty(d) {

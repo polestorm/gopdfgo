@@ -333,16 +333,18 @@ func newSvg(node *cascadedNode, tree *svgContext) (drawable, error) {
 	return out, nil
 }
 
-// overflowClips (gopdfgo) mówi, czy wartość overflow przycina treść okna widoku SVG: hidden, scroll
-// i clip przycinają, visible i auto nie (SVG 2 § 8.13, overflow na elementach ustanawiających okno
-// widoku; test WPT nested-svg-overflow-clip). Pusta wartość daje wartość początkową elementu: dla
-// zagnieżdżonego <svg> i <marker> to przycinanie (arkusz UA: overflow: hidden). Źródło znało tylko
-// hidden (a dla znaczników także scroll).
+// overflowClips (gopdfgo) mówi, czy wartość overflow przycina treść okna widoku SVG: hidden, scroll,
+// auto i clip przycinają, visible nie (SVG 2 § 8.13, overflow na elementach ustanawiających okno
+// widoku; testy WPT nested-svg-overflow-clip, inner-outer-svg-overflow-auto). auto przycina jak
+// w CSS Overflow 3 § 3: SVG 1.1 utożsamiał je z visible, ale grupa robocza SVG zmieniła to na
+// zachowanie CSS (svgwg #1072). Pusta wartość daje wartość początkową elementu: dla zagnieżdżonego
+// <svg> i <marker> to przycinanie (arkusz UA: overflow: hidden). Źródło znało tylko hidden (a dla
+// znaczników także scroll).
 func overflowClips(value string, initial bool) bool {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case "":
 		return initial
-	case "hidden", "scroll", "clip":
+	case "hidden", "scroll", "auto", "clip":
 		return true
 	}
 	return false
@@ -387,6 +389,8 @@ type image struct {
 
 	img           backend.Image
 	preserveRatio preserveAspectRatio
+	// external (gopdfgo): obraz spoza dokumentu (adres inny niż data:), zob. resources.go
+	external bool
 }
 
 func newImage(node *cascadedNode, context *svgContext) (drawable, error) {
@@ -407,12 +411,16 @@ func newImage(node *cascadedNode, context *svgContext) (drawable, error) {
 
 	var out image
 	out.img = img
+	out.external = externalResource(url)
 	out.preserveRatio = node.attrs.aspectRatio()
 
 	return out, nil
 }
 
 func (img image) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims drawingDims) []vertex {
+	if img.external && !svg.loadsExternal() { // gopdfgo: tryb statyczny obrazu, zob. resources.go
+		return nil
+	}
 	x, y := dims.point(attrs.x, attrs.y)
 	dst.State().Transform(matrix.Translation(x, y))
 	// base_url = node.get("{http://www.w3.org/XML/1998/namespace}base")
@@ -459,7 +467,7 @@ func (img image) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims
 		// wstawia, łącznie z dopasowaniem preserveAspectRatio (testy WPT non-scaling-stroke-non-uniform-
 		// scale, -with-none-preserve-aspect-ratio); zob. hostScale
 		if holder, ok := img.img.(svgImageHolder); ok && holder.SVG() != nil {
-			holder.SVG().draw(dst, intrinsic.Width, intrinsic.Height, svg.textContext, svg.hostBaseScale)
+			holder.SVG().drawIgnoringRootAspectRatio(dst, intrinsic.Width, intrinsic.Height, svg.textContext, svg.hostBaseScale)
 			return
 		}
 		img.img.Draw(dst, svg.textContext, intrinsic.Width, intrinsic.Height, "auto")
@@ -542,14 +550,8 @@ func (context *svgContext) resolveUse(node *cascadedNode, defs definitions) (*sv
 	}
 
 	// cascade
-	for key, value := range node.attrs {
-		if notInheritedAttributes.Has(key) {
-			continue
-		}
-		if _, specified := useTarget.attrs[key]; !specified {
-			useTarget.attrs[key] = value
-		}
-	}
+	// gopdfgo: całe poddrzewo celu dziedziczy po <use> (zob. reinherit)
+	useTarget = *useTarget.reinherit(node.attrs)
 
 	target, err := processContext.processNode(&useTarget, defs)
 	if err != nil {

@@ -30,8 +30,10 @@ type textSpan struct {
 
 	baseline baseline
 
-	isText          bool // only true for tag 'text'
-	textBoundingBox Rectangle
+	isText bool // only true for tag 'text'
+	// textShadow, color (gopdfgo): wartości text-shadow i color elementu (zob. textshadow.go)
+	textShadow, color string
+	textBoundingBox   Rectangle
 
 	// linkHref (gopdfgo): cel elementu <a> (href, a bez niego xlink:href, SVG 2 § 16.1.3) po
 	// rozwiązaniu względem adresu dokumentu: "#nazwa" dla odnośnika wewnętrznego albo adres bezwzględny;
@@ -65,6 +67,7 @@ func newTextSpan(node *cascadedNode) (drawable, error) {
 
 	out.text = applyTextTransform(string(node.text), node.attrs["text-transform"])
 	out.style = pr.InitialValues.Copy()
+	out.textShadow, out.color = node.attrs["text-shadow"], node.attrs["color"]
 
 	family := "sans-serif"
 	if f, has := node.attrs["font-family"]; has {
@@ -189,8 +192,11 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 	if !doFill && !doStroke {
 		return nil
 	}
-	dst.State().SetTextPaint(newPaintOp(doFill, doStroke, false))
 	texts := t.drawings
+	if shadows := parseTextShadows(t.textShadow, t.color, dims.fontSize); len(shadows) != 0 {
+		dst.OnNewStack(func() { drawTextShadows(dst, shadows, texts, doFill, doStroke) })
+	}
+	dst.State().SetTextPaint(newPaintOp(doFill, doStroke, false))
 	dst.OnNewStack(func() {
 		dst.DrawText(texts)
 	})

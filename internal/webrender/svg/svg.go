@@ -67,6 +67,18 @@ type SVGImage struct {
 	parentFontSize Fl
 	// hasLinks (gopdfgo): drzewo ma element <a> z celem (zob. LinkAreas)
 	hasLinks bool
+	// fontFaces (gopdfgo): reguły @font-face samodzielnego dokumentu (zob. fontfaces.go)
+	fontFaces *svgFontFaces
+	// documentMode (gopdfgo): rysowanie jako osobny dokument (DrawAsDocument), a nie obraz w trybie
+	// statycznym, który nie wczytuje zasobów zewnętrznych (SVG Integration § 4.2)
+	documentMode bool
+	// standalone (gopdfgo): osobny dokument SVG (obraz, <object>), a nie element osadzony w HTML
+	standalone bool
+	// backgroundImageURL (gopdfgo): obraz tła elementu głównego (zob. resources.go)
+	backgroundImageURL string
+	backgroundImage    backend.Image
+	backgroundLoaded   bool
+	imageLoader        ImageLoader
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -120,6 +132,9 @@ func (svg *SVGImage) draw(dst backend.Canvas, width, height Fl, textContext text
 
 	svg.textContext = textContext
 	svg.hostBaseScale = hostBaseScale
+	if svg.fontFaces != nil && textContext != nil {
+		svg.fontFaces.register(textContext.Fonts(), svg.documentMode)
+	}
 	if svg.background != nil && svg.background.A > 0 {
 		dst.OnNewStack(func() {
 			dst.Rectangle(0, 0, width, height)
@@ -127,12 +142,27 @@ func (svg *SVGImage) draw(dst backend.Canvas, width, height Fl, textContext text
 			dst.Paint(backend.FillNonZero)
 		})
 	}
+	svg.drawBackgroundImage(dst, width, height)
 	svg.drawNode(dst, svg.root, dims, true)
+}
+
+// zeroViewBox (gopdfgo) mówi, czy element <svg> ma viewBox o zerowej szerokości albo wysokości.
+func zeroViewBox(node *svgNode) bool {
+	if _, isSvg := node.graphicContent.(svg); !isSvg {
+		return false
+	}
+	vb := node.attributes.viewbox
+	return vb != nil && (vb.Width == 0 || vb.Height == 0)
 }
 
 // if paint is false, only the path operations are executed, not the actual filling or drawing
 // moreover, no new graphic stack is created
 func (svg *SVGImage) drawNode(dst backend.Canvas, node *svgNode, dims drawingDims, paint bool) {
+	// gopdfgo: viewBox o zerowej szerokości albo wysokości wyłącza rysowanie elementu (SVG 2 § 8.6),
+	// także elementu głównego i obrazu SVG; źródło skalowało treść współczynnikiem 0 tylko w jednej osi
+	if zeroViewBox(node) {
+		return
+	}
 	dims.fontSize = node.attributes.fontSize.Resolve(dims.fontSize, dims.fontSize)
 
 	// gopdfgo: element <text> jest składany w całości przed rysowaniem (zob. text_layout.go): jego
@@ -722,12 +752,16 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 	tree.imageLoader = imageLoader
 
 	var out SVGImage
+	out.fontFaces = tree.fontFaces
 	if doc != nil && doc.FontSize > 0 {
 		out.parentFontSize = doc.FontSize
 	}
 	out.definitions = newDefinitions()
+	out.standalone = standalone
+	out.imageLoader = imageLoader
 	if standalone {
 		out.background = rootBackground(tree.root)
+		out.backgroundImageURL = rootBackgroundImage(tree.root, baseURL)
 	}
 	// Build the drawable items by parsing attributes
 	out.root, err = tree.processNode(tree.root, out.definitions)
@@ -781,6 +815,8 @@ func synthesizeViewBox(root *svgNode) bool {
 // przez synthesizeViewBox, więc dokument bez viewBox nie skaluje się, tylko dostaje obszar o rozmiarze
 // elementu, jak w Chrome 157.
 func (img *SVGImage) DrawAsDocument(dst backend.Canvas, width, height Fl, textContext text.TextLayoutContext) {
+	img.documentMode = true
+	defer func() { img.documentMode = false }()
 	if !img.synthesizedViewBox {
 		img.Draw(dst, width, height, textContext)
 		return

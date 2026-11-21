@@ -667,6 +667,12 @@ func (s Properties) SetPerspectiveOrigin(v Point) { s[PPerspectiveOrigin] = v }
 func (s Properties) GetFilter() Filters  { return s[PFilter].(Filters) }
 func (s Properties) SetFilter(v Filters) { s[PFilter] = v }
 
+func (s Properties) GetMixBlendMode() String  { return s[PMixBlendMode].(String) }
+func (s Properties) SetMixBlendMode(v String) { s[PMixBlendMode] = v }
+
+func (s Properties) GetIsolation() String  { return s[PIsolation].(String) }
+func (s Properties) SetIsolation(v String) { s[PIsolation] = v }
+
 type StyleAccessor interface {
 	GetBorderBottomColor() Color
 	SetBorderBottomColor(v Color)
@@ -1318,6 +1324,12 @@ type StyleAccessor interface {
 
 	GetFilter() Filters
 	SetFilter(v Filters)
+
+	GetMixBlendMode() String
+	SetMixBlendMode(v String)
+
+	GetIsolation() String
+	SetIsolation(v String)
 }
 
 var propsNames = [...]string{
@@ -1538,6 +1550,8 @@ var propsNames = [...]string{
 	PPerspective:             "perspective",
 	PPerspectiveOrigin:       "perspective-origin",
 	PFilter:                  "filter",
+	PMixBlendMode:            "mix-blend-mode",
+	PIsolation:               "isolation",
 }
 
 // PropsFromNames maps CSS property names to internal enum tags.
@@ -1759,4 +1773,6 @@ var PropsFromNames = map[string]KnownProp{
 	"perspective":                PPerspective,
 	"perspective-origin":         PPerspectiveOrigin,
 	"filter":                     PFilter,
+	"mix-blend-mode":             PMixBlendMode,
+	"isolation":                  PIsolation,
 }

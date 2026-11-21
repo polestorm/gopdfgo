@@ -222,6 +222,8 @@ var InitialValues = Properties{
 	PBackgroundBlendMode: Strings{"normal"},                         // gopdfgo: CSS Compositing 1 § 3.2
 	PClipPath:            ClipPath{},                                // gopdfgo: none
 	PFilter:              Filters{},                                 // gopdfgo: none (Filter Effects 1 § 5)
+	PMixBlendMode:        String("normal"),                          // gopdfgo: CSS Compositing 1 § 3.1
+	PIsolation:           String("auto"),                            // gopdfgo: CSS Compositing 1 § 3.4
 	PBoxOrient:           String("horizontal"),                      // gopdfgo: -webkit-box-orient
 	PPageOrientation:     String("upright"),                         // gopdfgo: CSS Page 3 § 7.2
 

@@ -278,6 +278,9 @@ func (svg *SVGImage) layoutText(dst backend.Canvas, root *svgNode, dims drawingD
 		}
 		s := spans[owner[i]]
 		style := s.span.style.Copy()
+		if svg.fontFaces != nil { // gopdfgo: rodziny z @font-face dokumentu, zob. fontfaces.go
+			style.SetFontFamily(svg.fontFaces.mapFontFamilies(style.GetFontFamily(), svg.documentMode))
+		}
 		style.SetFontSize(pr.FToV(s.fontSize * scale))
 		// spacje są już przetworzone (handleText), więc skład zachowuje je takie, jakie są
 		style.SetWhiteSpace(pr.Pre)

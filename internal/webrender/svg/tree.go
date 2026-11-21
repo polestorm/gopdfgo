@@ -42,6 +42,9 @@ type svgContext struct {
 	// HTML); foreignHead to zapamiętane arkusze stylów dla treści foreignObject (zob. documentStyles)
 	document    *html.Node
 	foreignHead *string
+
+	// fontFaces (gopdfgo): reguły @font-face samodzielnego dokumentu (zob. fontfaces.go)
+	fontFaces *svgFontFaces
 }
 
 // newSVGContext converts from the html representation to an internal,
@@ -74,6 +77,10 @@ type DocumentStyle struct {
 	Inherited map[string]string
 	// FontSize to obliczony rozmiar pisma rodzica w px (0: domyślny)
 	FontSize Fl
+	// Variable zwraca wartość zmiennej CSS elementu (do podstawienia var() w atrybutach)
+	Variable func(element *html.Node, name string) (string, bool)
+	// Quirks: dokument HTML w trybie zgodności wstecznej (zob. substituteAttributeVars)
+	Quirks bool
 }
 
 // buildSVGContext (gopdfgo) to dalsza część newSVGContext dla podanego elementu głównego, który nie
@@ -81,8 +88,10 @@ type DocumentStyle struct {
 func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFetcher, doc *DocumentStyle) *svgContext {
 	stylesheets, trefs := fetchStyleAndTextRefs((*utils.HTMLNode)(svgRoot))
 	var normalMatcher, importantMatcher matcher
+	var fontFaces *svgFontFaces
 	if doc == nil {
 		normalMatcher, importantMatcher = parseStylesheets(stylesheets, baseURL)
+		fontFaces = collectFontFaces(stylesheets, baseURL, urlFetcher)
 	}
 
 	// build the SVG tree and apply style attribute
@@ -96,6 +105,7 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		out.document = out.document.Parent
 	}
 	out.externalUses = make(utils.Set)
+	out.fontFaces = fontFaces
 
 	// may return nil to discard the node
 	var buildTree func(node *html.Node, parentAttrs, parentRaw nodeAttributes) *cascadedNode
@@ -119,7 +129,17 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 				presentation[k] = ""
 			}
 		}
+		// Apply style
+		if doc != nil {
+			childAttrs.applyDocumentStyle(doc.Declarations(node), presentation, node == svgRoot)
+		} else {
+			childAttrs.applyStyle(baseURL, (*html.Node)(node), normalMatcher, importantMatcher)
+		}
 		// Cascade attributes
+		// gopdfgo: styl jest stosowany przed dziedziczeniem (dziedziczenie uzupełnia tylko brakujące
+		// właściwości, więc wynik jest ten sam), żeby zapamiętać, które wartości są odziedziczone
+		// (cascadedNode.inherited, zob. reinherit dla <use>)
+		var inherited utils.Set
 		for key, value := range parentAttrs {
 			if _, isNotInherited := notInheritedAttributes[key]; !isNotInherited {
 				if _, isSet := childAttrs[key]; !isSet {
@@ -133,16 +153,15 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 						value = "1em"
 					}
 					childAttrs[key] = value
+					if inherited == nil {
+						inherited = utils.Set{}
+					}
+					inherited.Add(key)
 				}
 			}
 		}
 
-		// Apply style
-		if doc != nil {
-			childAttrs.applyDocumentStyle(doc.Declarations(node), presentation, node == svgRoot)
-		} else {
-			childAttrs.applyStyle(baseURL, (*html.Node)(node), normalMatcher, importantMatcher)
-		}
+		childAttrs.substituteAttributeVars((*html.Node)(node), parentAttrs, doc)
 
 		// gopdfgo: wartością obliczoną currentColor jest słowo kluczowe (CSS Color 4 § 6.4), więc
 		// dziedziczy się ono jako słowo i rozwiązuje względem 'color' elementu, który go używa
@@ -185,9 +204,10 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 		}
 
 		nodeSVG := &cascadedNode{
-			tag:   node.Data,
-			text:  (*utils.HTMLNode)(node).GetChildrenText(),
-			attrs: childAttrs,
+			tag:       node.Data,
+			text:      (*utils.HTMLNode)(node).GetChildrenText(),
+			attrs:     childAttrs,
+			inherited: inherited,
 		}
 
 		// gopdfgo: dzieci <foreignObject> to treść HTML rysowana jako osobny dokument (zob. foreign.go),
@@ -313,6 +333,45 @@ type cascadedNode struct {
 	// foreign (gopdfgo) to element <foreignObject> z drzewa wejściowego; jego dzieci nie są
 	// przetwarzane jako SVG
 	foreign *html.Node
+
+	// inherited (gopdfgo): właściwości, których wartość pochodzi od rodzica (nie są określone
+	// na elemencie)
+	inherited utils.Set
+}
+
+// reinherit (gopdfgo) zwraca głęboką kopię poddrzewa, w której wartości odziedziczone pochodzą od
+// parent zamiast od pierwotnych przodków: treść wstawiona przez <use> dziedziczy po elemencie <use>,
+// a nie po swoim miejscu w dokumencie (SVG 2 § 5.6.3, drzewo cienia; testy WPT
+// use-descendant-combinator-001, use-nested-symbol-001). Źródło przenosiło właściwości <use> tylko
+// na sam element docelowy.
+func (c *cascadedNode) reinherit(parent nodeAttributes) *cascadedNode {
+	out := c.copy()
+	out.inherited = utils.Set{}
+	for key := range c.attrs {
+		if c.inherited.Has(key) {
+			delete(out.attrs, key)
+		}
+	}
+	for key, value := range parent {
+		if notInheritedAttributes.Has(key) {
+			continue
+		}
+		if _, set := out.attrs[key]; set {
+			continue
+		}
+		if key == "font-size" {
+			value = "1em"
+		}
+		out.attrs[key] = value
+		out.inherited.Add(key)
+	}
+	if len(c.children) != 0 {
+		out.children = make([]*cascadedNode, len(c.children))
+		for i, child := range c.children {
+			out.children[i] = child.reinherit(out.attrs)
+		}
+	}
+	return &out
 }
 
 // returns a copy
@@ -350,6 +409,10 @@ func newNodeAttributes(attrs []html.Attribute) nodeAttributes {
 func (na nodeAttributes) viewBox() (*Rectangle, error) {
 	if attrValue := na["viewBox"]; attrValue != "" {
 		v, err := parseViewbox(attrValue)
+		// gopdfgo: ujemna szerokość albo wysokość unieważnia viewBox (SVG 2 § 8.6)
+		if err == nil && (v.Width < 0 || v.Height < 0) {
+			return nil, nil
+		}
 		return &v, err
 	}
 	return nil, nil
@@ -429,7 +492,8 @@ func (na nodeAttributes) display() bool {
 
 func (na nodeAttributes) visible() bool {
 	attrValue := na["visibility"]
-	visible := attrValue != "hidden"
+	// gopdfgo: visibility: collapse działa w SVG jak hidden (CSS Display 3 § 4, SVG 2 § 13.5)
+	visible := attrValue != "hidden" && attrValue != "collapse"
 	return na.display() && visible
 }
 
@@ -536,12 +600,14 @@ func isTextContentTag(tag string) bool {
 // rodzica (bez atrybutów pozycji i innych niedziedziczonych).
 func anonymousTextNode(text []byte, parentAttrs nodeAttributes) *cascadedNode {
 	attrs := nodeAttributes{}
+	inherited := utils.Set{}
 	for key, value := range parentAttrs {
 		if _, isNotInherited := notInheritedAttributes[key]; !isNotInherited {
 			attrs[key] = value
+			inherited.Add(key)
 		}
 	}
-	return &cascadedNode{tag: "tspan", text: append([]byte(nil), text...), attrs: attrs}
+	return &cascadedNode{tag: "tspan", text: append([]byte(nil), text...), attrs: attrs, inherited: inherited}
 }
 
 // these attributes are not cascaded

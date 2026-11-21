@@ -23,6 +23,26 @@ func backgroundBlendMode(tokens []Token, _ string) pr.CssProperty {
 	return out
 }
 
+// gopdfgo: “mix-blend-mode“ (CSS Compositing 1 § 3.1): tryb mieszania elementu z tłem. Źródło tej
+// właściwości nie znało.
+func mixBlendMode(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(pa.RemoveWhitespace(tokens)); keyword {
+	case "normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn",
+		"hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity":
+		return pr.String(keyword)
+	}
+	return nil
+}
+
+// gopdfgo: “isolation“ (CSS Compositing 1 § 3.4): auto albo isolate. Źródło tej właściwości nie znało.
+func isolation(tokens []Token, _ string) pr.CssProperty {
+	switch keyword := getSingleKeyword(pa.RemoveWhitespace(tokens)); keyword {
+	case "auto", "isolate":
+		return pr.String(keyword)
+	}
+	return nil
+}
+
 // gopdfgo: “clip-path“ (CSS Masking 1 § 5.1): none, kształt podstawowy (CSS Shapes 1 § 3.1: inset(),
 // circle(), ellipse(), polygon()) z opcjonalnym pudełkiem odniesienia albo samo pudełko odniesienia.
 // Odwołania url() do elementu <clipPath> i funkcje path(), rect(), xywh() nie są obsługiwane, więc

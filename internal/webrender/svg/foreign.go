@@ -33,7 +33,7 @@ type foreignObject struct {
 	bodyStyle   string // właściwości dziedziczone z kontekstu SVG i styl własny elementu
 	content     string // dzieci foreignObject zserializowane jako HTML
 	hasFontSize bool   // font-size ustawione w kontekście SVG; wartość liczona przy rysowaniu
-	clip        bool   // overflow inny niż visible/auto
+	clip        bool   // overflow inny niż visible
 	blendMode   string // mix-blend-mode inne niż normal (Compositing 1 § 3.2)
 	baseURL     string
 	fetch       utils.UrlFetcher
@@ -85,12 +85,9 @@ func newForeignObject(node *cascadedNode, tree *svgContext) (drawable, error) {
 	if mode := strings.TrimSpace(node.attrs["mix-blend-mode"]); blendModes.Has(mode) {
 		out.blendMode = mode
 	}
-	// SVG 2 § 13.7.4 (UA: foreignObject { overflow: hidden }); auto jest w SVG równoważne visible
-	switch node.attrs["overflow"] {
-	case "visible", "auto":
-	default:
-		out.clip = true
-	}
+	// SVG 2 § 13.7.4 (UA: foreignObject { overflow: hidden }); auto przycina jak w CSS Overflow 3
+	// (zob. overflowClips)
+	out.clip = overflowClips(node.attrs["overflow"], true)
 	return out, nil
 }
 

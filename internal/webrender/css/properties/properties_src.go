@@ -279,6 +279,8 @@ const (
 	PPerspective            // gopdfgo: CSS Transforms 2 § 7 (perspektywa pomijana); niedziedziczona
 	PPerspectiveOrigin      // gopdfgo: CSS Transforms 2 § 8 (bez skutku); niedziedziczona
 	PFilter                 // gopdfgo: Filter Effects 1 § 5; niedziedziczona
+	PMixBlendMode           // gopdfgo: CSS Compositing 1 § 3.1; niedziedziczona
+	PIsolation              // gopdfgo: CSS Compositing 1 § 3.4; niedziedziczona
 
 	nbProperties
 )

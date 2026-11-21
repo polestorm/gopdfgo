@@ -152,6 +152,20 @@ func (s StyleFor) SVGDeclarations(element *html.Node) []validation.RawDeclaratio
 	return s.sortedRawDeclarations(node, s.svgMatches[node])
 }
 
+// SVGVariable zwraca wartość zmiennej CSS (właściwości niestandardowej) elementu SVG osadzonego
+// w HTML, do podstawienia var() w atrybutach prezentacyjnych (CSS Variables 1 § 3).
+func (s StyleFor) SVGVariable(element *html.Node, name string) (string, bool) {
+	style := s.computedStyles[(*utils.HTMLNode)(element).ToKey("")]
+	if style == nil {
+		return "", false
+	}
+	value, ok := style.Variables()[name]
+	if !ok || len(value) == 0 {
+		return "", false
+	}
+	return pa.Serialize(value), true
+}
+
 // svgOnlyInherited to dziedziczone właściwości SVG nieznane kaskadzie HTML (SVG 2, indeks
 // właściwości; CSS Inline 3 dla dominant-baseline); ich wartości z przodków HTML elementu <svg>
 // trzeba wyznaczyć z deklaracji surowych.

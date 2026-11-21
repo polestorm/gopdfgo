@@ -2199,3 +2199,17 @@ func (s *ComputedStyle) SetFilter(v pr.Filters) { s.propsCache.setKnown(pr.PFilt
 
 func (s *AnonymousStyle) GetFilter() pr.Filters  { return s.Get(pr.PFilter.Key()).(pr.Filters) }
 func (s *AnonymousStyle) SetFilter(v pr.Filters) { s.propsCache.setKnown(pr.PFilter, v) }
+
+func (s *ComputedStyle) GetMixBlendMode() pr.String  { return s.Get(pr.PMixBlendMode.Key()).(pr.String) }
+func (s *ComputedStyle) SetMixBlendMode(v pr.String) { s.propsCache.setKnown(pr.PMixBlendMode, v) }
+
+func (s *AnonymousStyle) GetMixBlendMode() pr.String {
+	return s.Get(pr.PMixBlendMode.Key()).(pr.String)
+}
+func (s *AnonymousStyle) SetMixBlendMode(v pr.String) { s.propsCache.setKnown(pr.PMixBlendMode, v) }
+
+func (s *ComputedStyle) GetIsolation() pr.String  { return s.Get(pr.PIsolation.Key()).(pr.String) }
+func (s *ComputedStyle) SetIsolation(v pr.String) { s.propsCache.setKnown(pr.PIsolation, v) }
+
+func (s *AnonymousStyle) GetIsolation() pr.String  { return s.Get(pr.PIsolation.Key()).(pr.String) }
+func (s *AnonymousStyle) SetIsolation(v pr.String) { s.propsCache.setKnown(pr.PIsolation, v) }
