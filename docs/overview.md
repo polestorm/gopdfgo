@@ -166,25 +166,27 @@ out (often 0, "3/0"); such documents now take the two-pass path too. Measured 20
 
 ### Current state compared with Chromium (2026-11-21)
 
-Measured 2026-11-21 on the same machine, gopdfgo at commit `a655fcd`, Chrome 157; three runs each, whole
-process including program or browser start; memory is the peak resident size, for Chromium summed over all
+Measured 2026-11-21 on the same machine, Chrome 157 and gopdfgo after the speed-ups of ADR 0037 (the
+earlier gopdfgo times, commit `a655fcd`, are in that ADR); three runs each, whole process including
+program or browser start; memory is the peak resident size, for Chromium summed over all
 its processes. The table-of-contents variants (61 chapter links with `target-counter()` at the front,
 "page X of Y" with `counter(pages)` under every chapter heading) are made by a script from the book.
 
 | Document | Pages, Chromium / gopdfgo | Chromium: time | gopdfgo: time | Chromium: memory | gopdfgo: memory |
 |---|---|---|---|---|---|
-| book | 253 / 256 | 2.10–2.56 s | 1.62–2.01 s | 1.67–1.73 GB | 0.42–0.45 GB |
-| book with table of contents | 256 / 259 | 2.09–2.12 s | 2.69–2.72 s | 1.42–1.45 GB | 0.44–0.45 GB |
-| book ×4 | 1009 / 1021 | 4.54–4.69 s | 6.53–6.56 s | 2.20–2.26 GB | 0.73–0.74 GB |
-| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 10.9–11.1 s | 2.11–2.14 GB | 0.78–0.81 GB |
+| book | 253 / 256 | 2.10–2.56 s | 1.17–1.22 s | 1.67–1.73 GB | 0.42–0.44 GB |
+| book with table of contents | 256 / 259 | 2.09–2.12 s | 2.23–2.31 s | 1.42–1.45 GB | 0.44–0.46 GB |
+| book ×4 | 1009 / 1021 | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
+| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 8.6–8.8 s | 2.11–2.14 GB | 0.78–0.80 GB |
 
 - Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
   contents has no page numbers and "page X of Y" reads "Strona 0 z 0". gopdfgo writes "Chapter I —
   strona 20" and "Strona 11 z 259", which costs the second layout pass (ADR 0036). The times of the
   table-of-contents rows therefore do not compare the same work.
-- On the plain book gopdfgo is about 25% faster, partly because Chromium starts a browser for each
-  document. Above 1000 pages Chromium is about 30% faster: gopdfgo's layout time grows faster with the
-  number of pages. gopdfgo uses 2.7–3.8 times less memory in every case.
+- On the plain book gopdfgo takes about half of Chromium's time, partly because Chromium starts a
+  browser for each document; at 1021 pages the two take the same time. gopdfgo's time grows linearly
+  with the number of pages (1.2 s × 4 ≈ 4.6 s), Chromium's more slowly, so on still longer documents
+  Chromium would lead. gopdfgo uses 2.7–3.8 times less memory in every case.
 - The extra pages come from `widows` (see "Page count" above): gopdfgo moves a three-line paragraph whole
   where Chromium splits it 2 + 1.
 

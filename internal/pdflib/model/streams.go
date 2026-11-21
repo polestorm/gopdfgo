@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/benoitkugler/pdf/reader/parser/filters"
@@ -115,6 +116,55 @@ func SetCompressionLevel(level int) { compressionLevel.Store(int32(level)) }
 // CompressionLevel (gopdfgo) zwraca stopień ustawiony przez SetCompressionLevel.
 func CompressionLevel() int { return int(compressionLevel.Load()) }
 
+// zlibWriters (gopdfgo) przechowuje gotowe kompresory zlib, osobno dla każdego stopnia (od
+// zlib.HuffmanOnly = -2 do zlib.BestCompression = 9). Kompresor flate zajmuje ok. 1,2 MB, a źródło
+// tworzyło nowy dla każdego strumienia: przy książce na 1000 stron 1,9 GB alokacji. Writer.Reset daje
+// stan taki jak NewWriterLevel, więc wynik jest bajt w bajt ten sam.
+var zlibWriters [zlib.BestCompression - zlib.HuffmanOnly + 1]sync.Pool
+
+// Compress (gopdfgo) zwraca dane skompresowane w formacie zlib (RFC 1950) ze stopniem level.
+func Compress(data []byte, level int) []byte {
+	var buf bytes.Buffer
+	if level < zlib.HuffmanOnly || level > zlib.BestCompression {
+		panic(fmt.Sprintf("model: zlib compression level %d out of range", level))
+	}
+	pool := &zlibWriters[level-zlib.HuffmanOnly]
+	w, _ := pool.Get().(*zlib.Writer)
+	if w == nil {
+		w, _ = zlib.NewWriterLevel(&buf, level)
+	} else {
+		w.Reset(&buf)
+	}
+	w.Write(data)
+	w.Close()
+	pool.Put(w)
+	return buf.Bytes()
+}
+
+// zlibReaders (gopdfgo) przechowuje dekompresory zlib; nowy rezerwuje ok. 40 kB (słownik i tablice
+// Huffmana), a treść stron odłożona przez Flush jest rozpakowywana przy każdym kolejnym Flush i przy
+// zamykaniu strony.
+var zlibReaders sync.Pool
+
+// Decompress (gopdfgo) dopisuje do dst dane rozpakowane z formatu zlib.
+func Decompress(dst *bytes.Buffer, data []byte) error {
+	source := bytes.NewReader(data)
+	r, _ := zlibReaders.Get().(io.ReadCloser)
+	if r == nil {
+		var err error
+		if r, err = zlib.NewReader(source); err != nil {
+			return err
+		}
+	} else if err := r.(zlib.Resetter).Reset(source, nil); err != nil {
+		return err
+	}
+	_, err := dst.ReadFrom(r)
+	if err == nil {
+		zlibReaders.Put(r)
+	}
+	return err
+}
+
 // NewCompressedStream compress the given content using
 // zlib, and return the corresponding Stream.
 // gopdfgo: przy zlib.NoCompression strumień zostaje bez filtra.
@@ -123,12 +173,8 @@ func NewCompressedStream(content []byte) Stream {
 	if level == zlib.NoCompression {
 		return Stream{Content: content}
 	}
-	var buf bytes.Buffer
-	cmp, _ := zlib.NewWriterLevel(&buf, level)
-	cmp.Write(content)
-	cmp.Close()
 	return Stream{
-		Content: buf.Bytes(),
+		Content: Compress(content, level),
 		Filter:  Filters{{Name: Flate}},
 	}
 }

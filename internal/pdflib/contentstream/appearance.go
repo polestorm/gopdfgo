@@ -88,12 +88,8 @@ func (ap GraphicStream) content() []byte {
 	if ap.flushedOps == 0 {
 		return WriteOperations(ap.ops...)
 	}
-	reader, err := zlib.NewReader(bytes.NewReader(ap.flushed))
-	if err != nil {
-		panic(fmt.Sprintf("contentstream: flushed content: %v", err))
-	}
 	var out bytes.Buffer
-	if _, err := out.ReadFrom(reader); err != nil {
+	if err := model.Decompress(&out, ap.flushed); err != nil {
 		panic(fmt.Sprintf("contentstream: flushed content: %v", err))
 	}
 	writeOperationsAt(&out, ap.flushedOps, ap.ops)
@@ -113,20 +109,12 @@ func (ap *GraphicStream) Flush(n int) {
 	}
 	var plain bytes.Buffer
 	if ap.flushedOps != 0 {
-		reader, err := zlib.NewReader(bytes.NewReader(ap.flushed))
-		if err != nil {
-			panic(fmt.Sprintf("contentstream: flushed content: %v", err))
-		}
-		if _, err := plain.ReadFrom(reader); err != nil {
+		if err := model.Decompress(&plain, ap.flushed); err != nil {
 			panic(fmt.Sprintf("contentstream: flushed content: %v", err))
 		}
 	}
 	writeOperationsAt(&plain, ap.flushedOps, ap.ops[:n])
-	var packed bytes.Buffer
-	w, _ := zlib.NewWriterLevel(&packed, zlib.BestSpeed)
-	w.Write(plain.Bytes())
-	w.Close()
-	ap.flushed = packed.Bytes()
+	ap.flushed = model.Compress(plain.Bytes(), zlib.BestSpeed)
 	ap.flushedOps += n
 	ap.ops = append([]Operation(nil), ap.ops[n:]...)
 }

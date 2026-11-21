@@ -311,32 +311,37 @@ func drawEmojiGotext(font_ *gotextFont, glyph backend.GID, extents backend.Glyph
 	fontSize, x, y, xAdvance utils.Fl, dst backend.Canvas,
 ) {
 	face := font_.face
-	data := face.GlyphData(font.GID(glyph))
-
-	switch data := data.(type) {
-	// TODO: more formats
-	case font.GlyphBitmap:
-		if data.Format == font.PNG {
-			img := backend.RasterImage{
-				Content:   bytes.NewReader(data.Data),
-				MimeType:  "image/png",
-				Rendering: "",
-				ID:        utils.Hash(fmt.Sprintf("%p-%d", face, glyph)),
-			}
-
-			d := utils.Fl(extents.Width) / 1000
-			a := utils.Fl(data.Width) / utils.Fl(data.Height) * d
-			f := utils.Fl(-extents.Y-extents.Height)/1000 - fontSize
-			f = y + f
-			e := xAdvance / 1000
-			e = x + e*fontSize
-
-			dst.OnNewStack(func() {
-				dst.State().Transform(matrix.New(a, 0, 0, d, e, f))
-				dst.DrawRasterImage(img, fontSize, fontSize)
-			})
-		}
+	// gopdfgo: źródło pytało GlyphData, które dla zwykłego glifu konturowego rozkodowuje cały kontur
+	// (glyf/CFF) tylko po to, by go odrzucić; przy książce na 1000 stron połowa alokacji programu.
+	// Wynik jest tu potrzebny tylko wtedy, gdy GlyphData dałoby GlyphBitmap, czyli gdy glif nie ma
+	// opisu w COLR (sprawdzanym przez GlyphData najpierw), a ma mapę bitową; ten sam warunek bez
+	// rozkodowania konturu.
+	if _, isColor := face.GlyphDataColor(font.GID(glyph)); isColor {
+		return
 	}
+	data, isBitmap := face.GlyphDataBitmap(font.GID(glyph))
+	// TODO: more formats
+	if !isBitmap || data.Format != font.PNG {
+		return
+	}
+	img := backend.RasterImage{
+		Content:   bytes.NewReader(data.Data),
+		MimeType:  "image/png",
+		Rendering: "",
+		ID:        utils.Hash(fmt.Sprintf("%p-%d", face, glyph)),
+	}
+
+	d := utils.Fl(extents.Width) / 1000
+	a := utils.Fl(data.Width) / utils.Fl(data.Height) * d
+	f := utils.Fl(-extents.Y-extents.Height)/1000 - fontSize
+	f = y + f
+	e := xAdvance / 1000
+	e = x + e*fontSize
+
+	dst.OnNewStack(func() {
+		dst.State().Transform(matrix.New(a, 0, 0, d, e, f))
+		dst.DrawRasterImage(img, fontSize, fontSize)
+	})
 }
 
 // syntheticBoldWidth (gopdfgo): szerokość obrysu syntetycznego pogrubienia, interpolowana liniowo
