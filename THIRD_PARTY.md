@@ -944,6 +944,20 @@ Wspólne dla obu katalogów:
     kotwic (filtr wspólny `validLinks`), przejęty test `document_test.go` dostosowany do trzech wyników;
   - SVG w `<object>`/`<embed>` z odnośnikami jest rysowane bez formy współdzielonej (`SVGImage.Draw`,
     `svg.SVGImage.HasLinks`), żeby każde wystąpienie składało tekst, z którego liczone są obszary;
+- fragmenty adresów obrazów, 2026-11-21 (praca pomocnika; ADR 0030; nowe pliki `images/fragment.go`,
+  `svg/view.go`; zmiany w `images/images.go` `GetImageFromUri`, `loadImage`, `SVGImage.view`,
+  `GetIntrinsicSize`, `SVG`, `sharedSVGKey`, `draw`, `svg/svg.go` `SVGImage.views`, `parseNode`,
+  `parseSharedAttributes`, `svg/elements.go` `svg.viewTransforms`, `svg.draw`; test
+  `tests/fragment18_test.go`; sondaż `svg/` z 155 na 181 z 235, bez strat; piksele korpusu bez zmian):
+  - źródło pomijało fragment adresu obrazu i pobierało oraz przetwarzało dokument osobno dla każdego
+    fragmentu; teraz dokument jest wspólny (pamięć podręczna pod adresem bez fragmentu), a fragment daje
+    obraz pochodny: `#xywh=` (Media Fragments URI 1.0 § 4.2.2) wycina prostokąt obrazu rastrowego albo SVG,
+    `#svgView(viewBox(…);preserveAspectRatio(…);transform(…))` i nazwa elementu `<view>` ustawiają widok
+    dokumentu SVG (SVG 2, „Linking into SVG content”); obraz z widokiem ma własną formę współdzieloną;
+  - w adresie `data:` fragmentem jest tylko końcówka po ostatnim `#`, gdy wygląda jak fragment (odstępstwo
+    od normy URL na korzyść treści SVG z niezakodowanymi kolorami `#rrggbb`);
+  - niepoprawny `viewBox` elementu działa jak brak atrybutu (SVG 2, atrybut `viewBox`); źródło odrzucało
+    przez niego cały dokument SVG;
 - drobne poprawki SVG dla dokumentów, 2026-11-21 (test `tests/svgfixes18_test.go`; sondaż `svg/` z 148 na
   155 z 235; herb z korpusu bliżej Chrome, 0,21% zamiast 0,28% pikseli, bo jego gradienty z Inkscape
   zaczęły się rysować):

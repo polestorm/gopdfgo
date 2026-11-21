@@ -67,6 +67,8 @@ type SVGImage struct {
 	parentFontSize Fl
 	// hasLinks (gopdfgo): drzewo ma element <a> z celem (zob. LinkAreas)
 	hasLinks bool
+	// views (gopdfgo): elementy <view> według id, dla fragmentu adresu (zob. view.go)
+	views map[string]viewElement
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -738,6 +740,7 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 		out.synthesizedViewBox = synthesizeViewBox(out.root)
 	}
 	out.hasLinks = resolveLinkTargets(out.root, baseURL) // gopdfgo: odnośniki <a>, zob. links.go
+	out.views = collectViews(tree)                       // gopdfgo: widoki <view>, zob. view.go
 	// gopdfgo: przekształcenia zewnętrznego <svg> osadzonego w HTML (atrybut transform, właściwości
 	// transform, translate, rotate, scale) stosuje układ HTML jako transform pola CSS (SVG 2 § 8.5,
 	// CSS Transforms 1 § 12; zob. findStyleAttributes). Źródło stosowało je drugi raz wewnątrz obrazu.
@@ -1134,9 +1137,10 @@ func (na nodeAttributes) parseCommonAttributes(out *attributes) error {
 
 func (na nodeAttributes) parseSharedAttributes(out *attributes) error {
 	var err error
-	out.viewbox, err = na.viewBox()
-	if err != nil {
-		return err
+	// gopdfgo: niepoprawny viewBox (np. trzy liczby) działa jak brak atrybutu (SVG 2, atrybut viewBox;
+	// test WPT view-viewbox-invalid-fallback); źródło odrzucało cały dokument
+	if out.viewbox, err = na.viewBox(); err != nil {
+		out.viewbox = nil
 	}
 
 	out.fontSize, err = na.fontSize()

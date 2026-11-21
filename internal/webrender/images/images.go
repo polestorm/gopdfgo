@@ -59,6 +59,14 @@ func GetImageFromUri(cache Cache, fetcher utils.UrlFetcher, optimizeSize bool, u
 		return res
 	}
 
+	// gopdfgo: dokument jest wspólny dla wszystkich fragmentów adresu, a fragment wyznacza obraz
+	// pochodny (zob. fragment.go)
+	if document, fragment := splitFragment(url); fragment != "" || document != url {
+		img := withFragment(GetImageFromUri(cache, fetcher, optimizeSize, document, forcedMimeType, orientation), fragment)
+		cache[url] = img
+		return img
+	}
+
 	img, err := getImageFromUri(fetcher, optimizeSize, url, forcedMimeType, orientation)
 
 	cache[url] = img
@@ -68,6 +76,17 @@ func GetImageFromUri(cache Cache, fetcher utils.UrlFetcher, optimizeSize bool, u
 	}
 
 	return img
+}
+
+// loadImage (gopdfgo) to getImageFromUri z obsługą fragmentu adresu (zob. fragment.go), dla obrazów
+// wstawianych elementem <image> dokumentu SVG.
+func loadImage(fetcher utils.UrlFetcher, url string) (Image, error) {
+	document, fragment := splitFragment(url)
+	img, err := getImageFromUri(fetcher, false, document, "", pr.SBoolFloat{})
+	if err != nil {
+		return nil, err
+	}
+	return withFragment(img, fragment), nil
 }
 
 // without caching
@@ -173,6 +192,8 @@ type SVGImage struct {
 	// inline (gopdfgo): element <svg> osadzony w HTML (NewSVGImageFromNode); jego treść zależy od kaskady
 	// i kontekstu dokumentu, więc nie jest współdzielona między wystąpieniami (zob. Draw)
 	inline bool
+	// view (gopdfgo): widok z fragmentu adresu (zob. fragment.go, svg.View); nil to widok domyślny
+	view *svg.View
 }
 
 // AsDocument (gopdfgo) zwraca kopię obrazu rysowaną jak osobny dokument SVG (<object>, <embed>), bez
@@ -191,7 +212,7 @@ func NewSVGImage(svgData io.Reader, baseURL string, urlFetcher utils.UrlFetcher)
 	}
 
 	imageLoader := func(url string) (backend.Image, error) {
-		return getImageFromUri(urlFetcher, false, url, "", pr.SBoolFloat{})
+		return loadImage(urlFetcher, url)
 	}
 
 	var err error
@@ -210,7 +231,7 @@ func NewSVGImageFromNode(node *html.Node, baseURL string, urlFetcher utils.UrlFe
 	}
 
 	imageLoader := func(url string) (backend.Image, error) {
-		return getImageFromUri(urlFetcher, false, url, "", pr.SBoolFloat{})
+		return loadImage(urlFetcher, url)
 	}
 
 	var err error
@@ -249,6 +270,9 @@ func (img SVGImage) LinkAreas(width, height pr.Fl) []svg.LinkArea {
 }
 
 func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.MaybeFloat, pr.MaybeFloat) {
+	// gopdfgo: proporcje dokumentu bez width albo height daje viewBox widoku z fragmentu adresu
+	restore, _ := s.icon.ApplyView(s.view)
+	defer restore()
 	width, height := s.icon.DisplayedSize()
 
 	var intrinsicWidth, intrinsicHeight, ratio pr.MaybeFloat
@@ -297,12 +321,19 @@ func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.Mayb
 
 // SVG (gopdfgo) udostępnia przetworzony obraz SVG rysującemu go elementowi <image> innego SVG
 // (zob. svg.svgImageHolder).
-func (img SVGImage) SVG() *svg.SVGImage { return img.icon }
+// Obraz z widokiem z fragmentu adresu rysuje się sam (Draw), bo widok trzeba ustawić na czas rysowania.
+func (img SVGImage) SVG() *svg.SVGImage {
+	if img.view != nil {
+		return nil
+	}
+	return img.icon
+}
 
 // sharedSVGKey (gopdfgo): klucz formy współdzielonej obrazu SVG (zob. Draw). Wskaźnik jest tu tylko
 // tożsamością obrazu w mapie wyszukiwania; mapa trzyma go przy życiu i nigdy nie jest przeglądana.
 type sharedSVGKey struct {
 	icon          *svg.SVGImage
+	view          *svg.View // gopdfgo: widok z fragmentu adresu, zob. fragment.go
 	asDocument    bool
 	width, height pr.Fl
 }
@@ -327,7 +358,7 @@ func (img SVGImage) Draw(dst backend.Canvas, textContext text.TextLayoutContext,
 	if shared, ok := dst.(backend.SharedDrawer); ok && !SVGSharingDisabled && !img.inline && img.icon != nil &&
 		!(img.asDocument && img.icon.HasLinks()) && // gopdfgo: zob. LinkAreas
 		concreteWidth > 0 && concreteHeight > 0 && !math.IsInf(float64(concreteWidth), 0) && !math.IsInf(float64(concreteHeight), 0) {
-		key := sharedSVGKey{icon: img.icon, asDocument: img.asDocument, width: concreteWidth, height: concreteHeight}
+		key := sharedSVGKey{icon: img.icon, view: img.view, asDocument: img.asDocument, width: concreteWidth, height: concreteHeight}
 		shared.DrawShared(key, concreteWidth, concreteHeight, func(form backend.Canvas) {
 			img.draw(form, textContext, concreteWidth, concreteHeight)
 		})
@@ -338,6 +369,11 @@ func (img SVGImage) Draw(dst backend.Canvas, textContext text.TextLayoutContext,
 
 // draw (gopdfgo) rysuje obraz wprost na dst.
 func (img SVGImage) draw(dst backend.Canvas, textContext text.TextLayoutContext, concreteWidth, concreteHeight pr.Fl) {
+	restore, disabled := img.icon.ApplyView(img.view)
+	defer restore()
+	if disabled {
+		return
+	}
 	if img.asDocument {
 		img.icon.DrawAsDocument(dst, concreteWidth, concreteHeight, textContext)
 		return

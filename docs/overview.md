@@ -235,6 +235,10 @@ Supported:
   - SVG files are parsed as XML;
   - a file with `width` and `height` but no `viewBox` stretches to the image box in `img` and backgrounds,
     and stays unscaled in `object`/`embed`, as in Chrome;
+  - URL fragments select part of an image (ADR 0030): `#xywh=x,y,w,h` (also `pixel:` and `percent:`,
+    Media Fragments URI 1.0) crops raster and SVG images, and `#svgView(viewBox(…);preserveAspectRatio(…);
+    transform(…))` or the name of a `<view>` element picks the view of an SVG file; the file is loaded once
+    for all its fragments;
   - an SVG file used many times (a logo in every page header, icons in table rows, a background) is
     written once as a PDF form XObject and referenced from each use, like a raster image (ADR 0028):
     a 100 kB coat of arms on 41 pages gives a 68 kB PDF instead of 1.5 MB (measured 2026-11-21);
@@ -250,18 +254,17 @@ Not supported or incomplete:
   of Chrome, and adds about 2 kB per filtered element. Colour matrices on the element itself and `feImage`,
   `feTile`, `feMorphology`, `feTurbulence`, `feConvolveMatrix`, lighting and `feDisplacementMap` skip the
   filter as a whole;
-- spatial media fragments in image URLs (`image.svg#xywh=…`);
 - `currentColor` passed through a context paint, and `objectBoundingBox` paint servers on a context;
 - CSS `zoom`;
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 155 pass; on the morning of 2026-11-20 it was 83.
+or have no reference. Of those 235, 181 pass (2026-11-21); on the morning of 2026-11-20 it was 83.
 
 Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Remaining failures (80), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
-blur shadows, CSS `zoom`, CSS animations, and single cases.
+Remaining failures (54), the largest groups: CSS Linked Parameters (23, a proposal), blur shadows,
+CSS `zoom`, CSS animations, and single cases.
 
 Real-world corpus: every file is within 2.3% of Chrome's pixels; the remaining differences are font
 substitution, the missing blur shadow, and anti-aliasing.
