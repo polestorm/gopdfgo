@@ -151,6 +151,13 @@ type Options struct {
 	// Factur-X/ZUGFeRD jako RelationshipAlternative. PDFA2b dopuszcza tylko załączniki będące plikami
 	// PDF/A-1 albo PDF/A-2; inne kończą Render błędem ErrAttachmentNotPDFA (ADR 0026).
 	Attachments []Attachment
+	// FacturX tworzy fakturę hybrydową Factur-X 1.0 / ZUGFeRD 2.x (ADR 0034): XML faktury CII osadzony
+	// jako factur-x.xml (xrechnung.xml dla profilu XRECHNUNG) ze związkiem Data albo Alternative według
+	// profilu, metadane XMP fx z opisem schematu rozszerzenia i norma PDF/A-3: pusta Conformance daje
+	// PDFA3b, a z tagami (Tagged, Accessibility) PDFA3a; PDFA2b i PDFA2a kończą Render błędem
+	// ErrInvalidFacturX. XML, który nie jest fakturą CII, też kończy Render tym błędem; profil
+	// niezgodny z identyfikatorem specyfikacji w XML daje ostrzeżenie.
+	FacturX *FacturX
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -181,7 +188,11 @@ func Render(ctx context.Context, html []byte, opts Options) (Result, error) {
 	if len(opts.Fonts) == 0 {
 		return Result{}, ErrNoFonts
 	}
-	if _, err := backendAttachments(opts.Attachments); err != nil {
+	checked := opts // sprawdzenie przed kolejką; render przygotowuje opcje sam
+	if _, _, err := prepareFacturX(&checked); err != nil {
+		return Result{}, err
+	}
+	if _, err := backendAttachments(checked.Attachments); err != nil {
 		return Result{}, err
 	}
 	select {
@@ -224,6 +235,10 @@ func render(html []byte, opts Options) (result Result, err error) {
 		level = zlib.NoCompression
 	}
 	pdfmodel.SetCompressionLevel(level)
+	fx, invoiceWarnings, err := prepareFacturX(&opts)
+	if err != nil {
+		return Result{}, err
+	}
 	attachments, err := backendAttachments(opts.Attachments)
 	if err != nil {
 		return Result{}, err
@@ -375,7 +390,20 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if err := checkAttachments(embedded, opts.Conformance); err != nil {
 		return Result{}, err
 	}
-	if err := applyConformance(&file, opts.Conformance, opts.Accessibility, embedded); err != nil {
+	if fx != nil {
+		// nazwa pliku faktury jednoznacznie wskazuje XML (§ 6.2): drugi plik o tej nazwie z HTML to błąd
+		// (klucz w drzewie nazw dostaje wtedy przyrostek, ale /F i /UF zostają te same)
+		count := 0
+		for _, f := range embedded {
+			if f.Spec != nil && f.Spec.UF == fx.fileName {
+				count++
+			}
+		}
+		if count != 1 {
+			return Result{}, fmt.Errorf("%w: %d embedded files named %q", ErrInvalidFacturX, count, fx.fileName)
+		}
+	}
+	if err := applyConformance(&file, opts.Conformance, opts.Accessibility, embedded, fx); err != nil {
 		return Result{}, err
 	}
 	var out bytes.Buffer
@@ -384,6 +412,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 
 	result = Result{PDF: out.Bytes(), Pages: pages, EngineName: EngineName, EngineVersion: EngineVersion}
+	result.Warnings = append(result.Warnings, invoiceWarnings...)
 	// PDF z tagami bez tytułu: czytnik pokazuje wtedy nazwę pliku, a PDF/UA wymaga tytułu (ISO 14289-1 § 7.1)
 	if tagged && strings.TrimSpace(file.Trailer.Info.Title) == "" {
 		result.Warnings = append(result.Warnings, Warning{Message: "Tagged PDF: document without a title (<title>)"})
@@ -403,6 +432,25 @@ func render(html []byte, opts Options) (result Result, err error) {
 		}
 	}
 	return result, nil
+}
+
+// prepareFacturX sprawdza Options.FacturX i wprowadza fakturę do opts: plik XML na początek kopii
+// Attachments i normę PDF/A-3 w Conformance. Bez faktury zwraca nil i niczego nie zmienia.
+func prepareFacturX(opts *Options) (*facturXDescription, []Warning, error) {
+	if opts.FacturX == nil {
+		return nil, nil, nil
+	}
+	plan, err := planFacturX(opts.FacturX)
+	if err != nil {
+		return nil, nil, err
+	}
+	conformance, err := facturXConformance(opts.Conformance, opts.Tagged || opts.Accessibility.tagged())
+	if err != nil {
+		return nil, nil, err
+	}
+	opts.Conformance = conformance
+	opts.Attachments = append([]Attachment{plan.attachment}, opts.Attachments...)
+	return &facturXDescription{fileName: plan.attachment.Name, level: string(plan.level), version: plan.version}, plan.warnings, nil
 }
 
 // newOutput tworzy cel rysowania; tagged włącza oznaczanie treści i drzewo struktury (ADR 0033).

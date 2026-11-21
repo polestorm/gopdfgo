@@ -52,6 +52,8 @@ func main() {
 		attachments = append(attachments, attachment)
 		return nil
 	})
+	facturXFile := flag.String("facturx", "", "faktura Factur-X/ZUGFeRD: plik XML CII osadzany jako factur-x.xml (xrechnung.xml dla XRECHNUNG), wymusza PDF/A-3 (ADR 0034)")
+	facturXLevel := flag.String("facturx-level", "", "profil faktury: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED, XRECHNUNG; domyślnie odczytany z XML")
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
 	exactLengths := flag.Bool("exact-lengths", false,
@@ -112,6 +114,25 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfua (dozwolone: 1)")
 		os.Exit(2)
 	}
+	if *facturXFile != "" {
+		data, err := os.ReadFile(*facturXFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gopdfgo: -facturx:", err)
+			os.Exit(2)
+		}
+		invoice = &gopdfgo.FacturX{XML: data}
+		if *facturXLevel != "" {
+			level, ok := facturXLevels[strings.NewReplacer(" ", "", "_", "", "-", "").Replace(strings.ToUpper(*facturXLevel))]
+			if !ok {
+				fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -facturx-level (dozwolone: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED, XRECHNUNG)")
+				os.Exit(2)
+			}
+			invoice.Level = level
+		}
+	} else if *facturXLevel != "" {
+		fmt.Fprintln(os.Stderr, "gopdfgo: -facturx-level wymaga -facturx")
+		os.Exit(2)
+	}
 	if *in == "" || *out == "" || *fontDir == "" {
 		flag.Usage()
 		os.Exit(2)
@@ -132,7 +153,14 @@ var (
 	taggedMode       bool                 // flaga -tagged
 	hyphenation      map[string][]byte    // flaga -hyphenation
 	attachments      []gopdfgo.Attachment // flaga -attach
+	invoice          *gopdfgo.FacturX     // flagi -facturx i -facturx-level
 )
+
+// facturXLevels to wartości -facturx-level po usunięciu spacji, podkreśleń i łączników.
+var facturXLevels = map[string]gopdfgo.FacturXLevel{
+	"MINIMUM": gopdfgo.FacturXMinimum, "BASICWL": gopdfgo.FacturXBasicWL, "BASIC": gopdfgo.FacturXBasic,
+	"EN16931": gopdfgo.FacturXEN16931, "EXTENDED": gopdfgo.FacturXExtended, "XRECHNUNG": gopdfgo.FacturXXRechnung,
+}
 
 func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, maxShrink float64, monospaceSize float64, timeout time.Duration, quiet bool) error {
 	html, err := os.ReadFile(in)
@@ -197,7 +225,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
 		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation,
-		Attachments: attachments, Tagged: taggedMode, Accessibility: accessibility})
+		Attachments: attachments, Tagged: taggedMode, Accessibility: accessibility, FacturX: invoice})
 	if err != nil {
 		return err
 	}

@@ -981,6 +981,10 @@ Wspólne dla obu katalogów:
   w `text/engine_gotext.go` `textLayoutCache`, `WrapWordBreak`): mapa bez limitu zastąpiona pamięcią
   dwupokoleniową po ok. 16 MB szacowanego rozmiaru; wynik bajt w bajt ten sam (korpus W3C: 0 różnic),
   pamięć szczytowa książki 1021 stron 1,30–1,54 → 0,73 GB;
+- łamanie po ukośniku, 2026-11-21 (ADR 0035; `text/engine_gotext.go` `slashesWithinWords`, wołane w `LineWrap`
+  i przy wyznaczaniu słów do min-content): ukośnik między znakami niebiałymi traci okazję do złamania po nim,
+  gdy następna okazja jest bliżej niż 20 znaków (UAX #14 § 5.1); źródło łamało „zyskiem/|stratą”;
+  test `tests/slashbreak18_test.go`;
 - pojedyncze poprawki SVG z sondażu W3C, 2026-11-21 (praca pomocnika; ADR 0031; test
   `tests/svgsingles18_test.go`; sondaż `svg/` z 181 na 194 z 235, bez strat; korpus: flaga Brazylii w `img`
   i inline bliżej oryginału, bo litery napisu wstawione przez `<use>` dziedziczą zielone wypełnienie, reszta
