@@ -65,6 +65,8 @@ type SVGImage struct {
 	// parentFontSize (gopdfgo): rozmiar pisma rodzica HTML osadzonego <svg>, do którego odnoszą się
 	// względne font-size elementu głównego (em, %); 0 dla dokumentu samodzielnego (rozmiar domyślny)
 	parentFontSize Fl
+	// hasLinks (gopdfgo): drzewo ma element <a> z celem (zob. LinkAreas)
+	hasLinks bool
 }
 
 // DisplayedSize returns the value of the "width" and "height" attributes
@@ -735,6 +737,7 @@ func parseNode(root *html.Node, baseURL string, imageLoader ImageLoader, urlFetc
 	if standalone {
 		out.synthesizedViewBox = synthesizeViewBox(out.root)
 	}
+	out.hasLinks = resolveLinkTargets(out.root, baseURL) // gopdfgo: odnośniki <a>, zob. links.go
 	// gopdfgo: przekształcenia zewnętrznego <svg> osadzonego w HTML (atrybut transform, właściwości
 	// transform, translate, rotate, scale) stosuje układ HTML jako transform pola CSS (SVG 2 § 8.5,
 	// CSS Transforms 1 § 12; zob. findStyleAttributes). Źródło stosowało je drugi raz wewnątrz obrazu.

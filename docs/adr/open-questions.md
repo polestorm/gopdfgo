@@ -168,3 +168,11 @@ w `<table>`); szacunek zysku to kilka do kilkunastu testów. Koszt: zbudowanie d
 `encoding/xml` (encje XHTML, CDATA, przestrzenie nazw SVG i MathML) i ryzyko dla ok. 5800 testów CSS 2
 w `.xht`, które dziś przechodzą ścieżką HTML5. Możliwy wariant ostrożny: parser XML, a przy błędzie
 składni powrót do obecnej ścieżki.
+
+## 26. PDF z tagami (PDF/UA): struktura odnośników
+
+Otwarte od 2026-11-21. Silnik nie tworzy drzewa struktury (`StructTreeRoot`, `/MarkInfo`), więc odnośniki
+HTML i SVG (ADR 0029) są tylko adnotacjami `/Link` bez elementu struktury `Link` z odwołaniem `OBJR`
+i bez `/StructParent` (ISO 32000-1 § 14.7.4.4; PDF/UA-1, ISO 14289-1 § 7.18.5, wymaga też `/Contents`
+z opisem odnośnika). ADR 0002 przewiduje tagowanie z folio; gdy powstanie, odnośniki SVG powinny dostać
+element `Link` w miejscu elementu `a` z tekstem alternatywnym z `title`/`aria-label` albo treści tekstowej.

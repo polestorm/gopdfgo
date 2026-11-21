@@ -299,7 +299,7 @@ func assertLinks(t *testing.T, html string, expectedLinksByPage [][]Link, expect
 	capt := tu.CaptureLogs()
 
 	document := renderHTML(t, html, baseUrl, round)
-	resolvedLinks, resolvedAnchors := document.resolveLinks()
+	resolvedLinks, resolvedAnchors, _ := document.resolveLinks()
 
 	logs := capt.Logs()
 	if len(logs) != len(warnings) {

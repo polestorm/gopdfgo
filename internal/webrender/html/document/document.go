@@ -295,6 +295,9 @@ type Page struct {
 	bookmarks []bookmarkData
 
 	links []Link
+	// svgLinks (gopdfgo): odnośniki elementów <a> obrazów SVG (gatherSVGLinks), zbierane po narysowaniu
+	// strony; w PDF leżą za odnośnikami HTML, więc nad nimi
+	svgLinks []Link
 
 	// The page bleed widths with values in CSS pixels.
 	Bleed bo.Bleed
@@ -414,7 +417,9 @@ func Render(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, f
 // “(pageNumber, x, y)“ instead of an anchor name.
 // The page number is a 0-based index into the :attr:`pages` list,
 // and “x, y“ have been scaled (origin is at the top-left of the page).
-func (d *Document) resolveLinks() ([][]Link, [][]backend.Anchor) {
+// gopdfgo: zwraca też zbiór nazw kotwic (dla odnośników SVG zbieranych po narysowaniu strony w Write),
+// a odnośniki strony to links i za nimi svgLinks.
+func (d *Document) resolveLinks() ([][]Link, [][]backend.Anchor, utils.Set) {
 	anchors := utils.NewSet()
 	pagedAnchors := make([][]backend.Anchor, len(d.Pages))
 	for i, page := range d.Pages {
@@ -429,23 +434,10 @@ func (d *Document) resolveLinks() ([][]Link, [][]backend.Anchor) {
 	}
 	pagedLinks := make([][]Link, len(d.Pages))
 	for i, page := range d.Pages {
-		var pageLinks []Link
-		for _, link := range page.links {
-			// linkType, anchorName, rectangle = link
-			if link.Type == pr.Internal {
-				if !anchors.Has(link.Target) {
-					logger.WarningLogger.Printf("No anchor #%s for internal URI reference\n", link.Target)
-				} else {
-					pageLinks = append(pageLinks, link)
-				}
-			} else {
-				// External link
-				pageLinks = append(pageLinks, link)
-			}
-		}
-		pagedLinks[i] = pageLinks
+		// gopdfgo: filtr wspólny z odnośnikami SVG, zob. validLinks
+		pagedLinks[i] = append(validLinks(page.links, anchors), validLinks(page.svgLinks, anchors)...)
 	}
-	return pagedLinks, pagedAnchors
+	return pagedLinks, pagedAnchors, anchors
 }
 
 // Make a tree of all bookmarks in the document.
@@ -591,7 +583,7 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 	scale := zoom * 0.75
 
 	// Links and anchors
-	pagedLinks, pagedAnchors := d.resolveLinks()
+	pagedLinks, pagedAnchors, anchorNames := d.resolveLinks()
 
 	// files must be embedded before being used on the pages
 	d.embedFileAnnotations(pagedLinks, target)
@@ -609,6 +601,10 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 		outputPage := target.AddPage(left/scale, top/scale, (right-left)/scale, (bottom-top)/scale)
 		outputPage.State().Transform(mt.New(1, 0, 0, -1, 0, page.Height*scale))
 		page.Paint(outputPage, d.fontconfig, 0, 0, scale, false)
+		// gopdfgo: odnośniki SVG po narysowaniu strony (zob. gatherSVGLinks), za odnośnikami HTML jak w Stream
+		var svgLinks []Link
+		gatherSVGLinks(page.pageBox, &svgLinks, nil)
+		pagedLinks[i] = append(pagedLinks[i], validLinks(svgLinks, anchorNames)...)
 
 		// Draw from the top-left corner
 		matrix := mt.New(scale, 0, 0, -scale, 0, page.Height*scale)

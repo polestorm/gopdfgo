@@ -221,6 +221,33 @@ func NewSVGImageFromNode(node *html.Node, baseURL string, urlFetcher utils.UrlFe
 	return SVGImage{icon: icon, inline: true}, nil
 }
 
+// LinkAreas (gopdfgo) zwraca obszary odnośników <a> obrazu narysowanego w rozmiarze width na height
+// (zob. svg.SVGImage.LinkAreas; woła się po Draw), według sposobu osadzenia (ADR 0029):
+//   - SVG osadzone w HTML należy do dokumentu: odnośniki zewnętrzne i wewnętrzne (#nazwa, kotwice HTML);
+//   - SVG w <object> i <embed> to osobny, interaktywny dokument (HTML § 4.8.6, 4.8.7; SVG Integration,
+//     tryb „dynamic interactive”): tylko odnośniki zewnętrzne, bo fragment wskazuje miejsce w samym SVG;
+//   - SVG w <img> i jako obraz CSS jest wyświetlane w trybie statycznym bez interakcji (SVG Integration,
+//     „secure static mode”; HTML § 4.8.4.4): bez odnośników.
+//
+// Ramki tekstu pochodzą ze składu przy ostatnim rysowaniu, dlatego <object> i <embed> z odnośnikami nie
+// korzystają z formy współdzielonej (zob. Draw): każde wystąpienie składa tekst w swoim rozmiarze.
+func (img SVGImage) LinkAreas(width, height pr.Fl) []svg.LinkArea {
+	if !img.inline && !img.asDocument {
+		return nil
+	}
+	areas := img.icon.LinkAreas(width, height, img.asDocument)
+	if img.inline {
+		return areas
+	}
+	external := areas[:0]
+	for _, area := range areas {
+		if !strings.HasPrefix(area.Href, "#") {
+			external = append(external, area)
+		}
+	}
+	return external
+}
+
 func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.MaybeFloat, pr.MaybeFloat) {
 	width, height := s.icon.DisplayedSize()
 
@@ -279,6 +306,7 @@ var SVGSharingDisabled bool
 // rysowany jak dotąd.
 func (img SVGImage) Draw(dst backend.Canvas, textContext text.TextLayoutContext, concreteWidth, concreteHeight pr.Fl, imageRendering string) {
 	if shared, ok := dst.(backend.SharedDrawer); ok && !SVGSharingDisabled && !img.inline && img.icon != nil &&
+		!(img.asDocument && img.icon.HasLinks()) && // gopdfgo: zob. LinkAreas
 		concreteWidth > 0 && concreteHeight > 0 && !math.IsInf(float64(concreteWidth), 0) && !math.IsInf(float64(concreteHeight), 0) {
 		key := sharedSVGKey{icon: img.icon, asDocument: img.asDocument, width: concreteWidth, height: concreteHeight}
 		shared.DrawShared(key, concreteWidth, concreteHeight, func(form backend.Canvas) {

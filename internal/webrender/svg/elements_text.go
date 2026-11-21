@@ -33,6 +33,11 @@ type textSpan struct {
 	isText          bool // only true for tag 'text'
 	textBoundingBox Rectangle
 
+	// linkHref (gopdfgo): cel elementu <a> (href, a bez niego xlink:href, SVG 2 § 16.1.3) po
+	// rozwiązaniu względem adresu dokumentu: "#nazwa" dla odnośnika wewnętrznego albo adres bezwzględny;
+	// "" dla innych elementów i dla <a> bez celu (zob. links.go)
+	linkHref string
+
 	// gopdfgo: textPath (SVG 2 § 11.10.3): ścieżka wskazana przez href albo podana atrybutem path
 	// oraz przesunięcie początku tekstu wzdłuż niej
 	isTextPath  bool
@@ -131,6 +136,9 @@ func newTextSpan(node *cascadedNode) (drawable, error) {
 
 	out.isText = node.tag == "text"
 	out.textBoundingBox = emptyBbox
+	if node.tag == "a" {
+		out.linkHref = strings.TrimSpace(node.attrs["href"]) // gopdfgo: rozwiązywany w resolveLinkTargets
+	}
 
 	if node.tag == "textPath" {
 		out.isTextPath = true

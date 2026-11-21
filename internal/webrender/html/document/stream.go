@@ -131,6 +131,7 @@ func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
 		}
 		ctx.drawPage(pageBox)
 	})
+	gatherSVGLinks(pageBox, &page.svgLinks, nil) // gopdfgo: po narysowaniu, zob. gatherSVGLinks
 	if !streamed.empty && !streamed.marked {
 		s.fallback = "page content cannot be resumed for margin boxes"
 		return
@@ -193,6 +194,9 @@ func (s *streamSink) Margins(index int, pageBox *bo.PageBox, boxes []Box) string
 		ctx.drawStackingContext(context)
 	}
 	finish()
+	for _, box := range boxes {
+		gatherSVGLinks(box, &page.svgLinks, nil) // gopdfgo: po narysowaniu, zob. gatherSVGLinks
+	}
 	streamed.ctx, streamed.mark = drawContext{}, nil
 	return ""
 }
@@ -200,7 +204,7 @@ func (s *streamSink) Margins(index int, pageBox *bo.PageBox, boxes []Box) string
 // finish dodaje odnośniki, kotwice, załączniki, zakładki i metadane, jak Write po narysowaniu stron.
 func (s *streamSink) finish(attachments []backend.Attachment) {
 	d, target := &s.doc, s.target
-	pagedLinks, pagedAnchors := d.resolveLinks()
+	pagedLinks, pagedAnchors, _ := d.resolveLinks()
 	// files must be embedded before being used on the pages
 	d.embedFileAnnotations(pagedLinks, target)
 	for i, page := range d.Pages {

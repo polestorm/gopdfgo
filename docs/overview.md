@@ -236,7 +236,11 @@ Supported:
     and stays unscaled in `object`/`embed`, as in Chrome;
   - an SVG file used many times (a logo in every page header, icons in table rows, a background) is
     written once as a PDF form XObject and referenced from each use, like a raster image (ADR 0028):
-    a 100 kB coat of arms on 41 pages gives a 68 kB PDF instead of 1.5 MB (measured 2026-11-21).
+    a 100 kB coat of arms on 41 pages gives a 68 kB PDF instead of 1.5 MB (measured 2026-11-21);
+- links: `<a href>` (or `xlink:href`) becomes a PDF link annotation covering the bounding box of its drawn
+  content after all transforms (ADR 0029). In inline `<svg>`, `#id` links go to anchors in the HTML document
+  and other links are external; in `object`/`embed` only external links are kept; SVG in `img` and CSS
+  images is static, so it has no links. Rotated content gets its bounding rectangle, not `QuadPoints`.
 
 Not supported or incomplete:
 - filters: drop shadow and blur (`feGaussianBlur`, `feOffset`, `feFlood`, `feComposite`, `feMerge`,

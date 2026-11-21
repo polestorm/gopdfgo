@@ -931,6 +931,19 @@ Wspólne dla obu katalogów:
   - treść obrazu SVG wystająca poza jego obszar widoku jest odcinana, jak w przeglądarkach; przejęty
     `TestImageOverflow` (`goweasyprint/pdf/draw_image_test.go`, wzorzec `centeredImageOverflow`) oczekiwał
     jej widocznej aż do krawędzi strony i ma poprawiony wzorzec;
+- odnośniki `<a>` w SVG, 2026-11-21 (praca pomocnika; ADR 0029; nowe pliki `svg/links.go`,
+  `html/document/svg_links.go`; zmiany w `svg/elements_text.go` `textSpan.linkHref`, `svg/svg.go`
+  `SVGImage.hasLinks` i `parseNode`, `images/images.go` `SVGImage.inline`, `LinkAreas`,
+  `html/document/document.go` `Page.svgLinks`, `resolveLinks`, `Write`, `html/document/stream.go`):
+  - źródło rysowało `a` w SVG jak grupę i gubiło cel; teraz SVG osadzone w HTML daje adnotacje `/Link`
+    (zewnętrzne i do kotwic HTML), SVG w `<object>`/`<embed>` tylko zewnętrzne, a w `<img>` i tłach żadnych
+    (SVG Integration: tryb statyczny); obszar to prostokąt otaczający narysowanej treści najbliższego `a`
+    po przekształceniach SVG i CSS, przycięty do okna widoku i pola treści;
+  - obszary są zbierane po narysowaniu strony (ramki tekstu pochodzą ze składu przy rysowaniu), w obu
+    drogach rysowania, i idą w `/Annots` za odnośnikami HTML strony; `resolveLinks` zwraca też zbiór nazw
+    kotwic (filtr wspólny `validLinks`), przejęty test `document_test.go` dostosowany do trzech wyników;
+  - SVG w `<object>`/`<embed>` z odnośnikami jest rysowane bez formy współdzielonej (`SVGImage.Draw`,
+    `svg.SVGImage.HasLinks`), żeby każde wystąpienie składało tekst, z którego liczone są obszary;
 - trwałe klucze stosów wznowienia, 2026-11-21 (praca pomocnika; `html/layout/block.go` `keepResumeKey`,
   zapisy w `block.go`, `column.go`, `flex.go`, `tables.go`):
   - mapy `fixedHeightRemaining`, `minHeightRemaining`, `cellHeightRemaining` i `flexPushOffset` są
