@@ -46,8 +46,8 @@ Comparison with Chromium, the list of what is not supported, and requirements:
     documents of the corpus;
   - PDF/UA-1 on request (`Options.Accessibility = PDFUA1`, `-pdfua 1`, combinable with `-pdfa 2a`): tags
     with list labels and bodies, table header scopes and spans, link descriptions, `pdfuaid` in XMP.
-    veraPDF accepts 17 of 22 corpus documents; the other 5 have defects in the source (a heading level
-    skipped from `h1` to `h3`, SVG images without alternative text), which gopdfgo reports as warnings;
+    veraPDF accepts 22 of 22 corpus documents; defects of a source document (a skipped heading level,
+    an image without alternative text) are reported as warnings;
   - file attachments (`Options.Attachments`, `<link rel="attachment">`), with MIME type and
     `AFRelationship`, e.g. the XML of an e-invoice inside a PDF/A-3 file.
 - Output is deterministic: the same input gives the same bytes.

@@ -210,10 +210,10 @@ Pomiar 2026-11-21, veraPDF 1.30.0 na 22 dokumentach `testdata/documents` z `-pdf
   - 7.3-1 (`Figure` bez `Alt`): `21-mixed-report` — dwa opływane obrazy `<svg>` bez `<title>`,
     `aria-label` ani `title`.
 
-Dokumentów korpusu nie zmieniamy: to dokumenty testowe układu (ich `expect.json` i porównania bajtowe
-opisują obecną treść), a poprawka (`h3` → `h2` z tą samą regułą CSS, `<title>` w SVG) nie zmieniłaby
-wyglądu, ale zmieniłaby bajty wyniku i miarę z innych pomiarów. Do decyzji użytkownika; wtedy PDF/UA-1
-dałby 22 z 22.
+Poprawka dokumentów (decyzja użytkownika 2026-11-21: niezamierzone błędy w plikach poprawiamy): w czterech
+dokumentach nagłówki sekcji `h3` zamienione na `h2` z dotychczasowym wyglądem `h3` (`h2` nie było w nich
+użyte), w `21-mixed-report` dwa obrazy `<svg>` dostały `<title>`. Strony wyglądają tak samo (rastry
+identyczne); veraPDF PDF/UA-1 i PDF/A-2a: 22 z 22.
 
 Bez opcji wynik bajt w bajt ten sam (porównanie korpusu W3C: 0 różnic); obie drogi rysowania z tagami
 dają te same bajty (`TestTaggedCorpus`); testy w `tests/pdfua18_test.go` (struktura list i tabel,

@@ -176,8 +176,8 @@ gopdfgo's file size comes from:
 - W3C screen reftests across 11 CSS areas: 9502 of 10962 pass.
 - W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).
 - Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
-  veraPDF for 22 of 22; PDF/UA-1 valid for 17 of 22 (the other 5 skip a heading level or have SVG images
-  without alternative text in the source).
+  veraPDF for 22 of 22; PDF/UA-1 valid for 22 of 22 (five documents had a skipped heading level or SVG
+  images without alternative text; fixed in the source on 2026-11-21 without changing their pages).
 
 Where the specifications leave a choice, gopdfgo follows Chromium; each such case is recorded in
 `docs/adr/`. `Options.ExactLengths` turns off the pixel rounding that imitates Chromium (ADR 0013).
@@ -201,8 +201,7 @@ Out of scope by design:
   artifacts, margin boxes and repeated table headers as pagination artifacts, `/Lang` from `lang`, the
   document title shown by the viewer. PDF/A-2a and PDF/A-3a turn it on; veraPDF accepts all 22 corpus
   documents as PDF/A-2a. PDF/UA-1 (`Options.Accessibility`, `-pdfua 1`, also together with PDF/A-2a) adds
-  `pdfuaid` to the XMP metadata; veraPDF accepts 17 of 22 corpus documents, the other 5 fail on defects of
-  the source documents. Defects gopdfgo does not repair (no title, no language, an image without
+  `pdfuaid` to the XMP metadata; veraPDF accepts 22 of 22 corpus documents. Defects gopdfgo does not repair (no title, no language, an image without
   alternative text, a skipped heading level, table rows with different numbers of columns) give warnings.
   PDF/A-2b, PDF/A-3b and file attachments are supported (ADR 0016, 0026); the XMP extension schema that
   Factur-X/ZUGFeRD require is not written;

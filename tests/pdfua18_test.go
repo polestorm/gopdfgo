@@ -274,8 +274,9 @@ func TestPDFUACorpus(t *testing.T) {
 		}
 		outputs = append(outputs, out)
 	}
-	sourceDefects := map[string]bool{"09-lists-counters": true, "11-edge-cases": true, "12-floats-positioning": true,
-		"20-invoice": true, "21-mixed-report": true}
+	// dokumenty z wadą źródła (przeskok h1→h3, SVG bez tekstu alternatywnego) poprawione 2026-11-21:
+	// wszystkie przechodzą oba profile
+	sourceDefects := map[string]bool{}
 	for _, profile := range []string{"ua1", "2a"} {
 		report, _ := exec.Command(verapdf, append([]string{"-f", profile, "--format", "text"}, outputs...)...).CombinedOutput()
 		checked := 0
