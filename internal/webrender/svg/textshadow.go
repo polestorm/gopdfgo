@@ -58,8 +58,8 @@ func parseTextShadows(value, currentColor string, fontSize Fl) []textShadow {
 
 // drawTextShadows rysuje cienie pod tekstem: ostatni z listy najniżej. Jak w HTML (document/draw_text.go)
 // cień rozmyty przybliżamy kopiami tekstu na dwóch okręgach wokół przesunięcia, każda o szóstej części
-// krycia, a cień ostry to jedna kopia. Kopie mają wypełnienie i obrys tekstu w kolorze cienia.
-func drawTextShadows(dst backend.Canvas, shadows []textShadow, texts []backend.TextDrawing, doFill, doStroke bool) {
+// krycia, a cień ostry to jedna kopia. Kopie to wypełnione glify i obrys tekstu w kolorze cienia.
+func drawTextShadows(dst backend.Canvas, shadows []textShadow, texts []backend.TextDrawing, doStroke bool) {
 	for i := len(shadows) - 1; i >= 0; i-- {
 		s := shadows[i]
 		if s.color.A == 0 {
@@ -70,7 +70,9 @@ func drawTextShadows(dst backend.Canvas, shadows []textShadow, texts []backend.T
 				dst.State().Transform(matrix.Translation(dx, dy))
 				dst.State().SetColorRgba(c, false)
 				dst.State().SetColorRgba(c, true)
-				dst.State().SetTextPaint(newPaintOp(doFill, doStroke, false))
+				// cień ma kształt glifów (wypełnionych) razem z obrysem, także dla tekstu bez wypełnienia:
+				// tak wzorcem testów WPT text-shadow-02/03 jest cień tekstu HTML
+				dst.State().SetTextPaint(newPaintOp(true, doStroke, false))
 				dst.DrawText(texts)
 			})
 		}

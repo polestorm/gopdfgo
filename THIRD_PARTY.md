@@ -968,10 +968,52 @@ Wspólne dla obu katalogów:
     parzystej (SVG 2 § 13.5.6), więc faza z `stroke-dashoffset` jest liczona modulo podwójnej sumy; źródło
     liczyło modulo pojedynczej i ujemne przesunięcie dawało zły wzór;
   - `svg/elements.go` `overflowClips` (też dla znaczników w `svg/svg.go`): `overflow` `hidden`, `scroll`
-    i `clip` przycinają okno widoku, `visible` i `auto` nie (SVG 2 § 8.13); źródło znało tylko `hidden`;
+    i `clip` przycinają okno widoku, `visible` nie (SVG 2 § 8.13); źródło znało tylko `hidden`. Tego dnia
+    w tym wpisie także `auto` nie przycinało; poprawione w paczce „pojedyncze poprawki SVG” niżej;
   - `images/images.go` `SVGImage.GetIntrinsicSize`: ujemne `width`/`height` elementu `<svg>` działają jak
     auto (SVG 2 § 8.2), a przy wymiarze zerowym proporcje pochodzą z `viewBox` (CSS Values 4 § 7.3,
     proporcje zdegenerowane); źródło brało ujemne wymiary dosłownie i zwracało proporcje 0;
+- pojedyncze poprawki SVG z sondażu W3C, 2026-11-21 (praca pomocnika; ADR 0031; test
+  `tests/svgsingles18_test.go`; sondaż `svg/` z 181 na 194 z 235, bez strat; korpus: flaga Brazylii w `img`
+  i inline bliżej oryginału, bo litery napisu wstawione przez `<use>` dziedziczą zielone wypełnienie, reszta
+  pikseli bez zmian):
+  - `svg/tree.go` `visible`: `visibility: collapse` działa jak `hidden` (CSS Display 3 § 4);
+  - `svg/elements.go` `overflowClips`, `svg/foreign.go`: `overflow: auto` przycina okno widoku i
+    `foreignObject` jak w CSS Overflow 3 (grupa robocza SVG, svgwg #1072; test WPT
+    inner-outer-svg-overflow-auto); SVG 1.1 utożsamiało je z `visible`;
+  - nowy `svg/vars.go`, `svg/tree.go`, `svg/css.go` `parseDeclarations`, `html/tree/svg_cascade.go`
+    `SVGVariable`, `html/boxes/html.go` `quirksMode`: `var()` w atrybutach i właściwościach SVG (CSS
+    Variables 1 § 3), np. `r="var(--r)"`, ze zmiennymi z kaskady HTML albo, w samodzielnym SVG, z właściwości
+    niestandardowych jego arkuszy (wcześniej pomijanych). Wartość nie do podstawienia jest nieważna w chwili
+    obliczania; liczba bez jednostki z `var()` we właściwości geometrii jest nieważna poza trybem zgodności
+    wstecznej dokumentu HTML (tryb wyznaczany uproszczenie: brak DOCTYPE albo nazwa inna niż `html`);
+  - `svg/svg.go` `zeroViewBox`, `svg/tree.go` `viewBox`: `viewBox` o zerowej szerokości albo wysokości wyłącza
+    rysowanie elementu `<svg>` (także głównego i obrazu), ujemny wymiar unieważnia atrybut (SVG 2 § 8.6);
+  - `svg/elements.go` `image.draw`, nowy `svg/resources.go` `drawIgnoringRootAspectRatio`: dokument SVG
+    wstawiony przez `<image>` rysowany jest z `preserveAspectRatio` elementu głównego równym `none`
+    (SVG 2 § 12.3); źródło dopasowywało go dwukrotnie;
+  - nowe `svg/resources.go`, `svg/fontfaces.go` (ADR 0031): obraz SVG w trybie statycznym nie używa zasobów
+    zewnętrznych (`<image>`, `background-image` elementu głównego); reguły `@font-face` samodzielnego SVG
+    (dotąd pomijane) z rodzinami zawężonymi do obrazu, w trybie obrazu tylko ze źródeł `data:`; obraz
+    `background-image` elementu głównego (dotąd tylko kolor tła) w rozmiarze własnym, powtarzany;
+  - `svg/css.go` `applyDocumentStyle`, `appliedByRootBox`: `mask` z arkusza na zewnętrznym `<svg>` stosuje
+    rysowanie SVG (układ HTML nie obsługuje `mask`; wcześniej deklaracja ginęła), tak samo `clip-path: url()`
+    i `filter` złożony z samego `url()`; opacity, filter, clip-path i mix-blend-mode z atrybutu `style`
+    zewnętrznego `<svg>` stosuje już tylko pudełko CSS (wcześniej opacity działała podwójnie);
+  - `css/properties`, `css/validation/clip_path.go`, `html/document/stacking.go`, `html/document/draw.go`:
+    właściwości `mix-blend-mode` (CSS Compositing 1 § 3.1; element rysowany do grupy mieszanej z tłem) i
+    `isolation` (§ 3.4) w HTML, obie tworzą kontekst nakładania; źródło ich nie znało. Uproszczenie: kontekst
+    nakładania bez krycia i mieszania nie jest grupą izolowaną, więc element mieszany łączy się z treścią pod
+    najbliższą grupą, a nie pod swoim kontekstem nakładania;
+  - `svg/foreign.go`: `foreignObject`, którego treść HTML używa `mix-blend-mode`, jest grupą izolowaną
+    (test WPT isolation-with-html);
+  - `svg/tree.go` `cascadedNode.inherited`, `reinherit`, `svg/elements.go` `resolveUse`: treść wstawiona
+    przez `<use>` dziedziczy po elemencie `<use>`, a nie po swoim miejscu w dokumencie (SVG 2 § 5.6.3, drzewo
+    cienia); źródło przenosiło właściwości `<use>` tylko na element docelowy, a jego potomkowie zostawali
+    przy wartościach odziedziczonych w `<defs>`. Styl jest teraz stosowany przed dziedziczeniem (ten sam
+    wynik), żeby znać wartości odziedziczone;
+  - nowy `svg/textshadow.go`, `svg/elements_text.go`: `text-shadow` tekstu SVG (CSS Text Decoration 3 § 4),
+    przybliżenie rozmycia jak w HTML (`document/draw_text.go`); kształt cienia to wypełnione glify i obrys;
 - trwałe klucze stosów wznowienia, 2026-11-21 (praca pomocnika; `html/layout/block.go` `keepResumeKey`,
   zapisy w `block.go`, `column.go`, `flex.go`, `tables.go`):
   - mapy `fixedHeightRemaining`, `minHeightRemaining`, `cellHeightRemaining` i `flexPushOffset` są

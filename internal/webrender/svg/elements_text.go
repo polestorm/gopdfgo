@@ -194,7 +194,7 @@ func (t *textSpan) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, di
 	}
 	texts := t.drawings
 	if shadows := parseTextShadows(t.textShadow, t.color, dims.fontSize); len(shadows) != 0 {
-		dst.OnNewStack(func() { drawTextShadows(dst, shadows, texts, doFill, doStroke) })
+		dst.OnNewStack(func() { drawTextShadows(dst, shadows, texts, doStroke) })
 	}
 	dst.State().SetTextPaint(newPaintOp(doFill, doStroke, false))
 	dst.OnNewStack(func() {

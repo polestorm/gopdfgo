@@ -215,10 +215,12 @@ Supported:
 - shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`;
 - structure:
   - `g`, nested `svg`, `defs`, `a`;
-  - `use` and `symbol`, also from another file (`<use href="icons.svg#id">`);
+  - `use` and `symbol`, also from another file (`<use href="icons.svg#id">`); the copied content inherits
+    from the `<use>` element, as in a shadow tree;
   - `switch` with conditional attributes;
 - `image` (raster and SVG), `foreignObject` (HTML content laid out in the given box);
-- coordinates: `viewBox`, `preserveAspectRatio`, `transform`, also on the outermost `<svg>`;
+- coordinates: `viewBox` (a zero width or height disables rendering), `preserveAspectRatio`, `transform`,
+  also on the outermost `<svg>`; `overflow` other than `visible` (including `auto`) clips;
 - painting:
   - fill and stroke with opacity, dash arrays, line caps and joins, `vector-effect: non-scaling-stroke`;
   - paint servers: `linearGradient`, `radialGradient`, `pattern`, also taking stops or content from another
@@ -227,12 +229,17 @@ Supported:
     `context-fill`/`context-stroke`;
 - text: `text`, `tspan`, `textPath` (on a path or a `path` attribute, with `startOffset`), shaped like HTML
   text (kerning, ligatures, OpenType features), `text-anchor` per text chunk, `textLength`/`lengthAdjust`,
-  `dominant-baseline`, `letter-spacing`; text is written as runs, so it can be selected and searched in the PDF;
+  `dominant-baseline`, `letter-spacing`, `text-shadow`; text is written as runs, so it can be selected and searched in the PDF;
 - styling: presentation attributes, `style` attributes, `<style>` inside the SVG and, for inline `<svg>` in
   HTML, the page's whole cascade (`<style>` in `<head>`, `<link rel=stylesheet>`, the user stylesheet,
-  `@media`, `var()`), with inheritance from the HTML ancestors;
+  `@media`, `var()`), with inheritance from the HTML ancestors; `var()` also works in presentation
+  attributes (`r="var(--r)"`); on the outermost `<svg>`, `mask` is applied by the SVG renderer and
+  `opacity`, `filter`, `clip-path` and `mix-blend-mode` by the CSS box;
 - inline `<svg>` in HTML, and SVG files used with `img`, `object`, `embed` and CSS `background-image`:
   - SVG files are parsed as XML;
+  - an SVG file used as an image (`img`, CSS images, `<image>`) is static and loads no external resources,
+    only `data:` URLs (ADR 0031); in `object`/`embed` it loads them. Its `@font-face` rules and the root
+    element's `background-image` work, scoped to that file;
   - a file with `width` and `height` but no `viewBox` stretches to the image box in `img` and backgrounds,
     and stays unscaled in `object`/`embed`, as in Chrome;
   - URL fragments select part of an image (ADR 0030): `#xywh=x,y,w,h` (also `pixel:` and `percent:`,

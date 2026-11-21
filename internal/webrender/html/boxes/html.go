@@ -278,13 +278,19 @@ func handleInlineSVG(element *utils.HTMLNode, box Box, resolver URLResolver, bas
 }
 
 // quirksMode (gopdfgo) mówi, czy dokument elementu jest w trybie zgodności wstecznej (HTML § 13.2.6.4.1,
-// uproszczone): bez deklaracji DOCTYPE albo z nazwą inną niż „html”.
+// uproszczone): bez deklaracji DOCTYPE albo z nazwą inną niż „html”. Element główny drzewa jest odcięty
+// od węzła dokumentu (tree.NewHTML), więc DOCTYPE szukamy wśród jego poprzedników.
 func quirksMode(element *html.Node) bool {
-	doc := element
-	for doc.Parent != nil {
-		doc = doc.Parent
+	top := element
+	for top.Parent != nil {
+		top = top.Parent
 	}
-	for c := doc.FirstChild; c != nil; c = c.NextSibling {
+	for c := top.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.DoctypeNode {
+			return !strings.EqualFold(c.Data, "html")
+		}
+	}
+	for c := top.PrevSibling; c != nil; c = c.PrevSibling {
 		if c.Type == html.DoctypeNode {
 			return !strings.EqualFold(c.Data, "html")
 		}

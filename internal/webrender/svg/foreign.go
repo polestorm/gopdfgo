@@ -125,15 +125,25 @@ func (fo *foreignObject) draw(dst backend.Canvas, attrs *attributes, svg *SVGIma
 			ForeignDocument(dst, svg.textContext.Fonts(), source, fo.baseURL, fo.fetch, width, height, fo.clip)
 		})
 	}
-	if fo.blendMode == "" {
+	// gopdfgo: foreignObject tworzy kontekst nakładania, czyli grupę izolowaną (CSS Compositing 1
+	// § 3.4; test WPT isolation-with-html): mix-blend-mode treści HTML nie miesza jej z rysunkiem SVG
+	// pod spodem. Grupę tworzymy tylko wtedy, gdy treść może się mieszać.
+	isolate := strings.Contains(fo.content, "mix-blend-mode") || strings.Contains(fo.head, "mix-blend-mode")
+	if fo.blendMode == "" && !isolate {
 		paint(dst)
 		return nil
 	}
 	// mix-blend-mode: treść rysowana w grupie, a grupa mieszana z tłem (Compositing 1 § 3.2)
-	group := dst.NewGroup(x, y, width, height)
+	gx, gy, gw, gh := x, y, width, height
+	if !fo.clip { // treść może wystawać poza prostokąt
+		gx, gy, gw, gh = x-1e4, y-1e4, width+2e4, height+2e4
+	}
+	group := dst.NewGroup(gx, gy, gw, gh)
 	paint(group)
 	dst.OnNewStack(func() {
-		dst.State().SetBlendingMode(fo.blendMode)
+		if fo.blendMode != "" {
+			dst.State().SetBlendingMode(fo.blendMode)
+		}
 		dst.DrawWithOpacity(1, group)
 	})
 	return nil
