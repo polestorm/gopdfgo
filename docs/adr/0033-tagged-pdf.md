@@ -1,6 +1,6 @@
 # ADR 0033: PDF z tagami (PDF/UA-1, PDF/A-2a, PDF/A-3a)
 
-Status: proponowana 2026-11-21, do decyzji użytkownika (zakres, wartość domyślna, kolejność rund).
+Status: przyjęta 2026-11-21 (decyzje w sekcji „Rozstrzygnięcia”); wdrażana rundami.
 
 ## Kontekst
 
@@ -71,9 +71,11 @@ Szacowany rozmiar: 1500–2500 linii z testami, głównie w `html/document` (rys
 Ryzyko: kontekst nakładania i elementy pozycjonowane rysowane poza kolejnością dokumentu; liczba operatorów
 `BDC`/`EMC` zwiększy treść stron (szacunek: +5–15% rozmiaru strumieni stron, do pomiaru).
 
-## Pytania otwarte
+## Rozstrzygnięcia (decyzja użytkownika 2026-11-21)
 
-- domyślnie włączone czy wyłączone;
-- rola `div` bez znaczenia (`Div` czy pominięcie w drzewie jak `NonStruct`);
-- czy PDF/UA ma być osobnym trybem z twardymi błędami (np. obraz bez `alt` przerywa renderowanie) czy
-  tylko ostrzeżeniami.
+- **Domyślnie wyłączone.** Tagi włącza `Options.Tagged` albo `Conformance` „2a”, „3a”, „ua1”.
+- **`div` i inne elementy grupujące bez znaczenia** dają element `Div` (typ standardowy ISO 32000-1
+  § 14.8.4.2, dopuszczalny w PDF/UA); drzewo zachowuje grupowanie dokumentu. Elementy bez treści na
+  stronach nie trafiają do drzewa.
+- **Braki dostępności (obraz bez `alt`, dokument bez tytułu) dają ostrzeżenia**, nie błąd: renderowanie
+  kończy się, plik powstaje, a ostrzeżenia mówią, co poprawić, żeby veraPDF przyjął plik jako PDF/UA.
