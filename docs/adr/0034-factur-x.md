@@ -88,3 +88,16 @@ w repozytorium akretion/factur-x). Żadnego z tych plików nie kopiujemy do repo
 - Poza zakresem: Order-X, schematy XMP ZUGFeRD 1.0 i 2.0 (`zf`, `zugferd-invoice.xml`; § 6.3.2), PDF/A-4f,
   pliki stowarzyszone ze stroną zamiast dokumentu, walidacja treści faktury, kodowania XML inne niż UTF-8.
 - Bez walidatora Factur-X (np. Mustang) nie sprawdzono reguł BR-HYBRID poza tym, co wynika z kodu i testów.
+
+## Walidacja Mustang (2026-11-21)
+
+Mustang CLI 2.26.0 (ZUGFeRD/mustangproject, Apache-2.0; poza repozytorium w `bench/tools/mustang/`,
+uruchamiany Javą z Homebrew) na fakturze z `testdata/documents/20-invoice.html` i
+`testdata/facturx/20-invoice-minimum.xml`:
+
+- `-facturx` (PDF/A-3b): PDF zgodny (`flavour=3b`), XML w profilu `urn:factur-x.eu:1p0:minimum` przechodzi
+  Schematron FACTUR-X_MINIMUM (25 reguł, 0 błędów), wynik ogólny `valid`;
+- `-facturx -pdfua 1` (PDF/A-3a z tagami i PDF/UA-1): PDF zgodny (`flavour=3a`), XML 0 błędów, `valid`.
+
+Pozostaje niesprawdzone: profile wyższe niż MINIMUM (brak własnych faktur CII w tych profilach w
+`testdata/`) i zgodność danych XML z treścią HTML, której żaden walidator nie sprawdza.
