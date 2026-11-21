@@ -278,6 +278,27 @@ func (tree *svgContext) inheritElement(node *cascadedNode) {
 			node.attrs[key] = value
 		}
 	}
+	// gopdfgo: element bez własnej treści przejmuje ją od wskazanego: gradient bez elementów <stop>
+	// bierze stopnie wskazanego gradientu, wzorzec bez dzieci bierze dzieci wskazanego wzorca
+	// (SVG 2 § 14.2.3 i § 14.3.3, atrybut href; test WPT href-gradient-element). Źródło przejmowało
+	// tylko atrybuty, więc gradient z samym href nic nie rysował.
+	if node.tag == "pattern" {
+		if len(node.children) == 0 {
+			node.children = parent.children
+		}
+	} else if !hasStops(node) && hasStops(parent) {
+		node.children = parent.children
+	}
+}
+
+// hasStops mówi, czy gradient ma choć jeden element <stop> wśród dzieci.
+func hasStops(node *cascadedNode) bool {
+	for _, child := range node.children {
+		if child.tag == "stop" {
+			return true
+		}
+	}
+	return false
 }
 
 // cascadedNode is a node in an SVG document.

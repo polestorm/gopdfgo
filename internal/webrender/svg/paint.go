@@ -127,6 +127,13 @@ func (dims drawingDims) resolveDashes(dashArray []Value, dashOffset Value) ([]Fl
 	if dashesLength == 0 {
 		return nil, 0
 	}
+	// gopdfgo: lista o nieparzystej długości jest powtarzana, by dała parzystą (SVG 2 § 13.5.6),
+	// więc okres wzoru to podwójna suma; źródło brało modulo pojedynczej sumy i ujemne
+	// stroke-dashoffset przesuwało wzór o złą fazę (test WPT negative-dashoffset-odd-dasharray)
+	if len(dashes)%2 == 1 {
+		dashes = append(dashes, dashes...)
+		dashesLength *= 2
+	}
 	offset := dims.length(dashOffset)
 	offset = clampModulo(offset, dashesLength)
 	return dashes, offset

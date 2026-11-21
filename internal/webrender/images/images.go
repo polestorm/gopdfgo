@@ -259,6 +259,25 @@ func (s SVGImage) GetIntrinsicSize(_, fontSize pr.Float) (pr.MaybeFloat, pr.Mayb
 		intrinsicHeight = pr.Float(height.Resolve(pr.Fl(fontSize), 0))
 	}
 
+	// gopdfgo: ujemna szerokość lub wysokość jest błędna i działa jak auto (SVG 2 § 8.2, atrybuty width
+	// i height elementu <svg>), a proporcje z width i height zdegenerowane przez zero ustępują
+	// proporcjom z viewBox (SVG 2 „Sizing SVG in CSS”, CSS Values 4 § 7.3, proporcje zdegenerowane;
+	// testy WPT outer-svg-intrinsic-size-003…005). Źródło brało ujemne wymiary dosłownie, a przy
+	// width="0" zwracało proporcje 0.
+	// (pr.Is traktuje zero jak brak wartości, stąd porównania z nil)
+	if intrinsicWidth != nil && intrinsicWidth.V() < 0 {
+		intrinsicWidth = nil
+	}
+	if intrinsicHeight != nil && intrinsicHeight.V() < 0 {
+		intrinsicHeight = nil
+	}
+	if intrinsicWidth != nil && intrinsicHeight != nil && (intrinsicWidth.V() == 0 || intrinsicHeight.V() == 0) {
+		if viewbox := s.icon.ViewBox(); viewbox != nil && viewbox.Width > 0 && viewbox.Height > 0 {
+			ratio = pr.Float(viewbox.Width / viewbox.Height)
+		}
+		return intrinsicWidth, intrinsicHeight, ratio
+	}
+
 	if intrinsicWidth == nil || intrinsicHeight == nil {
 		viewbox := s.icon.ViewBox()
 		if viewbox != nil && viewbox.Width != 0 && viewbox.Height != 0 {

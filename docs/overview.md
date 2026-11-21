@@ -221,7 +221,8 @@ Supported:
 - coordinates: `viewBox`, `preserveAspectRatio`, `transform`, also on the outermost `<svg>`;
 - painting:
   - fill and stroke with opacity, dash arrays, line caps and joins, `vector-effect: non-scaling-stroke`;
-  - paint servers: `linearGradient`, `radialGradient`, `pattern`;
+  - paint servers: `linearGradient`, `radialGradient`, `pattern`, also taking stops or content from another
+    one through `href`, as files from Inkscape and Illustrator do;
   - `clipPath`, `mask` (also with `objectBoundingBox` content units), `marker` with `orient="auto"`,
     `context-fill`/`context-stroke`;
 - text: `text`, `tspan`, `textPath` (on a path or a `path` attribute, with `startOffset`), shaped like HTML
@@ -255,11 +256,11 @@ Not supported or incomplete:
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
-or have no reference. Of those 235, 148 pass; on the morning of 2026-11-20 it was 83.
+or have no reference. Of those 235, 155 pass; on the morning of 2026-11-20 it was 83.
 
 Each stand-alone `.svg` test was measured as a document drawn through `<img>`.
 
-Remaining failures (87), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
+Remaining failures (80), the largest groups: CSS Linked Parameters (23, a proposal), media fragments (12),
 blur shadows, CSS `zoom`, CSS animations, and single cases.
 
 Real-world corpus: every file is within 2.3% of Chrome's pixels; the remaining differences are font

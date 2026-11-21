@@ -328,11 +328,24 @@ func newSvg(node *cascadedNode, tree *svgContext) (drawable, error) {
 	var out svg
 	out.preserveRatio = node.attrs.aspectRatio()
 	out.isRoot = node == tree.root
-	if overflow := node.attrs["overflow"]; overflow == "" || overflow == "hidden" {
-		out.isOverflowHidden = true
-	}
+	out.isOverflowHidden = overflowClips(node.attrs["overflow"], true)
 
 	return out, nil
+}
+
+// overflowClips (gopdfgo) mówi, czy wartość overflow przycina treść okna widoku SVG: hidden, scroll
+// i clip przycinają, visible i auto nie (SVG 2 § 8.13, overflow na elementach ustanawiających okno
+// widoku; test WPT nested-svg-overflow-clip). Pusta wartość daje wartość początkową elementu: dla
+// zagnieżdżonego <svg> i <marker> to przycinanie (arkusz UA: overflow: hidden). Źródło znało tylko
+// hidden (a dla znaczników także scroll).
+func overflowClips(value string, initial bool) bool {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "":
+		return initial
+	case "hidden", "scroll", "clip":
+		return true
+	}
+	return false
 }
 
 func (s svg) draw(dst backend.Canvas, attrs *attributes, img *SVGImage, dims drawingDims) []vertex {

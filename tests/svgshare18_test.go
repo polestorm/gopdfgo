@@ -66,8 +66,10 @@ func TestSharedSVGImageAcrossPages(t *testing.T) {
 	if len(separate.PDF) < 10*len(many.PDF) {
 		t.Errorf("bez współdzielenia %d B, ze współdzieleniem %d B: oczekiwano co najmniej 10 razy mniej", len(separate.PDF), len(many.PDF))
 	}
-	if n := len(formXObject.FindAll(renderSharing(t, page(41), true, true).PDF, -1)); n != 1 {
-		t.Errorf("%d form XObject, oczekiwano jednej wspólnej dla 41 wystąpień", n)
+	// liczba form nie zależy od liczby stron (herb ma też własne formy gradientów, więc nie jest to 1)
+	formsOne := len(formXObject.FindAll(renderSharing(t, page(1), true, true).PDF, -1))
+	if n := len(formXObject.FindAll(renderSharing(t, page(41), true, true).PDF, -1)); n != formsOne {
+		t.Errorf("%d form XObject przy 41 stronach, %d przy jednej: oczekiwano tylu samo", n, formsOne)
 	}
 	again := renderSharing(t, page(41), true, false)
 	if !bytes.Equal(many.PDF, again.PDF) {

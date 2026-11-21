@@ -384,7 +384,7 @@ func (svg *SVGImage) drawMarkers(dst backend.Canvas, vertices []vertex, node *sv
 				dst.State().Transform(matrix.Translation(-translateX, -translateY))
 
 				overflow := marker.overflow
-				if overflow == "hidden" || overflow == "scroll" {
+				if overflowClips(overflow, true) { // gopdfgo: także clip (zob. overflowClips)
 					dst.Rectangle(clipBox.X, clipBox.Y, clipBox.Width, clipBox.Height)
 					dst.State().Clip(false)
 				}

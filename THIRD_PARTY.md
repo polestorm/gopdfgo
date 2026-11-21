@@ -944,6 +944,20 @@ Wspólne dla obu katalogów:
     kotwic (filtr wspólny `validLinks`), przejęty test `document_test.go` dostosowany do trzech wyników;
   - SVG w `<object>`/`<embed>` z odnośnikami jest rysowane bez formy współdzielonej (`SVGImage.Draw`,
     `svg.SVGImage.HasLinks`), żeby każde wystąpienie składało tekst, z którego liczone są obszary;
+- drobne poprawki SVG dla dokumentów, 2026-11-21 (test `tests/svgfixes18_test.go`; sondaż `svg/` z 148 na
+  155 z 235; herb z korpusu bliżej Chrome, 0,21% zamiast 0,28% pikseli, bo jego gradienty z Inkscape
+  zaczęły się rysować):
+  - `svg/tree.go` `inheritElement`: gradient bez elementów `<stop>` bierze stopnie gradientu wskazanego przez
+    `href`, wzorzec bez dzieci bierze dzieci wskazanego (SVG 2 § 14.2.3, § 14.3.3); źródło przejmowało tylko
+    atrybuty, więc gradient z samym `href` (częsty w plikach z Inkscape i Illustratora) nic nie rysował;
+  - `svg/paint.go` `resolveDashes`: lista `stroke-dasharray` o nieparzystej długości jest powtarzana do
+    parzystej (SVG 2 § 13.5.6), więc faza z `stroke-dashoffset` jest liczona modulo podwójnej sumy; źródło
+    liczyło modulo pojedynczej i ujemne przesunięcie dawało zły wzór;
+  - `svg/elements.go` `overflowClips` (też dla znaczników w `svg/svg.go`): `overflow` `hidden`, `scroll`
+    i `clip` przycinają okno widoku, `visible` i `auto` nie (SVG 2 § 8.13); źródło znało tylko `hidden`;
+  - `images/images.go` `SVGImage.GetIntrinsicSize`: ujemne `width`/`height` elementu `<svg>` działają jak
+    auto (SVG 2 § 8.2), a przy wymiarze zerowym proporcje pochodzą z `viewBox` (CSS Values 4 § 7.3,
+    proporcje zdegenerowane); źródło brało ujemne wymiary dosłownie i zwracało proporcje 0;
 - trwałe klucze stosów wznowienia, 2026-11-21 (praca pomocnika; `html/layout/block.go` `keepResumeKey`,
   zapisy w `block.go`, `column.go`, `flex.go`, `tables.go`):
   - mapy `fixedHeightRemaining`, `minHeightRemaining`, `cellHeightRemaining` i `flexPushOffset` są
