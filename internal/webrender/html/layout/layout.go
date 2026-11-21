@@ -497,7 +497,7 @@ type layoutContext struct {
 
 	// gopdfgo: dokładne wymiary obszaru strony i marginesy z arkusza sprzed zaokrąglenia do pikseli
 	// (ADR 0021), według numeru strony; pola marginesów układamy według nich
-	exactPageGeometry map[int][5]pr.Float
+	exactPageGeometry map[int][6]pr.Float
 
 	// gopdfgo: pageDone, gdy nie jest nil, makeAllPages wywołuje po ułożeniu każdej strony; false
 	// przerywa układ (rysowanie w trakcie układu, ADR 0027, zob. streamer.pageDone)

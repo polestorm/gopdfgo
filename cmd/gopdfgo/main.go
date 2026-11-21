@@ -57,7 +57,7 @@ func main() {
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
 		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
 	exactLengths := flag.Bool("exact-lengths", false,
-		"długości dokładnie jak w arkuszu, bez zaokrągleń do całych pikseli (domyślnie jak w Chromium: obramowanie 0.5pt daje 1px, border-spacing 1mm daje 3px)")
+		"długości dokładnie jak w arkuszu, bez zaokrągleń (domyślnie jak w Chromium: obramowanie 0.5pt daje 1px, border-spacing 1mm daje 3px, padding 2.2px daje 2,1875px)")
 	maxShrinkFlag := flag.Float64("max-shrink", 0,
 		"największe pomniejszenie treści szerszej niż strona; 0 oznacza 1.5 jak w Chromium, 1 wyłącza, +Inf bez limitu")
 	monospaceSize := flag.Float64("monospace-size", 0,

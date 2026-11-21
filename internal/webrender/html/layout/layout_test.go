@@ -32,6 +32,22 @@ func renderPages(t *testing.T, htmlContent string, css ...tree.CSS) []*bo.PageBo
 	return Layout(doc, css, false, fonts.FontConfig)
 }
 
+// renderOnePageExact (gopdfgo) układa dokument z ExactLengths (ADR 0013): długości bez zaokrągleń
+// Chromium, jak w źródle, dla testów sprawdzających dokładne wartości z arkusza.
+func renderOnePageExact(t *testing.T, htmlContent string) *bo.PageBox {
+	doc, err := tree.NewHTML(utils.InputString(htmlContent), baseUrl, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.UAStyleSheet = fonts.UAStylesheet(baseUrl)
+	doc.Behavior.ExactLengths = true
+	pages := Layout(doc, nil, false, fonts.FontConfig)
+	if len(pages) != 1 {
+		t.Fatalf("expected one page, got %v", pages)
+	}
+	return pages[0]
+}
+
 // same as renderPages, but expects only on laid out page
 func renderOnePage(t *testing.T, htmlContent string) *bo.PageBox {
 	pages := renderPages(t, htmlContent)

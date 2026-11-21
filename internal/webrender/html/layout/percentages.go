@@ -36,6 +36,31 @@ func resolvePositionPercentages(box *bo.BoxFields, containingBlock bo.Point) {
 	box.Right = resolveOnePercentage(box.Style.GetRight(), pr.PRight, cbWidth)
 	box.Top = resolveOnePercentage(box.Style.GetTop(), pr.PTop, cbHeight)
 	box.Bottom = resolveOnePercentage(box.Style.GetBottom(), pr.PBottom, cbHeight)
+	if snapsLayoutUnits(box.Style) {
+		box.Left, box.Right = pr.MaybeLayoutUnit(box.Left), pr.MaybeLayoutUnit(box.Right)
+		box.Top, box.Bottom = pr.MaybeLayoutUnit(box.Top), pr.MaybeLayoutUnit(box.Bottom)
+	}
+}
+
+// snapsLayoutUnits (gopdfgo): czy długości układu pudełka o tym stylu są obcinane do 1/64 px jak
+// w Chromium (ADR 0013, przełącznik ExactLengths; zob. pr.LayoutUnit).
+func snapsLayoutUnits(style pr.ElementStyle) bool {
+	s, ok := style.(interface{ SnapsLengths() bool })
+	return ok && s.SnapsLengths()
+}
+
+// snapBoxLengths (gopdfgo): Blink zamienia długości pudełka (marginesy, dopełnienia, width, height
+// i ich granice) na LayoutUnit po rozwiązaniu procentów, czyli obcina je do 1/64 px w stronę zera
+// (pomiar Chrome 157, 2026-11-21: padding 2.2px daje 2,1875 px, margin-top 0.33px daje 0,328125 px).
+// Obramowania są już przyciągnięte do całych pikseli (ADR 0009).
+func snapBoxLengths(box *bo.BoxFields) {
+	box.MarginLeft, box.MarginRight = pr.MaybeLayoutUnit(box.MarginLeft), pr.MaybeLayoutUnit(box.MarginRight)
+	box.MarginTop, box.MarginBottom = pr.MaybeLayoutUnit(box.MarginTop), pr.MaybeLayoutUnit(box.MarginBottom)
+	box.PaddingLeft, box.PaddingRight = pr.MaybeLayoutUnit(box.PaddingLeft), pr.MaybeLayoutUnit(box.PaddingRight)
+	box.PaddingTop, box.PaddingBottom = pr.MaybeLayoutUnit(box.PaddingTop), pr.MaybeLayoutUnit(box.PaddingBottom)
+	box.Width, box.Height = pr.MaybeLayoutUnit(box.Width), pr.MaybeLayoutUnit(box.Height)
+	box.MinWidth, box.MaxWidth = pr.MaybeLayoutUnit(box.MinWidth), pr.MaybeLayoutUnit(box.MaxWidth)
+	box.MinHeight, box.MaxHeight = pr.MaybeLayoutUnit(box.MinHeight), pr.MaybeLayoutUnit(box.MaxHeight)
 }
 
 func resolvePercentagesBox(box Box, containingBlock containingBlock) {
@@ -104,6 +129,12 @@ func resolvePercentages(box_ Box, containingBlock bo.MaybePoint) {
 	}
 	if !collapse || box.BorderLeftWidth == 0 {
 		box.BorderLeftWidth = box.Style.GetBorderLeftWidth().Value
+	}
+
+	// gopdfgo: długości jak LayoutUnit w Blink, przed odjęciem box-sizing (Blink obcina długość
+	// z arkusza, a odejmuje już wartości LayoutUnit); obszar strony ma własne zaokrąglenie (ADR 0021)
+	if !bo.PageT.IsInstance(box_) && !bo.MarginT.IsInstance(box_) && snapsLayoutUnits(box.Style) {
+		snapBoxLengths(box)
 	}
 
 	// Shrink *content* widths and heights according to box-sizing

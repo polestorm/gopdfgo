@@ -97,10 +97,15 @@ type Options struct {
 	//   - border-width, outline-width i column-rule-width: wartości między 0 a 1 px rosną do 1 px,
 	//     większe są obcinane w dół (0.5pt daje 0,75 pt, 1pt daje 0,75 pt, 1.5pt daje 1,5 pt; ADR 0009);
 	//   - border-spacing: obcinane w dół do całych pikseli (1mm daje 3 px);
-	//   - obszar strony: szerokość i wysokość w górę do całych pikseli, lewy margines do najbliższego
-	//     piksela (A4 z marginesami 15 mm: 681 px zamiast 680,31; ADR 0021).
+	//   - obszar strony: szerokość i wysokość w górę do całych pikseli, lewy i górny margines do najbliższego
+	//     piksela (A4 z marginesami 15 mm: 681 px zamiast 680,31; ADR 0021, 0013);
 	//   - rozmiar pisma, którym składany jest tekst: obcinany do 0,01 px (9,625 px daje 9,62 px; em
-	//     liczy się dalej od pełnego font-size).
+	//     liczy się dalej od pełnego font-size);
+	//   - długości pudełek (marginesy, dopełnienia, width, height, ich granice, top/left…), wysokość
+	//     wiersza z line-height i udziały nadwyżki w tabeli o układzie stałym: obcinane do 1/64 px jak
+	//     LayoutUnit w Blink (padding 2.2px daje 2,1875 px), a wiersz mieści treść szerszą od niego
+	//     o mniej niż 1/64 px; interlinia nad tekstem w dół do całego piksela (ADR 0013, uzupełnienie
+	//     z 2026-11-21).
 	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
 	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
 	ExactLengths bool

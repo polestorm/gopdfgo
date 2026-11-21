@@ -158,7 +158,8 @@ func TestUnits(t *testing.T) {
 		// {"1.1lh", 13.2},
 		// {"1.1rlh", 17.6},
 	} {
-		page := renderOnePage(t, fmt.Sprintf(`
+		// gopdfgo: dokładne długości (ADR 0013); domyślnie 1.1rem obcina się do 1/64 px, 17,59375
+		page := renderOnePageExact(t, fmt.Sprintf(`
 		<body style="font: 10px weasyprint">
       	<p style="margin-left: %s"></p>`, data.value))
 		html := unpack1(page)

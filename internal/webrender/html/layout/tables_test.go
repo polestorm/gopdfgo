@@ -177,9 +177,11 @@ func TestLayoutTableFixed2(t *testing.T) {
 	tu.AssertEqual(t, tableWrapper.Box().PositionX, Fl(0))
 	tu.AssertEqual(t, table.Box().PositionX, Fl(5)) // 0 + margin-left
 	tu.AssertEqual(t, td1.Box().PositionX, Fl(15))  // 5 + border-spacing
-	tu.AssertEqual(t, td1.Box().Width, Fl(75))      // 20 + ((200 - 20 - 40 - 3 * border-spacing) / 2)
-	tu.AssertEqual(t, td2.Box().PositionX, Fl(100)) // 15 + 75 + border-spacing
-	tu.AssertEqual(t, td2.Box().Width, Fl(95))      // 40 + ((200 - 20 - 40 - 3 * border-spacing) / 2)
+	// gopdfgo: nadwyżka 110 px rozdzielona proporcjonalnie do szerokości kolumn (CSS Tables 3 § 3.9.4,
+	// jak Chrome), a nie po równo jak w źródle (75 i 95); szerokości obcięte do 1/64 px (ADR 0013)
+	tu.AssertEqual(t, td1.Box().Width, Fl(56.65625))     // 20 + 110 * 20 / 60
+	tu.AssertEqual(t, td2.Box().PositionX, Fl(81.65625)) // 15 + 56.65625 + border-spacing
+	tu.AssertEqual(t, td2.Box().Width, Fl(113.34375))    // 40 + reszta nadwyżki
 	tu.AssertEqual(t, table.Box().Width, Fl(200))
 }
 

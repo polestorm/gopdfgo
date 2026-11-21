@@ -189,6 +189,8 @@ type StrutLayoutKey struct {
 	fontStretch          FontStretch
 	fontStyle            FontStyle
 	contentArea          bool          // gopdfgo: wysokość obszaru treści, bez odstępu międzywierszowego
+	layoutUnits          bool          // gopdfgo: line-height obcinany do 1/64 px (ADR 0013)
+	computedSize         pr.Float      // gopdfgo: pełny font-size, od którego liczy się line-height
 	sizeAdjust           pr.SBoolFloat // gopdfgo: font-size-adjust
 }
 
@@ -252,6 +254,10 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 		contentArea:          contentArea,
 		sizeAdjust:           style.SizeAdjust,
 	}
+	if s, ok := style_.(interface{ SnapsLengths() bool }); ok && s.SnapsLengths() {
+		key.layoutUnits = true
+		key.computedSize = style_.GetFontSize().Value
+	}
 
 	cache := context.StrutLayoutsCache()
 	if v, ok := cache[key]; ok {
@@ -274,10 +280,19 @@ func strutLayout(style_ pr.StyleAccessor, context TextLayoutContext, lineHeightV
 		}
 	} else {
 		lineHeight = lineHeightV.Value
-		if lineHeightV.Unit == pr.Scalar {
+		if key.layoutUnits {
+			// gopdfgo: Blink liczy wysokość wiersza w LayoutUnit (1/64 px, obcięcie w stronę zera),
+			// line-height podany liczbą od pełnego font-size, także obciętego do 1/64 px, a nie od
+			// rozmiaru do składu tekstu obciętego do 0,01 px (pomiar Chrome 157, 2026-11-21:
+			// 1.3 przy 8.9375px daje 11,609375 px; ADR 0013)
+			if lineHeightV.Unit == pr.Scalar {
+				lineHeight *= pr.LayoutUnit(key.computedSize)
+			}
+			lineHeight = pr.LayoutUnit(lineHeight)
+		} else if lineHeightV.Unit == pr.Scalar {
 			lineHeight *= pr.Float(fontSize)
 		}
-		top, _ := SplitLeading(lineHeight-height, false)
+		top, _ := SplitLeading(lineHeight-height, key.layoutUnits)
 		baseline = baseline + top
 	}
 

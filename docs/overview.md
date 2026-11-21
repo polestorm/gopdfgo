@@ -166,13 +166,17 @@ gopdfgo's file size comes from:
 
 ## Output compared with Chromium
 
-- KSeF invoices: same pages; every word lies within 1.1 pt of its position in Chromium. Measured with
-  `pdftotext -bbox`, words matched by sequence alignment.
-- e-SF statements: same pages and column layout.
-  - In statement E every word is within 2.8 pt of Chromium.
-  - In A–D, 14–25% of words are more than 3 pt away, and 0–72 words land on a different page.
-  - The causes are not fully investigated. One is known: in A and C the „Nota podatkowa” table is scaled
-    down in Chrome by the document's script, and gopdfgo does not run scripts.
+Real documents, measured 2026-11-21 with `pdftotext -bbox`, words matched by sequence alignment; both
+engines get the same Noto fonts through `@font-face`; Chrome 157.
+
+- KSeF invoices (4): same pages; every word lies within 0.81 pt of its position in Chromium, median 0.14–0.23 pt.
+- e-SF statements from xml.pro (5, variant without scripts): same pages and page breaks; every word lies
+  within 0.43 pt of Chromium (3 words in one statement are matched to a neighbouring row because Chrome
+  writes that row in a different order). Before 2026-11-21 two of them had 1342–1491 words more than 3 pt
+  away: Chromium computes layout in 1/64 px units (LayoutUnit), and gopdfgo now does the same by default
+  (ADR 0013).
+- The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
+  draws; gopdfgo keeps the exact baseline.
 - W3C screen reftests across 11 CSS areas: 9502 of 10962 pass.
 - W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).
 - Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
@@ -180,7 +184,7 @@ gopdfgo's file size comes from:
   images without alternative text; fixed in the source on 2026-11-21 without changing their pages).
 
 Where the specifications leave a choice, gopdfgo follows Chromium; each such case is recorded in
-`docs/adr/`. `Options.ExactLengths` turns off the pixel rounding that imitates Chromium (ADR 0013).
+`docs/adr/`. `Options.ExactLengths` turns off the pixel and 1/64 px rounding that imitates Chromium (ADR 0013).
 
 ## Not supported in this version
 

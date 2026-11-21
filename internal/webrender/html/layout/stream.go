@@ -159,13 +159,13 @@ func (f *pageFinisher) marginBoxes(i int, page *bo.PageBox) []Box {
 		// według marginesów dokładnie takich, jak w arkuszu, a potem strona wraca do zaokrąglonych (dalsze
 		// kroki, m.in. rysowanie i powtórny układ, czytają geometrię, na której ułożono treść). W trybie
 		// ciągłym (ADR 0017) wysokość strony urosła już do wysokości treści i zostaje.
-		rounded := [5]pr.Float{page.Width.V(), page.Height.V(), page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V()}
-		page.Width, page.MarginLeft, page.MarginRight = g[0], g[2], g[3]
+		rounded := [6]pr.Float{page.Width.V(), page.Height.V(), page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V(), page.MarginTop.V()}
+		page.Width, page.MarginLeft, page.MarginRight, page.MarginTop = g[0], g[2], g[3], g[5]
 		if !context.behavior.Continuous {
 			page.Height, page.MarginBottom = g[1], g[4]
 		}
 		boxes := makeMarginBoxes(context, page, state)
-		page.Width, page.Height, page.MarginLeft, page.MarginRight, page.MarginBottom = rounded[0], rounded[1], rounded[2], rounded[3], rounded[4]
+		page.Width, page.Height, page.MarginLeft, page.MarginRight, page.MarginBottom, page.MarginTop = rounded[0], rounded[1], rounded[2], rounded[3], rounded[4], rounded[5]
 		return boxes
 	}
 	return makeMarginBoxes(context, page, state)

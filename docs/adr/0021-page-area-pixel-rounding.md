@@ -9,7 +9,8 @@ szerokość obszaru 680,31 px. Chrome 157 zaokrągla ten obszar do całych pikse
 na własnych plikach:
 
 - szerokość i wysokość obszaru treści rosną do najbliższej całości w górę (680,31 px daje 681 px);
-- lewa krawędź obszaru jest zaokrąglana do najbliższego piksela, górna zostaje bez zmian.
+- lewa krawędź obszaru jest zaokrąglana do najbliższego piksela, górna zostaje bez zmian (poprawione
+  2026-11-21: górna też jest zaokrąglana do najbliższego piksela, zob. ADR 0013, uzupełnienie).
 
 Różnica jest ułamkowa, ale przesuwa łamanie wierszy, gdy słowo mieści się na granicy szerokości. Na tym
 opierało się wiele różnic w korpusie: `19-flex-grid-pagination` miał 72 słowa przesunięte wobec Chromium.

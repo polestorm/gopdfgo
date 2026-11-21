@@ -799,9 +799,9 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		const eps = 1e-3 // 680,0000001 to wciąż 680
 		w, h := page.Width.V(), page.Height.V()
 		if context.exactPageGeometry == nil {
-			context.exactPageGeometry = map[int][5]pr.Float{}
+			context.exactPageGeometry = map[int][6]pr.Float{}
 		}
-		context.exactPageGeometry[pageNumber] = [5]pr.Float{w, h, page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V()}
+		context.exactPageGeometry[pageNumber] = [6]pr.Float{w, h, page.MarginLeft.V(), page.MarginRight.V(), page.MarginBottom.V(), page.MarginTop.V()}
 		cw, ch := pr.Float(math.Ceil(float64(w-eps))), pr.Float(math.Ceil(float64(h-eps)))
 		if cw > w {
 			page.Width = cw
@@ -815,6 +815,13 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		if rl := pr.Float(math.Round(float64(ml))); rl != ml {
 			page.MarginLeft = rl
 			page.MarginRight = page.MarginRight.V() + (ml - rl)
+		}
+		// gopdfgo: górna krawędź też do najbliższego piksela (pomiar Chrome 157, 2026-11-21: początek
+		// układu treści na stronie z margin-top 60.25px wypada na 60 px, z 60.5px i 16mm na 61 i 60 px)
+		mt := page.MarginTop.V()
+		if rt := pr.Float(math.Round(float64(mt))); rt != mt {
+			page.MarginTop = rt
+			page.MarginBottom = page.MarginBottom.V() + (mt - rt)
 		}
 	}
 	if scale := context.contentScale; scale > 1 {

@@ -2190,6 +2190,15 @@ restartCollapsed:
 					// linii jest układana dalej
 					pushItem(linePushed, i, child.PositionY+child.MarginTop.V())
 				} else if newChild == nil {
+					if len(box.Children) == flexItemsBefore && !pageIsEmpty && skip == 0 {
+						// gopdfgo: pierwszy element nie zmieścił się na stronie, a z kontenera nic jeszcze
+						// nie stoi: kontener przechodzi cały, jak w gałęziach niżej. Wcześniej na starej
+						// stronie zostawało samo jego górne dopełnienie i tło (nagłówek sekcji e-SF;
+						// Chrome 157, pomiar 2026-11-21, przenosi cały kontener)
+						removePlaceholders(context, box.Children, absoluteBoxes, fixedBoxes)
+						context.finishFlexFormattingContext(box_)
+						return nil, blockLayout{nextPage: tree.PageBreak{Break: "any"}}
+					}
 					resumeIndex := 0
 					if resumeAt != nil {
 						resumeIndex, _ = resumeAt.Unpack()

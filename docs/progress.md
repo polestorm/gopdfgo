@@ -211,38 +211,44 @@ Ważność to moja ocena z punktu widzenia celu projektu (wydruki typowych dokum
 
 ## Odchylenie od wydruków Chromium
 
-Cały korpus, 2026-11-16 po drugiej paczce kolumn; słowa dopasowane przez wyrównanie ciągów. Szczegóły
+Cały korpus, 2026-11-21 po obcięciu długości układu do 1/64 px (LayoutUnit Blink, ADR 0013, uzupełnienie);
+słowa dopasowane przez wyrównanie ciągów (`driftalign.py`), wzorce `testdata/documents/reference/chromium`.
+Mediana w pionie przed → po zmianie; pozostałe kolumny po zmianie (przed były takie same). Szczegóły
 i przyczyny pozostałych różnic są w `docs/feature-audit.md` (sekcja „Runda na dokumentach”).
 
 | Dokument | Słowa wspólne | Mediana w pionie (pt) | Ponad 3 pt w pionie | Ponad 3 pt w poziomie | Na innej stronie |
 |---|---|---|---|---|---|
-| `01-record-copy` | 812 | 0,56 | 1 | 2 | 0 |
-| `02-register-table` | 2844 | 0,34 | 0 | 0 | 0 |
-| `03-report-svg-chart` | 140 | 0,58 | 0 | 2 | 0 |
-| `04-qms-procedure` | 2605 | 0,81 | 20 | 0 | 36 |
-| `05-hyphenation` | 99 | 0,18 | 0 | 2 | 0 |
-| `06-margin-boxes` | 73 | 0,27 | 0 | 0 | 37 |
-| `07-images` | 109 | 0,31 | 0 | 0 | 0 |
-| `08-flex` | 189 | 0,24 | 0 | 0 | 0 |
-| `09-lists-counters` | 170 | 0,21 | 0 | 0 | 0 |
-| `10-preformatted` | 142 | 0,12 | 0 | 0 | 0 |
-| `11-edge-cases` | 128 | 0,13 | 9 | 0 | 6 |
-| `12-floats-positioning` | 230 | 0,22 | 0 | 1 | 0 |
-| `13-forms-html-elements` | 131 | 2,72 | 52 | 1 | 0 |
-| `14-cascade-selectors` | 179 | 0,57 | 0 | 0 | 0 |
-| `15-page-breaks` | 413 | 0,22 | 0 | 0 | 0 |
-| `16-typography-fonts` | 217 | 0,50 | 0 | 0 | 0 |
-| `17-tables` | 175 | 0,33 | 0 | 0 | 0 |
-| `18-toc-running-elements` | 910 | 0,32 | 25 | 0 | 0 |
-| `19-flex-grid-pagination` | 2321 | 0,21 | 25 | 54 | 0 |
-| `20-invoice` | 826 | 0,68 | 0 | 0 | 0 |
-| `21-mixed-report` | 846 | 0,22 | 4 | 26 | 0 |
-| `22-multicol-pagination` | 2345 | 0,20 | 0 | 0 | 0 |
+| `01-record-copy` | 811 | 0,56 → 0,18 | 0 | 0 | 0 |
+| `02-register-table` | 2844 | 0,28 → 0,16 | 0 | 0 | 0 |
+| `03-report-svg-chart` | 141 | 0,11 → 0,22 | 0 | 0 | 0 |
+| `04-qms-procedure` | 2605 | 0,73 → 0,19 | 20 | 0 | 36 |
+| `05-hyphenation` | 101 | 0,16 → 0,15 | 0 | 2 | 0 |
+| `06-margin-boxes` | 73 | 0,27 → 0,23 | 0 | 0 | 37 |
+| `07-images` | 109 | 0,20 → 0,18 | 0 | 0 | 0 |
+| `08-flex` | 189 | 0,17 → 0,22 | 0 | 0 | 0 |
+| `09-lists-counters` | 170 | 0,15 → 0,21 | 0 | 0 | 0 |
+| `10-preformatted` | 142 | 0,14 → 0,11 | 0 | 0 | 0 |
+| `11-edge-cases` | 132 | 0,11 → 0,11 | 0 | 0 | 0 |
+| `12-floats-positioning` | 230 | 0,23 → 0,22 | 0 | 0 | 0 |
+| `13-forms-html-elements` | 132 | 0,84 → 0,38 | 2 | 1 | 0 |
+| `14-cascade-selectors` | 179 | 0,51 → 0,22 | 0 | 0 | 0 |
+| `15-page-breaks` | 413 | 0,22 → 0,18 | 0 | 0 | 0 |
+| `16-typography-fonts` | 223 | 0,22 → 0,20 | 2 | 0 | 0 |
+| `17-tables` | 175 | 0,26 → 0,22 | 0 | 0 | 0 |
+| `18-toc-running-elements` | 910 | 0,27 → 0,19 | 25 | 0 | 0 |
+| `19-flex-grid-pagination` | 2321 | 0,19 → 0,19 | 18 | 0 | 0 |
+| `20-invoice` | 826 | 0,67 → 0,19 | 0 | 0 | 0 |
+| `21-mixed-report` | 846 | 0,19 → 0,19 | 0 | 0 | 0 |
+| `22-multicol-pagination` | 2345 | 0,18 → 0,18 | 0 | 0 | 0 |
 
-W 16 z 22 dokumentów żadne słowo nie odbiega o więcej niż 3 pt w pionie. Kolumny w `21-mixed-report`
-zgadzają się od 16.11 (było 193 słów ponad 3 pt: kontener kolumn był o 3 pt za wysoki i akapit po nim
-spadał na następną stronę). Dla porównania, rano 16.11: `02-register-table` 5,57 pt (2015 słów ponad
-3 pt), `07-images` 43,3 pt, `10-preformatted` 17,2 pt, `13-forms-html-elements` 21,5 pt.
+Liczba stron bez zmian. Chrome przyciąga linię bazową tekstu do całych pikseli dopiero przy rysowaniu; tego
+nie naśladujemy, więc mediana ok. 0,2 pt (do pół piksela) jest dolną granicą tej miary. Trzy dokumenty,
+których mediana wzrosła (0,11–0,17 → 0,21–0,22), miały ją niższą przypadkiem: dotąd tekst stał w połowie
+piksela między położeniem w Chrome a jego przyciągnięciem; p90 spadło we wszystkich trzech.
+
+Prawdziwe dokumenty spoza korpusu (`bench/realdocs`: 4 faktury KSeF, 5 sprawozdań e-SF, wydruk Chrome 157):
+mediana 0,33–0,65 → 0,14–0,23 pt, słowa ponad 3 pt w e-SF 2 i e-SF 4 z 1491 i 1342 do 3 i 0, w e-SF 2 już
+żadne słowo nie trafia na inną stronę (było 39); tabela w ADR 0013.
 
 ## Sposób pracy od 2026-11-16
 

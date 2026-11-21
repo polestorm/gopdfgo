@@ -919,6 +919,38 @@ Wspólne dla obu katalogów:
     próg „mniej niż pół znaku do pozycji tabulacji” liczony z jednostki `ch` (było: 1/16 odstępu);
     `tab-size` może być ułamkowy (`css/validation` `tabSize`, `text/style.go` `TabSize.Width`; źródło
     przyjmowało tylko liczby całkowite i obcinało długości do całych pikseli);
+- długości układu jak LayoutUnit w Blink, 2026-11-21 (ADR 0013, uzupełnienie; test `tests/layoutunit21_test.go`).
+  Przy wyłączonym `Behavior.ExactLengths` (domyślnie):
+  - nowy plik `css/properties/layout_unit.go` (`LayoutUnit`, `MaybeLayoutUnit`): obcięcie do 1/64 px w stronę zera;
+  - `html/layout/percentages.go` (`snapsLayoutUnits`, `snapBoxLengths`, `resolvePercentages`,
+    `resolvePositionPercentages`): marginesy, dopełnienia, `width`, `height`, `min-*`, `max-*` oraz `top`,
+    `right`, `bottom`, `left` obcinane do 1/64 px po rozwiązaniu procentów, przed odjęciem `box-sizing`; pudełka
+    strony i pól marginesów bez zmian (źródło: wartości dokładne);
+  - `text/text.go` `strutLayout`: wysokość wiersza z podanego `line-height` obcinana do 1/64 px, a liczba mnoży
+    pełny font-size obcięty do 1/64 px (dotąd rozmiar do składu obcięty do 0,01 px); klucz pamięci rozpórek ma
+    pola `layoutUnits` i `computedSize`; interlinia nad tekstem przy podanym `line-height` zaokrąglana w dół do
+    całego piksela (`SplitLeading(…, true)`; też `html/layout/inline.go` w dwóch miejscach); źródło dzieliło
+    interlinię dokładnie po połowie;
+  - `html/layout/inline.go` `getNextLinebox`: prawa granica wiersza (`maxX`) dalej o 1/64 px bez 1e-4, jak
+    `AvailableWidthToFit` w Blink: 12 znaków po 19,2 px mieści się w `width: 12ch`, obciętym do 230,390625 px
+    (test własny `TestWhiteSpaceRounding`), a tekst z blokiem liniowym o łącznej szerokości 180 px
+    w `width: 179.99px` (pomiar Chrome 157);
+  - `html/layout/pages.go` `makePage`: górna krawędź obszaru strony do najbliższego piksela (jak lewa, ADR 0021),
+    dolny margines rośnie o tyle, o ile zmalał górny; `exactPageGeometry` (`layout.go`, `stream.go`) ma szóste
+    pole z dokładnym górnym marginesem dla pól marginesów;
+  - `html/layout/tables.go` `fixedTableLayout`: udziały nadwyżki szerokości obcinane do 1/64 px, reszta
+    w ostatniej kolumnie.
+
+  Niezależnie od przełącznika:
+  - `html/layout/tables.go` `fixedTableLayout`: nadwyżka szerokości tabeli o układzie stałym rozdzielana
+    proporcjonalnie do szerokości kolumn (CSS Tables 3 § 3.9.4, jak Chrome 157), po równo tylko przy sumie
+    szerokości zero; źródło dzieliło po równo. Przejęty `TestLayoutTableFixed2` oczekuje 56,65625 i 113,34375 px
+    zamiast 75 i 95 px;
+  - `html/layout/flex.go` `flexLayout`: gdy pierwszy element kontenera nie zmieścił się na stronie (`newChild == nil`),
+    a z kontenera nic jeszcze nie stoi, kontener przechodzi cały na następną stronę, jak w pozostałych gałęziach;
+    wcześniej na starej stronie zostawało jego górne dopełnienie z tłem (nagłówki sekcji e-SF);
+  - przejęty `TestUnits` (`layout_css_test.go`) układa z `ExactLengths` (nowa funkcja testowa
+    `renderOnePageExact` w `layout_test.go`), bo sprawdza dokładne `1.1rem` = 17,6 px;
 - obraz SVG powtórzony w dokumencie zapisany raz, 2026-11-21 (praca pomocnika; ADR 0028;
   `backend/graphics.go` `SharedDrawer`, `goweasyprint/pdf/filters.go` `DrawShared`, `goweasyprint/pdf/pdf.go`
   `cache.forms`, `images/images.go` `SVGImage.Draw`):

@@ -1685,9 +1685,29 @@ func fixedTableLayout(box *bo.BoxFields) {
 		// substract a negative: widen the table
 		table.Width = table.Width.V() - extraWidth
 	} else if numColumns != 0 {
-		extraPerColumn := extraWidth / pr.Float(numColumns)
-		for i, w := range outCW {
-			outCW[i] = w + extraPerColumn
+		// gopdfgo: nadwyżkę dostają kolumny proporcjonalnie do szerokości (CSS Tables 3 § 3.9.4
+		// „Distributing excess width to columns”: w układzie stałym wszystkie kolumny mają szerokość,
+		// więc rozdział proporcjonalny do niej; jak Chrome 157, pomiar 2026-11-21 na tabeli e-SF
+		// z kolumnami 5em, 15em i 13ch). Źródło dzieliło po równo, co zostaje, gdy szerokości są zerowe.
+		snap := snapsLayoutUnits(table.Style)
+		if sumColumnWidths > 0 {
+			var given pr.Float
+			for i, w := range outCW {
+				share := extraWidth * w / sumColumnWidths
+				if snap {
+					share = pr.LayoutUnit(share)
+				}
+				if i == len(outCW)-1 {
+					share = extraWidth - given // reszta z obcięcia do ostatniej kolumny
+				}
+				given += share
+				outCW[i] = w + share
+			}
+		} else {
+			extraPerColumn := extraWidth / pr.Float(numColumns)
+			for i, w := range outCW {
+				outCW[i] = w + extraPerColumn
+			}
 		}
 	}
 

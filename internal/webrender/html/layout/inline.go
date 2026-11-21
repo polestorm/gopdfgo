@@ -455,6 +455,13 @@ func getNextLinebox(context *layoutContext, linebox *bo.LineBox, positionY, bott
 
 		// gopdfgo: shrink zwęża wiersz przy text-wrap-style: balance (lineBoxeIterator.balance)
 		maxX := positionX + availableWidth - shrink
+		if snapsLayoutUnits(linebox.Style) && maxX < pr.Inf {
+			// gopdfgo: Blink łamie wiersze względem dostępnej szerokości powiększonej o jedną jednostkę
+			// LayoutUnit (1/64 px, AvailableWidthToFit), więc treść szersza od wiersza o mniej niż 1/64 px
+			// mieści się (pomiar Chrome 157, 2026-11-21: 12 znaków Noto Sans Mono 32px, razem 230,39996 px,
+			// w width: 230.4px, czyli 230,390625 px; w 230.39px już nie; tak samo blok liniowy; ADR 0013)
+			maxX += 1./64 - 1e-4
+		}
 		positionX += linebox.TextIndent.V()
 
 		var (
@@ -2005,7 +2012,7 @@ func splitInlineBox(context *layoutContext, box_ Box, positionX, maxX, bottomSpa
 	lineHeight, baseline := text.StrutLayout(box.Style, context)
 	newBox.Baseline = baseline
 	newBox.Height = text.ContentAreaHeight(box.Style, context)
-	leadingTop, leadingBottom := text.SplitLeading(lineHeight-newBox.Height.V(), box.Style.GetLineHeight().Tag == pr.Normal)
+	leadingTop, leadingBottom := text.SplitLeading(lineHeight-newBox.Height.V(), box.Style.GetLineHeight().Tag == pr.Normal || snapsLayoutUnits(box.Style))
 	// Set margins to the half leading but also compensate for borders and
 	// paddings. We want marginHeight() == lineHeight
 	newBox.MarginTop = leadingTop - newBox.BorderTopWidth.V() - newBox.PaddingTop.V()
@@ -2312,7 +2319,7 @@ func splitTextBoxAt(context *layoutContext, box *bo.TextBox, availableWidth pr.M
 		//  of the line box."
 		// Set margins so that marginHeight() == lineHeight
 		lineHeight, strutBaseline := text.StrutLayout(box.Style, context)
-		leadingTop, leadingBottom := text.SplitLeading(lineHeight-height, box.Style.GetLineHeight().Tag == pr.Normal)
+		leadingTop, leadingBottom := text.SplitLeading(lineHeight-height, box.Style.GetLineHeight().Tag == pr.Normal || snapsLayoutUnits(box.Style))
 		if box.Style.GetLineHeight().Tag != pr.Normal {
 			// gopdfgo: przy podanym line-height pudełko układa się według metryk pierwszego dostępnego
 			// fontu, także gdy część glifów pochodzi z fontu zastępczego (CSS Inline 3 § 4.2). Linia
