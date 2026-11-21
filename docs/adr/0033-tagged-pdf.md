@@ -1,7 +1,8 @@
 # ADR 0033: PDF z tagami (PDF/UA-1, PDF/A-2a, PDF/A-3a)
 
-Status: przyjęta 2026-11-21 (decyzje w sekcji „Rozstrzygnięcia”); wdrażana rundami, runda 1 zrobiona
-2026-11-21 (sekcja „Stan rundy 1”).
+Status: przyjęta 2026-11-21 (decyzje w sekcji „Rozstrzygnięcia”); wdrażana rundami, rundy 1 i 2 zrobione
+2026-11-21 (sekcje „Stan rundy 1” i „Stan rundy 2”; PDF/UA-1 włącza `Options.Accessibility`, nie
+`Conformance`, zob. runda 2).
 
 ## Kontekst
 
@@ -138,3 +139,85 @@ Przesunięte na rundę 2: `Lbl`/`LBody` (znacznik `::marker` stoi dziś w `LI` z
 `ColSpan`, `Headers` w tabelach, `/Contents` i `Alt` odnośników, `pdfuaid:part 1` i „ua1”, `figure` z `Alt`
 z `figcaption` albo jako grupa, treść generowana jako artefakt, struktura wewnątrz SVG, `RoleMap`
 (dziś nie jest potrzebna: wszystkie typy są standardowe).
+
+## Stan rundy 2 (2026-11-21): PDF/UA-1
+
+Decyzje:
+- **PDF/UA-1 to osobne pole `Options.Accessibility` (`PDFUA1`, w CLI `-pdfua 1`), nie wartość
+  `Conformance`.** PDF/UA (ISO 14289-1) i PDF/A (ISO 19005) to niezależne normy, a jeden plik może
+  deklarować obie (typowo PDF/A-2a i PDF/UA-1); jedna wartość `Conformance` wymagałaby iloczynu wariantów
+  („2a+ua1”, „3a+ua1”, „2b+ua1”…). Pole jest typem tekstowym, nie flagą, żeby zmieściło przyszłe PDF/UA-2
+  (ISO 14289-2, PDF 2.0). `PDFUA1` włącza tagi; bez PDF/A plik dostaje metadane XMP z `pdfuaid:part 1`
+  i tytułem (bez `pdfaid`, profilu wyjściowego i identyfikatora pliku), z PDF/A także opis schematu
+  `pdfuaid` w schemacie rozszerzeń `pdfaExtension` (ISO 19005-2 § 6.6.2.3: własności spoza schematów
+  predefiniowanych muszą mieć opis). Połączenie z PDF/A-2b jest dozwolone (plik z tagami deklaruje
+  poziom B), nie podnosimy go samoczynnie do 2a.
+- **Listy:** `LI` zawiera tylko `Lbl` i `LBody` (ISO 14289-1 § 7.6; ISO 32000-1 § 14.8.4.3.3). Tekst
+  znacznika `::marker` (także `before::marker`, `after::marker`) elementu `li` należy do `Lbl`, reszta
+  treści elementu do `LBody` (znacznik BDC `/LBody`). Element listy bez znacznika ma samo `LBody`.
+  Obraz znacznika (`list-style-image`) zostaje artefaktem jak w rundzie 1. `L` dostaje atrybut
+  `ListNumbering` z `list-style-type` znaczników (Disc, Circle, Square, Decimal, Upper/LowerRoman,
+  Upper/LowerAlpha; inne typy i znaczniki z `content` to wartość domyślna None, niezapisywana). Licznik
+  wypisany przez `li::before` przy `list-style: none` zostaje w `LBody` (treść generowana, niżej): to
+  wybór autora, nie znacznik listy według CSS Lists 3.
+- **Tabele:** siatka według modelu tabel HTML (HTML § 4.9.12.1): `colspan` 1–1000, `rowspan` 0–65534
+  (0 i nadmiar przycięte do końca grupy wierszy, jak przy rysowaniu). `TH` dostaje `Scope`: z atrybutu
+  `scope` (row/rowgroup → Row, col/colgroup → Column), a w stanie auto według definicji „column header”
+  i „row header” z HTML: Column, gdy w wierszach komórki nie ma komórek danych, Row, gdy nie ma ich
+  w jej kolumnach, inaczej Both. `RowSpan` i `ColSpan` > 1 jako atrybuty `/O /Table`. Komórki, wiersze
+  z komórkami i sekcje zostają w strukturze także bez treści (np. pusta komórka), gdy zostaje ich tabela,
+  bo inaczej wiersze miałyby w strukturze różną liczbę kolumn (ISO 14289-1 § 7.5; veraPDF 7.2-42/43).
+  Wiersz bez komórek (`<tr></tr>`) nie ma odpowiednika. Przy sekcjach wiersze leżące wprost w `table`
+  trafiają do `TBody` (tbody niejawne, HTML § 4.9.5), a tabela z `THead` bez `TBody` dostaje pusty
+  `TBody` (ISO 32000-1 tabela 337). `Headers`/`ID` nie są potrzebne, gdy wszystkie `TH` mają `Scope`.
+- **`figure`:** element HTML `figure` to `Div`, nie `Figure`. HTML `figure` grupuje treść dowolnego rodzaju
+  (obraz, tabela, kod, cytat) z podpisem (HTML § 4.4.12), a `Figure` w PDF to treść graficzna, którą
+  technologie wspomagające zastępują tekstem `Alt` (ISO 32000-1 § 14.8.4.5; ISO 14289-1 § 7.3 wymaga
+  `Alt`), więc `Figure` z podpisem w środku ukryłby `Caption`, a z tabelą w środku — tabelę. `figcaption`
+  to `Caption` w tym `Div`, obraz to osobny `Figure`. Obraz bez `alt`, który jest jedyną treścią osadzoną
+  `figure` z `figcaption`, dostaje `Alt` z tekstu podpisu: HTML pozwala wtedy pominąć `alt`, bo opis niesie
+  podpis (HTML § 4.8.4.4.11), a HTML-AAM wylicza nazwę `figure` z `figcaption`. Czytnik przeczyta wtedy
+  podpis dwa razy (jako `Alt` i jako `Caption`); wolimy to niż `Figure` bez `Alt`. Przy kilku obrazach
+  podpis opisuje grupę, więc obrazy bez `alt` dają ostrzeżenia.
+- **Odnośniki:** adnotacja dostaje `/Contents` (ISO 14289-1 § 7.18.1 i § 7.18.5): `aria-label`, tekst
+  elementu z tekstem alternatywnym obrazów w środku (przybliżenie W3C Accessible Name Computation 1.2,
+  krok 2F; tekst z DOM, bez treści generowanej), `title`, a bez nich adres celu. Odnośnik wewnątrz SVG
+  dostaje adres celu (tekst elementu `<a>` w SVG na rundę 3). Bez tagów adnotacje się nie zmieniają.
+- **Nagłówki:** struktury nie przerabiamy. ISO 14289-1 § 7.4.2 dotyczy dokumentów bez silnej struktury
+  z nagłówkami numerowanymi: pierwszy ma być `H1`, a w głąb poziomy nie mogą być pomijane. Generyczne
+  `H` jest przewidziane dla dokumentów silnie strukturyzowanych (§ 7.4.4: `H` w zagnieżdżonych `Sect`,
+  bez mieszania z `Hn`), których nie tworzymy: `section` bez nagłówków i nagłówki poza `section` są
+  w HTML codziennością, a `H` zgubiłby poziom nadany przez autora (czytnik powie „nagłówek” bez poziomu).
+  Przenumerowanie (`h3` → `H2`) wymyślałoby znaczenie, którego dokument nie ma. Zamiast tego
+  ostrzeżenie: „the first heading is <hN> …, not <h1>” albo „heading level skipped: <hN> after <hM>”.
+- **Treść generowana `::before`/`::after`:** treść elementu, nie artefakt. CSS Content 3 („Accessibility
+  of generated content”) i HTML-AAM włączają ją do drzewa dostępności, przeglądarki ją czytają, a Chrome
+  zapisuje ją w PDF z tagami jako treść. Tagged PDF Best Practice Guide (PDF Association) każe oznaczać
+  jako artefakt tylko to, co nie niesie znaczenia (ozdoby, paginację); tekst „Uwaga:”, numer rozdziału
+  z `counter()` czy cudzysłowy z `quotes` niosą. Obraz z treści generowanej zostaje artefaktem (runda 1),
+  bo nie ma skąd wziąć tekstu alternatywnego (składnia `content: url(…) / "alt"` na rundę 3).
+- **Ostrzeżenia** (w każdym trybie z tagami, bo to braki dostępności, nie tylko PDF/UA): obraz bez tekstu
+  alternatywnego i dokument bez tytułu (runda 1), dokument bez języka (`lang` na `<html>`, ISO 14289-1
+  § 7.2), pierwszy nagłówek inny niż `h1` i pominięty poziom (§ 7.4.2), wiersze tabeli o różnej liczbie
+  kolumn (§ 7.5). Liczą się tylko elementy z treścią na stronach.
+
+Pomiar 2026-11-21, veraPDF 1.30.0 na 22 dokumentach `testdata/documents` z `-pdfa 2a -pdfua 1`:
+- profil PDF/A-2a: 22 z 22 (także z samym `-pdfa 2a`);
+- profil PDF/UA-1: 17 z 22 (przed rundą 2: 0 z 22; z samym `-pdfua 1`, bez PDF/A, ten sam wynik).
+  Niezaliczone z winy dokumentu źródłowego, każdy z ostrzeżeniem gopdfgo:
+  - 7.4.2-1 (pierwszy nagłówek po `h1` to `h3`): `09-lists-counters`, `11-edge-cases`,
+    `12-floats-positioning`, `20-invoice` — nagłówki sekcji są `h3` pod `h1` dokumentu;
+  - 7.3-1 (`Figure` bez `Alt`): `21-mixed-report` — dwa opływane obrazy `<svg>` bez `<title>`,
+    `aria-label` ani `title`.
+
+Dokumentów korpusu nie zmieniamy: to dokumenty testowe układu (ich `expect.json` i porównania bajtowe
+opisują obecną treść), a poprawka (`h3` → `h2` z tą samą regułą CSS, `<title>` w SVG) nie zmieniłaby
+wyglądu, ale zmieniłaby bajty wyniku i miarę z innych pomiarów. Do decyzji użytkownika; wtedy PDF/UA-1
+dałby 22 z 22.
+
+Bez opcji wynik bajt w bajt ten sam (porównanie korpusu W3C: 0 różnic); obie drogi rysowania z tagami
+dają te same bajty (`TestTaggedCorpus`); testy w `tests/pdfua18_test.go` (struktura list i tabel,
+atrybuty, `figure`, `/Contents`, ostrzeżenia, XMP, veraPDF na korpusie).
+
+Na rundę 3: tekst `<a>` w SVG jako `/Contents`, struktura wewnątrz SVG, `Note`/`Reference`, `content: … /
+"alt"`, `Headers`/`ID` dla tabel nieregularnych, PDF/UA-2.

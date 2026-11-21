@@ -18,7 +18,7 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	if textbox.Style.GetVisibility() != "visible" {
 		return
 	}
-	ctx.markElement(textbox.Element) // gopdfgo: tekst i jego dekoracje należą do elementu (ADR 0033)
+	ctx.markText(textbox) // gopdfgo: tekst i jego dekoracje należą do elementu (ADR 0033)
 
 	// Draw text decoration
 
@@ -83,7 +83,7 @@ func (ctx drawContext) drawText(textbox *bo.TextBox, offsetX fl, textOverflow st
 	fill := textbox.Style.GetWebkitTextFillColor()
 	fillColor := fill.ResolveCurrentColor(textbox.Style.GetColor()).RGBA // gopdfgo: zob. ResolveCurrentColor
 	if len(shadows) != 0 {
-		ctx.markElement(textbox.Element)
+		ctx.markText(textbox)
 	}
 	ctx.dst.State().SetColorRgba(fillColor, false)
 	ctx.drawFirstLine(textbox, textOverflow, blockEllipsis, x, y, fillColor)

@@ -176,7 +176,8 @@ gopdfgo's file size comes from:
 - W3C screen reftests across 11 CSS areas: 9502 of 10962 pass.
 - W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).
 - Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
-  veraPDF for 22 of 22.
+  veraPDF for 22 of 22; PDF/UA-1 valid for 17 of 22 (the other 5 skip a heading level or have SVG images
+  without alternative text in the source).
 
 Where the specifications leave a choice, gopdfgo follows Chromium; each such case is recorded in
 `docs/adr/`. `Options.ExactLengths` turns off the pixel rounding that imitates Chromium (ADR 0013).
@@ -189,17 +190,22 @@ Out of scope by design:
 - system fonts: only the fonts supplied by the caller are used, so the output is reproducible;
 - vertical writing (`writing-mode`) and bidirectional or right-to-left text (ADR 0010);
 - state pseudo-classes (`:hover` and similar), `@container`, `@property`, `::selection`;
-- PDF/UA-1. Tagged PDF works since 2026-11-21, off by default (`Options.Tagged`, ADR 0033): a structure
-  tree from the HTML elements in document order (`Document`, `Div`/`Sect`/`Art`, `P`, `H1`–`H6`, `L`/`LI`,
-  `Table`/`THead`/`TBody`/`TFoot`/`TR`/`TH`/`TD`, `Link` with a reference to its annotation, `Figure` with
-  `Alt` from `alt`, `aria-label` or the SVG `<title>`, `Span` for inline elements), marked page content,
-  backgrounds, borders and shadows as artifacts, margin boxes and repeated table headers as pagination
-  artifacts, `/Lang` from `lang`, the document title shown by the viewer. PDF/A-2a and PDF/A-3a turn it on;
-  veraPDF accepts all 22 corpus documents as PDF/A-2a. Missing for PDF/UA-1: list labels and bodies
-  (`Lbl`/`LBody`), table header scopes and spans, `Alt` on links, `pdfuaid` metadata, structure inside
-  SVG. Images without alternative text and documents without a title give warnings. PDF/A-2b, PDF/A-3b and
-  file attachments are supported (ADR 0016, 0026); the XMP extension schema that Factur-X/ZUGFeRD require
-  is not written;
+- structure inside SVG images, notes and references (`Note`, `Reference`) and alternative text for
+  generated content in tagged PDF. Tagged PDF works since 2026-11-21, off by default (`Options.Tagged`,
+  ADR 0033): a structure tree from the HTML elements in document order (`Document`, `Div`/`Sect`/`Art`, `P`,
+  `H1`–`H6`, `L`/`LI` with `Lbl` for the `::marker` and `LBody`, `Table`/`THead`/`TBody`/`TFoot`/`TR`/`TH`/
+  `TD` with `Scope`, `RowSpan` and `ColSpan` and the same grid as in HTML, `Link` with a reference to its
+  annotation and the link text as the annotation's `/Contents`, `Figure` with `Alt` from `alt`,
+  `aria-label`, the SVG `<title>` or the `figcaption` of a `figure` holding one image, `figure` as `Div`
+  with `Caption`, `Span` for inline elements), marked page content, backgrounds, borders and shadows as
+  artifacts, margin boxes and repeated table headers as pagination artifacts, `/Lang` from `lang`, the
+  document title shown by the viewer. PDF/A-2a and PDF/A-3a turn it on; veraPDF accepts all 22 corpus
+  documents as PDF/A-2a. PDF/UA-1 (`Options.Accessibility`, `-pdfua 1`, also together with PDF/A-2a) adds
+  `pdfuaid` to the XMP metadata; veraPDF accepts 17 of 22 corpus documents, the other 5 fail on defects of
+  the source documents. Defects gopdfgo does not repair (no title, no language, an image without
+  alternative text, a skipped heading level, table rows with different numbers of columns) give warnings.
+  PDF/A-2b, PDF/A-3b and file attachments are supported (ADR 0016, 0026); the XMP extension schema that
+  Factur-X/ZUGFeRD require is not written;
 - PNG or SVG output: the output is PDF only.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),

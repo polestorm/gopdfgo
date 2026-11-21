@@ -7,6 +7,7 @@ import (
 	"golang.org/x/net/html/atom"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
+	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
 	bo "github.com/polestorm/gopdfgo/internal/webrender/html/boxes"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 )
@@ -21,7 +22,9 @@ import (
 
 // tagger to stan oznaczania treści wspólny dla wszystkich stron dokumentu.
 type tagger struct {
-	contents   map[*html.Node]*backend.MarkedContent
+	// contents: treść oznaczona według właściciela: elementu HTML (*html.Node) albo znacznika elementu
+	// listy (listLabel)
+	contents   map[any]*backend.MarkedContent
 	artifact   *backend.MarkedContent
 	pagination *backend.MarkedContent
 	warned     map[*html.Node]bool // obrazy bez tekstu alternatywnego już zgłoszone
@@ -30,16 +33,27 @@ type tagger struct {
 	// repeated: grupy nagłówka i stopki tabeli (powtarzane na kolejnych stronach) według numeru strony,
 	// na której narysowano je pierwszy raz; późniejsze kopie są artefaktami paginacji
 	repeated map[*html.Node]int
+	// listNumbering: atrybut ListNumbering listy (ul, ol) według list-style-type jej znaczników
+	listNumbering map[*html.Node]string
+	// grids: siatka tabeli (tableGrid) według komórki, wypełniana przy budowie drzewa struktury
+	grids map[*html.Node]map[*html.Node]tableCell
 }
+
+// listLabel to klucz treści znacznika (::marker) elementu listy: element Lbl w LI (ISO 32000-1
+// § 14.8.4.3.3, ISO 14289-1 § 7.6); reszta treści elementu listy należy do LBody.
+type listLabel struct{ item *html.Node }
 
 func newTagger() *tagger {
 	return &tagger{
-		contents:   map[*html.Node]*backend.MarkedContent{},
+		contents:   map[any]*backend.MarkedContent{},
 		artifact:   &backend.MarkedContent{},
 		pagination: &backend.MarkedContent{Pagination: true},
 		warned:     map[*html.Node]bool{},
 		svgLinks:   map[*html.Node][]*backend.StructureNode{},
 		repeated:   map[*html.Node]int{},
+
+		listNumbering: map[*html.Node]string{},
+		grids:         map[*html.Node]map[*html.Node]tableCell{},
 	}
 }
 
@@ -77,12 +91,73 @@ func (ctx drawContext) markElement(node *html.Node) {
 		ctx.setMarked(ctx.tags.pagination)
 		return
 	}
-	m := ctx.tags.contents[owner]
+	ctx.setMarked(ctx.tags.content(owner, contentTag(owner)))
+}
+
+// content zwraca rodzaj treści właściciela owner (tworzy go przy pierwszym użyciu).
+func (t *tagger) content(owner any, tag string) *backend.MarkedContent {
+	m := t.contents[owner]
 	if m == nil {
-		m = &backend.MarkedContent{Tag: structureType(owner), Owner: owner}
-		ctx.tags.contents[owner] = m
+		m = &backend.MarkedContent{Tag: tag, Owner: owner}
+		t.contents[owner] = m
 	}
-	ctx.setMarked(m)
+	return m
+}
+
+// markText: tekst pudełka należy do jego elementu, a tekst znacznika (::marker) elementu listy li do
+// elementu Lbl tego elementu listy.
+func (ctx drawContext) markText(textbox *bo.TextBox) {
+	if ctx.tags == nil {
+		return
+	}
+	item := textbox.Element
+	switch textbox.PseudoType {
+	case "marker", "before::marker", "after::marker":
+	default:
+		item = nil
+	}
+	if item == nil || item.DataAtom != atom.Li || item.Namespace != "" || ctx.pagination || ctx.repeatedCopy(item) {
+		ctx.markElement(textbox.Element)
+		return
+	}
+	if list := item.Parent; list != nil && structureType(list) == "L" {
+		if _, has := ctx.tags.listNumbering[list]; !has {
+			ctx.tags.listNumbering[list] = listNumbering(textbox.Style.GetListStyleType().Name)
+		}
+	}
+	ctx.setMarked(ctx.tags.content(listLabel{item}, "Lbl"))
+}
+
+// listNumbering odwzorowuje list-style-type na wartość atrybutu ListNumbering (ISO 32000-1 tabela
+// 347); "" dla None (wartość domyślna, nie zapisywana): typy bez odpowiednika i znaczniki z content.
+func listNumbering(styleType string) string {
+	switch styleType {
+	case "disc":
+		return "Disc"
+	case "circle":
+		return "Circle"
+	case "square":
+		return "Square"
+	case "decimal", "decimal-leading-zero":
+		return "Decimal"
+	case "upper-roman":
+		return "UpperRoman"
+	case "lower-roman":
+		return "LowerRoman"
+	case "upper-alpha", "upper-latin":
+		return "UpperAlpha"
+	case "lower-alpha", "lower-latin":
+		return "LowerAlpha"
+	}
+	return ""
+}
+
+// contentTag: znacznik BDC treści elementu; treść elementu listy (poza znacznikiem) należy do LBody.
+func contentTag(owner *html.Node) string {
+	if kind := structureType(owner); kind != "LI" {
+		return kind
+	}
+	return "LBody"
 }
 
 // markBox: treść grupy (krycie, mix-blend-mode, filtr) rysowanej na stronie jako jedna forma należy do
@@ -116,7 +191,7 @@ func (ctx drawContext) markReplaced(box *bo.BoxFields) {
 			return
 		}
 	}
-	if structureType(node) == "Figure" && alternativeText(node) == "" && !ctx.tags.warned[node] {
+	if structureType(node) == "Figure" && figureAlt(node) == "" && !ctx.tags.warned[node] {
 		ctx.tags.warned[node] = true
 		logger.WarningLogger.Printf("Tagged PDF: image without alternative text (alt, aria-label or title): <%s%s>\n", node.Data, describe(node))
 	}
@@ -263,8 +338,13 @@ func structureType(node *html.Node) string {
 		return "TD"
 	case atom.Caption, atom.Figcaption:
 		return "Caption"
-	case atom.Img, atom.Object, atom.Embed, atom.Video, atom.Audio, atom.Canvas, atom.Iframe, atom.Figure:
+	case atom.Img, atom.Object, atom.Embed, atom.Video, atom.Audio, atom.Canvas, atom.Iframe:
 		return "Figure"
+	case atom.Figure:
+		// figure grupuje treść z podpisem (HTML § 4.4.12: ilustracja, tabela, kod, cytat); Figure
+		// w PDF to treść graficzna zastępowana przez Alt (ISO 32000-1 § 14.8.4.5, ISO 14289-1 § 7.3),
+		// więc figure to Div, podpis w nim to Caption, a obraz w środku osobny Figure (ADR 0033)
+		return "Div"
 	case atom.Blockquote:
 		return "BlockQuote"
 	case atom.Q:
@@ -380,6 +460,234 @@ func language(node *html.Node) (string, bool) {
 	return "", false
 }
 
+// figureAlt: tekst alternatywny obrazu (alternativeText), a bez niego podpis figcaption, gdy obraz jest
+// jedyną treścią osadzoną elementu figure: HTML pozwala wtedy pominąć alt, bo opis niesie podpis
+// (HTML § 4.8.4.4.11, „images whose contents are not known”; HTML-AAM: nazwą figure jest figcaption).
+func figureAlt(node *html.Node) string {
+	if alt := alternativeText(node); alt != "" {
+		return alt
+	}
+	var figure *html.Node
+	for n := node.Parent; n != nil; n = n.Parent {
+		if n.Type == html.ElementNode && n.DataAtom == atom.Figure && n.Namespace == "" {
+			figure = n
+			break
+		}
+	}
+	if figure == nil {
+		return ""
+	}
+	var caption *html.Node
+	for child := figure.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type == html.ElementNode && child.DataAtom == atom.Figcaption {
+			caption = child
+			break
+		}
+	}
+	if caption == nil {
+		return ""
+	}
+	images := 0
+	var count func(n *html.Node)
+	count = func(n *html.Node) {
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type != html.ElementNode {
+				continue
+			}
+			if structureType(c) == "Figure" {
+				images++
+				continue
+			}
+			if !opaqueContent(c) {
+				count(c)
+			}
+		}
+	}
+	count(figure)
+	if images != 1 {
+		return ""
+	}
+	return strings.Join(strings.Fields(textContent(caption)), " ")
+}
+
+// tableCell to położenie komórki w siatce tabeli HTML.
+type tableCell struct {
+	x, y, width, height int
+	header              bool
+}
+
+// tableGrid ustala siatkę tabeli według modelu tabel HTML (HTML § 4.9.12.1, „forming a table”):
+// wiersze w kolejności dokumentu, komórki na pierwszych wolnych miejscach wiersza, colspan 1–1000,
+// rowspan 0–65534 (0: do końca grupy wierszy). Komórka sięgająca za grupę wierszy jest przycinana do
+// jej końca, jak przy rysowaniu (CSS 2 § 17.5). Zwraca komórki i liczbę zajętych kolumn każdego wiersza.
+func tableGrid(table *html.Node) (map[*html.Node]tableCell, []int) {
+	cells := map[*html.Node]tableCell{}
+	var widths []int
+	var groups [][]*html.Node
+	var loose []*html.Node // wiersze wprost w table, bez sekcji
+	for child := table.FirstChild; child != nil; child = child.NextSibling {
+		if child.Type != html.ElementNode || child.Namespace != "" {
+			continue
+		}
+		switch child.DataAtom {
+		case atom.Tr:
+			loose = append(loose, child)
+			continue
+		case atom.Thead, atom.Tbody, atom.Tfoot:
+			if len(loose) != 0 {
+				groups, loose = append(groups, loose), nil
+			}
+			var rows []*html.Node
+			for row := child.FirstChild; row != nil; row = row.NextSibling {
+				if row.Type == html.ElementNode && row.DataAtom == atom.Tr && row.Namespace == "" {
+					rows = append(rows, row)
+				}
+			}
+			groups = append(groups, rows)
+		}
+	}
+	if len(loose) != 0 {
+		groups = append(groups, loose)
+	}
+	y := 0
+	for _, rows := range groups {
+		occupied := map[[2]int]bool{}
+		for i, row := range rows {
+			x := 0
+			for cell := row.FirstChild; cell != nil; cell = cell.NextSibling {
+				if cell.Type != html.ElementNode || cell.Namespace != "" || (cell.DataAtom != atom.Td && cell.DataAtom != atom.Th) {
+					continue
+				}
+				for occupied[[2]int{x, i}] {
+					x++
+				}
+				width := spanAttribute(cell, "colspan", 1, 1000)
+				height := spanAttribute(cell, "rowspan", 0, 65534)
+				if height == 0 || i+height > len(rows) {
+					height = len(rows) - i
+				}
+				for dy := range height {
+					for dx := range width {
+						occupied[[2]int{x + dx, i + dy}] = true
+					}
+				}
+				cells[cell] = tableCell{x: x, y: y + i, width: width, height: height, header: cell.DataAtom == atom.Th}
+				x += width
+			}
+		}
+		for i := range rows {
+			width := 0
+			for slot := range occupied {
+				if slot[1] == i {
+					width++
+				}
+			}
+			widths = append(widths, width)
+		}
+		y += len(rows)
+	}
+	return cells, widths
+}
+
+// spanAttribute czyta colspan albo rowspan jako nieujemną liczbę całkowitą HTML (wartość błędna:
+// 1), ograniczoną do [low, high].
+func spanAttribute(node *html.Node, key string, low, high int) int {
+	value, has := attribute(node, key)
+	if !has {
+		return 1
+	}
+	value = strings.TrimLeft(value, " \t\n\f\r")
+	n, digits := 0, 0
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			break
+		}
+		if n <= high {
+			n = n*10 + int(r-'0')
+		}
+		digits++
+	}
+	if digits == 0 {
+		return 1
+	}
+	return min(max(n, low), high)
+}
+
+// headerScope: zasięg komórki nagłówka (atrybut Scope, ISO 32000-1 tabela 349). Atrybut scope HTML
+// (row, col, rowgroup, colgroup) wprost; w stanie auto według HTML § 4.9.12.1 („column header”,
+// „row header”): nagłówek kolumny, gdy w jego wierszach nie ma komórek danych, nagłówek wiersza, gdy
+// nie ma ich w jego kolumnach, a w pozostałych przypadkach nagłówek obu kierunków.
+func headerScope(cell *html.Node, at tableCell, cells map[*html.Node]tableCell) string {
+	switch scope, _ := attribute(cell, "scope"); strings.ToLower(strings.TrimSpace(scope)) {
+	case "row", "rowgroup":
+		return "Row"
+	case "col", "colgroup":
+		return "Column"
+	}
+	dataInRows, dataInColumns := false, false
+	for _, other := range cells {
+		if other.header {
+			continue
+		}
+		if other.y < at.y+at.height && at.y < other.y+other.height {
+			dataInRows = true
+		}
+		if other.x < at.x+at.width && at.x < other.x+other.width {
+			dataInColumns = true
+		}
+	}
+	switch {
+	case !dataInRows:
+		return "Column"
+	case !dataInColumns:
+		return "Row"
+	}
+	return "Both"
+}
+
+// tableSections porządkuje dzieci Table według ISO 32000-1 tabela 337 (Table: same TR albo THead,
+// jedna lub więcej TBody i TFoot; ISO 14289-1 § 7.5): przy sekcjach wiersze leżące wprost w table
+// trafiają do TBody (w HTML tbody jest niejawne, HTML § 4.9.5), a tabela z THead bez TBody dostaje
+// pusty TBody za THead.
+func tableSections(children []*backend.StructureNode) []*backend.StructureNode {
+	sections, body := false, false
+	for _, c := range children {
+		switch c.Type {
+		case "THead", "TFoot":
+			sections = true
+		case "TBody":
+			sections, body = true, true
+		}
+	}
+	if !sections {
+		return children
+	}
+	var out []*backend.StructureNode
+	var loose *backend.StructureNode
+	for _, c := range children {
+		if c.Type == "TR" {
+			if loose == nil {
+				loose = &backend.StructureNode{Type: "TBody", Keep: true}
+				out = append(out, loose)
+				body = true
+			}
+			loose.Children = append(loose.Children, c)
+			continue
+		}
+		loose = nil
+		out = append(out, c)
+	}
+	if !body {
+		for i, c := range out {
+			if c.Type == "THead" {
+				out = append(out[:i+1], append([]*backend.StructureNode{{Type: "TBody", Keep: true}}, out[i+1:]...)...)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // structureTree buduje drzewo struktury z drzewa elementów w kolejności dokumentu i zwraca je razem
 // z językiem dokumentu. Elementy bez treści na stronach odrzuca dopiero cel (nie wie o nich rysowanie).
 func (t *tagger) structureTree(root *html.Node) (*backend.StructureNode, string) {
@@ -391,6 +699,13 @@ func (t *tagger) structureTree(root *html.Node) (*backend.StructureNode, string)
 	var walk func(node *html.Node, inherited string) []*backend.StructureNode
 	walk = func(node *html.Node, inherited string) []*backend.StructureNode {
 		var children []*backend.StructureNode
+		table := structureType(node) == "Table"
+		if table {
+			cells, _ := tableGrid(node)
+			for cell := range cells {
+				t.grids[cell] = cells
+			}
+		}
 		if !opaqueContent(node) {
 			for child := node.FirstChild; child != nil; child = child.NextSibling {
 				if child.Type != html.ElementNode {
@@ -410,11 +725,39 @@ func (t *tagger) structureTree(root *html.Node) (*backend.StructureNode, string)
 				if has && !strings.EqualFold(own, inherited) {
 					n.Lang = own
 				}
-				if kind == "Figure" {
-					n.Alt = alternativeText(child)
+				switch kind {
+				case "Figure":
+					n.Alt = figureAlt(child)
+				case "L":
+					n.ListNumbering = t.listNumbering[child]
+				case "LI":
+					// LI zawiera tylko Lbl i LBody (ISO 14289-1 § 7.6, ISO 32000-1 § 14.8.4.3.3)
+					n.Owner = nil
+					n.Children = []*backend.StructureNode{
+						{Type: "Lbl", Owner: listLabel{child}},
+						{Type: "LBody", Owner: child, Children: n.Children},
+					}
+				case "THead", "TBody", "TFoot":
+					n.Keep = true
+				case "TR":
+					// wiersz z komórkami zostaje razem z tabelą, nawet pusty, żeby siatka miała te same
+					// wiersze co w HTML; wiersz bez komórek nie ma odpowiednika w siatce
+					n.Keep = len(n.Children) != 0
+				case "TH", "TD":
+					n.Keep = true
+					if grid := t.grids[child]; grid != nil {
+						cell := grid[child]
+						n.RowSpan, n.ColSpan = cell.height, cell.width
+						if kind == "TH" {
+							n.Scope = headerScope(child, cell, grid)
+						}
+					}
 				}
 				children = append(children, n)
 			}
+		}
+		if table {
+			children = tableSections(children)
 		}
 		// odnośniki obrazu SVG: elementy Link wewnątrz jego Figure
 		children = append(children, t.svgLinks[node]...)
@@ -443,6 +786,77 @@ func (t *tagger) linkOwner(link Link) any {
 	return contentOwner(link.element)
 }
 
+// linkContents: opis adnotacji odnośnika (/Contents, ISO 14289-1 § 7.18.5): etykieta aria-label,
+// tekst elementu z tekstem alternatywnym obrazów, atrybut title, a bez nich adres celu. Odnośnik SVG
+// dostaje adres celu.
+func linkContents(link Link) string {
+	target := link.Target
+	if link.Type == pr.Internal {
+		target = "#" + target
+	}
+	if link.svg {
+		return target
+	}
+	node := link.element
+	for n := node; n != nil; n = n.Parent {
+		if n.Type == html.ElementNode && isLink(n) {
+			node = n
+			break
+		}
+	}
+	if node == nil || node.Type != html.ElementNode {
+		return target
+	}
+	if label, _ := attribute(node, "aria-label"); strings.TrimSpace(label) != "" {
+		return strings.Join(strings.Fields(label), " ")
+	}
+	if node.DataAtom == atom.Area {
+		if alt := alternativeText(node); alt != "" {
+			return alt
+		}
+	}
+	if text := strings.Join(strings.Fields(accessibleText(node)), " "); text != "" {
+		return text
+	}
+	if title, _ := attribute(node, "title"); strings.TrimSpace(title) != "" {
+		return strings.Join(strings.Fields(title), " ")
+	}
+	return target
+}
+
+// accessibleText: tekst elementu z tekstem alternatywnym obrazów (alt, aria-label, <title> SVG), bez
+// treści skryptów, stylów i szablonów; przybliżenie nazwy dostępnej z treści (W3C Accessible Name
+// and Description Computation 1.2 § 4.3.2, krok 2F).
+func accessibleText(node *html.Node) string {
+	var b strings.Builder
+	var walk func(n *html.Node)
+	walk = func(n *html.Node) {
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			switch {
+			case c.Type == html.TextNode:
+				b.WriteString(c.Data)
+			case c.Type != html.ElementNode:
+			case structureType(c) == "Figure":
+				b.WriteString(" " + alternativeText(c) + " ")
+			case c.DataAtom == atom.Br:
+				b.WriteString(" ")
+			case !opaqueContent(c):
+				// elementy liniowe sklejają się z sąsiednim tekstem, pozostałe są od niego oddzielone
+				switch structureType(c) {
+				case "Span", "Link", "Code", "Quote", "Ruby", "RB", "RT", "RP", "":
+					walk(c)
+				default:
+					b.WriteString(" ")
+					walk(c)
+					b.WriteString(" ")
+				}
+			}
+		}
+	}
+	walk(node)
+	return b.String()
+}
+
 // pageTagger zwraca stan oznaczania treści dla strony celu (nil bez tagów), tworząc go przy pierwszej
 // stronie z tagami.
 func (d *Document) pageTagger(page backend.Page) *tagger {
@@ -462,6 +876,76 @@ func (d *Document) setStructure(target backend.Document) {
 	}
 	if tagged, ok := target.(backend.TaggedDocument); ok {
 		root, lang := d.tags.structureTree(d.root)
+		d.tags.warnStructure(d.root, lang)
 		tagged.SetStructure(root, lang)
 	}
+}
+
+// warnStructure zgłasza wady dokumentu, przez które PDF z tagami nie spełni PDF/UA-1: brak języka
+// (ISO 14289-1 § 7.2), pierwszy nagłówek inny niż h1 albo pominięty poziom nagłówka (§ 7.4.2;
+// struktury nie poprawiamy, ADR 0033), wiersze tabeli o różnej liczbie kolumn (§ 7.5, ISO 32000-1
+// § 14.8.4.3.4). Liczą się tylko elementy z treścią na stronach.
+func (t *tagger) warnStructure(root *html.Node, lang string) {
+	if lang == "" {
+		logger.WarningLogger.Println("Tagged PDF: document without a language (lang on <html>)")
+	}
+	drawn := map[*html.Node]bool{}
+	for owner := range t.contents {
+		node, _ := owner.(*html.Node)
+		if label, ok := owner.(listLabel); ok {
+			node = label.item
+		}
+		for ; node != nil && !drawn[node]; node = node.Parent {
+			drawn[node] = true
+		}
+	}
+	previous := 0
+	var walk func(n *html.Node)
+	walk = func(n *html.Node) {
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type != html.ElementNode || !drawn[c] {
+				continue
+			}
+			kind := structureType(c)
+			if level := headingLevel(kind); level != 0 {
+				text := strings.Join(strings.Fields(textContent(c)), " ")
+				if r := []rune(text); len(r) > 60 {
+					text = string(r[:57]) + "..."
+				}
+				switch {
+				case previous == 0 && level != 1:
+					logger.WarningLogger.Printf("Tagged PDF: the first heading is <h%d> %q, not <h1> (PDF/UA-1, ISO 14289-1 § 7.4.2)\n", level, text)
+				case previous != 0 && level > previous+1:
+					logger.WarningLogger.Printf("Tagged PDF: heading level skipped: <h%d> after <h%d>, %q (PDF/UA-1, ISO 14289-1 § 7.4.2)\n", level, previous, text)
+				}
+				previous = level
+			}
+			if kind == "Table" {
+				if _, widths := tableGrid(c); len(widths) > 1 {
+					first := 0
+					for _, w := range widths { // wiersz bez komórek nie trafia do struktury
+						if first == 0 {
+							first = w
+						}
+						if w != 0 && w != first {
+							logger.WarningLogger.Printf("Tagged PDF: table rows with different numbers of columns: <table%s> (PDF/UA-1, ISO 14289-1 § 7.5)\n", describe(c))
+							break
+						}
+					}
+				}
+			}
+			if !opaqueContent(c) {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+}
+
+// headingLevel: poziom nagłówka H1–H6, 0 dla innych typów.
+func headingLevel(kind string) int {
+	if len(kind) == 2 && kind[0] == 'H' && kind[1] >= '1' && kind[1] <= '6' {
+		return int(kind[1] - '0')
+	}
+	return 0
 }

@@ -129,6 +129,11 @@ type Options struct {
 	// wygląd stron się nie zmienia. Conformance PDFA2a i PDFA3a włączają tagi same. Obraz bez tekstu
 	// alternatywnego i dokument bez tytułu dają ostrzeżenia.
 	Tagged bool
+	// Accessibility wybiera normę dostępności: PDFUA1 to PDF/UA-1 (ISO 14289-1, ADR 0033), z tagami
+	// i identyfikatorem PDF/UA w metadanych XMP; łączy się z każdą wartością Conformance (zwykle
+	// PDFA2a). Wady dokumentu, których silnik nie naprawia (brak tytułu, języka, tekstu alternatywnego
+	// obrazu, przeskok poziomu nagłówka), dają ostrzeżenia.
+	Accessibility Accessibility
 	// Uncompressed zapisuje strumienie treści stron, fontów i map ToUnicode bez kompresji, żeby dało się je
 	// czytać w edytorze tekstu (diagnostyka). Obrazy zostają skompresowane bezstratnie stopniem 0, bo ich
 	// filtr jest częścią formatu. Domyślnie (false) wszystko jest kompresowane zlib w stopniu 6.
@@ -335,7 +340,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		output *pdf.Output
 		pages  int
 	)
-	tagged := opts.Tagged || opts.Conformance.tagged()
+	tagged := opts.Tagged || opts.Conformance.tagged() || opts.Accessibility.tagged()
 	fallback := "streaming disabled"
 	if !document.StreamingDisabled {
 		warningsBefore := warnings.Len()
@@ -370,7 +375,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if err := checkAttachments(embedded, opts.Conformance); err != nil {
 		return Result{}, err
 	}
-	if err := applyConformance(&file, opts.Conformance, embedded); err != nil {
+	if err := applyConformance(&file, opts.Conformance, opts.Accessibility, embedded); err != nil {
 		return Result{}, err
 	}
 	var out bytes.Buffer

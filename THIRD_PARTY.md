@@ -1029,6 +1029,17 @@ Wspólne dla obu katalogów:
     zwolnieniu stosu ten sam adres mógł dostać nowy stos i odczytać cudzy wpis, więc wynik zależał od
     chwili odśmiecania (css-multicol/multicol-span-all-children-height-013 raz na ~150 przebiegów, przy
     GOGC=1 w większości); teraz stos z wpisem żyje do końca układu;
+- PDF z tagami, runda 2 (PDF/UA-1), 2026-11-21 (ADR 0033; pliki własne `backend/tagged.go`,
+  `html/document/tags.go`, `goweasyprint/pdf/tagged.go`, test `tests/pdfua18_test.go`; zmiany w przejętym
+  kodzie: `html/document/draw_text.go` `drawText` (`markText`), `html/document/document.go`
+  `addHyperlinks` (opis adnotacji); w API `pdfa.go` `Accessibility`, `PDFUA1`, `applyConformance`,
+  `xmpPacket`, `render.go` `Options.Accessibility`, CLI `-pdfua`):
+  - `LI` z `Lbl` (tekst `::marker`) i `LBody`, `ListNumbering` na `L`; `TH` z `Scope`, komórki z `RowSpan`
+    i `ColSpan` według siatki tabeli HTML, puste komórki, wiersze i sekcje zachowane, `TBody` przy `THead`;
+    `figure` jako `Div` (wcześniej `Figure` bez `Alt`), `Alt` obrazu z `figcaption`, gdy HTML pozwala
+    pominąć `alt`; `/Contents` adnotacji odnośników w PDF z tagami; `pdfuaid:part 1` w XMP, z PDF/A ze
+    schematem rozszerzeń; ostrzeżenia o braku języka, kolejności nagłówków i nierównych wierszach tabeli;
+  - bez opcji wynik bajt w bajt ten sam (korpus W3C: 0 różnic);
 - PDF z tagami, runda 1, 2026-11-21 (ADR 0033; nowe pliki `backend/tagged.go`, `html/document/tags.go`,
   `goweasyprint/pdf/tagged.go`, test `tests/tagged18_test.go`; zmiany w `html/document/draw.go`
   `drawContext.tags`, `pagination`, `pageIndex`, `drawStackingContext`, `drawBackground`,

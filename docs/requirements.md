@@ -44,7 +44,7 @@ obowiązuje kolejność z `vision.md`.
 | Y3 | Metadane: tytuł, autor, temat, słowa kluczowe, język dokumentu | M | |
 | Y4 | Zakładki (outline) z nagłówków, linki wewnętrzne i zewnętrzne | P | |
 | Y5 | PDF/A-2b (osadzone wszystkie fonty, XMP, OutputIntent, bez przezroczystości lub z dozwoloną) | P | Archiwum 15 lat; może być krok końcowy w osobnym narzędziu; **zrobione 2026-11-16** (`Options.Conformance`, ADR 0016) |
-| Y6 | Tagged PDF (struktura logiczna) | O | Dostępność; runda 1 zrobiona 2026-11-21 (ADR 0033, PDF/A-2a), PDF/UA w rundzie 2 |
+| Y6 | Tagged PDF (struktura logiczna) | O | Dostępność; rundy 1 i 2 zrobione 2026-11-21 (ADR 0033: PDF/A-2a, PDF/UA-1) |
 | Y7 | SVG na stronę i PNG na stronę z tego samego układu | P | Podgląd wydruku, testy porównawcze; z listy wyświetlania prawie za darmo |
 | Y8 | Raport renderowania: liczba stron, ostrzeżenia z nazwą nieobsługiwanej właściwości/elementu i miejscem w źródle | M | Warunek walidacji; silnik nie może ignorować po cichu |
 

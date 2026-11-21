@@ -35,6 +35,7 @@ func main() {
 	uncompressed := flag.Bool("uncompressed", false, "strumienie treści, fontów i ToUnicode bez kompresji (diagnostyka)")
 	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b, 3b (PDF/A-2b, PDF/A-3b), 2a, 3a (poziom A, z tagami); domyślnie zwykły PDF")
 	tagged := flag.Bool("tagged", false, "PDF z tagami: struktura logiczna z elementów HTML dla czytników ekranu (ADR 0033)")
+	pdfua := flag.String("pdfua", "", "norma dostępności: 1 (PDF/UA-1, z tagami; łączy się z -pdfa, np. -pdfa 2a -pdfua 1); domyślnie brak")
 	flag.Func("attach", "załącznik dokumentu: plik[,związek[,typ MIME]], związek: Source, Data, Alternative, Supplement, Unspecified (domyślnie); flaga może się powtarzać", func(value string) error {
 		parts := strings.Split(value, ",")
 		data, err := os.ReadFile(parts[0])
@@ -103,6 +104,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b, 3b, 2a, 3a)")
 		os.Exit(2)
 	}
+	switch *pdfua {
+	case "":
+	case "1":
+		accessibility = gopdfgo.PDFUA1
+	default:
+		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfua (dozwolone: 1)")
+		os.Exit(2)
+	}
 	if *in == "" || *out == "" || *fontDir == "" {
 		flag.Usage()
 		os.Exit(2)
@@ -117,6 +126,7 @@ func main() {
 // uncompressedMode to flaga -uncompressed.
 var (
 	conformance      gopdfgo.Conformance
+	accessibility    gopdfgo.Accessibility // flaga -pdfua
 	continuousMode   bool
 	uncompressedMode bool
 	taggedMode       bool                 // flaga -tagged
@@ -187,7 +197,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
 		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation,
-		Attachments: attachments, Tagged: taggedMode})
+		Attachments: attachments, Tagged: taggedMode, Accessibility: accessibility})
 	if err != nil {
 		return err
 	}

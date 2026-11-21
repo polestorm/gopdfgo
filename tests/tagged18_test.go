@@ -226,7 +226,7 @@ func TestTaggedStructure(t *testing.T) {
 <p class="half" lang="en">Translucent</p></body></html>`
 	result := renderTagged(t, html, nil)
 	got := structureDump(t, result.PDF)
-	want := "Document(H1(#) P(# Span(#) # Link(# # @) #) Div(P(#)) L(LI(# #) LI(# #)) " +
+	want := "Document(H1(#) P(# Span(#) # Link(# # @) #) Div(P(#)) L(LI(Lbl(#) LBody(#)) LI(Lbl(#) LBody(#))) " +
 		"Table(TBody(TR(TH(#) TH(#)) TR(TD(#) TD(#)))) Figure{Kwadrat}(#) Figure{Kolo}(# #) P[en](#))"
 	if got != want {
 		t.Errorf("drzewo struktury:\n%s\noczekiwane:\n%s", got, want)
@@ -274,11 +274,11 @@ func TestTaggedStructure(t *testing.T) {
 		out, _ = exec.Command(path, "-struct", file).CombinedOutput()
 		var types []string
 		for _, line := range strings.Split(string(out), "\n") {
-			if fields := strings.Fields(line); len(fields) != 0 {
-				types = append(types, fields[0])
+			if fields := strings.Fields(line); len(fields) != 0 && !strings.HasPrefix(fields[0], "/") {
+				types = append(types, strings.TrimSuffix(fields[0], ":"))
 			}
 		}
-		if got, want := strings.Join(types, " "), "Document H1 P Span Link Object Div P L LI LI Table TBody TR TH TH TR TD TD Figure Figure P"; got != want {
+		if got, want := strings.Join(types, " "), "Document H1 P Span Link Object Div P L LI Lbl LBody LI Lbl LBody Table TBody TR TH TH TR TD TD Figure Figure P"; got != want {
 			t.Errorf("pdfinfo -struct: %s, oczekiwane %s", got, want)
 		}
 	}

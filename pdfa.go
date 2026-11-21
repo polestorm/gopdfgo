@@ -34,15 +34,44 @@ const (
 // tagged mówi, czy norma wymaga PDF z tagami.
 func (c Conformance) tagged() bool { return c == PDFA2a || c == PDFA3a }
 
-// applyConformance uzupełnia dokument o to, czego wymaga wybrana norma; files to wszystkie pliki
-// osadzone w dokumencie (pdf.Output.EmbeddedFiles).
-func applyConformance(file *pdfmodel.Document, conformance Conformance, files []pdf.EmbeddedFile) error {
+// Accessibility wybiera normę dostępności pliku wynikowego (ADR 0033). Jest niezależna od Conformance:
+// PDF/UA i PDF/A to osobne normy, które jeden plik może spełniać naraz (np. PDF/A-2a i PDF/UA-1).
+type Accessibility string
+
+const (
+	// AccessibilityNone: bez deklaracji dostępności (domyślnie).
+	AccessibilityNone Accessibility = ""
+	// PDFUA1: PDF/UA-1 (ISO 14289-1): PDF z tagami (włącza Options.Tagged), identyfikator pdfuaid:part 1
+	// w metadanych XMP z tytułem dokumentu, a przy PDF/A także opis schematu pdfuaid w XMP (ISO 19005-2
+	// § 6.6.2.3). Wady dokumentu, których silnik nie naprawia (brak tytułu, języka, tekstu
+	// alternatywnego obrazu, przeskok poziomu nagłówka), dają ostrzeżenia.
+	PDFUA1 Accessibility = "PDF/UA-1"
+)
+
+// tagged mówi, czy norma wymaga PDF z tagami.
+func (a Accessibility) tagged() bool { return a == PDFUA1 }
+
+// applyConformance uzupełnia dokument o to, czego wymaga wybrana norma PDF/A i norma dostępności;
+// files to wszystkie pliki osadzone w dokumencie (pdf.Output.EmbeddedFiles).
+func applyConformance(file *pdfmodel.Document, conformance Conformance, accessibility Accessibility, files []pdf.EmbeddedFile) error {
+	ua := 0
+	switch accessibility {
+	case AccessibilityNone:
+	case PDFUA1:
+		ua = 1
+	default:
+		return fmt.Errorf("gopdfgo: nieznana norma dostępności %q", string(accessibility))
+	}
 	part, level := 2, "B"
 	if conformance.tagged() {
 		level = "A"
 	}
 	switch conformance {
 	case ConformanceNone:
+		if ua != 0 {
+			// PDF/UA bez PDF/A: metadane XMP z identyfikatorem PDF/UA i tytułem (ISO 14289-1 § 5, § 7.1)
+			file.Catalog.Metadata = xmpPacket(file.Trailer.Info, 0, "", ua)
+		}
 		return nil
 	case PDFA3b, PDFA3a:
 		part = 3
@@ -57,7 +86,7 @@ func applyConformance(file *pdfmodel.Document, conformance Conformance, files []
 		fallthrough
 	case PDFA2b, PDFA2a:
 		file.Trailer.ContentID = true
-		file.Catalog.Metadata = xmpPacket(file.Trailer.Info, part, level)
+		file.Catalog.Metadata = xmpPacket(file.Trailer.Info, part, level, ua)
 		file.Catalog.OutputIntents = []pdfmodel.OutputIntent{{
 			S:                         "GTS_PDFA1",
 			OutputConditionIdentifier: "sRGB IEC61966-2.1",
@@ -71,15 +100,32 @@ func applyConformance(file *pdfmodel.Document, conformance Conformance, files []
 	}
 }
 
-// xmpPacket buduje pakiet XMP z identyfikatorem PDF/A i tymi samymi danymi, które niesie słownik Info
-// (ISO 19005-2 § 6.6.2.1, § 6.6.4; ISO 16684-1). Pola puste są pomijane.
-func xmpPacket(info pdfmodel.Info, part int, level string) []byte {
+// xmpPacket buduje pakiet XMP z identyfikatorem PDF/A (part > 0) i PDF/UA (ua > 0) oraz tymi samymi
+// danymi, które niesie słownik Info (ISO 19005-2 § 6.6.2.1, § 6.6.4; ISO 14289-1 § 5; ISO 16684-1).
+// Pola puste są pomijane. Schemat pdfuaid nie należy do schematów predefiniowanych PDF/A, więc w pliku
+// PDF/A ma opis w schemacie rozszerzeń pdfaExtension (ISO 19005-2 § 6.6.2.3.1).
+func xmpPacket(info pdfmodel.Info, part int, level string, ua int) []byte {
 	var b strings.Builder
 	b.WriteString("<?xpacket begin=\"\xef\xbb\xbf\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n")
 	b.WriteString(`<x:xmpmeta xmlns:x="adobe:ns:meta/">` + "\n")
 	b.WriteString(`<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">` + "\n")
-	b.WriteString(`<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:pdf="http://ns.adobe.com/pdf/1.3/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">` + "\n")
-	fmt.Fprintf(&b, "<pdfaid:part>%d</pdfaid:part>\n<pdfaid:conformance>%s</pdfaid:conformance>\n", part, level)
+	if part > 0 && ua > 0 {
+		b.WriteString(pdfuaExtensionSchema)
+	}
+	b.WriteString(`<rdf:Description rdf:about=""`)
+	if part > 0 {
+		b.WriteString(` xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/"`)
+	}
+	if ua > 0 {
+		b.WriteString(` xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/"`)
+	}
+	b.WriteString(` xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:pdf="http://ns.adobe.com/pdf/1.3/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">` + "\n")
+	if part > 0 {
+		fmt.Fprintf(&b, "<pdfaid:part>%d</pdfaid:part>\n<pdfaid:conformance>%s</pdfaid:conformance>\n", part, level)
+	}
+	if ua > 0 {
+		fmt.Fprintf(&b, "<pdfuaid:part>%d</pdfuaid:part>\n", ua)
+	}
 	if info.Title != "" {
 		fmt.Fprintf(&b, "<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">%s</rdf:li></rdf:Alt></dc:title>\n", xmlText(info.Title))
 	}
@@ -111,3 +157,20 @@ func xmpPacket(info pdfmodel.Info, part int, level string) []byte {
 func xmlText(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
 }
+
+// pdfuaExtensionSchema opisuje schemat pdfuaid dla PDF/A (ISO 19005-2 § 6.6.2.3; opis według
+// ISO 14289-1 § 5 i przykładu PDF Association „PDF/UA Identification Schema”).
+const pdfuaExtensionSchema = `<rdf:Description rdf:about="" xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#">
+<pdfaExtension:schemas><rdf:Bag><rdf:li rdf:parseType="Resource">
+<pdfaSchema:schema>PDF/UA Universal Accessibility Schema</pdfaSchema:schema>
+<pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI>
+<pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix>
+<pdfaSchema:property><rdf:Seq><rdf:li rdf:parseType="Resource">
+<pdfaProperty:name>part</pdfaProperty:name>
+<pdfaProperty:valueType>Integer</pdfaProperty:valueType>
+<pdfaProperty:category>internal</pdfaProperty:category>
+<pdfaProperty:description>Indicates, which part of ISO 14289 standard is followed</pdfaProperty:description>
+</rdf:li></rdf:Seq></pdfaSchema:property>
+</rdf:li></rdf:Bag></pdfaExtension:schemas>
+</rdf:Description>
+`

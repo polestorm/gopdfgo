@@ -31,8 +31,9 @@ type TaggedPage interface {
 	Tagged() bool
 	// CloseMarkedContent zamyka otwarty ciąg treści oznaczonej (EMC) w bieżącym miejscu treści.
 	CloseMarkedContent()
-	// SetAnnotationOwner wskazuje element, do którego należy następna adnotacja odnośnika strony.
-	SetAnnotationOwner(owner any)
+	// SetAnnotationOwner wskazuje element, do którego należy następna adnotacja odnośnika strony,
+	// i jej opis (/Contents, ISO 14289-1 § 7.18.1 i § 7.18.5: tekst odnośnika albo jego etykieta).
+	SetAnnotationOwner(owner any, contents string)
 }
 
 // StructureNode to węzeł drzewa struktury w kolejności dokumentu. Węzeł bez treści oznaczonej,
@@ -43,6 +44,16 @@ type StructureNode struct {
 	Alt      string // tekst alternatywny (/Alt)
 	Lang     string // język elementu (/Lang), gdy różni się od języka rodzica
 	Children []*StructureNode
+
+	// Keep: węzeł bez treści trafia do pliku, gdy trafia tam jego rodzic (komórki, wiersze i sekcje
+	// tabeli: siatka tabeli w strukturze ma te same wiersze i kolumny co w HTML, ISO 14289-1 § 7.5),
+	// ale sam rodzica nie zachowuje.
+	Keep bool
+	// atrybuty właściciela /Table i /List (ISO 32000-1 § 14.8.5.7, tabele 347 i 349); puste i zera
+	// pomijane: Scope (Row, Column, Both) komórki TH, RowSpan i ColSpan większe niż 1, ListNumbering L
+	Scope            string
+	RowSpan, ColSpan int
+	ListNumbering    string
 }
 
 // TaggedDocument to cel, który przyjmuje drzewo struktury. Wywoływane po narysowaniu wszystkich stron

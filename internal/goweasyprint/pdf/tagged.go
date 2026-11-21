@@ -36,8 +36,9 @@ type markState struct {
 	// tam q i Q nie zamykają ciągu, żeby nie przeciąć zagnieżdżenia
 	hold int
 
-	annotationOwner any
-	annotations     []taggedAnnotation
+	annotationOwner    any
+	annotationContents string
+	annotations        []taggedAnnotation
 }
 
 type taggedAnnotation struct {
@@ -145,10 +146,10 @@ func (cp *outputPage) Tagged() bool { return cp.marking != nil }
 // CloseMarkedContent (backend.TaggedPage) zamyka otwarty ciąg treści oznaczonej.
 func (cp *outputPage) CloseMarkedContent() { cp.closeMarked() }
 
-// SetAnnotationOwner (backend.TaggedPage) wskazuje element następnej adnotacji odnośnika.
-func (cp *outputPage) SetAnnotationOwner(owner any) {
+// SetAnnotationOwner (backend.TaggedPage) wskazuje element i opis następnej adnotacji odnośnika.
+func (cp *outputPage) SetAnnotationOwner(owner any, contents string) {
 	if cp.marking != nil {
-		cp.marking.annotationOwner = owner
+		cp.marking.annotationOwner, cp.marking.annotationContents = owner, contents
 	}
 }
 
@@ -156,8 +157,10 @@ func (cp *outputPage) SetAnnotationOwner(owner any) {
 func (cp *outputPage) addAnnotation(an *model.AnnotationDict) {
 	cp.page.Annots = append(cp.page.Annots, an)
 	if m := cp.marking; m != nil {
+		// opis adnotacji dla technologii wspomagających (ISO 14289-1 § 7.18.1, § 7.18.5)
+		an.Contents = m.annotationContents
 		m.annotations = append(m.annotations, taggedAnnotation{annotation: an, owner: m.annotationOwner})
-		m.annotationOwner = nil
+		m.annotationOwner, m.annotationContents = nil, ""
 	}
 }
 
@@ -213,9 +216,12 @@ func (c *Output) buildStructure() {
 	}
 
 	elementOf := map[any]*model.StructureElement{}
-	var build func(node *backend.StructureNode, parent *model.StructureElement) (*model.StructureElement, int)
-	build = func(node *backend.StructureNode, parent *model.StructureElement) (*model.StructureElement, int) {
-		element := &model.StructureElement{S: model.ObjName(node.Type), P: parent, Alt: node.Alt, Lang: node.Lang}
+	// build zwraca element węzła, numer jego pierwszego odcinka w kolejności rysowania (-1: brak)
+	// i to, czy element ma treść (własną albo potomków); element bez treści wraca tylko z Keep.
+	var build func(node *backend.StructureNode, parent *model.StructureElement) (*model.StructureElement, int, bool)
+	build = func(node *backend.StructureNode, parent *model.StructureElement) (*model.StructureElement, int, bool) {
+		element := &model.StructureElement{S: model.ObjName(node.Type), P: parent, Alt: node.Alt, Lang: node.Lang,
+			A: structureAttributes(node)}
 		var own []contentItem
 		if node.Owner != nil && elementOf[node.Owner] == nil {
 			own = items[node.Owner]
@@ -228,13 +234,27 @@ func (c *Output) buildStructure() {
 			seq     int
 		}
 		var kids []kid
+		content := len(own) != 0
 		for _, child := range node.Children {
-			if e, s := build(child, element); e != nil {
-				kids = append(kids, kid{e, s})
+			e, s, has := build(child, element)
+			if e == nil {
+				continue
 			}
+			if s < 0 && len(kids) != 0 {
+				s = kids[len(kids)-1].seq // pusty potomek stoi za poprzednim rodzeństwem
+			}
+			kids = append(kids, kid{e, s})
+			content = content || has
 		}
-		if len(own) == 0 && len(kids) == 0 {
-			return nil, 0
+		if !content {
+			if !node.Keep {
+				return nil, -1, false
+			}
+			// pusty element zachowany (Keep): bez treści, z potomkami, które też mają Keep
+			for _, k := range kids {
+				element.K = append(element.K, k.element)
+			}
+			return element, -1, false
 		}
 		minSeq := -1
 		var marked, annotations []contentItem
@@ -252,8 +272,13 @@ func (c *Output) buildStructure() {
 			minSeq = annotations[0].seq
 			element.Pg = annotations[0].page
 		}
-		if len(kids) != 0 && (minSeq < 0 || kids[0].seq < minSeq) {
-			minSeq = kids[0].seq
+		for _, k := range kids { // pierwszy potomek z treścią
+			if k.seq >= 0 {
+				if minSeq < 0 || k.seq < minSeq {
+					minSeq = k.seq
+				}
+				break
+			}
 		}
 		for i, j := 0, 0; i < len(marked) || j < len(kids); {
 			if i < len(marked) && (j == len(kids) || marked[i].seq < kids[j].seq) {
@@ -267,11 +292,11 @@ func (c *Output) buildStructure() {
 		for _, it := range annotations {
 			element.K = append(element.K, model.ContentItemObjectReference{Pg: it.page, Obj: it.annotation})
 		}
-		return element, minSeq
+		return element, minSeq, true
 	}
 	var root *model.StructureElement
 	if c.structure != nil {
-		root, _ = build(c.structure, nil)
+		root, _, _ = build(c.structure, nil)
 	}
 	if root == nil {
 		root = &model.StructureElement{S: "Document"}
@@ -285,7 +310,7 @@ func (c *Output) buildStructure() {
 		if tag == "" {
 			tag = "Span"
 		}
-		orphan, _ := build(&backend.StructureNode{Type: tag, Owner: owner}, root)
+		orphan, _, _ := build(&backend.StructureNode{Type: tag, Owner: owner}, root)
 		if orphan != nil {
 			root.K = append(root.K, orphan)
 		}
@@ -330,4 +355,27 @@ func (c *Output) buildStructure() {
 	catalog.MarkInfo = &model.MarkDict{Marked: true}
 	catalog.Lang = c.lang
 	catalog.ViewerPreferences = &model.ViewerPreferences{DisplayDocTitle: true}
+}
+
+// structureAttributes zapisuje atrybuty węzła jako obiekty atrybutów właścicieli /Table i /List
+// (ISO 32000-1 § 14.8.5.7).
+func structureAttributes(node *backend.StructureNode) []model.AttributeObject {
+	var out []model.AttributeObject
+	table := map[model.Name]model.Object{}
+	if node.Scope != "" {
+		table["Scope"] = model.ObjName(node.Scope)
+	}
+	if node.RowSpan > 1 {
+		table["RowSpan"] = model.ObjInt(node.RowSpan)
+	}
+	if node.ColSpan > 1 {
+		table["ColSpan"] = model.ObjInt(node.ColSpan)
+	}
+	if len(table) != 0 {
+		out = append(out, model.AttributeObject{O: "Table", Attributes: table})
+	}
+	if node.ListNumbering != "" {
+		out = append(out, model.AttributeObject{O: "List", Attributes: map[model.Name]model.Object{"ListNumbering": model.ObjName(node.ListNumbering)}})
+	}
+	return out
 }

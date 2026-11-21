@@ -516,7 +516,7 @@ func (d Document) addHyperlinks(links []Link, context backend.Page, scale mt.Tra
 	for _, link := range links {
 		// gopdfgo: adnotacja należy do elementu odnośnika w drzewie struktury (ADR 0033)
 		if d.tags != nil && tagged != nil && tagged.Tagged() {
-			tagged.SetAnnotationOwner(d.tags.linkOwner(link))
+			tagged.SetAnnotationOwner(d.tags.linkOwner(link), linkContents(link))
 		}
 		linkType, linkTarget, rectangle := link.Type, link.Target, link.Rectangle
 		xMin, yMin := scale.Apply(rectangle[0], rectangle[1])
