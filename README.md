@@ -139,8 +139,10 @@ licences (list in `docs/overview.md`).
 - Digital signatures (PAdES).
 - CSS `zoom`, `mask` and `mask-image` on HTML elements, animations (CSS and SVG SMIL), CSS Linked
   Parameters in SVG.
-- Validation of invoice content: a Factur-X invoice XML is checked for being a CII document and for its
-  profile identifier, not against the XSD or Schematron of the profile.
+- Validation of invoice content: when rendering, gopdfgo checks only that the Factur-X invoice XML is a CII
+  document and reads its profile identifier; it does not validate the XML against the XSD or Schematron of
+  the profile, so an invalid invoice is embedded as given. Validate the XML before rendering (for example
+  with Mustang, which we use in tests to check gopdfgo's own output).
 - `subgrid`, `grid-lanes`, `column-height`.
 - Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
   lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on

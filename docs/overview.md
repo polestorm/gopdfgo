@@ -265,8 +265,9 @@ Out of scope by design:
   alternative text, a skipped heading level, table rows with different numbers of columns) give warnings.
   PDF/A-2b, PDF/A-3b and file attachments are supported (ADR 0016, 0026), and so are Factur-X 1.0 /
   ZUGFeRD 2.x hybrid invoices (`Options.FacturX`, ADR 0034: the invoice XML, the `fx` XMP properties with
-  their extension schema, PDF/A-3b or 3a); the invoice XML is not validated against the profile's XSD or
-  Schematron;
+  their extension schema, PDF/A-3b or 3a). When rendering, gopdfgo does not validate the invoice XML against
+  the profile's XSD or Schematron; the caller should do that. The output was checked with the Mustang
+  validator 2.26.0 on our own MINIMUM-profile invoice (ADR 0034);
 - PNG or SVG output: the output is PDF only;
 - digital signatures (PAdES) and PDF forms.
 
