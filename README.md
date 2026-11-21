@@ -91,10 +91,10 @@ Chromium processes.
 
 | | Chromium 157: time | gopdfgo: time | Chromium 157: memory | gopdfgo: memory |
 |---|---|---|---|---|
-| book, 256 pages | 2.10–2.56 s | 1.62 s | 1.67–1.73 GB | 0.42–0.45 GB |
-| book with table of contents | 2.09–2.12 s ¹ | 2.69–2.72 s | 1.42–1.45 GB | 0.44–0.45 GB |
-| book ×4, 1021 pages | 4.54–4.69 s | 6.53–6.56 s | 2.20–2.26 GB | 0.73–0.74 GB |
-| book ×4 with table of contents | 4.55–4.68 s ¹ | 10.9–11.1 s | 2.11–2.14 GB | 0.78–0.81 GB |
+| book, 256 pages | 2.10–2.56 s | 1.17–1.22 s | 1.67–1.73 GB | 0.42–0.44 GB |
+| book with table of contents | 2.09–2.12 s ¹ | 2.23–2.31 s | 1.42–1.45 GB | 0.44–0.46 GB |
+| book ×4, 1021 pages | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
+| book ×4 with table of contents | 4.55–4.68 s ¹ | 8.6–8.8 s | 2.11–2.14 GB | 0.78–0.80 GB |
 
 ¹ Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
 contents has no page numbers and "page X of Y" reads "0 of 0". gopdfgo fills them in with a second

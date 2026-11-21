@@ -3,8 +3,11 @@ package pdf
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
@@ -279,12 +282,54 @@ func (c *Output) DisableImageInterpolation() {
 	}
 }
 
+// finalizePages (gopdfgo) zamyka strumienie stron równolegle. Strony są od siebie niezależne
+// (każda rozpakowuje swoją treść odłożoną przez Flush i kompresuje ją od nowa), a kompresja to
+// największa część Finalize: w książce na 1000 stron ok. 0,6 s na jednym rdzeniu. Wynik nie zależy
+// od kolejności, bo każda strona zapisuje tylko własne pola.
+func finalizePages(pages []*outputPage) {
+	workers := min(runtime.GOMAXPROCS(0), len(pages))
+	if workers <= 1 {
+		for _, p := range pages {
+			p.finalize()
+		}
+		return
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	// panika w wątku pomocniczym kończyłaby cały proces; przenosimy ją do wołającego, gdzie
+	// gopdfgo.Render zamienia ją na błąd ErrEngine, jak przy zamykaniu stron po kolei
+	var failure atomic.Value
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					failure.CompareAndSwap(nil, fmt.Sprint(r))
+					next.Store(int64(len(pages))) // pozostałe wątki kończą pracę
+				}
+			}()
+			for {
+				i := int(next.Add(1) - 1)
+				if i >= len(pages) {
+					return
+				}
+				pages[i].finalize()
+			}
+		}()
+	}
+	wg.Wait()
+	if r := failure.Load(); r != nil {
+		panic(r)
+	}
+}
+
 func (c *Output) Finalize() model.Document {
 	pages := make([]model.PageNode, len(c.pages))
 	for i, p := range c.pages {
-		p.finalize()
 		pages[i] = &p.page
 	}
+	finalizePages(c.pages)
 	c.document.Catalog.Pages = model.PageTree{
 		Kids: pages,
 	}

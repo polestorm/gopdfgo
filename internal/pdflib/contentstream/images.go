@@ -225,11 +225,7 @@ func beInt(buf *bytes.Buffer) int {
 // gopdfgo: ze stopniem model.CompressionLevel; przy zlib.NoCompression dane zostają w strumieniu zlib
 // bez kompresji, bo obraz ma filtr FlateDecode zapisany na stałe.
 func sliceCompress(data []byte) []byte {
-	var buf bytes.Buffer
-	cmp, _ := zlib.NewWriterLevel(&buf, model.CompressionLevel())
-	cmp.Write(data)
-	cmp.Close()
-	return buf.Bytes()
+	return model.Compress(data, model.CompressionLevel())
 }
 
 // sliceUncompress returns an uncompressed copy of the specified zlib-compressed byte array

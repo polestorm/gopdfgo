@@ -1122,6 +1122,26 @@ Wspólne dla obu katalogów:
     małych obiektów; rejestr tabel z korpusu: +171% rozmiaru bez nich, +31% z nimi); bez opcji zapis bez zmian;
   - bez opcji wynik bajt w bajt ten sam (korpus W3C: 11 689 dokumentów, 46 756 renderowań, 0 różnic); przejęty
     test `html/document/document_test.go` `assertLinks` pomija przy porównaniu nowe pole elementu odnośnika;
+- szybkość dużych dokumentów, 2026-11-21 (praca pomocnika; ADR 0037; profil CPU i alokacji książki
+  1021 stron, wynik bajt w bajt ten sam):
+  - `text/draw/draw_gotext.go` `drawEmojiGotext`, wołane dla każdego rysowanego glifu: zamiast
+    `Face.GlyphData`, które dla glifu konturowego rozkodowuje cały kontur (glyf/CFF), żeby go odrzucić,
+    pytamy `GlyphDataColor` i `GlyphDataBitmap` w tej samej kolejności; wynik ten sam (obraz tylko dla
+    mapy bitowej PNG bez opisu w COLR). Źródło: 48% alokacji programu (5,3 z 11,2 GB) i 10% czasu CPU;
+  - `html/tree/style.go` `SetPageComputedStylesT`: style pseudoelementów strony (pola marginesowe) liczone
+    po selektorach reguł `@page` pasujących do strony, nie po całej mapie `cascadedStyles`, która rośnie
+    o wpisy każdej strony (typ strony zawiera numer), więc koszt rósł z kwadratem liczby stron; jedna pętla
+    po mapie mniej (zob. „Pętle po mapach”);
+  - `pdflib/model/streams.go` nowe `Compress` i `Decompress` z pulą kompresorów zlib (osobno dla każdego
+    stopnia) i dekompresorów; używają ich `NewCompressedStream`, `contentstream/images.go` `sliceCompress`,
+    `contentstream/appearance.go` `content` i `Flush`. Źródło tworzyło nowy kompresor (ok. 1,2 MB) dla
+    każdego strumienia: 1,9 GB alokacji w książce. `Writer.Reset` daje stan jak `NewWriterLevel`;
+  - `goweasyprint/pdf/pdf.go` `Finalize`: strumienie stron zamykane równolegle (`finalizePages`, tyle
+    wątków, ile `GOMAXPROCS`); każda strona zapisuje tylko własne pola, kolejność stron w dokumencie bez
+    zmian;
+  - czas: książka 256 stron 1,61–1,66 → 1,17–1,22 s, ze spisem treści 2,71–2,74 → 2,23–2,31 s, ×4 1021
+    stron 6,47–6,49 → 4,57–4,69 s, ×4 ze spisem 10,9 → 8,6–8,8 s; szczyt pamięci bez wzrostu; korpus W3C
+    (46 756 renderowań) i korpus dokumentów bajt w bajt bez zmian;
 - liczniki kotwic w paginacji, 2026-11-21 (praca pomocnika; ADR 0036, dopisek; pytanie 27;
   `html/tree/target.go` `CacheTargetPageCounters`, `UpdateTargetPages`; `html/layout/layout.go` `paginate`;
   `html/layout/stream.go` `run`, `checkAnchor`; testy `tests/twopass21_test.go`):

@@ -2471,11 +2471,24 @@ func (styleFor StyleFor) SetPageComputedStylesT(pageType utils.PageElement, html
 	styleFor.setComputedStyles(pageType, html.Root, html.Root, "", html.BaseUrl, nil)
 
 	// Apply style for page pseudo-elements (margin boxes)
-	for key := range styleFor.cascadedStyles {
-		// Element, pseudoType = key
-		if key.PseudoType != "" && key.PageType == pageType {
-			// The pseudo-Element inherits from the Element.
-			styleFor.setComputedStyles(key.PageType, key.PageType, html.Root, key.PseudoType, html.BaseUrl, nil)
+	// gopdfgo: źródło przeglądało całą mapę cascadedStyles, a ta rośnie o wpisy każdej strony (typ
+	// strony zawiera jej numer), więc koszt rósł z kwadratem liczby stron (książka na 1000 stron:
+	// kilkanaście milionów porównań). Wpisy pseudoelementów strony tworzy wyłącznie
+	// addPageDeclarations, po jednym dla każdego pasującego selektora reguły @page, więc przechodzimy
+	// te selektory. Kolejność obliczeń nie ma znaczenia (w źródle była losowa, kolejność mapy).
+	seen := map[string]bool{}
+	for _, sh := range styleFor.sheets {
+		for _, pageR := range sh.sheet.pageRules {
+			for _, sel := range pageR.selectors {
+				if sel.pseudoType == "" || seen[sel.pseudoType] || !pageTypeMatch(sel.pageType, pageType) {
+					continue
+				}
+				seen[sel.pseudoType] = true
+				if _, in := styleFor.cascadedStyles[pageType.ToKey(sel.pseudoType)]; in {
+					// The pseudo-Element inherits from the Element.
+					styleFor.setComputedStyles(pageType, pageType, html.Root, sel.pseudoType, html.BaseUrl, nil)
+				}
+			}
 		}
 	}
 }
