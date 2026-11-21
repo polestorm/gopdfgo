@@ -164,6 +164,30 @@ out (often 0, "3/0"); such documents now take the two-pass path too. Measured 20
 | book with TOC (259 pages) | 8 → 3 | 467–478 MB | 461–493 MB | 3.04–3.06 s | 2.72–2.76 s |
 | book ×4 with TOC (1027 pages) | 8 → 3 | 804–889 MB | 834–931 MB | 12.40–12.44 s | 10.88–10.92 s |
 
+### Current state compared with Chromium (2026-11-21)
+
+Measured 2026-11-21 on the same machine, gopdfgo at commit `a655fcd`, Chrome 157; three runs each, whole
+process including program or browser start; memory is the peak resident size, for Chromium summed over all
+its processes. The table-of-contents variants (61 chapter links with `target-counter()` at the front,
+"page X of Y" with `counter(pages)` under every chapter heading) are made by a script from the book.
+
+| Document | Pages, Chromium / gopdfgo | Chromium: time | gopdfgo: time | Chromium: memory | gopdfgo: memory |
+|---|---|---|---|---|---|
+| book | 253 / 256 | 2.10–2.56 s | 1.62–2.01 s | 1.67–1.73 GB | 0.42–0.45 GB |
+| book with table of contents | 256 / 259 | 2.09–2.12 s | 2.69–2.72 s | 1.42–1.45 GB | 0.44–0.45 GB |
+| book ×4 | 1009 / 1021 | 4.54–4.69 s | 6.53–6.56 s | 2.20–2.26 GB | 0.73–0.74 GB |
+| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 10.9–11.1 s | 2.11–2.14 GB | 0.78–0.81 GB |
+
+- Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
+  contents has no page numbers and "page X of Y" reads "Strona 0 z 0". gopdfgo writes "Chapter I —
+  strona 20" and "Strona 11 z 259", which costs the second layout pass (ADR 0036). The times of the
+  table-of-contents rows therefore do not compare the same work.
+- On the plain book gopdfgo is about 25% faster, partly because Chromium starts a browser for each
+  document. Above 1000 pages Chromium is about 30% faster: gopdfgo's layout time grows faster with the
+  number of pages. gopdfgo uses 2.7–3.8 times less memory in every case.
+- The extra pages come from `widows` (see "Page count" above): gopdfgo moves a three-line paragraph whole
+  where Chromium splits it 2 + 1.
+
 ## PDF file size
 
 | Document | Chromium via DevTools (untagged PDF) | Chromium `--print-to-pdf` (tagged PDF) | gopdfgo (untagged PDF) |
@@ -241,7 +265,8 @@ Out of scope by design:
   ZUGFeRD 2.x hybrid invoices (`Options.FacturX`, ADR 0034: the invoice XML, the `fx` XMP properties with
   their extension schema, PDF/A-3b or 3a); the invoice XML is not validated against the profile's XSD or
   Schematron;
-- PNG or SVG output: the output is PDF only.
+- PNG or SVG output: the output is PDF only;
+- digital signatures (PAdES) and PDF forms.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),
 `column-height`, `flex-wrap: balance`.
@@ -261,6 +286,8 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 - colours outside the sRGB gamut (`color(display-p3 …)`, `oklch()` …) are clipped per channel, as Chromium
   prints them, not gamut-mapped as CSS Color 4 § 13 describes;
 - the colour of `-webkit-text-stroke`;
+- CSS `zoom`; `mask` and `mask-image` on HTML elements (masks inside SVG work); animations and transitions
+  are not evaluated, so print shows the static style;
 - a box with `overflow: hidden` and a fixed height, or with `contain: size`, taller than a page is clipped
   at the page edge;
 - the frozen-item rule for column flex containers works only without wrapping;
@@ -270,7 +297,7 @@ Not done yet (status and priority in `docs/progress.md`, Polish):
 
 ## SVG
 
-Checked 2026-11-20 in the code (`internal/webrender/svg`), on the W3C `svg/` reftests, and on a corpus of
+Checked 2026-11-20 and 2026-11-21 in the code (`internal/webrender/svg`), on the W3C `svg/` reftests, and on a corpus of
 23 real-world SVG files (`testdata/svg`: icons, flags and coats of arms from Wikimedia Commons, charts,
 a draw.io-style diagram) compared with Chrome 157.
 
@@ -326,6 +353,7 @@ Not supported or incomplete:
   filter as a whole;
 - `currentColor` passed through a context paint, and `objectBoundingBox` paint servers on a context;
 - CSS `zoom`;
+- structure inside SVG in tagged PDF: an SVG image is one `Figure` with alternative text;
 - animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.
 
 W3C reftests in `svg/` (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),

@@ -6,10 +6,14 @@ It is not meant to print arbitrary web pages. It supports CSS Paged Media: page 
 boxes with running headers and footers, page counters, named pages, page breaks with `orphans` and
 `widows`, repeated table headers.
 
-Status on 2026-11-20:
+Status on 2026-11-21:
 - W3C screen reftests across 11 CSS areas: 9502 of 10962 pass;
 - W3C print reftests: 310 of 340 pass (308 exact, 2 within anti-aliasing edges);
-- own corpus of 22 documents: same page count as Chromium, PDF/A-2b valid in veraPDF for all 22.
+- W3C SVG reftests: 194 of the 235 that can run without scripts pass;
+- own corpus of 22 documents: same page count as Chromium; PDF/A-2b, PDF/A-2a and PDF/UA-1 valid in
+  veraPDF for all 22;
+- real documents (4 KSeF invoices, 5 e-SF financial statements): same pages and page breaks as Chromium,
+  every word within 0.81 pt of its position in Chromium.
 
 Comparison with Chromium, the list of what is not supported, and requirements:
 [`docs/overview.md`](docs/overview.md).
@@ -31,9 +35,17 @@ Comparison with Chromium, the list of what is not supported, and requirements:
   running elements, named pages, footnotes, `leader()`, `target-counter()`.
 - Text: OpenType shaping (go-text/HarfBuzz port), font fallback, `@font-face`, font features,
   `hyphens: auto`, `text-transform`, justification, `white-space`, `word-break`, `overflow-wrap`.
-- SVG (inline and as files, parsed as XML; inline SVG styled by the page's CSS; text shaped like HTML
-  text, with `textPath`; `foreignObject`, `switch`, external `<use>`, `non-scaling-stroke`), PNG, JPEG and
-  GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
+- SVG, inline and as files (details in `docs/overview.md`):
+  - parsed as XML; inline SVG styled by the page's whole cascade; text shaped like HTML text, with
+    `textPath` and `text-shadow`;
+  - `foreignObject`, `switch`, external `<use>`, markers, masks, patterns, gradients (also inherited
+    through `href`, as Inkscape and Illustrator write them), `non-scaling-stroke`;
+  - drop shadow and blur filters drawn as vectors, without rasterization;
+  - `<a href>` inside inline SVG becomes a clickable PDF link;
+  - URL fragments select part of an image: `#xywh=`, `#svgView(…)`, `<view>`;
+  - an SVG file used many times (a logo in every page header) is written into the PDF once;
+  - an SVG file used as an image is static and loads no external resources.
+- PNG, JPEG and GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
   are printed at the size of the element.
 - PDF output:
   - font subsets;
@@ -62,8 +74,8 @@ follows the stylesheet exactly. Every such decision has an ADR in `docs/adr/`.
 
 ## Compared with Chromium
 
-Measured 2026-11-20 on KSeF invoices and e-SF financial statements, with the same fonts in both engines
-and the same page counts. Details: `docs/overview.md`.
+Business documents, measured 2026-11-20 on KSeF invoices and e-SF financial statements, with the same
+fonts in both engines and the same page counts:
 
 | | Chromium 157 | gopdfgo |
 |---|---|---|
@@ -71,6 +83,22 @@ and the same page counts. Details: `docs/overview.md`.
 | time per document (whole process) | 0.41–0.55 s | 0.05–0.24 s |
 | memory | about 950 MB (two browser instances) | 48–156 MB |
 | PDF size, invoices (untagged PDF) | 26.8–52.9 kB | 24.9–51.0 kB |
+
+Large documents, measured 2026-11-21: the illustrated *Pride and Prejudice* (256 pages, 27 MB of images),
+the same book four times over (1021 pages), and both with a table of contents of `target-counter()` links
+and "page X of Y" in the page content. Three runs, whole process, same font; memory is the peak of all
+Chromium processes.
+
+| | Chromium 157: time | gopdfgo: time | Chromium 157: memory | gopdfgo: memory |
+|---|---|---|---|---|
+| book, 256 pages | 2.10–2.56 s | 1.62 s | 1.67–1.73 GB | 0.42–0.45 GB |
+| book with table of contents | 2.09–2.12 s ¹ | 2.69–2.72 s | 1.42–1.45 GB | 0.44–0.45 GB |
+| book ×4, 1021 pages | 4.54–4.69 s | 6.53–6.56 s | 2.20–2.26 GB | 0.73–0.74 GB |
+| book ×4 with table of contents | 4.55–4.68 s ¹ | 10.9–11.1 s | 2.11–2.14 GB | 0.78–0.81 GB |
+
+¹ Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
+contents has no page numbers and "page X of Y" reads "0 of 0". gopdfgo fills them in with a second
+layout pass (ADR 0036). Details: `docs/overview.md`.
 
 ## Usage
 
@@ -107,13 +135,15 @@ licences (list in `docs/overview.md`).
 - System fonts.
 - Vertical writing and right-to-left/bidirectional text.
 - Structure inside SVG images and alternative text for generated content in tagged PDF.
+- Digital signatures (PAdES).
+- CSS `zoom`, `mask` and `mask-image` on HTML elements, animations (CSS and SVG SMIL), CSS Linked
+  Parameters in SVG.
 - Validation of invoice content: a Factur-X invoice XML is checked for being a CII document and for its
   profile identifier, not against the XSD or Schematron of the profile.
 - `subgrid`, `grid-lanes`, `column-height`.
 - Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
   lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on
   HTML elements, `backdrop-filter`. Blur and drop shadows (SVG and CSS `filter`) are vector approximations.
-- SVG: spatial media fragments (`#xywh=`). Details in `docs/overview.md`.
 - Perspective: `perspective()` and the `perspective` property are accepted with a warning and drawn as
   an orthographic projection; `preserve-3d` has no depth sorting. 3D transforms without perspective are
   drawn exactly.
