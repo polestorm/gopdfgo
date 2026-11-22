@@ -1180,6 +1180,29 @@ Wspólne dla obu katalogów:
     `tags.go` `svgLinkKey`, `tagger.svgLinkNodes`, `linkOwner`: odnośnik tego samego elementu `<a>` obrazu SVG
     na kilku stronach (wycinki) to jeden element struktury `Link` z adnotacją na każdej stronie; wcześniej
     każda adnotacja miała własny element;
+- dokumenty biurowe (textutil) i losowe z generatora, 2026-11-22 (ADR 0042; testy `tests/office22_test.go`;
+  `bench/realdocs`, dokumenty `office-*` i `rand-*`):
+  - `text/engine_gotext.go` `WrapWordBreak`: wiersz z samych spacji zdjętych przy zawijaniu ma pusty tekst;
+    sprawdzenie tabulatora na końcu (`text[len(text)-1]`) kończyło się paniką (indeks -1) przy min-content
+    komórki z `a<span style="letter-spacing:-0.4px"> b</span>,c`;
+  - `html/layout/tables.go` (układ komórek wiersza): `min-height` komórki tabeli jest pomijane jak
+    `max-height` (CSS 2.2 § 10.7: skutek nieokreślony; Chromium pomija). textutil daje każdej komórce
+    `min-height` z wysokości wiersza w Wordzie, więc wiersze wychodziły prawie dwa razy wyższe;
+  - `html/tree/computed_values.go` `verticalAlign`: `sub` −1/5, `super` +1/3 rozmiaru pisma rodzica
+    (CSS Inline 3 § 4.2.3, ADR 0042); źródło: ±0,5 em własnego rozmiaru (jak Pango); przejęty test
+    `html/layout/inline_test.go` `TestVerticalAlign6` sprawdza nowe położenia (16/3 i 3,2 px zamiast 8 px;
+    wysokość wiersza 64 zamiast 68, dół wyznacza teraz wiersz zastępczy rodzica);
+  - `html/boxes/build.go` `onlyEmptyInlines` (nowa) przy wierszu dla znacznika: element listy ze znacznikiem
+    na zewnątrz, w którym poza znacznikiem są tylko puste pudełka wierszowe (`<li><b></b></li>`), dostaje
+    spację zerowej szerokości jak pusty element listy; wcześniej wiersz był fantomowy i lista nie miała
+    wysokości (Chromium daje znacznikowi wiersz);
+  - `html/layout/column.go` (`columnsLayout`): każda próba ułożenia kolumn zaczyna od kopii listy wykluczeń
+    sprzed kolumn; przycinanie `list[:len(original)]` kończyło się paniką, gdy próba usunęła element
+    pływający sprzed kolumn (`removeExcludedShape`); podobnie przycięcie po `floatLayout` przy równoważeniu;
+  - `html/layout/block.go` `blockBoxLayoutLines`: tabela zepchnięta przez `avoidCollisions` pod elementy
+    pływające, która tam przekracza dół strony albo była już podzielona, jest układana od nowa na nowej
+    wysokości; wcześniej tylko ją przesuwano, a wystający dół spychał całą tabelę na następną stronę
+    (pusta reszta strony; Chromium zaczyna tabelę pod elementem pływającym);
 - szybkość dużych dokumentów, 2026-11-21 (praca pomocnika; ADR 0037; profil CPU i alokacji książki
   1021 stron, wynik bajt w bajt ten sam):
   - `text/draw/draw_gotext.go` `drawEmojiGotext`, wołane dla każdego rysowanego glifu: zamiast

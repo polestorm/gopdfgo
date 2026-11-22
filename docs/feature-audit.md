@@ -2367,3 +2367,100 @@ z odstępem nierozdzielającym).
   wymusza podziału).
 - Faktury i e-SF: wynik bez zmian (te same liczby co do setnych punktu); determinizm bajtów: dwa
   renderowania czterech dokumentów zestawu identyczne.
+
+## Dokumenty biurowe i losowe: nowe źródła i rozbiór rozbieżności z Chromium (2026-11-22)
+
+Zestaw `bench/realdocs` (poza gitem, opis w `bench/realdocs/README.md`) dostał dwa źródła:
+
+- **dokumenty biurowe** (`office-*`, 15): pliki `.docx`, `.doc` i `.odt` z katalogu projektów
+  przekonwertowane narzędziem macOS `textutil -convert html` (`genoffice/convert.py`): opisy protokołów
+  i specyfikacje z tabelami, dokumentacja modelu bazy (13 stron, 43 tabele), protokół pomiarowy, tablica
+  parametrów z indeksami, plan i oferta z listami, propozycja i model cenowy, notatki szkolne, umowa
+  (6 stron), porównanie. Rodziny Worda zmapowane przez `@font-face` na Tinos, Arimo i Noto Sans Mono z
+  `testdata/fonts` dla obu silników, `@page` A4 20 mm. textutil gubi obrazy, więc obrazów w tym źródle nie ma;
+- **dokumenty losowe** (`rand-*`, 30): `genrand/gen.py`, deterministyczny z ziarnem; tabele z `colspan`,
+  `rowspan`, `thead`, `tfoot`, elementy pływające, listy i liczniki, akapity z losowymi `widows`/`orphans`,
+  `justify`, `break-*`, kolumny z `column-span`, pola marginesów, zagnieżdżone bloki z ramkami.
+
+Porównanie: Chrome 157, `pdftotext -bbox`, `driftalign.py`; gopdfgo z limitem 120 s na dokument.
+
+### Naprawione (testy w `tests/office22_test.go`)
+
+| Błąd | Gdzie znaleziony | Przyczyna, norma |
+|---|---|---|
+| **panika** `index out of range [-1]` | `office-rcom-protocol` | `WrapWordBreak`: przy min-content komórki z `a<span style="letter-spacing:-0.4px"> b</span>,c` wiersz z samej zdjętej spacji miał pusty tekst, a sprawdzenie tabulatora na końcu czytało `text[-1]` |
+| **panika** `slice bounds out of range` | `rand-23` | `columnsLayout`: próba ułożenia kolumn za elementem pływającym z tabelą szerszą niż on usuwała ten element z listy wykluczeń (`removeExcludedShape`), a przycięcie listy do długości sprzed kolumn wychodziło poza nią; każda próba zaczyna teraz od kopii listy |
+| wiersze tabel z Worda prawie dwa razy wyższe | `office-param-table` (3 strony, Chrome 2), `office-meter-report` | textutil daje każdej komórce `min-height` z wysokości wiersza w Wordzie; CSS 2.2 § 10.7 zostawia skutek `min-height` komórki nieokreślonym, Chromium go pomija (jak `max-height`, które pomijaliśmy już wcześniej) |
+| element listy `<li><b></b></li>` bez wysokości | `office-production` (41 słów na innej stronie) | wiersz z samym pustym pudełkiem jest fantomowy (CSS 2.2 § 9.4.2), więc znacznik zostawał bez wiersza; pusty `<li></li>` już miał wiersz dla znacznika (CSS Lists 3 zostawia to otwarte), teraz także element z samymi pustymi pudełkami wierszowymi, jak w Chromium |
+| indeks dolny schodził dwa razy za nisko | tabele z m³, Q₁, Δp | `vertical-align: sub`/`super` było ±0,5 em własnego rozmiaru; teraz wartości domyślne CSS Inline 3 § 4.2.3: 1/5 i 1/3 rozmiaru rodzica (ADR 0042). Chromium dodaje do nich 1 px, więc wiersz z indeksem jest u nas ok. 1 px niższy (wcześniej 1–2 px wyższy) |
+| długa tabela pod elementem pływającym trafiała w całości na następną stronę | `rand-27` (zminimalizowany) | tabela niemieszcząca się obok elementu pływającego była układana obok niego i dopiero potem przesuwana w dół (CSS 2.1 § 9.5); dół wystający poza stronę spychał całą tabelę dalej, zostawiając resztę strony pustą. Teraz jest układana od nowa na nowej wysokości i dzieli się jak w Chromium |
+
+### Tabela przed i po (inna strona / słowa dalej niż 3 pt w pionie; liczba stron gopdfgo/Chrome)
+
+Baza: `origin/main` e6d391e, po: ta gałąź po scaleniu. Faktury (4), e-SF (5), `md-*` (12) i `mmd-*` (10): wszystkie
+liczby bez zmian (porównanie wierszy wyniku `runx.sh`).
+
+| Dokument | Przed | Po |
+|---|---|---|
+| `office-rcom-protocol` | panika | 1/1 str., 0 / 0 |
+| `office-param-table` | 3/2 str., 102 / 278 (dy med 215 pt) | 2/2 str., 0 / 602 (dy med 7,6 pt) |
+| `office-production` | 41 / 770 (dy med 27 pt) | 0 / 0 |
+| `office-meter-report` | 3 / 250 | 13 / 398 |
+| `office-terminology` | 144 / 2050 | 141 / 1853 |
+| `office-db-model` | 199 / 2230 | bez zmian |
+| `office-agreement` | 29 / 327 | bez zmian |
+| pozostałe `office-*` (8) | 0 / 0–2 | bez zmian |
+| `rand-23` | panika | 9/9 str., 0 / 582 (kontener kolumn obok elementu pływającego, niżej) |
+| pozostałe `rand-*` (29) | | bez zmian |
+
+`office-meter-report` i `office-param-table` mają więcej słów przesuniętych o ponad 3 pt, bo wiersze
+z indeksami są teraz o ok. 1 px niższe niż w Chromium (wcześniej o 1–2 px wyższe): mediana spada, liczba słów
+z przesunięciem rośnie, bo przesunięcie narasta stopniowo zamiast skokiem.
+
+### Opisane, bez zmian
+
+- **Dodatkowy 1 px Chromium przy `sub`/`super`** (`office-param-table`, `office-terminology`,
+  `office-meter-report`): Chrome przesuwa o rozmiar rodzica / 5 + 1 px i / 3 + 1 px; norma daje wartość
+  domyślną bez piksela (ADR 0042).
+- **Połowa interlinii zaokrąglana w dół w Chromium** (`rand-24`, każdy wiersz z wstawką `code` w innym foncie
+  przy `line-height` liczbowym): Blink zaokrągla górną połowę odstępu (`(L/2).Floor()`), a resztę daje na dół,
+  więc wiersz z pudełkiem o innym rozmiarze pisma jest o 1 px wyższy (Noto Sans 11pt/1.5 z `code` 0,9 em:
+  23 px wobec 22 px). CSS 2.2 § 10.8.1 i CSS Inline 3 dzielą odstęp na równe połowy; zostajemy przy normie.
+- **Wiersz kończący się tuż przy krawędzi (różnica setnych piksela)** (`office-wmbus-protocol`,
+  `office-quote`, `rand-29`): szerokości glifów zaokrąglamy do 1/64 px każdą osobno, więc suma wiersza bywa
+  o 0,02–0,05 px mniejsza niż w Chromium (który sumuje dokładne pozycje HarfBuzz); wiersz 627,01 px
+  w dostępnych 627,02 px mieści się u nas, w Chromium (627,04 px) nie. Poprawka wymaga, żeby także szerokości
+  min-/max-content liczyły się z dokładnych pozycji (inaczej pudełko o szerokości max-content łamałoby
+  własny tekst); do osobnej rundy.
+- **`widows` w krótkim bloku** (`office-agreement`: 3-wierszowy punkt umowy, Chrome dzieli 2 + 1): pytanie 28.
+- **Fonty systemowe Chromium** (`office-db-model`: ✔ z ZapfDingbats, u nas z fontu zastępczego z testdata,
+  inne wysokości wierszy w 43 tabelach; `office-school-notes`: ★, którego nie ma w żadnym foncie
+  z testdata, u nas `.notdef`): pytanie 28.
+- **Znaczniki list jako słowa**: Chrome rysuje kropki `disc`/`circle`/`square` jako kształty, gopdfgo jako
+  tekst, więc w dokumentach z listami mamy więcej słów (np. `office-project-plan` 376 wobec 351); położenia
+  pozostałych słów zgodne.
+- **Kontener wielokolumnowy obok elementu pływającego nachodzi na niego** (`rand-23`): kontener kolumn
+  tworzy własny kontekst formatowania (CSS Multicol 1 § 2), więc według CSS 2.1 § 9.5 jego pole nie może
+  nachodzić na element pływający; Chrome zwęża go i stawia obok. U nas `columnsLayout` nie omija elementów
+  pływających (błąd po naszej stronie, do naprawy: zwężenie jak w `narrowBesideFloats` i przesunięcie w poziomie).
+- **Szerokości kolumn tabeli `table-layout: fixed` w `rand-27`**: Chrome daje pięciu kolumnom po 60 pt,
+  a dwóm ostatnim więcej; u nas wszystkie po 68,8 pt. W prostych przypadkach (`thead`, `border-spacing`,
+  długa treść, `colspan`) oba silniki dzielą równo; przyczyny w tym dokumencie nie rozebrano.
+- **Dokumenty losowe z dużym przesunięciem** (`rand-01`, `-02`, `-11`, `-22`, `-25`, `-27`, `-30`):
+  generator tworzy też kombinacje nienaturalne (element pływający z tabelą szerszą niż on, nachodzący na
+  tabelę dalej; kolumny z `break-inside: avoid` i `column-span`); pierwsza rozbieżność to zwykle równoważenie
+  kolumn (Chrome zostawia w kolumnie 1 wiersz przy domyślnym `widows: 2`, pytanie 28) albo dzielenie tabel
+  z `rowspan` między strony. Do dalszego rozbioru od pierwszego rozbieżnego słowa.
+
+### Sprawdzenia (2026-11-22, binarka z tej gałęzi po scaleniu e6d391e)
+
+- `go test ./tests/`: zaliczone (reftesty druku bez zmian); testy przejętego kodu: tylko znane
+  niepowodzenia (TestRoundedRect, TestTextSubsetComposite, TestSelectors, TestMatchers, TestFloats2,
+  TestLayoutTableAuto20; pdflib TestOpenAction, TestRC4Basic); `TestVerticalAlign6` zaktualizowany do ADR 0042.
+- Sondaż CSS: 9499 z 10962, jak w bazie; strata `white-space-pre-wrap-trailing-spaces-021` (edge → fail)
+  nie pochodzi z tej gałęzi (PDF tego testu bajt w bajt ten sam co z binarki `origin/main`), trzy
+  `hanging-punctuation-last*` jak w ADR 0038, zysk `background-size-cover-svg-view` z e6d391e.
+- Sondaż SVG: 194 z 235, bez strat.
+- Korpus: różnice w `12-floats-positioning` i `13-forms-html-elements`, oba z wierszem z `<sub>`/`<sup>`
+  (ADR 0042); pozostałe 66 renderowań bez zmian.
+- Determinizm: dwa renderowania `office-param-table`, `office-production`, `rand-23` identyczne.

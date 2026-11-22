@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -940,8 +941,8 @@ func TestVerticalAlign5(t *testing.T) {
 func TestVerticalAlign6(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
-	// sup and sub currently mean +/- 0.5 em
-	// With the initial 16px font-size, that’s 8px.
+	// gopdfgo: super podnosi o 1/3, sub obniża o 1/5 rozmiaru pisma rodzica (CSS Inline 3 § 4.2.3,
+	// ADR 0042); przy 16 px to 16/3 i 3,2 px. Źródło: ±0,5 em, czyli 8 px (12, 28 i 68 niżej).
 	page := renderOnePage(t, `
       <span style="line-height: 10px">
         <img src="pattern.png" style="width: 60px"
@@ -957,9 +958,9 @@ func TestVerticalAlign6(t *testing.T) {
 	tu.AssertEqual(t, img2.Box().Height, Fl(40))
 	tu.AssertEqual(t, img3.Box().Height, Fl(40))
 	tu.AssertEqual(t, img1.Box().PositionY, Fl(0))
-	tu.AssertEqual(t, img2.Box().PositionY, Fl(12))
-	tu.AssertEqual(t, img3.Box().PositionY, Fl(28))
-	tu.AssertEqual(t, line.Box().Height, Fl(68))
+	tu.Assert(t, math.Abs(float64(img2.Box().PositionY.V())-(60-16.0/3-40)) < 1e-4)
+	tu.AssertEqual(t, img3.Box().PositionY, Fl(60+3.2-40))
+	tu.AssertEqual(t, line.Box().Height, Fl(64)) // gopdfgo: dół wiersza wyznacza teraz zastępczy wiersz (strut) rodzica, nie indeks
 	tu.AssertEqual(t, body.Box().Height, line.Box().Height)
 }
 

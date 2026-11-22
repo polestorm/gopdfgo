@@ -246,6 +246,16 @@ engines get the same Noto fonts through `@font-face`; Chrome 157.
   before a diagram taller than the page. A diagram taller than the page is sliced across pages, and each
   page carries only the text that its slice shows; a label crossing the slice edge is on both pages, as in
   Chromium (ADR 0041; before 2026-11-22 an inline `<svg>` repeated its first slice on every page).
+- Office documents (15 Word and OpenOffice files converted to HTML with macOS `textutil`, measured
+  2026-11-22): all have Chromium's page count; in 8 at most 2 words are more than 3 pt away. Fixed on the way: a crash
+  on a letter-spaced space in a table cell, `min-height` on table cells (ignored, as in Chromium; Word
+  exports give every cell one), list items holding only empty inline boxes, and subscript/superscript
+  offsets (now 1/5 and 1/3 of the parent font size, the CSS Inline 3 defaults; Chromium adds 1 px, ADR 0042).
+  The rest: Chromium's system fonts for ✔ and ★, `widows` in short blocks, Chromium's rounding of the
+  half-leading, and lines ending within hundredths of a pixel of the edge.
+- Random documents (30 from a seeded generator: tables with spans and repeated headers, floats, lists,
+  counters, columns, breaks, margin boxes): the generator found a crash in column layout after a float and a
+  long table pushed to the next page instead of starting below a float; both fixed. No hangs.
 - The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
   draws; gopdfgo keeps the exact baseline.
 - W3C screen reftests across 11 CSS areas: 9499 of 10962 pass (2026-11-22; three `hanging-punctuation` tests
