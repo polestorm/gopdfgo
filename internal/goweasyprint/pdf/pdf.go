@@ -57,6 +57,8 @@ type cache struct {
 	// służy tylko do wyszukiwania, nigdy nie jest przeglądana, więc kolejność zapisu w pliku zależy
 	// wyłącznie od kolejności rysowania
 	forms map[sharedFormKey]*model.XObjectForm
+	// formTexts (gopdfgo): czy forma wspólna zawiera tekst (zob. DrawShared i ADR 0041)
+	formTexts map[*model.XObjectForm]bool
 }
 
 func newCache() cache {
@@ -67,6 +69,7 @@ func newCache() cache {
 		transfers: make(map[string]*model.FunctionDict),
 		maskLimit: new([2]fl),
 		forms:     make(map[sharedFormKey]*model.XObjectForm),
+		formTexts: make(map[*model.XObjectForm]bool),
 	}
 }
 

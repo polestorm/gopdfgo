@@ -243,7 +243,9 @@ engines get the same Noto fonts through `@font-face`; Chrome 157.
   into `<foreignObject>` (ADR 0038).
 - Mermaid diagram pages (10, inline SVG with `foreignObject` labels): 8 match Chromium to hundredths of a
   point; one differs by its label font (Chromium finds a system font), one by Chromium leaving page 1 empty
-  before a diagram taller than the page.
+  before a diagram taller than the page. A diagram taller than the page is sliced across pages, and each
+  page carries only the text that its slice shows; a label crossing the slice edge is on both pages, as in
+  Chromium (ADR 0041; before 2026-11-22 an inline `<svg>` repeated its first slice on every page).
 - The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
   draws; gopdfgo keeps the exact baseline.
 - W3C screen reftests across 11 CSS areas: 9499 of 10962 pass (2026-11-22; three `hanging-punctuation` tests

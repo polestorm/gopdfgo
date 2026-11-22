@@ -1165,6 +1165,21 @@ Wspólne dla obu katalogów:
   - `css/selector/selector.go` `tagSelector.Match`: element bez atomu (`DataAtom` zero) porównywany po
     nazwie także dla selektora ze znaną nazwą („svg”, „g”, „div”); dotyczy tylko zastępników przodków
     foreignObject, którym atomu celowo nie nadajemy (zastępnik `<svg>` nie może stać się obrazem SVG);
+- treść krojona między strony: na stronie tylko jej wycinek, 2026-11-22 (ADR 0041; testy
+  `tests/slice22_test.go`; dokumenty `mmd-er-real`, `mmd-p6`, `mmd-p16` z `bench/realdocs`):
+  - `html/document/stacking.go` `StackingContext.slicedLine`, `dispatchChildren`, `contextBoxes` (nowa),
+    `html/document/draw.go` `drawStackingContext`: kontekst nakładania utworzony z dziecka wycinka wiersza
+    krojonego między strony (np. `<svg>` w wierszu, któremu `overflow: hidden` daje kontekst) dostaje
+    przesunięcie i przycięcie wycinka. Wcześniej był rysowany poza wierszem bez nich: każda strona pokazywała
+    początek obrazu, a jego dalsza część ginęła (diagramy mermaid: `mitigated_by`, `CONTROL`, `Kontrola`);
+  - `backend/graphics.go` `TextCuller` (nowy interfejs), `html/document/draw.go` `clipSlice` (nowa) wołana
+    w `drawReplacedbox` (obraz krojony), `drawInlineLevel` (wycinek wiersza) i `drawStackingContext`
+    (`SliceVisible`, `slicedLine`): przycięcie do wycinka razem z pominięciem tekstu leżącego w całości poza
+    nim; wygląd bez zmian, tekst niewidoczny nie trafia do treści strony;
+  - `svg/links.go` `LinkArea.Index`, `html/document/document.go` `Link.svgIndex`, `svg_links.go`,
+    `tags.go` `svgLinkKey`, `tagger.svgLinkNodes`, `linkOwner`: odnośnik tego samego elementu `<a>` obrazu SVG
+    na kilku stronach (wycinki) to jeden element struktury `Link` z adnotacją na każdej stronie; wcześniej
+    każda adnotacja miała własny element;
 - szybkość dużych dokumentów, 2026-11-21 (praca pomocnika; ADR 0037; profil CPU i alokacji książki
   1021 stron, wynik bajt w bajt ten sam):
   - `text/draw/draw_gotext.go` `drawEmojiGotext`, wołane dla każdego rysowanego glifu: zamiast
@@ -2808,6 +2823,12 @@ zależnością modułu):
   podzbioru nie da się zbudować, cały font idzie jako `/FontFile3 /Subtype /OpenType` z ostrzeżeniem
   w `Result.Warnings`. `isSupportedFont` uznaje też tabelę `CFF2`; w źródle font zmienny `.otf` był
   pomijany, a złożony nim tekst znikał z PDF bez ostrzeżenia. Fonty TrueType bez zmian (bajt w bajt).
+- `pdf/cull.go` (nowy, własny), `pdf/page.go` (`group.cull`, `group.texts`, `group.culled`, `OnNewStack`,
+  `SetLineWidth`), `pdf/text.go` `DrawText`, `pdf/filters.go` `DrawShared`, `storeForm`, `formCull` (nowe),
+  `pdf/pdf.go` `cache.formTexts`, 2026-11-22, ADR 0041: `backend.TextCuller`; tekst (`TextDrawing`), którego
+  ostrożna ramka nie przecina obszaru wycinka, nie jest zapisywany; obszar należy do stanu graficznego. Forma
+  współdzielona obrazu SVG z tekstem jest dla wycinka, z którego odpadł tekst, rysowana osobno bez niego;
+  obraz bez tekstu dalej korzysta ze wspólnej formy. Bez krojenia wynik bajt w bajt ten sam.
 
 ## Ustawienia silnika w `render.go`
 

@@ -195,8 +195,13 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 		// gopdfgo: pas pudełka krojonego między strony jako całość (zob. BoxFields.SliceVisible): całość
 		// przycięta do części widocznej na tej stronie
 		if box.SliceVisible > 0 {
-			ctx.dst.Rectangle(-1e5, fl(box.PositionY+box.SliceOffset), 2e5, fl(box.SliceVisible))
-			ctx.dst.State().Clip(false)
+			ctx.clipSlice(-1e5, fl(box.PositionY+box.SliceOffset), 2e5, fl(box.SliceVisible))
+		}
+		// gopdfgo: kontekst z wnętrza wycinka wiersza krojonego między strony: przesunięcie i przycięcie
+		// wiersza (zob. StackingContext.slicedLine i drawInlineLevel)
+		if line := stackingContext.slicedLine; line != nil {
+			ctx.clipSlice(-1e5, fl(line.PositionY), 2e5, fl(line.Height.V()))
+			ctx.dst.State().Transform(matrix.Translation(0, -fl(line.SliceOffset)))
 		}
 
 		// apply the viewport_overflow to the html box, see #35
@@ -1255,6 +1260,17 @@ func (ctx drawContext) drawCollapsedBorders(table *bo.TableBox) {
 	}
 }
 
+// clipSlice (gopdfgo) przycina rysowanie do widocznego wycinka pudełka krojonego między strony
+// i pomija tekst leżący w całości poza nim (backend.TextCuller, ADR 0041): tekst niewidoczny na tej
+// stronie nie trafia do jej warstwy tekstu.
+func (ctx drawContext) clipSlice(x, y, width, height fl) {
+	ctx.dst.Rectangle(x, y, width, height)
+	ctx.dst.State().Clip(false)
+	if culler, ok := ctx.dst.(backend.TextCuller); ok {
+		culler.CullTextOutside(x, y, width, height)
+	}
+}
+
 // Draw the given `bo.ReplacedBox`
 func (ctx drawContext) drawReplacedbox(box_ bo.ReplacedBoxITF) {
 	box := box_.Replaced()
@@ -1278,8 +1294,7 @@ func (ctx drawContext) drawReplacedbox(box_ bo.ReplacedBoxITF) {
 	ctx.markReplaced(&box.BoxFields) // gopdfgo: obraz elementu to Figure (ADR 0033)
 	ctx.dst.OnNewStack(func() {
 		if sliced {
-			ctx.dst.Rectangle(fl(box.ContentBoxX()), fl(box.ContentBoxY()), fl(box.Width.V()), fl(visibleHeight.V()))
-			ctx.dst.State().Clip(false)
+			ctx.clipSlice(fl(box.ContentBoxX()), fl(box.ContentBoxY()), fl(box.Width.V()), fl(visibleHeight.V()))
 			drawY -= box.SliceOffset
 		}
 		// gopdfgo: treść elementu zastępowanego jest zawsze przycinana do zaokrąglonej krawędzi treści
@@ -1310,8 +1325,7 @@ func (ctx drawContext) drawInlineLevel(page *bo.PageBox, box_ Box, offsetX fl, t
 		whole := *lineBox
 		whole.SliceFullHeight = 0
 		ctx.dst.OnNewStack(func() {
-			ctx.dst.Rectangle(-1e5, fl(lineBox.PositionY), 2e5, fl(lineBox.Height.V()))
-			ctx.dst.State().Clip(false)
+			ctx.clipSlice(-1e5, fl(lineBox.PositionY), 2e5, fl(lineBox.Height.V()))
 			ctx.dst.State().Transform(matrix.Translation(0, -fl(lineBox.SliceOffset)))
 			ctx.drawInlineLevel(page, &whole, offsetX, textOverflow, blockEllipsis)
 		})

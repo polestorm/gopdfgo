@@ -16,6 +16,9 @@ type LinkArea struct {
 	Href string
 	// prostokąt otaczający narysowaną treść elementu po wszystkich przekształceniach
 	X, Y, Width, Height Fl
+	// Index to numer wystąpienia elementu <a> w kolejności dokumentu (także pustych): ten sam element
+	// w kolejnych rysowaniach obrazu ma ten sam numer (wycinki obrazu krojonego między strony, ADR 0041)
+	Index int
 }
 
 // resolveLinkTargets rozwiązuje cele elementów <a> względem adresu dokumentu: odnośnik do fragmentu
@@ -129,7 +132,7 @@ func (w *linkWalker) walk(node *svgNode, dims drawingDims, m matrix.Transform, c
 
 	span, isSpan := node.graphicContent.(*textSpan)
 	if isSpan && span.linkHref != "" {
-		w.areas = append(w.areas, LinkArea{Href: span.linkHref})
+		w.areas = append(w.areas, LinkArea{Href: span.linkHref, Index: len(w.areas)})
 		link = len(w.areas) - 1
 	}
 

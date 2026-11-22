@@ -104,6 +104,7 @@ func (g *group) SetColorRgba(color parser.RGBA, stroke bool) {
 }
 
 func (g *group) SetLineWidth(width fl) {
+	g.cull.lineWidth = width // gopdfgo: zob. cull.go
 	g.stream.Ops(cs.OpSetLineWidth{W: width})
 }
 
@@ -151,6 +152,12 @@ type group struct {
 	// marking (gopdfgo): oznaczanie treści strony w PDF z tagami (ADR 0033, tagged.go); nil w grupach,
 	// wzorcach i maskach oraz bez tagów
 	marking *markState
+
+	// gopdfgo: pomijanie tekstu poza widocznym wycinkiem (ADR 0041, cull.go); texts to liczba tekstów
+	// przekazanych do DrawText, culled – pominiętych. Grupy pośrednie (NewGroup) zaczynają bez
+	// pomijania: ich układ współrzędnych bywa niezależny od miejsca użycia (wzorce, maski).
+	cull          textCull
+	texts, culled int
 }
 
 // transparencyGroup (gopdfgo) zwraca grupę przezroczystości z treścią g, tę samą przy kolejnych
@@ -388,7 +395,9 @@ func (g *group) SetBoundingBox(left, top, right, bottom fl) {
 func (g *group) OnNewStack(task func()) {
 	g.closeAtStack() // gopdfgo: ciąg treści oznaczonej nie przecina q i Q (zob. tagged.go)
 	g.stream.SaveState()
+	cull := g.cull // gopdfgo: stan pomijania tekstu należy do stanu graficznego (cull.go)
 	task()
+	g.cull = cull
 	g.closeAtStack()
 	_ = g.stream.RestoreState() // the calls are balanced
 }
