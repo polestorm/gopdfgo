@@ -386,6 +386,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 				// pomijają, test WPT table-cell-multicol-nested-002). W źródle ostatni fragment komórki był
 				// przycinany do max-height, a treść wystawała z wiersza.
 				cell.MaxHeight = pr.Inf
+				// gopdfgo: min-height też nie (ten sam § 10.7; Chromium pomija min-height komórki, jak
+				// wiersza i grupy wierszy). Dokumenty z textutil (Word → HTML) dają każdej komórce
+				// min-height z wysokości wiersza w Wordzie, a wiersze wychodziły prawie dwa razy wyższe.
+				cell.MinHeight = pr.Float(0)
 				originalStyle := cell.Style
 				if cell.Style.GetHeight().Tag != pr.Auto {
 					styleCopy := cell.Style.Copy()

@@ -434,7 +434,10 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 		balancedHeight := false
 		for {
 			// Remove extra excluded shapes introduced during the previous loop
-			context.excludedShapes.list = (context.excludedShapes.list)[:len(originalExcludedShapes)]
+			// gopdfgo: próba mogła też usunąć element pływający sprzed kolumn (removeExcludedShape, gdy
+			// dalszy ciąg elementu z poprzedniej strony nie staje na tej); lista bywała wtedy krótsza niż
+			// na początku i przycięcie kończyło się paniką. Każda próba zaczyna od stanu sprzed kolumn.
+			context.excludedShapes.list = append(context.excludedShapes.list[:0], originalExcludedShapes...)
 
 			// Render the columns
 			columnSkipStack = skipStack
@@ -609,7 +612,7 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 						shapes := len(context.excludedShapes.list)
 						full, _ := floatLayout(context, v.box, v.containingBlock.Box(), new([]*AbsolutePlaceholder),
 							new([]*AbsolutePlaceholder), -pr.Inf, nil)
-						context.excludedShapes.list = context.excludedShapes.list[:shapes]
+						context.excludedShapes.list = context.excludedShapes.list[:min(shapes, len(context.excludedShapes.list))] // gopdfgo: zob. wyżej
 						if full == nil {
 							continue
 						}

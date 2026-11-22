@@ -350,6 +350,28 @@ func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpac
 			nb.PositionX = positionX
 		} else {
 			positionX, positionY, _ := avoidCollisions(context, newBox, containingBlock, false)
+			// gopdfgo: tabela zepchnięta pod elementy pływające, która tam przekracza dół strony (albo już
+			// została podzielona), jest układana od nowa na nowej wysokości, żeby podzieliła się we
+			// właściwym miejscu (CSS 2.1 § 9.5: pod elementami pływającymi, CSS Fragmentation 3). Wcześniej
+			// tabelę ułożoną obok elementu pływającego tylko przesuwano w dół, a jej dół wystający poza
+			// stronę spychał całą tabelę na następną stronę: zostawała pusta reszta strony, w Chromium
+			// tabela zaczyna się pod elementem pływającym (bench/realdocs, dokumenty losowe, 2026-11-22).
+			if dy := positionY - newBox.Box().PositionY; dy > 0.5 && nb.IsTableWrapper && skipStack == nil &&
+				!nb.IsFlexItem && !nb.IsGridItem && context.pageBottom != pr.Inf &&
+				(result.resumeAt != nil || nb.PositionY+nb.MarginHeight()+dy > context.pageBottom-bottomSpace) {
+				removePlaceholders(context, []Box{newBox}, absoluteBoxes, fixedBoxes)
+				box.PositionY = savedPositionY + dy
+				*adjoiningMargins = append((*adjoiningMargins)[:0], savedMargins...)
+				relaid, layout, left := blockContainerLayout(context, box_, bottomSpace, skipStack, pageIsEmpty,
+					absoluteBoxes, fixedBoxes, adjoiningMargins, discard, maxLines)
+				if relaidBox, ok := relaid.(bo.BlockBoxITF); ok && relaidBox != nil {
+					newBox, result, linesLeft = relaidBox, layout, left
+					positionX, positionY, _ = avoidCollisions(context, newBox, containingBlock, false)
+				} else {
+					// nic się nie zmieściło: zwracamy wynik układu jak dotąd (pudełko na następnej stronie)
+					return nil, layout, left
+				}
+			}
 			newBox.Translate(positionX-newBox.Box().PositionX, positionY-newBox.Box().PositionY, false)
 		}
 	}

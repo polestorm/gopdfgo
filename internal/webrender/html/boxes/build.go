@@ -376,7 +376,14 @@ func elementToBox(element *utils.HTMLNode, styleFor styleForI,
 		HyphenateAcrossBoxes(box)
 	}
 
-	if len(markerBoxes) > 0 && len(box.Box().Children) == 1 {
+	// gopdfgo: także gdy poza znacznikiem są tylko puste pudełka wierszowe („<li><b></b></li>”
+	// z dokumentów Worda): wiersz byłby fantomowy (CSS 2.2 § 9.4.2), znacznik zostawałby bez wiersza,
+	// a element listy bez wysokości. Chromium daje znacznikowi wiersz tak samo jak pustemu elementowi.
+	if len(markerBoxes) > 0 && len(box.Box().Children) > 1 && onlyEmptyInlines(box.Box().Children[1:]) {
+		if style.GetListStylePosition() == "outside" {
+			box.Box().Children = append(box.Box().Children, TextBoxAnonymousFrom(box, "​"))
+		}
+	} else if len(markerBoxes) > 0 && len(box.Box().Children) == 1 {
 		// See https://www.w3.org/TR/css-lists-3/#list-style-position-outside
 		//
 		// "The size or contents of the marker box may affect the height of the
@@ -2830,4 +2837,35 @@ func addOutsideImageMarkerStrut(box Box) {
 		strut.Box().Children = append(strut.Box().Children, InlineReplacedBoxAnonymousFrom(strut, image.Replacement))
 	}
 	box.Box().Children = append([]Box{marker, strut}, children[1:]...)
+}
+
+// onlyEmptyInlines (gopdfgo) mówi, czy pudełka to same pudełka wierszowe bez treści: bez tekstu (poza
+// spacjami, które zwiną się do zera), bez elementów atomowych i bez odstępów, ramek i marginesów w poziomie.
+// Taki wiersz jest fantomowy (CSS 2.2 § 9.4.2), zob. wiersz dla znacznika w elemencie listy.
+func onlyEmptyInlines(children []Box) bool {
+	for _, child := range children {
+		switch c := child.(type) {
+		case *TextBox:
+			ws := c.Style.GetWhiteSpace()
+			if ws != pr.Normal && ws != pr.Nowrap {
+				return false
+			}
+			if strings.Trim(string(c.Text), " \t\n\r\f") != "" {
+				return false
+			}
+		case *InlineBox:
+			s := c.Style
+			for _, d := range []pr.TaggedDim{s.GetPaddingLeft(), s.GetPaddingRight(), s.GetMarginLeft(), s.GetMarginRight()} {
+				if d.Tag != 0 || d.Value != 0 {
+					return false
+				}
+			}
+			if s.GetBorderLeftWidth().Value != 0 || s.GetBorderRightWidth().Value != 0 || !onlyEmptyInlines(c.Children) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }

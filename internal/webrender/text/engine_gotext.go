@@ -1418,7 +1418,9 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		} else if wLine.NextLine >= len(text) && !mandatoryBreak {
 			// tabulator kończy się na pozycji tabulacji, odstęp za nim nie przysługuje (zob.
 			// afterTabsWithoutSpacing; test WPT tab-size-spacing-001)
-			if text[len(text)-1] != '\t' {
+			// gopdfgo: wiersz z samych spacji zdjętych wyżej ma pusty tekst (min-content w komórce
+			// tabeli: „a<span style=letter-spacing:-1px> b</span>,c”); bez sprawdzenia indeks -1 i panika
+			if len(text) > 0 && text[len(text)-1] != '\t' {
 				trailingSpacing = addToLastGlyph(line, text, ls, false)
 			}
 		} else if !mandatoryBreak { // przy wymuszonym złamaniu zob. forcedBreaksWithoutSpacing

@@ -1335,18 +1335,25 @@ func clipPath(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr
 // Compute the “vertical-align“ property.
 func verticalAlign(computer *ComputedStyle, _ pr.KnownProp, _value pr.CssProperty) pr.CssProperty {
 	value := _value.(pr.TaggedDim)
-	// Use +/- half an em for super and sub, same as Pango.
-	// (See the SUPERSUBRISE constant in pango-markup.c)
 	var out pr.TaggedDim
 	switch value.Tag {
 	case pr.Baseline, pr.Middle, pr.TextTop, pr.TextBottom, pr.Top, pr.Bottom:
 		out.Tag = value.Tag
-	case pr.Super:
-		out.Value = computer.GetFontSize().Value * 0.5
+	// gopdfgo: przesunięcie domyślne z CSS Inline 3 § 4.2.3: jedna trzecia (super) i jedna piąta (sub)
+	// rozmiaru pisma rodzica (ADR 0042). Źródło brało ±0,5 em własnego rozmiaru (jak Pango), więc indeks
+	// dolny schodził dwa razy niżej i wiersze z m³, Q₁ były wyższe niż w przeglądarkach; Chromium
+	// dodaje do wartości z normy 1 px.
+	case pr.Super, pr.Sub:
+		parentSize := computer.GetFontSize().Value
+		if computer.parentStyle != nil {
+			parentSize = computer.parentStyle.GetFontSize().Value
+		}
 		out.Unit = pr.Scalar
-	case pr.Sub:
-		out.Value = computer.GetFontSize().Value * -0.5
-		out.Unit = pr.Scalar
+		if value.Tag == pr.Super {
+			out.Value = parentSize / 3
+		} else {
+			out.Value = -parentSize / 5
+		}
 	default:
 		out.Unit = pr.Scalar
 		if value.Unit == pr.Perc {
