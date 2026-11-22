@@ -123,6 +123,11 @@ Fonts and external resources come only from the caller:
 - `Options.Resolver` loads stylesheets, images and other external resources; by default nothing is read
   from the network or the disk.
 
+A program that renders many documents with the same fonts can keep the parsed fonts between calls
+(ADR 0045): create one `gopdfgo.NewFontCache(256 << 20)` and pass it in `Options.FontCache`. Fonts from
+`Options.Fonts` and from `@font-face` rules are then parsed once, on first use; the output is byte for byte
+the same. A small invoice renders about a third faster in-process with a warm cache.
+
 System fonts are a build option (ADR 0039). A binary built with `go build -tags systemfonts ./cmd/gopdfgo`
 accepts `Options.SystemFonts` (`-system-fonts` on the command line): installed fonts then fill in font
 families and characters that the caller's fonts lack, while the caller's fonts and `GenericFamilies` keep

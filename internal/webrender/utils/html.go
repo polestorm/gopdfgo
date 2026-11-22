@@ -242,6 +242,19 @@ func (element HTMLNode) GetText() string {
 //	AsciiLower(keyword) != strings.ToLower(keyword)
 //	AsciiLower(keyword) == "bac\u212Aground"
 func AsciiLower(s string) string {
+	// gopdfgo: napis w samym ASCII bez wielkich liter wraca bez kopiowania (nazwy właściwości CSS,
+	// słowa kluczowe); wynik jest ten sam co niżej, bo dopiero bajty spoza ASCII mogą zmienić się
+	// przy zamianie na runy (niepoprawne UTF-8 daje U+FFFD)
+	plain := true
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 0x80 || 'A' <= c && c <= 'Z' {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		return s
+	}
 	rs := []rune(s)
 	out := make([]rune, len(rs))
 	for index, c := range rs {

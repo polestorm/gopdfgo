@@ -1,8 +1,6 @@
 package validation
 
 import (
-	"strings"
-
 	pa "github.com/polestorm/gopdfgo/internal/webrender/css/parser"
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 )
@@ -51,26 +49,28 @@ var logicalBorders = map[string][2]string{
 
 // physicalName zwraca fizyczny odpowiednik właściwości logicznej albo pusty napis.
 func physicalName(name string) string {
-	if physical, ok := logicalLonghands[name]; ok {
-		return physical
+	return physicalNames[name]
+}
+
+// physicalNames: wszystkie nazwy rozpoznawane przez physicalName, wyliczone raz; wcześniej każde
+// wywołanie składało napisy dla każdej strony logicznej (zauważalne przy tysiącach atrybutów style).
+var physicalNames = func() map[string]string {
+	out := map[string]string{}
+	for logical, physical := range logicalLonghands {
+		out[logical] = physical
 	}
 	for logical, side := range logicalSides {
 		// margin-block-start, padding-inline-end
 		for _, prefix := range [...]string{"margin-", "padding-"} {
-			if name == prefix+logical {
-				return prefix + side
-			}
+			out[prefix+logical] = prefix + side
 		}
 		// border-block-start, border-inline-end-width, border-block-start-color, ...
-		if rest, ok := strings.CutPrefix(name, "border-"+logical); ok {
-			switch rest {
-			case "", "-width", "-style", "-color":
-				return "border-" + side + rest
-			}
+		for _, rest := range [...]string{"", "-width", "-style", "-color"} {
+			out["border-"+logical+rest] = "border-" + side + rest
 		}
 	}
-	return ""
-}
+	return out
+}()
 
 // expandLogical zamienia deklaracje właściwości logicznych na fizyczne. Pomija też deklarację
 // print-color-adjust: exact, bo silnik zawsze drukuje tła i kolory dokładnie.

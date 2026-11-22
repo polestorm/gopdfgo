@@ -1430,8 +1430,17 @@ func isDigit(s string) bool {
 // are returned with specificity “(0, 0, 0)“.
 // presentationalHints=false
 func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl string) (out []styleAttrSpec) {
+	// gopdfgo: ten sam tekst atrybutu style parsujemy raz (dokumenty z edytorów powtarzają go
+	// w tysiącach elementów; parsowanie było ok. 30% czasu renderowania). Wynik parsowania jest
+	// dalej tylko czytany: PreprocessDeclarations tworzy nowe deklaracje, ostrzeżenia z walidacji
+	// powstają przy każdym elemencie jak wcześniej.
+	parsed := map[string][]pa.Compound{}
 	checkStyleAttribute := func(element *utils.HTMLNode, styleAttribute string) styleAttr {
-		declarations := pa.ParseBlocksContentsString(styleAttribute)
+		declarations, ok := parsed[styleAttribute]
+		if !ok {
+			declarations = pa.ParseBlocksContentsString(styleAttribute)
+			parsed[styleAttribute] = declarations
+		}
 		return styleAttr{element: element, declaration: declarations, baseUrl: baseUrl}
 	}
 

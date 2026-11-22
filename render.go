@@ -184,6 +184,9 @@ type Options struct {
 	// ErrInvalidFacturX. XML, który nie jest fakturą CII, też kończy Render tym błędem; profil
 	// niezgodny z identyfikatorem specyfikacji w XML daje ostrzeżenie.
 	FacturX *FacturX
+	// FontCache zachowuje sparsowane fonty (z Fonts i z reguł @font-face) dla kolejnych wywołań Render
+	// (ADR 0045); nil oznacza parsowanie fontów przy każdym wywołaniu. Wynik jest ten sam.
+	FontCache *FontCache
 }
 
 // Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
@@ -286,6 +289,13 @@ func render(html []byte, opts Options) (result Result, err error) {
 		logger.ProgressLogger.SetOutput(previousProgress)
 	}()
 
+	// Fonty parsujemy przez pamięć podręczną (ADR 0045): podaną w opcjach, współdzieloną między
+	// renderowaniami, albo tylko na to renderowanie, żeby ten sam plik w Options.Fonts i w @font-face
+	// nie był parsowany dwa razy.
+	fontCache := opts.FontCache
+	if fontCache == nil {
+		fontCache = &FontCache{cache: text.NewTransientFontCache()}
+	}
 	fontMap := fontscan.NewFontMap(log.New(io.Discard, "", 0))
 	// identyfikatory w kolejności Options.Fonts: przy dwóch fontach o tej samej nazwie rodziny (także
 	// zlokalizowanej) wygrywa podany wcześniej; rejestracja w kolejności iteracji po mapie losowała
@@ -293,13 +303,14 @@ func render(html []byte, opts Options) (result Result, err error) {
 	ids := make([]string, len(opts.Fonts))
 	for i, font := range opts.Fonts {
 		id := fmt.Sprintf("gopdfgo-font-%d:%s", i, font.Name)
-		if err := fontMap.AddFont(bytes.NewReader(font.Data), id, ""); err != nil {
+		if err := addCachedFont(fontMap, fontCache, font.Data, id); err != nil {
 			return Result{}, fmt.Errorf("gopdfgo: font %q: %w", font.Name, err)
 		}
 		ids[i] = id
 	}
 	fontConfig := text.NewFontConfigurationGotext(fontMap)
 	fontConfig.ReuseLoadedFaces = true
+	fontConfig.Cache = fontCache.cache
 	if len(opts.GenericFamilies) != 0 {
 		fontConfig.GenericFamilies = map[string][]string{}
 		for generic, families := range opts.GenericFamilies {

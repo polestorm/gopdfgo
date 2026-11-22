@@ -260,3 +260,159 @@ Wnioski:
   co odpowiada kształtowaniu w całości tekstów do 128 znaków przy łamaniu wierszy (ósma paczka). Kandydat do
   przyspieszenia, gdy czas zacznie mieć znaczenie; dziś 130 stron w 1,34 s.
 - Rozmiar binarki stoi w miejscu: nowe funkcje to kod układu, bez nowych tablic danych.
+
+## 11. Porównanie z folio i przyspieszenia z niego wynikające (2026-11-23)
+
+Za zgodą użytkownika (2026-11-23) sklonowałam i uruchomiłam folio, `github.com/carlos7ags/folio` (Apache-2.0),
+commit `29bca95` z 2026-11-18. Klon i programy pomiarowe są poza gitem w `bench/folio/` (opis w
+`bench/folio/README.md`); folio nie jest zależnością gopdfgo, wejście nie opuszcza maszyny (bez sieci).
+
+Sposób pomiaru: Apple M4, 10 rdzeni, macOS, go1.26.6, maszyna bez innej pracy. Oba silniki dostają ten
+sam HTML, w którym `url(../fonts/…)` zamieniono na `url(fonts/…)` (folio odrzuca `..`), z tymi samymi
+fontami z `testdata/fonts` przez `@font-face`. folio: `document.NewDocument(PageSizeA4)`, `AddHTML` z
+`BaseFS` i fontem zastępczym Noto Sans, `WriteTo`. gopdfgo: `Render` z `Options.Fonts` jak w poleceniu
+`gopdfgo -fonts testdata/fonts`, ale tylko katalog główny, `tinos/` i `arimo/` (14 plików), i
+`GenericFamilies` z `families.json`. Książka (`1342-bench.htm`) dostaje w obu silnikach `@font-face` Tinos
+i `html { font-family: Tinos }`, bo folio bez tego drukuje fontem standardowym Times.
+- „W procesie”: mediana z 20 (korpus), 10 (`bench/realdocs`) i 3 (książka) kolejnych renderowań po jednym
+  rozgrzewającym; kolumna „z `FontCache`” to gopdfgo z jedną `Options.FontCache` dla wszystkich wywołań
+  (ADR 0045);
+- „Cały proces”: mediana z 5 uruchomień programu z jednym renderowaniem (zegar ścienny, ze startem);
+  RSS: szczyt z `/usr/bin/time -l`;
+- zgodność z Chromium: `bench/survey/tools/driftalign.py` wobec `testdata/documents/reference/chromium` i
+  `bench/realdocs/out/chrome`: odsetek słów wzorca znalezionych na tej samej stronie i mediana odchyleń
+  pionowych słów wspólnych na tej samej stronie.
+
+Kolumny gopdfgo to stan po zmianach z tej sekcji (bez nich patrz tabela „przed i po” niżej).
+
+| Dokument | Strony Chromium / folio / gopdfgo | W procesie [ms] folio / gopdfgo / gopdfgo z `FontCache` | Cały proces [ms] folio / gopdfgo | RSS [MB] folio / gopdfgo | PDF [kB] folio / gopdfgo | Słowa wzorca na tej samej stronie folio / gopdfgo | dy mediana [pt] folio / gopdfgo |
+|---|---|---|---|---|---|---|---|
+| `01-record-copy` | 3 / 2 / 3 | 18,9 / 44,6 / 30,8 | 25 / 58 | 29 / 89 | 35,7 / 28,2 | 48% / 100% | 36,7 / 0,2 |
+| `02-register-table` | 8 / 7 / 8 | 63,8 / 73,2 / 59,9 | 71 / 88 | 45 / 116 | 111,9 / 81,3 | 15% / 100% | 116,0 / 0,2 |
+| `03-report-svg-chart` | 2 / 2 / 2 | 30,0 / 30,2 / 17,2 | 36 / 43 | 30 / 82 | 57,9 / 27,1 | 81% / 100% | 18,8 / 0,2 |
+| `04-qms-procedure` | 10 / 11 / 10 | 18,0 / 54,3 / 40,8 | 24 / 69 | 29 / 99 | 49,5 / 55,3 | 1% / 98% | 114,7 / 0,2 |
+| `05-hyphenation` | 1 / 1 / 1 | 8,3 / 36,2 / 22,9 | 14 / 58 | 24 / 89 | 12,5 / 12,8 | 60% / 93% | 44,7 / 0,1 |
+| `06-margin-boxes` | 2 / 1 / 3 | 8,2 / 24,6 / 11,1 | 14 / 37 | 26 / 79 | 14,0 / 18,6 | 30% / 47% | 9,8 / 0,2 |
+| `07-images` | 6 / 6 / 6 | 13,4 / 26,1 / 12,6 | 19 / 39 | 24 / 82 | 62,0 / 42,7 | 94% / 100% | 94,7 / 0,2 |
+| `08-flex` | 2 / 2 / 2 | 9,0 / 25,5 / 12,3 | 15 / 38 | 25 / 75 | 15,9 / 14,6 | 99% / 100% | 7,5 / 0,2 |
+| `09-lists-counters` | 1 / 1 / 1 | 8,5 / 28,4 / 14,9 | 14 / 41 | 25 / 81 | 14,1 / 19,5 | 80% / 99% | 21,1 / 0,2 |
+| `10-preformatted` | 1 / 1 / 1 | 8,7 / 29,9 / 16,7 | 14 / 43 | 25 / 79 | 14,4 / 17,2 | 68% / 98% | 130,9 / 0,1 |
+| `11-edge-cases` | 2 / 4 / 2 | 15,8 / 32,4 / 18,9 | 22 / 46 | 32 / 87 | 23,4 / 23,1 | 75% / 99% | 232,7 / 0,1 |
+| `12-floats-positioning` | 2 / 4 / 2 | 9,2 / 25,3 / 11,9 | 15 / 38 | 24 / 77 | 19,5 / 18,7 | 61% / 100% | 45,4 / 0,2 |
+| `13-forms-html-elements` | 1 / 1 / 1 | 12,4 / 30,1 / 16,6 | 18 / 43 | 26 / 81 | 21,6 / 27,2 | 81% / 98% | 49,8 / 1,1 |
+| `14-cascade-selectors` | 1 / 1 / 1 | 8,9 / 27,2 / 13,8 | 15 / 40 | 23 / 75 | 14,6 / 13,8 | 97% / 100% | 63,2 / 0,2 |
+| `15-page-breaks` | 13 / 12 / 13 | 19,5 / 27,6 / 14,3 | 26 / 41 | 27 / 87 | 24,8 / 49,7 | 11% / 100% | 4,1 / 0,2 |
+| `16-typography-fonts` | 1 / 1 / 1 | 23,2 / 35,2 / 21,6 | 29 / 48 | 37 / 89 | 38,9 / 46,9 | 96% / 97% | 10,8 / 0,2 |
+| `17-tables` | 2 / 2 / 2 | 8,9 / 25,8 / 12,5 | 15 / 39 | 25 / 76 | 16,4 / 15,6 | 87% / 100% | 75,7 / 0,2 |
+| `18-toc-running-elements` | 6 / 6 / 6 | 11,2 / 38,7 / 25,4 | 17 / 52 | 27 / 92 | 25,4 / 35,9 | 100% / 100% | 6,6 / 0,2 |
+| `19-flex-grid-pagination` | 13 / 12 / 13 | 18,1 / 89,3 / 75,8 | 24 / 103 | 29 / 102 | 38,9 / 37,3 | 65% / 100% | 30,0 / 0,2 |
+| `20-invoice` | 3 / 3 / 3 | 15,6 / 51,4 / 37,9 | 22 / 66 | 32 / 95 | 29,6 / 28,6 | 94% / 100% | 28,7 / 0,2 |
+| `21-mixed-report` | 3 / 4 / 3 | 16,1 / 42,2 / 28,6 | 22 / 56 | 33 / 92 | 31,5 / 38,5 | 44% / 100% | 45,2 / 0,2 |
+| `22-multicol-pagination` | 11 / 13 / 11 | 28,5 / 82,9 / 69,4 | 35 / 98 | 31 / 103 | 38,9 / 38,7 | 13% / 100% | 31,3 / 0,2 |
+| `invoice-a-basic` | 1 / 1 / 1 | 11,2 / 26,9 / 13,5 | 17 / 39 | 26 / 72 | 25,6 / 25,0 | 98% / 100% | 16,9 / 0,2 |
+| `invoice-d-140rows` | 7 / 7 / 7 | 35,5 / 77,5 / 64,2 | 42 / 93 | 40 / 102 | 55,7 / 51,1 | 88% / 100% | 53,2 / 0,2 |
+| `esf-1` | 6 / 13 / 6 | 39,0 / 89,4 / 76,3 | 46 / 106 | 38 / 114 | 70,5 / 63,2 | 4% / 100% | 180,3 / 0,2 |
+| `esf-4` | 16 / 31 / 16 | 83,6 / 178,8 / 165,5 | 90 / 198 | 53 / 162 | 140,8 / 123,7 | 2% / 100% | 222,2 / 0,2 |
+| `md-gopdfgo-overview` | 11 / 11 / 11 | 33,2 / 102,0 / 88,4 | 40 / 117 | 42 / 116 | 90,9 / 118,3 | 50% / 100% | 329,6 / 0,2 |
+| `md-gomdgo-testing` | 7 / 8 / 7 | 21,3 / 85,7 / 72,6 | 28 / 101 | 35 / 103 | 57,0 / 75,5 | 40% / 93% | 111,8 / 0,4 |
+| `office-agreement` | 6 / 6 / 6 | 21,6 / 58,9 / 45,1 | 28 / 73 | 44 / 125 | 65,0 / 54,3 | 79% / 99% | 152,3 / 0,0 |
+| `office-db-model` | 13 / 13 / 13 | 57,1 / 561,3 / 544,8 | 63 / 585 | 80 / 457 | 89,7 / 168,9 | 32% / 80% | 195,3 / 69,8 |
+| `office-terminology` | 6 / 4 / 6 | 34,1 / 171,9 / 158,9 | 41 / 191 | 64 / 177 | 65,4 / 74,1 | 24% / 71% | 312,3 / 45,5 |
+| `office-usb-protocol` | 10 / 8 / 10 | 24,6 / 90,6 / 77,7 | 31 / 107 | 65 / 141 | 99,5 / 89,5 | 77% / 100% | 103,2 / 0,0 |
+| `mmd-p6` | 4 / 3 / 4 | 7,0 / 36,2 / 22,4 | 12 / 49 | 22 / 86 | 5,2 / 19,1 | 38% / 100% | 102,5 / 0,0 |
+| `rand-01` | 17 / 19 / 15 | 58,1 / 286,5 / 272,4 | 65 / 306 | 46 / 154 | 105,3 / 116,7 | 5% / 34% | 95,7 / 0,0 |
+| `rand-12` | 14 / 15 / 14 | 43,3 / 153,5 / 140,2 | 50 / 170 | 39 / 148 | 122,3 / 127,6 | 49% / 100% | 55,2 / 0,2 |
+| `book-1342` | — / 309 / 254 | 461,7 / 1144,3 / 1130,5 | 480 / 1186 | 285 / 422 | 26744,6 / 26296,6 | — / — | — / — |
+
+Podsumowanie:
+- **Szybkość.** folio jest w procesie szybsze na każdym dokumencie: mediana stosunku czasów gopdfgo/folio
+  2,9 (zakres 1,0–9,8), z ciepłą `FontCache` 1,9. Najbliżej są dokumenty z dużymi tabelami
+  (`02-register-table` 73 wobec 64 ms) i SVG (`03-report-svg-chart` 30 wobec 30 ms); z `FontCache` gopdfgo jest szybsze na obu (60 i 17 ms); najdalej dokumenty z
+  tysiącami atrybutów `style` (`office-db-model` 9,8 raza, `office-terminology` 5 razy) i dokumenty losowe
+  (`rand-01` 4,9 raza). Cały proces: folio 12–90 ms, gopdfgo 37–585 ms; książka 0,48 wobec 1,19 s.
+- **Pamięć.** RSS folio 22–80 MB, gopdfgo 72–457 MB (książka 285 wobec 422 MB).
+- **Wierność.** gopdfgo ma liczbę stron Chromium w 33 z 35 dokumentów, folio w 17; słowa wzorca na tej
+  samej stronie: gopdfgo 91,5%, folio 35,4%; mediana odchyleń pionowych gopdfgo 0,2 pt, folio 55 pt.
+  folio nie zgłasza żadnych ostrzeżeń (nieznane właściwości pomija po cichu) i nie miało awarii ani błędów.
+- **Rażące różnice folio** (rastry stron w `bench/folio/out/base/png/cmp-*.png`): e-SF `esf-1` i `esf-4`
+  na 13 i 31 stronach zamiast 6 i 16 (pismo w tabelach wyraźnie większe niż w Chromium); w SVG
+  (`03-report-svg-chart`) polskie litery jako „?” albo „Å‚”, tekst SVG fontem Times zamiast Noto, linia
+  wykresu narysowana jako wypełniony wielokąt, filtr poświaty jako koncentryczne okręgi; `21-mixed-report`
+  bez obu elementów pływających po prawej i bez treści sekcji dwukolumnowej na stronie 2; diagram mermaid
+  `mmd-p6` w 5 kB zamiast 19 kB (brak większości rysunku); faktura `20-invoice` bliska wzorcowi
+  (94% słów na miejscu stron), ale z siatką nagłówka i odstępami innymi niż w Chromium. Książka: 309 stron
+  wobec 254 (gopdfgo) i 253 (Chromium, § README).
+
+### Skąd przewaga folio
+
+Profil procesora i przydziałów obu silników na `20-invoice` (pprof, 60 i 200 renderowań, `bench/folio/prof/`),
+gopdfgo w stanie `cf2de18`; udziały w czasie procesora wątku renderowania (ok. 39 ms z 58 ms ściennych; reszta
+to odśmiecanie w tle, ok. 15% próbek):
+
+| Etap | gopdfgo `cf2de18` | uwagi |
+|---|---|---|
+| parsowanie fontów `Options.Fonts` (`fontscan.AddFont`, 14 plików) | 21% | go-text parsuje cały font: glify, nazwy glifów, BASE, GSUB/GPOS |
+| wczytanie fontów z `@font-face` (6 plików, te same co w `Options.Fonts`) | 14% | drugie parsowanie tych samych plików |
+| układ (`makeAllPages`) | 56% | w tym szerokości min-/max-content tabeli 30%: kształtowanie HarfBuzz każdej komórki |
+| rysowanie stron | 6% | |
+| kaskada CSS i budowa drzewa pudełek | ok. 2% | bez wczytywania fontów |
+| zapis PDF, podzbiory fontów, kompresja zlib | ok. 4% | |
+
+Fonty to ok. 65% przydziałów (50 z 80 MB na wywołanie). folio czyta z fontu tylko surowe tablice i dekoduje
+je przy użyciu, a jego własny czas procesora na wywołanie to ok. 2–3 ms: większość z 16 ms ściennych to
+pobieranie pamięci od systemu (`madvise` w `mheap.allocSpan`; folio przydziela ok. 28 MB na wywołanie, z
+tego 20% to nowe kompresory `flate` dla każdego strumienia, 15% tablica kerningu `GPOS` parsowana przy
+każdym wywołaniu). Przewaga folio na małych dokumentach to więc w ok. połowie leniwe fonty, a w drugiej
+połowie mniej pracy w układzie: jego układ nie kształtuje tekstu przez HarfBuzz przy liczeniu szerokości,
+nie liczy osobno min- i max-content komórek, nie ma zaokrągleń Chromium ani ponownych prób podziału strony;
+ta różnica przekłada się bezpośrednio na wierność z tabeli wyżej. Na `office-db-model` (13 stron, 43 tabele,
+każdy element z atrybutem `style` z textutil) 31% czasu gopdfgo zabierało parsowanie atrybutów `style`
+(w tym wyrażenie regularne liczb w tokenizerze ok. 10%), a ok. 22–37% to `madvise` przy wzroście sterty.
+
+### Co przeniesione do gopdfgo
+
+Wszystko bez zmiany wyniku: porównanie bajtowe W3C (11 689 dokumentów, 46 756 renderowań poleceniem z 67
+fontami `testdata/fonts`) 0 różnic wobec `cf2de18`, 76 dokumentów `bench/realdocs` i książka 0 różnic.
+
+1. **Pamięć podręczna fontów** (ADR 0045): `Options.FontCache` przechowuje sparsowane fonty między
+   wywołaniami; bez niej renderowanie parsuje plik podany w `Options.Fonts` i w `@font-face` raz, nie dwa razy.
+   Z folio wzięty tylko pomysł (koszt fontów nie powinien zależeć od liczby renderowań), bez kodu.
+2. **Atrybuty `style`**: ten sam tekst atrybutu parsowany raz na renderowanie; liczby w tokenizerze CSS bez
+   wyrażenia regularnego; `physicalName` z mapy wyliczonej raz; `AsciiLower` bez kopii dla napisów ASCII bez
+   wielkich liter.
+3. Wczytanie fontu z `@font-face` do bufora o znanej długości (bez wzrostu `io.ReadAll`).
+
+Przed i po (w procesie, mediana; cały proces; RSS):
+
+| Dokument | `cf2de18` [ms] | po zmianach [ms] | z `FontCache` [ms] | cały proces przed / po [ms] | RSS przed / po [MB] |
+|---|---|---|---|---|---|
+| `20-invoice` | 57,8 | 51,4 | 37,9 | 72 / 66 | 106 / 95 |
+| `17-tables` | 31,2 | 25,8 | 12,5 | 46 / 39 | 88 / 76 |
+| `02-register-table` | 78,2 | 73,2 | 59,9 | 96 / 88 | 128 / 116 |
+| `22-multicol-pagination` | 85,0 | 82,9 | 69,4 | 100 / 98 | 106 / 103 |
+| `invoice-a-basic` | 28,5 | 26,9 | 13,5 | 42 / 39 | 81 / 72 |
+| `esf-4` (16 stron) | 184,4 | 178,8 | 165,5 | 205 / 198 | 170 / 162 |
+| `office-agreement` | 93,9 | 58,9 | 45,1 | 112 / 73 | 190 / 125 |
+| `office-usb-protocol` | 128,4 | 90,6 | 77,7 | 145 / 107 | 224 / 141 |
+| `office-terminology` | 215,0 | 171,9 | 158,9 | 238 / 191 | 268 / 177 |
+| `office-db-model` | 919,2 | 561,3 | 544,8 | 947 / 585 | 469 / 457 |
+| książka (254 strony) | 1154 | 1144 | 1131 | 1190 / 1186 | 465 / 422 |
+
+Na całym korpusie `testdata/documents` bez `FontCache` 2–20% szybciej (ok. 5,5 ms mniej na dokument: drugie
+parsowanie fontów Noto), z `FontCache` mały dokument 35–60% szybciej (`17-tables` 31 → 12,5 ms).
+
+### Co zostało (szacunki)
+
+- **Leniwe parsowanie fontów** jak w folio (przy pierwszym renderowaniu i w poleceniu `gopdfgo`, gdzie
+  `FontCache` nic nie daje): go-text parsuje cały font, a dokument używa kilku. Polecenie z `-fonts
+  testdata/fonts` parsuje 67 plików. Szacunek: pierwsze renderowanie małego dokumentu −10–15 ms. Wymaga
+  własnego indeksu fontów (rodzina, odmiana, pokrycie `cmap` z surowych tablic) i parsowania przy
+  pierwszym użyciu, bo `fontscan.FontMap` przyjmuje tylko sparsowane twarze; go-text to zależność, nie fork.
+- **Szerokości min-/max-content komórek tabel**: 30% czasu procesora faktury; każda komórka jest kształtowana
+  przez HarfBuzz osobno dla min- i max-content (`inlineLineWidths` → `SplitFirstLine`). Pamięć szerokości słów
+  według (tekst, styl) między obiema miarami i układem właściwym: szacunek −5–8 ms na fakturze, ryzyko
+  średnie (zgodność zaokrągleń ADR 0044).
+- **`isSupportedFont` w zapisie PDF** parsuje całą tablicę `glyf` tylko po to, by sprawdzić, że nie jest
+  pusta (ok. 2 MB przydziałów na wywołanie); wystarczy `loca`. Szacunek < 1 ms.
+- **Sterta**: na dużych dokumentach 20–37% czasu to `madvise` przy wzroście sterty (macOS); pomogłoby
+  zmniejszenie przydziałów w kaskadzie (`newStyleFor`) i drzewie pudełek (`CopyWithChildren`). Bez szacunku.

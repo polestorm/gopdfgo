@@ -1,6 +1,8 @@
 package text
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -56,6 +58,10 @@ type FontConfigurationGotext struct {
 	// drugi raz. Włącza to gopdfgo.Render, gdzie konfiguracja fontów żyje przez jedno renderowanie;
 	// konfiguracja współdzielona między dokumentami (testy przejęte) zachowuje zachowanie źródła.
 	ReuseLoadedFaces bool
+
+	// Cache (gopdfgo): sparsowane fonty z reguł @font-face współdzielone między renderowaniami
+	// (ADR 0045); nil oznacza parsowanie przy każdym wczytaniu, jak w źródle.
+	Cache *FontCache
 
 	textLayoutCache layoutCache // gopdfgo: ograniczony rozmiar, zob. layout_cache.go
 
@@ -175,28 +181,38 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		return "", fmt.Errorf("failed to load font at %s: %s", url.S, err)
 	}
 
-	content, err := io.ReadAll(result.Content)
-	if err != nil {
+	// gopdfgo: bufor od razu na całą treść; io.ReadAll rośnie skokami i przydzielał ok. dwa razy
+	// więcej pamięci, niż zajmuje font
+	content := make([]byte, result.Content.Len())
+	if _, err := io.ReadFull(result.Content, content); err != nil {
 		return "", fmt.Errorf("failed to load font at %s", url.S)
 	}
 
-	lds, err := opentype.NewLoaders(result.Content)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse font at %s : %s", url.S, err)
-	}
-	if len(lds) != 1 {
+	// gopdfgo: z pamięcią podręczną (ADR 0045) font sparsowany w poprzednim renderowaniu; kopia, bo
+	// niżej podmieniamy Cmap, a mapy konfiguracji rozpoznają twarze po wskaźniku
+	var parsed []ParsedFont
+	// kolekcji z więcej niż jednym fontem nie parsujemy, skoro i tak jest odrzucana (nagłówek TTC:
+	// znacznik ttcf, wersja, liczba fontów)
+	if len(content) >= 12 && bytes.HasPrefix(content, []byte("ttcf")) && binary.BigEndian.Uint32(content[8:]) != 1 {
 		return "", fmt.Errorf("font collections are not supported (at %s)", url.S)
 	}
-
-	ft, err := font.NewFont(lds[0])
+	if f.Cache != nil {
+		parsed, err = f.Cache.Parse(content)
+	} else {
+		parsed, err = parseFontFile(content)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to parse font at %s : %s", url.S, err)
 	}
+	if len(parsed) != 1 {
+		return "", fmt.Errorf("font collections are not supported (at %s)", url.S)
+	}
+	ft := parsed[0].Copy()
 
 	if len(ruleDescriptors.UnicodeRange) != 0 {
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
-	if desc.Aspect.Weight == 0 && !hasWeightAxis(lds[0]) {
+	if desc.Aspect.Weight == 0 && !parsed[0].WeightAxis {
 		// gopdfgo: reguła bez deskryptora font-weight ma wartość początkową auto, czyli grubość samego
 		// fontu (CSS Fonts 4 § 4.5), a nie 0. W źródle twarz bez deskryptora dostawała grubość 0, więc
 		// tekst o grubości 400 wybierał z tej samej rodziny twarz bold (700 jest bliżej 400 niż 0);

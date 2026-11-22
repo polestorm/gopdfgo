@@ -1203,6 +1203,21 @@ Wspólne dla obu katalogów:
     pływające, która tam przekracza dół strony albo była już podzielona, jest układana od nowa na nowej
     wysokości; wcześniej tylko ją przesuwano, a wystający dół spychał całą tabelę na następną stronę
     (pusta reszta strony; Chromium zaczyna tabelę pod elementem pływającym);
+- szybkość po porównaniu z folio, 2026-11-23 (ADR 0045; `docs/benchmark.md` § 11; testy
+  `tests/font_cache_test.go`, `css/parser/number_match_test.go`); wynik bajt w bajt ten sam (korpus W3C,
+  `bench/realdocs` i książka: 0 różnic wobec `cf2de18`):
+  - `text/font_cache.go` (nowy, własny): pamięć podręczna sparsowanych fontów według treści pliku;
+    `text/engine_gotext.go` nowe pole `FontConfigurationGotext.Cache`, `loadOneFont` parsuje przez nią
+    (kopia `*font.Font` na regułę, bo `unicode-range` podmienia `Cmap`), treść fontu czytana do bufora
+    o znanej długości zamiast `io.ReadAll`, kolekcja TTC z więcej niż jednym fontem odrzucana przed
+    parsowaniem (wcześniej po sparsowaniu nagłówków; komunikat ten sam);
+  - `css/parser/tokenizer.go` `matchNumber` (nowa) zamiast wyrażenia regularnego `numberRe` w
+    `tryConsumeNumber` (ok. 10% czasu dokumentów z tysiącami atrybutów `style`); zgodność z `numberRe`
+    sprawdza test na wszystkich napisach do 7 znaków;
+  - `css/validation/logical.go` `physicalName`: mapa wyliczona raz zamiast składania napisów przy każdym
+    wywołaniu; `utils/html.go` `AsciiLower`: napis ASCII bez wielkich liter wraca bez kopiowania;
+  - `html/tree/style.go` `findStyleAttributes`: ten sam tekst atrybutu `style` parsowany raz na
+    renderowanie (walidacja i ostrzeżenia dalej przy każdym elemencie);
 - dokładna szerokość wiersza jak w Chromium, 2026-11-22 (ADR 0044; test `tests/linewidth22_test.go`;
   pomiary w `bench/lw/`, poza gitem):
   - `text/engine_gotext.go` `shapeAtSize`: szerokości znaków zaokrąglane do 1/64 px z przenoszeniem błędu

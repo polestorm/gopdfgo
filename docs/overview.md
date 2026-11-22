@@ -190,6 +190,34 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 - The extra pages come from `widows` (see "Page count" above): gopdfgo moves a three-line paragraph whole
   where Chromium splits it 2 + 1.
 
+### Compared with folio (2026-11-23)
+
+[folio](https://github.com/carlos7ags/folio) (Apache-2.0, commit `29bca95`) is the other pure-Go HTML-to-PDF
+engine. Both engines rendered the same 36 documents (the 22 of `testdata/documents`, 13 real documents:
+invoices, e-SF statements, Markdown pages, Word documents, random documents, and the 254-page book) with
+the same Noto fonts through `@font-face`; Apple M4, in-process median of repeated renders. Details and
+the full table: `docs/benchmark.md` § 11 (Polish).
+
+| | folio | gopdfgo | gopdfgo with `FontCache` |
+|---|---|---|---|
+| in-process time, median ratio to folio | 1 | 2.9× (1.0–9.8×) | 1.9× |
+| invoice `20-invoice` (3 pages), in process | 15.6 ms | 51.4 ms | 37.9 ms |
+| book (254 pages), in process | 0.46 s | 1.14 s | 1.13 s |
+| peak memory (whole process) | 22–80 MB | 72–457 MB | |
+| page count as in Chromium | 17 of 35 | 33 of 35 | |
+| reference words on the same page as in Chromium | 35% | 92% | |
+| median vertical offset of words | 55 pt | 0.2 pt | |
+
+folio is faster on every document, but it lays out a different document: e-SF statements come out on
+twice as many pages, floats and multi-column text go missing, SVG text loses Polish letters, and it gives
+no warnings for CSS it ignores. About half of folio's lead on small documents came from fonts: go-text
+parses a whole font up front, and gopdfgo did it on every call, twice for a file given both in
+`Options.Fonts` and in `@font-face`. ADR 0045 adds `Options.FontCache` (parsed fonts kept between calls)
+and parses such a file once per render; documents with thousands of `style` attributes (Word exports) now
+parse each distinct attribute once. All of this leaves the output byte for byte the same (46,756 W3C
+renders, 77 real documents): the invoice went from 57.8 to 51.4 ms (37.9 ms with a warm cache), a 13-page
+Word export from 0.92 to 0.56 s.
+
 ## PDF file size
 
 | Document | Chromium via DevTools (untagged PDF) | Chromium `--print-to-pdf` (tagged PDF) | gopdfgo (untagged PDF) |

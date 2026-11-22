@@ -75,6 +75,9 @@ niż rok. Żaden nie był znany przed tym przeglądem.
   co łamie nasze wymaganie Y8 i wymaga łatki lub własnej walidacji przed renderowaniem.
 - Dodatki poza naszym zakresem, ale przydatne przy archiwizacji dokumentów: PDF/A, podpisy cyfrowe, formularze, kody kreskowe i QR,
   import stron, ZUGFeRD. SDK Java i plac zabaw WASM.
+- Pomiar 2026-11-23 (`docs/benchmark.md` § 11, commit `29bca95`): na 36 dokumentach w procesie mediana 2,9 raza
+  szybsze od gopdfgo, ale liczba stron jak w Chromium tylko w 17 z 35 (gopdfgo 33) i 35% słów na tej samej
+  stronie co w Chromium (gopdfgo 92%); bez ostrzeżeń i awarii.
 - Dynamika: 8 miesięcy istnienia, 15 kontrybutorów, 32 otwarte zgłoszenia, 58 forków. Szybki rozwój oznacza też
   zmiany łamiące (jest `MIGRATING.md`).
 

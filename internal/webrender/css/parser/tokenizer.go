@@ -592,15 +592,55 @@ func (tk *tokenizer) isIdentStart() bool {
 	return false
 }
 
+// matchNumber (gopdfgo) zwraca długość dopasowania numberRe na początku src albo -1, bez wyrażenia
+// regularnego (było ok. 10% czasu renderowania dokumentów z tysiącami atrybutów style). Kolejność
+// prób jak w numberRe: grupa „cyfry i kropka” tylko wtedy, gdy po kropce jest cyfra, wykładnik tylko
+// z co najmniej jedną cyfrą.
+func matchNumber(src []byte) int {
+	digits := func(i int) int {
+		for i < len(src) && '0' <= src[i] && src[i] <= '9' {
+			i++
+		}
+		return i
+	}
+	i := 0
+	if i < len(src) && (src[i] == '+' || src[i] == '-') {
+		i++
+	}
+	intEnd := digits(i)
+	end := -1
+	if intEnd < len(src) && src[intEnd] == '.' {
+		if fracEnd := digits(intEnd + 1); fracEnd > intEnd+1 {
+			end = fracEnd
+		}
+	}
+	if end < 0 {
+		if intEnd == i {
+			return -1
+		}
+		end = intEnd
+	}
+	if end < len(src) && (src[end] == 'e' || src[end] == 'E') {
+		j := end + 1
+		if j < len(src) && (src[j] == '+' || src[j] == '-') {
+			j++
+		}
+		if expEnd := digits(j); expEnd > j {
+			end = expEnd
+		}
+	}
+	return end
+}
+
 // may return nil if not a number
 func (tk *tokenizer) tryConsumeNumber(pos Pos) Token {
-	match := numberRe.FindIndex(tk.src[tk.pos:])
-	if match == nil {
+	end := matchNumber(tk.src[tk.pos:])
+	if end < 0 {
 		return nil
 	}
 
-	value := string(tk.src[tk.pos+match[0] : tk.pos+match[1]])
-	tk.pos += match[1]
+	value := string(tk.src[tk.pos : tk.pos+end])
+	tk.pos += end
 	valueF, _ := strconv.ParseFloat(value, 32)
 	if valueF == 0 {
 		valueF = 0. // workaround -0
