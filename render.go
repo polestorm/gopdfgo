@@ -38,8 +38,12 @@ const (
 
 // Błędy zwracane przez Render; sprawdzać przez errors.Is.
 var (
-	// ErrNoFonts: w Options.Fonts nie ma żadnego fontu. Silnik nie sięga po fonty systemowe.
+	// ErrNoFonts: w Options.Fonts nie ma żadnego fontu, a fonty systemowe są wyłączone (albo włączone,
+	// ale w katalogach systemu nie ma żadnego fontu nadającego się do osadzenia).
 	ErrNoFonts = errors.New("gopdfgo: no fonts provided")
+	// ErrSystemFontsNotBuilt: Options.SystemFonts w binarce zbudowanej bez znacznika systemfonts
+	// (ADR 0039). Wariant domyślny nie zawiera kodu przeglądania katalogów fontów systemu.
+	ErrSystemFontsNotBuilt = errors.New("gopdfgo: system fonts not compiled in (build with -tags systemfonts)")
 	// ErrEngine: silnik zakończył pracę paniką; komunikat zawiera ślad stosu.
 	ErrEngine = errors.New("gopdfgo: engine failure")
 	// ErrResourceDenied: zwracany przez DenyAll dla każdego zasobu poza data:.
@@ -69,8 +73,21 @@ func DenyAll(url string) (Resource, error) {
 
 // Options ustawia renderowanie. Wartość zerowa nie wystarcza: wymagane są fonty.
 type Options struct {
-	// Fonts to jedyne fonty, jakich silnik użyje, także dla rodzin generycznych i znaków zastępczych.
+	// Fonts to jedyne fonty, jakich silnik użyje, także dla rodzin generycznych i znaków zastępczych,
+	// chyba że włączono SystemFonts.
 	Fonts []Font
+	// SystemFonts dopuszcza fonty zainstalowane w systemie jako fonty zastępcze (ADR 0039). Działa tylko
+	// w binarce zbudowanej ze znacznikiem systemfonts (go build -tags systemfonts); w wariancie domyślnym
+	// Render kończy się błędem ErrSystemFontsNotBuilt. Fonty z Fonts i rodziny z GenericFamilies mają
+	// pierwszeństwo: font systemowy jest używany dopiero dla rodziny, której nie ma w Fonts (ani przez
+	// podstawienie zgodne metrycznie), i dla znaku, którego nie ma font wybrany z Fonts (CSS Fonts 4 § 5).
+	// Fonts może być wtedy puste. Każdy użyty font systemowy daje ostrzeżenie z nazwą rodziny i ścieżką
+	// pliku: dodanie tego pliku do Fonts uniezależnia wynik od maszyny. Fonty, których licencja zabrania
+	// osadzania (OS/2 fsType), są pomijane z ostrzeżeniem. Wynik zależy od fontów zainstalowanych
+	// na maszynie, więc nie jest powtarzalny między maszynami.
+	// Katalogi fontów systemu są przeglądane przy pierwszym renderowaniu z SystemFonts w procesie,
+	// a ich indeks żyje w pamięci do końca procesu; silnik nic nie zapisuje na dysk.
+	SystemFonts bool
 	// Resolver dostarcza zasoby zewnętrzne; nil oznacza DenyAll.
 	Resolver Resolver
 	// BaseURL to adres, względem którego rozwiązywane są adresy względne w dokumencie.
@@ -190,7 +207,10 @@ var engineSlot = make(chan struct{}, 1)
 // pracy, Render wraca z ctx.Err(), a praca trwa w tle do końca i do tego czasu kolejne wywołania czekają
 // (albo wracają z własnym ctx.Err()).
 func Render(ctx context.Context, html []byte, opts Options) (Result, error) {
-	if len(opts.Fonts) == 0 {
+	if opts.SystemFonts && !systemFontsBuilt {
+		return Result{}, ErrSystemFontsNotBuilt
+	}
+	if len(opts.Fonts) == 0 && !opts.SystemFonts {
 		return Result{}, ErrNoFonts
 	}
 	checked := opts // sprawdzenie przed kolejką; render przygotowuje opcje sam
@@ -284,6 +304,16 @@ func render(html []byte, opts Options) (result Result, err error) {
 	}
 	for i, id := range ids {
 		fontConfig.RegisterFontContent(id, opts.Fonts[i].Data)
+	}
+	var system systemFontSource
+	if opts.SystemFonts {
+		if system, err = openSystemFonts(); err != nil {
+			return Result{}, err
+		}
+		if len(opts.Fonts) == 0 && system.Empty() {
+			return Result{}, ErrNoFonts
+		}
+		fontConfig.System = system
 	}
 
 	resolver := opts.Resolver
@@ -418,6 +448,11 @@ func render(html []byte, opts Options) (result Result, err error) {
 
 	result = Result{PDF: out.Bytes(), Pages: pages, EngineName: EngineName, EngineVersion: EngineVersion}
 	result.Warnings = append(result.Warnings, invoiceWarnings...)
+	if system != nil {
+		for _, message := range system.Warnings() {
+			result.Warnings = append(result.Warnings, Warning{Message: message})
+		}
+	}
 	// PDF z tagami bez tytułu: czytnik pokazuje wtedy nazwę pliku, a PDF/UA wymaga tytułu (ISO 14289-1 § 7.1)
 	if tagged && strings.TrimSpace(file.Trailer.Info.Title) == "" {
 		result.Warnings = append(result.Warnings, Warning{Message: "Tagged PDF: document without a title (<title>)"})
@@ -437,6 +472,14 @@ func render(html []byte, opts Options) (result Result, err error) {
 		}
 	}
 	return result, nil
+}
+
+// systemFontSource to fonty systemowe jednego renderowania (ADR 0039); implementacja jest w pliku
+// systemfonts_on.go, kompilowanym tylko ze znacznikiem systemfonts.
+type systemFontSource interface {
+	text.SystemFonts
+	Warnings() []string
+	Empty() bool
 }
 
 // prepareFacturX sprawdza Options.FacturX i wprowadza fakturę do opts: plik XML na początek kopii

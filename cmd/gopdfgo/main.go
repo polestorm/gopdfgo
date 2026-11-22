@@ -6,6 +6,10 @@
 // plik families.json w tym katalogu wskazuje fonty dla rodzin generycznych (ADR 0005). Zasoby wskazane w dokumencie czyta tylko
 // spod -root (domyślnie katalog pliku wejściowego); wszystko inne jest odrzucane z ostrzeżeniem.
 // Adres bezwzględny w dokumencie (/style/a.css) liczy się od -root, jak na serwerze WWW.
+//
+// Flaga -system-fonts dopuszcza fonty zainstalowane w systemie jako fonty zastępcze (ADR 0039); działa
+// tylko w binarce zbudowanej ze znacznikiem systemfonts (go build -tags systemfonts ./cmd/gopdfgo),
+// a -fonts jest wtedy opcjonalne.
 package main
 
 import (
@@ -62,6 +66,8 @@ func main() {
 		"największe pomniejszenie treści szerszej niż strona; 0 oznacza 1.5 jak w Chromium, 1 wyłącza, +Inf bez limitu")
 	monospaceSize := flag.Float64("monospace-size", 0,
 		"rozmiar pisma (px) dla font-family: monospace bez podanego font-size; 0 oznacza 13 jak w przeglądarkach, 16 wyłącza regułę")
+	systemFonts := flag.Bool("system-fonts", false,
+		"fonty systemowe jako zastępcze dla brakujących rodzin i znaków (tylko binarka zbudowana z -tags systemfonts, ADR 0039)")
 	generic := map[string][]string{}
 	for name, usage := range map[string]string{"serif": "serif", "sans-serif": "sans-serif", "monospace": "monospace"} {
 		flag.Func(name, "rodziny fontów dla rodziny generycznej "+usage+", po przecinku, np. \"Tinos\"", func(value string) error {
@@ -133,7 +139,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gopdfgo: -facturx-level wymaga -facturx")
 		os.Exit(2)
 	}
-	if *in == "" || *out == "" || *fontDir == "" {
+	systemFontsMode = *systemFonts
+	if *in == "" || *out == "" || (*fontDir == "" && !*systemFonts) {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -154,6 +161,7 @@ var (
 	hyphenation      map[string][]byte    // flaga -hyphenation
 	attachments      []gopdfgo.Attachment // flaga -attach
 	invoice          *gopdfgo.FacturX     // flagi -facturx i -facturx-level
+	systemFontsMode  bool                 // flaga -system-fonts
 )
 
 // facturXLevels to wartości -facturx-level po usunięciu spacji, podkreśleń i łączników.
@@ -180,7 +188,11 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	}
 
 	var fonts []gopdfgo.Font
-	for _, pattern := range []string{"*.ttf", "*.otf", "*/*.ttf", "*/*.otf"} {
+	patterns := []string{"*.ttf", "*.otf", "*/*.ttf", "*/*.otf"}
+	if fontDir == "" {
+		patterns = nil // tylko fonty systemowe (-system-fonts)
+	}
+	for _, pattern := range patterns {
 		files, _ := filepath.Glob(filepath.Join(fontDir, pattern))
 		for _, file := range files {
 			data, err := os.ReadFile(file)
@@ -192,7 +204,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	}
 	// Plik families.json w katalogu fontów przypisuje rodziny fontów rodzinom generycznym CSS,
 	// np. {"serif": ["Tinos"]}; flagi -serif, -sans-serif i -monospace mają pierwszeństwo.
-	if data, err := os.ReadFile(filepath.Join(fontDir, "families.json")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(fontDir, "families.json")); fontDir != "" && err == nil {
 		fromFile := map[string][]string{}
 		if err := json.Unmarshal(data, &fromFile); err != nil {
 			return fmt.Errorf("families.json: %w", err)
@@ -225,7 +237,8 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
 		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation,
-		Attachments: attachments, Tagged: taggedMode, Accessibility: accessibility, FacturX: invoice})
+		Attachments: attachments, Tagged: taggedMode, Accessibility: accessibility, FacturX: invoice,
+		SystemFonts: systemFontsMode})
 	if err != nil {
 		return err
 	}

@@ -117,9 +117,18 @@ result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{
 ```
 
 Fonts and external resources come only from the caller:
-- `Options.Fonts` lists the fonts; there is no system font lookup;
+- `Options.Fonts` lists the fonts; the default build has no system font lookup;
 - `Options.Resolver` loads stylesheets, images and other external resources; by default nothing is read
   from the network or the disk.
+
+System fonts are a build option (ADR 0039). A binary built with `go build -tags systemfonts ./cmd/gopdfgo`
+accepts `Options.SystemFonts` (`-system-fonts` on the command line): installed fonts then fill in font
+families and characters that the caller's fonts lack, while the caller's fonts and `GenericFamilies` keep
+priority. Each system font used produces a warning with its family and file, so the file can be added to
+`Options.Fonts` to freeze the output; fonts whose licence forbids embedding (OS/2 `fsType`) are skipped. The
+output then depends on the fonts installed on the machine and is not reproducible across machines. The
+default build contains no code that scans system font directories, and `Options.SystemFonts` there returns
+`ErrSystemFontsNotBuilt`; `go version -m <binary>` shows `-tags=systemfonts` for the other variant.
 
 Command line:
 
@@ -133,7 +142,6 @@ licences (list in `docs/overview.md`).
 ## Not supported
 
 - JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
-- System fonts.
 - Vertical writing and right-to-left/bidirectional text.
 - Structure inside SVG images and alternative text for generated content in tagged PDF.
 - Digital signatures (PAdES).

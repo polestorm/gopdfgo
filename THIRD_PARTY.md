@@ -1122,6 +1122,22 @@ Wspólne dla obu katalogów:
     małych obiektów; rejestr tabel z korpusu: +171% rozmiaru bez nich, +31% z nimi); bez opcji zapis bez zmian;
   - bez opcji wynik bajt w bajt ten sam (korpus W3C: 11 689 dokumentów, 46 756 renderowań, 0 różnic); przejęty
     test `html/document/document_test.go` `assertLinks` pomija przy porównaniu nowe pole elementu odnośnika;
+- fonty systemowe jako opcja kompilacji, 2026-11-22 (ADR 0039; testy `tests/systemfonts_test.go` ze znacznikiem
+  `systemfonts`, `tests/systemfonts_default_test.go` bez niego):
+  - `text/system_fonts.go` (nowy, własny): interfejs `SystemFonts`, warstwa fontmapy `systemLayer`
+    (rodziny systemowe przed pierwszą rodziną dostępną u wywołującego, potem fontmapa wywołującego, a dla znaku,
+    którego wybrany font nie ma, font systemowy), `setQuery`, `faces`, `fontMetadata`;
+  - `text/engine_gotext.go`: pola `System` i `system` w `FontConfigurationGotext`; `resolveFace`
+    i `WrapWordBreak` ustawiają zapytanie przez `setQuery`, a segmentacja tekstu (`inputSeg.Split`)
+    i `spacesInOwnFace`/`controlsInSpaceFace` pytają `faces()` zamiast `fc.fm`; `FontLocation` i `FontContent`
+    znają fonty systemowe; `loadOneFont` czyści pamięć rodzin systemowych (`system.leads`). Przy pustym `System` `faces()` zwraca `fc.fm`, a `setQuery` robi to samo co
+    `fc.fm.SetQuery(fc.newQuery(fd))`: wynik bajt w bajt ten sam;
+  - `text/family_names.go` `Synthesis`: aspekt fontu przez `fontMetadata` (także fonty systemowe);
+  - `html/document/draw.go` `formatSVG` (znaczniki cięcia i pasowania, `marks`): zamiast `text/template`
+    zastępowanie pól `{{ .Pole }}` wartościami z `fmt.Sprint` (jak `text/template`; porównane na wartościach
+    brzegowych). `text/template` wywołuje metody przez refleksję, przez co linker zachowywał wszystkie
+    metody eksportowane typów używanych przez interfejsy, w tym nieużywane skanowanie katalogów fontów
+    w go-text (`fontscan.FontMap.UseSystemFonts`); bez niego binarka linux/amd64 maleje z 22,2 do 19,1 MB;
 - rozbieżności z Chromium na dokumentacji Markdown i diagramach mermaid, 2026-11-22 (ADR 0038; test
   `tests/realdocs22_test.go`; `bench/realdocs`, dokumenty `md-*` i `mmd-*`):
   - `text/engine_gotext.go` `breakAfterSpaces` (nowa), wołana w `LineWrap`, `CanBreakText`

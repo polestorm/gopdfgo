@@ -69,6 +69,11 @@ type FontConfigurationGotext struct {
 
 	// familyKnown (gopdfgo): pamięć wyników familyAvailable
 	familyKnown map[string]bool
+
+	// System (gopdfgo) to fonty systemowe używane, gdy fonty z fm nie mają rodziny albo znaku
+	// (ADR 0039, zob. system_fonts.go); nil wyłącza je. Ustawiane przed pierwszym użyciem.
+	System SystemFonts
+	system systemState // gopdfgo: stan zapytania o fonty systemowe
 }
 
 func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
@@ -220,6 +225,7 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 	}
 	f.familyIndex.addFace(desc.Family, newFontStyle(ruleDescriptors.FontStyle), synthesisWeight, fixed, ft)
 	f.familyKnown = nil // gopdfgo: nowa rodzina z @font-face może zmienić wynik familyAvailable
+	f.system.leads = nil // gopdfgo: i rodziny systemowe przed nią (ADR 0039)
 	if metrics != (faceMetrics{sizeAdjust: 1}) {
 		if f.fontsMetrics == nil {
 			f.fontsMetrics = map[*font.Font]faceMetrics{}
@@ -243,6 +249,11 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 
 func (f *FontConfigurationGotext) FontLocation(font *font.Font) fontscan.Location {
 	// TODO: simplify FontContent impl.
+	if f.System != nil { // gopdfgo: twarze fontów systemowych (ADR 0039)
+		if location, ok := f.System.Location(font); ok {
+			return location
+		}
+	}
 	return f.fm.FontLocation(font)
 }
 
@@ -263,6 +274,12 @@ func (f *FontConfigurationGotext) FontContent(font FontOrigin) []byte {
 	// if registred at run time, its content has already been written in fontsContent
 	if content, has := f.fontsContent[font.File]; has {
 		return content
+	}
+	if f.System != nil { // gopdfgo: fonty systemowe, także wyjęte z kolekcji (ADR 0039)
+		if content := f.System.Content(font); content != nil {
+			f.fontsContent[font.File] = content
+			return content
+		}
 	}
 
 	b, err := os.ReadFile(font.File)
@@ -641,9 +658,8 @@ func newFeatures(features []Feature) []shaping.FontFeature {
 }
 
 func (fc *FontConfigurationGotext) resolveFace(r rune, font FontDescription) *font.Face {
-	query := fc.newQuery(font)
-	fc.fm.SetQuery(query)
-	return fc.fm.ResolveFace(r)
+	fc.setQuery(font) // gopdfgo: z fontami systemowymi, zob. system_fonts.go
+	return fc.faces().ResolveFace(r)
 }
 
 // uses sizeFactor * font.Size and returns sizeFactor
@@ -1081,7 +1097,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 	}
 
 	// select the proper fonts
-	fc.fm.SetQuery(fc.newQuery(style.FontDescription))
+	fc.setQuery(style.FontDescription) // gopdfgo: z fontami systemowymi, zob. system_fonts.go
 
 	// segment the input text, with proper lang and size
 	dir := di.DirectionLTR
@@ -1094,7 +1110,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		Language:  lang,
 		Size:      floatToFixed(style.FontDescription.Size),
 		Direction: dir, // default, will be overriden
-	}, fc.fm)
+	}, fc.faces())
 	if (style.FontLanguageOverride != fontLanguageOverride{}) {
 		// gopdfgo: segmentacja go-text zastępuje język przebiegów językiem zgodnym z pismem i gubi
 		// prywatny podznacznik z font-language-override, więc przywracamy go
@@ -2560,12 +2576,12 @@ func (fc *FontConfigurationGotext) spacesInOwnFace(inputs []shaping.Input) []sha
 	faceOf := func(r rune) *font.Face {
 		if r == ' ' {
 			if spaceFace == nil {
-				spaceFace = fc.fm.ResolveFace(' ')
+				spaceFace = fc.faces().ResolveFace(' ')
 			}
 			return spaceFace
 		}
 		if nbspFace == nil {
-			nbspFace = fc.fm.ResolveFace('\u00a0')
+			nbspFace = fc.faces().ResolveFace('\u00a0')
 		}
 		return nbspFace
 	}
@@ -2698,7 +2714,7 @@ func (fc *FontConfigurationGotext) controlsInSpaceFace(inputs []shaping.Input) [
 			continue
 		}
 		if spaceFace == nil {
-			if spaceFace = fc.fm.ResolveFace(' '); spaceFace == nil {
+			if spaceFace = fc.faces().ResolveFace(' '); spaceFace == nil {
 				return inputs
 			}
 		}

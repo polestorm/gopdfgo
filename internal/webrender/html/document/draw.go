@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	"github.com/polestorm/gopdfgo/internal/webrender/logger"
@@ -500,16 +499,25 @@ func (ctx drawContext) drawStackingContext(stackingContext StackingContext) {
 	})
 }
 
+// formatSVG wstawia wartości w miejsca {{ .Pole }} szablonów znaczników cięcia i pasowania.
+//
+// gopdfgo: w źródle przez text/template. Pakiet text/template wywołuje metody przez refleksję, przez
+// co linker zachowuje w binarce wszystkie metody eksportowane typów używanych przez interfejsy, także
+// nieużywane, np. przeglądanie katalogów fontów systemu w go-text (fontscan.FontMap.UseSystemFonts,
+// ADR 0039). Wartości są formatowane jak w text/template (fmt.Sprint).
 func formatSVG(svg string, data svgArgs) (string, error) {
-	tmp, err := template.New("svg").Parse(svg)
-	if err != nil {
-		return "", err
-	}
-	var b strings.Builder
-	if err := tmp.Execute(&b, data); err != nil {
-		return "", fmt.Errorf("unexpected template error : %s", err)
-	}
-	return b.String(), nil
+	return strings.NewReplacer(
+		"{{ .Width }}", fmt.Sprint(data.Width),
+		"{{ .Height }}", fmt.Sprint(data.Height),
+		"{{ .Bleed.Top }}", fmt.Sprint(data.Bleed.Top),
+		"{{ .Bleed.Bottom }}", fmt.Sprint(data.Bleed.Bottom),
+		"{{ .Bleed.Left }}", fmt.Sprint(data.Bleed.Left),
+		"{{ .Bleed.Right }}", fmt.Sprint(data.Bleed.Right),
+		"{{ .HalfBleed.Top }}", fmt.Sprint(data.HalfBleed.Top),
+		"{{ .HalfBleed.Bottom }}", fmt.Sprint(data.HalfBleed.Bottom),
+		"{{ .HalfBleed.Left }}", fmt.Sprint(data.HalfBleed.Left),
+		"{{ .HalfBleed.Right }}", fmt.Sprint(data.HalfBleed.Right),
+	).Replace(svg), nil
 }
 
 func reversed(in []bo.BackgroundLayer) []bo.BackgroundLayer {

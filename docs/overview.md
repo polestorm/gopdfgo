@@ -16,8 +16,8 @@ They need to be measured again after engine changes.
 
 | | Chromium | gopdfgo |
 |---|---|---|
-| software | browser: 460 MB on a Linux server (`du -sh /opt/google/chrome`) plus system libraries from packages; 2.2 GB on macOS | 21.2 MB command-line binary, linux/amd64, `CGO_ENABLED=0 -trimpath -ldflags "-s -w"` |
-| fonts | system fonts | supplied by the caller (in xml.pro: 2.1 MB, five Noto files) |
+| software | browser: 460 MB on a Linux server (`du -sh /opt/google/chrome`) plus system libraries from packages; 2.2 GB on macOS | 19.1 MB command-line binary, linux/amd64, `CGO_ENABLED=0 -trimpath -ldflags "-s -w"` (2026-11-22; 22.2 MB before ADR 0039 removed `text/template`) |
+| fonts | system fonts | supplied by the caller (in xml.pro: 2.1 MB, five Noto files); system fonts only in a separate build (`-tags systemfonts`, ADR 0039) |
 | installation and updates | browser package, security updates, a writable home directory for the browser process | one static binary, nothing to install on the system |
 
 ## Speed and memory
@@ -256,10 +256,20 @@ Where the specifications leave a choice, gopdfgo follows Chromium; each such cas
 
 ## Not supported in this version
 
+System fonts are a build option, not part of the default binary (ADR 0039). Built with
+`go build -tags systemfonts`, the engine accepts `Options.SystemFonts` (`-system-fonts`): fonts installed on
+the machine fill in families and characters missing from `Options.Fonts` (CSS Fonts 4 § 5 font fallback),
+the caller's fonts and `GenericFamilies` keep priority, every system font used is reported in a warning with
+its family and file, and fonts whose OS/2 `fsType` forbids embedding a subset are skipped with a warning.
+Directories are scanned once per process (31–65 ms for 449 font files on macOS, 2026-11-22) and nothing is
+written to disk. The output then depends on the machine and is not reproducible across machines; the
+default build keeps using only the caller's fonts, contains no system font scanning code (checked with
+`go tool nm` in `tests/systemfonts_default_test.go`), and returns `ErrSystemFontsNotBuilt` for
+`Options.SystemFonts`. `go version -m <binary>` shows `build -tags=systemfonts` for the system-fonts variant.
+
 Out of scope by design:
 - JavaScript and everything that depends on it; `video`, `audio`; `canvas` stays empty. Documents embedded
   with `iframe`, `object` and `embed` are printed at the size of the element, clipped, as Chromium prints them;
-- system fonts: only the fonts supplied by the caller are used, so the output is reproducible;
 - vertical writing (`writing-mode`) and bidirectional or right-to-left text (ADR 0010);
 - state pseudo-classes (`:hover` and similar), `@container`, `@property`, `::selection`;
 - structure inside SVG images, notes and references (`Note`, `Reference`) and alternative text for

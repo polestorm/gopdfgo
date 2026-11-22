@@ -307,7 +307,7 @@ func (fc *FontConfigurationGotext) Synthesis(face *font.Face, fd FontDescription
 		return 0, false
 	}
 	var oblique bool
-	_, aspect := fc.fm.FontMetadata(face.Font)
+	_, aspect := fc.fontMetadata(face.Font) // gopdfgo: także fonty systemowe (ADR 0039)
 	faceStyle, has := fc.familyIndex.fontStyles[face.Font]
 	if !has {
 		faceStyle = FSty_Normal
