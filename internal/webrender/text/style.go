@@ -170,6 +170,10 @@ type TextStyle struct {
 	// Autospace (gopdfgo): odstępy text-autospace między ideogramami a literami lub cyframi innych
 	// pism (CSS Text 4 § 6.4), zob. applyAutospace
 	Autospace Autospace
+
+	// LayoutUnits (gopdfgo): szerokość kawałka tekstu jest zaokrąglana w górę do 1/64 px, jak
+	// w Chromium (ADR 0013, ExactLengths: false); inaczej zostaje dokładna (zob. preciseLineWidth)
+	LayoutUnits bool
 }
 
 // chromiumFontSize (gopdfgo) obcina rozmiar pisma do 0,01 px, jak Chromium: Blink zapisuje rozmiar
@@ -177,8 +181,14 @@ type TextStyle struct {
 // tworzy font, z którego biorą się szerokości znaków i metryki wiersza. Rozmiar 9,625 px (0.875rem
 // przy korzeniu 11 px) składa się więc jak 9,62 px, o 0,05% węższy. Długości w em liczą się dalej
 // od pełnego font-size. Norma nie określa dokładności rozmiaru fontu (ADR 0013, ExactLengths).
+//
+// Mnożenie przez 100 jest w liczbach pojedynczej precyzji, jak w Blink (rozmiar typu float): 0.88em
+// przy 14 px to 12,3199997 px, razy 100 daje 1232 (pomiar Chrome 157, 2026-11-22, bench/lw/m9.html:
+// 100 znaków Noto Sans Mono o rozmiarze .88em przy 14 px i o rozmiarze 12.32px ma 739,203125 px,
+// o rozmiarze 12.3199px 738,609375 px). Liczone w podwójnej precyzji dawało 1231,99997, czyli 12,31 px.
 func chromiumFontSize(size pr.Fl) pr.Fl {
-	return pr.Fl(math.Floor(float64(size)*100+1e-6) / 100)
+	scaled := size * 100 // float32, zob. wyżej
+	return pr.Fl(math.Floor(float64(scaled)) / 100)
 }
 
 // If ignoreSpacing is true, 'word-spacing' and 'letter-spacing' are
@@ -199,6 +209,7 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.FontDescription.Size = pr.Fl(style.GetFontSize().Value)
 	if s, ok := style.(interface{ SnapsLengths() bool }); ok && s.SnapsLengths() {
 		out.FontDescription.Size = chromiumFontSize(out.FontDescription.Size)
+		out.LayoutUnits = true
 	}
 	out.SizeAdjust = style.GetFontSizeAdjust() // gopdfgo: zob. adjustedTextStyle
 	out.FontDescription.VariationSettings = newFontVariationSettings(style.GetFontVariationSettings())
@@ -294,6 +305,7 @@ type styleKey struct {
 	SizeAdjust          pr.SBoolFloat
 	SynthesizedPosition string    // gopdfgo: jak w TextStyle
 	Autospace           Autospace // gopdfgo: jak w TextStyle
+	LayoutUnits         bool      // gopdfgo: jak w TextStyle
 }
 
 func (ts *TextStyle) key() styleKey {
@@ -323,6 +335,7 @@ func (ts *TextStyle) key() styleKey {
 		ts.SizeAdjust,
 		ts.SynthesizedPosition,
 		ts.Autospace,
+		ts.LayoutUnits,
 	}
 }
 

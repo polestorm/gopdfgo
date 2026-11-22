@@ -110,3 +110,15 @@ obszar treści (43 px) jest wyższy od wiersza (40 px), tło `span` zachodzi o 2
 bloku bez `overflow`, a wzorzec je przycina. Chrome 157 z tym samym fontem też nie zalicza tego testu
 (313 pikseli różnicy), więc to cecha fontu, nie błąd zaokrąglenia. Reftesty druku 310 (ściśle 308,
 krawędź 2), sondaż SVG 194 z 235, bez zmian.
+
+## Uzupełnienie z 2026-11-22: szerokość tekstu i pomniejszanie (ADR 0043)
+
+Przy `ExactLengths: false` dochodzą do listy:
+
+- szerokość kawałka tekstu (część pudełka tekstu w wierszu, także przy min-/max-content): suma dokładnych
+  szerokości znaków w górę do 1/64 px, jak `ShapeResult` w Blink; przy `true` suma dokładna;
+- szerokość obszaru strony powiększonego przy pomniejszaniu treści (ADR 0014): w dół do całych pikseli
+  (przybliżenie reguły Chromium, pytanie 29).
+
+Poprawione obcięcie rozmiaru pisma do 0,01 px: mnożenie przez 100 w pojedynczej precyzji, jak w Blink
+(0.88em przy 14 px daje 12,32 px, wcześniej 12,31 px).

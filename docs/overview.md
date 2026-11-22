@@ -258,8 +258,14 @@ engines get the same Noto fonts through `@font-face`; Chrome 157.
   long table pushed to the next page instead of starting below a float; both fixed. No hangs.
 - The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
   draws; gopdfgo keeps the exact baseline.
-- W3C screen reftests across 11 CSS areas: 9499 of 10962 pass (2026-11-22; three `hanging-punctuation` tests
-  passed only by accident before ADR 0038, see `docs/feature-audit.md`).
+- W3C screen reftests across 11 CSS areas: 9484 of 10962 pass (2026-11-22; three `hanging-punctuation` tests
+  passed only by accident before ADR 0038, see `docs/feature-audit.md`). Before ADR 0043 it was 9499: text
+  widths are now exact and rounded up to 1/64 px per text piece as in Chromium, which shifts glyphs by a
+  fraction of a pixel where a test and its reference split the same text into different boxes (open
+  question 29).
+- Lines ending right at the edge now break as in Chromium: line widths are the sum of exact glyph advances
+  (before, each advance was rounded to 1/64 px and a line could be off by 0.3 px), the same for min- and
+  max-content, and a shrunk page is laid out on a whole-pixel width (ADR 0043).
 - W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).
 - Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
   veraPDF for 22 of 22; PDF/UA-1 valid for 22 of 22 (five documents had a skipped heading level or SVG

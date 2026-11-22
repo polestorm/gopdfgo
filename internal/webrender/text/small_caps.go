@@ -61,7 +61,7 @@ func faceHasFeatures(face *font.Face, tags []opentype.Tag) bool {
 // liter (ß) tworzy jeden klaster z kilkoma glifami. expanded dostaje indeksy takich znaków (zob.
 // spaceExpandedClusters). Zwraca false, gdy synteza nie jest potrzebna. Tylko pismo poziome od lewej do
 // prawej. Źródło syntezy nie znało: bez cechy w foncie tekst zostawał małymi literami.
-func (fc *FontConfigurationGotext) synthesizeSmallCaps(input shaping.Input, style *TextStyle, residuals []int32, expanded *[]int) ([]shaping.Output, bool) {
+func (fc *FontConfigurationGotext) synthesizeSmallCaps(input shaping.Input, style *TextStyle, residuals []float64, expanded *[]int) ([]shaping.Output, bool) {
 	tags, all := smallCapsFeatures(style.FontDescription.VariantCaps)
 	if len(tags) == 0 || style.FontDescription.Synthesis&SynthesisSmallCaps == 0 || input.Direction != di.DirectionLTR ||
 		faceHasFeatures(input.Face, tags) {
@@ -135,9 +135,9 @@ func (fc *FontConfigurationGotext) synthesizeSmallCaps(input shaping.Input, styl
 			}
 		}
 		piece.Text, piece.RunStart, piece.RunEnd, piece.Size = mapped, 0, len(mapped), smallSize
-		var pieceResiduals []int32
+		var pieceResiduals []float64
 		if residuals != nil {
-			pieceResiduals = make([]int32, len(mapped))
+			pieceResiduals = make([]float64, len(mapped))
 		}
 		out := shapeWithResiduals(&fc.shaper, piece, pieceResiduals)
 		for i, v := range pieceResiduals {

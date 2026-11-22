@@ -206,3 +206,20 @@ Rozstrzygnięte 2026-11-22 przez użytkownika: w obu punktach zostajemy przy nor
 miejscu”). Gdyby zgodność z Chromium kosztem norm okazała się potrzebna, wejdzie jako jawna opcja opt-in
 (np. tryb zgodności z Chromium), domyślnie wyłączona i opisana w osobnym ADR; obecny `Options.ExactLengths`
 działa w odwrotnym kierunku (domyślne zaokrąglenia jak w Chromium tam, gdzie norma zostawia wybór).
+
+## 29. Szerokość tekstu w górę do LayoutUnit a sondaż CSS; szerokość układu przy pomniejszaniu
+
+Otwarte od 2026-11-22 (ADR 0043).
+
+1. Szerokość kawałka tekstu zaokrąglana w górę do 1/64 px (jak w Chromium) daje w sondażu CSS 17 strat
+   (reftesty, w których test i wzorzec dzielą tekst na inne pudełka; przesunięcie o ułamek piksela).
+   Szerokość dokładna zostawia 10 z nich, ale przywraca dwa złamania wierszy niezgodne z Chromium
+   w `bench/realdocs`. Do decyzji: zostać przy LayoutUnit (wierność Chromium) czy przy szerokości
+   dokładnej (zgodność sondażu); zmiana to jeden warunek w `preciseLineWidth`.
+2. Chromium układa pomniejszany dokument na szerokości całkowitej, ale
+reguła zaokrąglenia nie jest ustalona: na obszarze A5 (409 px) każdy pomiar to obcięcie w dół (450,9 px
+daje 450, 480,5 px daje 480), na A4 (643 px) próg ułamka rośnie z szerokością (700,5 px daje 700,
+700,6 px daje 701; 912,6 px daje 912, 912,7 px daje 913). gopdfgo obcina w dół, co na `bench/realdocs`
+daje najmniej rozbieżności; dokument z treścią szeroką na 912,86 px (`rand-08`) ma przez to o 1 px węższe
+wiersze niż w Chromium. Pomiary: `bench/lw/m10.py` (poza gitem). Do ustalenia, czy reguła wynika
+z przeliczania na punkty drukarki, czy z innego miejsca; norma tego nie opisuje.

@@ -7,7 +7,7 @@ boxes with running headers and footers, page counters, named pages, page breaks 
 `widows`, repeated table headers.
 
 Status on 2026-11-22:
-- W3C screen reftests across 11 CSS areas: 9499 of 10962 pass;
+- W3C screen reftests across 11 CSS areas: 9484 of 10962 pass (9499 before ADR 0043, see open question 29);
 - W3C print reftests: 310 of 340 pass (308 exact, 2 within anti-aliasing edges);
 - W3C SVG reftests: 194 of the 235 that can run without scripts pass;
 - own corpus of 22 documents: same page count as Chromium; PDF/A-2b, PDF/A-2a and PDF/UA-1 valid in

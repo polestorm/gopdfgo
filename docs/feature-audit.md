@@ -2431,7 +2431,12 @@ z przesunięciem rośnie, bo przesunięcie narasta stopniowo zamiast skokiem.
   o 0,02–0,05 px mniejsza niż w Chromium (który sumuje dokładne pozycje HarfBuzz); wiersz 627,01 px
   w dostępnych 627,02 px mieści się u nas, w Chromium (627,04 px) nie. Poprawka wymaga, żeby także szerokości
   min-/max-content liczyły się z dokładnych pozycji (inaczej pudełko o szerokości max-content łamałoby
-  własny tekst); do osobnej rundy.
+  własny tekst); do osobnej rundy. **Rozebrane 2026-11-22 (ADR 0043):** różnica była większa, niż
+  szacowano (Tinos 8 px: suma zaokrąglona 626,80 px wobec dokładnej 627,10 px), a `LineWrap` nie
+  sprawdzał szerokości dokładnej, gdy zaokrąglona się mieściła; rozmiar `.88em` przy 14 px dawał 12,31 px
+  zamiast 12,32 px; w `rand-29` źródłem była szerokość układu przy pomniejszaniu (Chromium: całkowita).
+  Szerokości są teraz dokładne, w górę do 1/64 px na kawałek tekstu, także przy min-/max-content;
+  `office-quote` i `office-wmbus-protocol` bez słów odchylonych, `rand-29` 1147 → 711 (pytanie 29).
 - **`widows` w krótkim bloku** (`office-agreement`: 3-wierszowy punkt umowy, Chrome dzieli 2 + 1): pytanie 28.
 - **Fonty systemowe Chromium** (`office-db-model`: ✔ z ZapfDingbats, u nas z fontu zastępczego z testdata,
   inne wysokości wierszy w 43 tabelach; `office-school-notes`: ★, którego nie ma w żadnym foncie

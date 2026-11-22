@@ -64,9 +64,10 @@ func TestJustifyAfterLastTab(t *testing.T) {
 
 func TestTextTransformRules(t *testing.T) {
 	same := notoComparer(t)
-	// capitalize przez granicę elementu pozycjonowanego: słowo trwa dalej
+	// capitalize przez granicę elementu pozycjonowanego: słowo trwa dalej (wzorzec dzielony tak samo, bo
+	// szerokość kawałka tekstu jest w górę do 1/64 px i podział przesuwa dalszy tekst o ułamek piksela, ADR 0043)
 	same("capitalize-abspos", `<p style="text-transform:capitalize;font-kerning:none">p<span style="position:absolute"></span>ass go</p>`,
-		`<p style="font-kerning:none">Pass Go</p>`)
+		`<p style="font-kerning:none">P<span style="position:absolute"></span>ass Go</p>`)
 	// litera tytułowa z odwzorowaniem pełnym i reguła niderlandzka
 	same("titlecase", `<p style="text-transform:capitalize">ﬁsh <span lang="nl">ijsland</span></p>`,
 		`<p>Fish <span lang="nl">IJsland</span></p>`)

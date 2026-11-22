@@ -122,7 +122,11 @@ type Options struct {
 	//     wiersza z line-height i udziały nadwyżki w tabeli o układzie stałym: obcinane do 1/64 px jak
 	//     LayoutUnit w Blink (padding 2.2px daje 2,1875 px), a wiersz mieści treść szerszą od niego
 	//     o mniej niż 1/64 px; interlinia nad tekstem w dół do całego piksela (ADR 0013, uzupełnienie
-	//     z 2026-11-21).
+	//     z 2026-11-21);
+	//   - szerokość kawałka tekstu (część pudełka tekstu w wierszu, także przy min-/max-content): dokładna
+	//     suma szerokości znaków w górę do 1/64 px (ADR 0043);
+	//   - szerokość obszaru strony powiększonego przy pomniejszaniu treści (MaxShrink): w dół do całych
+	//     pikseli (ADR 0043).
 	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
 	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
 	ExactLengths bool
