@@ -109,15 +109,56 @@ var _ backend.SharedDrawer = (*group)(nil)
 func (g *group) DrawShared(key any, width, height fl, draw func(dst backend.Canvas)) {
 	k := sharedFormKey{key: key, width: width, height: height, maskLimit: g.maskLimit()}
 	form, has := g.cache.forms[k]
+	// gopdfgo: przy pomijaniu tekstu (wycinek obrazu krojonego między strony, ADR 0041) forma z tekstem
+	// leżącym poza wycinkiem jest rysowana osobno, bez tego tekstu; wspólna forma służy dalej, gdy obraz
+	// nie ma tekstu albo cały jego tekst przecina wycinek
+	if rect, cull := g.formCull(width, height); cull && (!has || g.cache.formTexts[form]) {
+		content := newGroup(g.cache, 0, 0, width, height)
+		content.stream.ForgetColors()
+		content.cull = textCull{on: true, rect: rect}
+		draw(&content)
+		if content.culled > 0 {
+			g.beginContent()
+			g.stream.AddXObject(content.stream.ToXFormObject(compressStreams))
+			return
+		}
+		if !has {
+			form, has = g.storeForm(k, &content), true
+		}
+	}
 	if !has {
 		content := newGroup(g.cache, 0, 0, width, height)
 		content.stream.ForgetColors()
 		draw(&content)
-		form = content.stream.ToXFormObject(compressStreams)
-		if g.cache.forms != nil {
-			g.cache.forms[k] = form
-		}
+		form = g.storeForm(k, &content)
 	}
 	g.beginContent() // gopdfgo: zob. tagged.go
 	g.stream.AddXObject(form)
+}
+
+// storeForm (gopdfgo) zapisuje treść content jako formę wspólną pod kluczem k.
+func (g *group) storeForm(k sharedFormKey, content *group) *model.XObjectForm {
+	form := content.stream.ToXFormObject(compressStreams)
+	if g.cache.forms != nil {
+		g.cache.forms[k] = form
+		g.cache.formTexts[form] = content.texts > 0
+	}
+	return form
+}
+
+// formCull (gopdfgo) zwraca obszar pomijania tekstu w układzie formy (0, 0, width, height) rysowanej
+// w bieżącym miejscu; cull = false, gdy pomijanie jest wyłączone albo obszar obejmuje całą formę.
+func (g *group) formCull(width, height fl) (rect [4]fl, cull bool) {
+	if !g.cull.on {
+		return rect, false
+	}
+	inverse := g.GetTransform()
+	if inverse.Invert() != nil {
+		return rect, false
+	}
+	rect = aabb(inverse, g.cull.rect[0], g.cull.rect[1], g.cull.rect[2], g.cull.rect[3])
+	if rect[0] <= 0 && rect[1] <= 0 && rect[2] >= width && rect[3] >= height {
+		return rect, false
+	}
+	return rect, true
 }

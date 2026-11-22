@@ -212,6 +212,9 @@ type Link struct {
 	// elementu <a> wewnątrz obrazu SVG, element to wtedy element obrazu
 	element *html.Node
 	svg     bool
+	// svgIndex: numer elementu <a> w obrazie SVG (svg.LinkArea.Index); odnośniki tego samego elementu
+	// na kolejnych stronach (wycinki obrazu krojonego) należą do jednego elementu struktury Link
+	svgIndex int
 }
 
 type bookmarkData struct {

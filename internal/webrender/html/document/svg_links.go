@@ -78,6 +78,7 @@ func replacedSVGLinks(box_ bo.ReplacedBoxITF, links *[]Link, matrix *mt.Transfor
 			link = Link{Type: pr.Internal, Target: name}
 		}
 		link.element, link.svg = box.Element, true // gopdfgo: element obrazu dla PDF z tagami (ADR 0033)
+		link.svgIndex = area.Index
 		if matrix != nil {
 			link.Rectangle = rectangleAabb(*matrix, x0, y0, x1-x0, y1-y0)
 		} else {

@@ -58,6 +58,10 @@ type StackingContext struct {
 	// gopdfgo: parent3D – rodzic pudełka w drzewie ma transform-style: preserve-3d, więc pudełko
 	// należy do jego kontekstu renderowania 3D (CSS Transforms 2 § 6); zob. drawStackingContext
 	parent3D bool
+	// gopdfgo: slicedLine – wycinek wiersza krojonego między strony (LineBox.SliceFullHeight > 0), wewnątrz
+	// którego leży pudełko kontekstu. Kontekst jest rysowany poza wierszem, więc musi dostać to samo
+	// przesunięcie i przycięcie co wiersz (zob. drawStackingContext); nil poza krojonym wierszem.
+	slicedLine *bo.LineBox
 }
 
 // withParent3D (gopdfgo) zaznacza kontekst pudełka, którego rodzic ma transform-style: preserve-3d.
@@ -354,13 +358,49 @@ func dispatchChildren(box Box, parentIn3D bool, page *bo.PageBox, childContexts,
 	// (CSS Transforms 2 § 6), zob. StackingContext.parent3D; pudełko wiersza nie jest elementem, więc
 	// jego dzieci (np. inline-block) należą do kontekstu rodzica
 	in3D := box.Box().Style.GetTransformStyle() == "preserve-3d" || (parentIn3D && bo.LineT.IsInstance(box))
+	// gopdfgo: konteksty potomków wycinka wiersza krojonego między strony (np. <svg> w wierszu: overflow
+	// hidden tworzy kontekst) są rysowane poza wierszem; bez przesunięcia wiersza każda strona pokazywała
+	// początek obrazu, a dalsza część ginęła (ADR 0041)
+	var before map[Box]bool
+	sliced, _ := box.(*bo.LineBox)
+	if sliced != nil && sliced.SliceFullHeight > 0 {
+		before = contextBoxes(childContexts, floats, escape)
+	} else {
+		sliced = nil
+	}
 	for _, child := range box.Box().Children {
 		result := dispatch(child, in3D, page, childContexts, escape, blocks, floats, blocksAndCells)
 		if result != nil {
 			newChildren = append(newChildren, result)
 		}
 	}
+	if sliced != nil {
+		for _, list := range []*[]StackingContext{childContexts, floats, escape} {
+			if list == nil {
+				continue
+			}
+			for i, sc := range *list {
+				if !before[sc.box] && sc.slicedLine == nil {
+					(*list)[i].slicedLine = sliced
+				}
+			}
+		}
+	}
 	return bo.CopyWithChildren(box, newChildren)
+}
+
+// contextBoxes (gopdfgo) zwraca pudełka kontekstów z podanych list (nil pomijane).
+func contextBoxes(lists ...*[]StackingContext) map[Box]bool {
+	out := map[Box]bool{}
+	for _, list := range lists {
+		if list == nil {
+			continue
+		}
+		for _, sc := range *list {
+			out[sc.box] = true
+		}
+	}
+	return out
 }
 
 func (StackingContext) Type() bo.BoxType { return bo.StackingContextT }

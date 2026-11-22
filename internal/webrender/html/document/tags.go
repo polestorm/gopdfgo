@@ -30,6 +30,8 @@ type tagger struct {
 	warned     map[*html.Node]bool // obrazy bez tekstu alternatywnego już zgłoszone
 	// svgLinks: elementy struktury Link odnośników SVG według elementu obrazu, w kolejności adnotacji
 	svgLinks map[*html.Node][]*backend.StructureNode
+	// svgLinkNodes: element struktury Link według elementu obrazu i numeru elementu <a> w obrazie
+	svgLinkNodes map[svgLinkKey]*backend.StructureNode
 	// repeated: grupy nagłówka i stopki tabeli (powtarzane na kolejnych stronach) według numeru strony,
 	// na której narysowano je pierwszy raz; późniejsze kopie są artefaktami paginacji
 	repeated map[*html.Node]int
@@ -37,6 +39,12 @@ type tagger struct {
 	listNumbering map[*html.Node]string
 	// grids: siatka tabeli (tableGrid) według komórki, wypełniana przy budowie drzewa struktury
 	grids map[*html.Node]map[*html.Node]tableCell
+}
+
+// svgLinkKey to klucz elementu <a> obrazu SVG: element obrazu i numer elementu <a> (zob. Link.svgIndex).
+type svgLinkKey struct {
+	image *html.Node
+	index int
 }
 
 // listLabel to klucz treści znacznika (::marker) elementu listy: element Lbl w LI (ISO 32000-1
@@ -50,7 +58,9 @@ func newTagger() *tagger {
 		pagination: &backend.MarkedContent{Pagination: true},
 		warned:     map[*html.Node]bool{},
 		svgLinks:   map[*html.Node][]*backend.StructureNode{},
-		repeated:   map[*html.Node]int{},
+
+		svgLinkNodes: map[svgLinkKey]*backend.StructureNode{},
+		repeated:     map[*html.Node]int{},
 
 		listNumbering: map[*html.Node]string{},
 		grids:         map[*html.Node]map[*html.Node]tableCell{},
@@ -773,9 +783,16 @@ func (t *tagger) linkOwner(link Link) any {
 		if link.element == nil {
 			return nil
 		}
+		// gopdfgo: ten sam element <a> na kolejnych wycinkach obrazu krojonego między strony to jeden
+		// element Link z kilkoma adnotacjami (ADR 0041)
+		key := svgLinkKey{link.element, link.svgIndex}
+		if node, has := t.svgLinkNodes[key]; has {
+			return node
+		}
 		node := &backend.StructureNode{Type: "Link"}
 		node.Owner = node
 		t.svgLinks[link.element] = append(t.svgLinks[link.element], node)
+		t.svgLinkNodes[key] = node
 		return node
 	}
 	for node := link.element; node != nil; node = node.Parent {

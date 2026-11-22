@@ -261,6 +261,16 @@ type SharedDrawer interface {
 	DrawShared(key any, width, height Fl, draw func(dst Canvas))
 }
 
+// TextCuller (gopdfgo) to opcjonalne rozszerzenie Canvas. CullTextOutside sprawia, że tekst rysowany
+// dalej (do przywrócenia stanu przez OnNewStack), którego obrys leży w całości poza prostokątem
+// (x, y, width, height) w bieżącym układzie współrzędnych, nie trafia do wyniku; kolejne wywołania
+// zawężają obszar. Rysujący woła je razem z przycięciem do tego samego prostokąta (wycinek elementu
+// krojonego między strony), więc wygląd się nie zmienia, a tekst niewidoczny nie jest wydobywany ani
+// przeszukiwany (ADR 0041). Tekst przecinający prostokąt zostaje w całości.
+type TextCuller interface {
+	CullTextOutside(x, y, width, height Fl)
+}
+
 // Canvas represents a 2D surface which is the target of graphic operations.
 // It may be used as the final output (like a PDF page or the screen),
 // or as intermediate container (see for instance DrawWithOpacity or SetAlphaMask)

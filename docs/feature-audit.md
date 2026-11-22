@@ -2342,6 +2342,14 @@ z odstępem nierozdzielającym).
 - `mmd-er-real`, `mmd-p6`, `mmd-p16`: więcej słów w naszym tekście niż w Chromium, bo diagram krojony na
   strony rysujemy na każdej stronie w całości z przycięciem; tekst poza przycięciem jest niewidoczny, ale
   trafia do warstwy tekstu PDF (wyszukiwanie i kopiowanie znajdują go dwa razy). Do rozważenia osobno.
+  **Dopisek 2026-11-22 (ADR 0041):** główna przyczyna była inna: `<svg>` w wierszu (kontekst nakładania
+  z `overflow: hidden`, rysowany poza wierszem) nie dostawał przesunięcia wycinka, więc każda strona
+  pokazywała początek diagramu, a reszta ginęła (`mitigated_by`, `CONTROL`, `Kontrola`, `N`, `O`). Po
+  naprawie i pominięciu tekstu w całości poza wycinkiem: `mmd-er-real` 36 słów (Chromium 36), `mmd-p6` 52
+  (52), `mmd-p16` 33 (32; inne granice wycinków przez pustą stronę 1 u Chromium); tekst stron `mmd-er-real`
+  i `mmd-p6` taki sam jak u Chromium. Etykieta na granicy wycinków jest na obu stronach, jak u Chromium.
+  Przy okazji: strona bez tekstu i obrazów nie ma słownika `/Resources` (ISO 32000-1 § 7.7.3.3, tab. 30:
+  wymagany, może być dziedziczony), veraPDF zgłasza ostrzeżenie; do poprawienia osobno.
 
 ### Sprawdzenia
 

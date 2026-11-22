@@ -47,6 +47,11 @@ func (g *group) SetTextPaint(op backend.PaintOp) {
 
 // DrawText draws the given text using the current fill color.
 func (g *group) DrawText(texts []backend.TextDrawing) {
+	// gopdfgo: tekst w całości poza widocznym wycinkiem nie trafia do pliku (ADR 0041, cull.go)
+	g.texts += len(texts)
+	if texts = g.culledTexts(texts); len(texts) == 0 {
+		return
+	}
 	// gopdfgo: treść oznaczona wokół obiektu tekstowego; w nim q i Q (emoji) nie zamykają ciągu
 	if m := g.marking; m != nil {
 		g.beginContent()
