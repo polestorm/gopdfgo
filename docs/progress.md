@@ -1,6 +1,6 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
-Stan na 2026-11-18 po dziewiątej paczce (reftesty druku: model strony i fragmentacja). Dokument aktualizujemy po każdej paczce poprawek.
+Stan na 2026-11-22 (tabela „Stan w liczbach”; dalsze sekcje opisują stan z dat podanych przy nich). Dokument aktualizujemy po każdej paczce poprawek.
 Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów (od 16.11 osobno liczone trzy
@@ -30,20 +30,20 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 
 | Miara | Wynik | Uwagi |
 |---|---|---|
-| Sondaż ekranowy W3C | **7835 z 9123 (85,9%)** | ściśle 7430, krawędziowo 405; tryb ciągły; od 17.11 zestaw większy o 13 testów |
-| Sondaż rozszerzony (od 16.11): tekst, tła, fonty | **1667 z 1839 (90,6%)** | ściśle 1613, krawędziowo 54; `css-text` 810 z 909, `css-backgrounds` 572 z 603, `css-fonts` 285 z 327 (od 18.11 z fontami CSSTest, ADR 0018); od 17.11 zestaw większy o 71 testów |
-| Reftesty druku W3C | **310 z 340 (91,2%)** | ściśle 308, krawędziowo 2 |
-| Korpus: liczba stron jak w Chromium | 21 z 22 dokumentów | wyjątek: `06-margin-boxes` |
-| Testy własne | 114 funkcji testowych i 2 pomiary, wszystkie przechodzą | w tym 82 w `regression_test.go` |
-| Faktura KSeF z xml.pro, 4 warianty (do 140 pozycji, 7 stron) | strony i wszystkie słowa jak w Chromium (do 1 pt) | `docs/feature-audit.md`, 2026-11-16 |
+| Sondaż ekranowy W3C, 11 obszarów CSS | **9499 z 10962 (86,7%)** | 22.11: 3 testy `hanging-punctuation-last*` przechodziły przypadkiem i przestały po poprawce łamania (ADR 0038); `bench/verify/css.sh` |
+| Reftesty druku W3C | **310 z 340 (91,2%)** | ściśle 308, krawędziowo 2; rozbiór 30 niezaliczonych w `docs/feature-audit.md` (21.11) |
+| Reftesty W3C `svg/` | **194 z 235** | rano 20.11: 83; pozostałe głównie CSS Linked Parameters (propozycja), `zoom`, animacje |
+| Korpus: liczba stron jak w Chromium | 22 z 22 dokumentów | odchylenie słów: `docs/overview.md` |
+| Prawdziwe dokumenty wobec Chromium (`bench/realdocs`) | 4 faktury KSeF i 5 e-SF: strony i łamanie jak w Chromium, każde słowo w granicach 0,81 pt; 12 dokumentów Markdown i 10 stron z diagramami: liczby stron jak w Chromium | reszta różnic opisana (UAX #14 LB20a, `widows`, fonty systemowe Chromium); pytanie 28 |
+| PDF/A-2b, PDF/A-2a, PDF/UA-1 | 22 z 22 dokumentów korpusu zgodne według veraPDF 1.30 | ADR 0016, 0033 |
+| Factur-X / ZUGFeRD | faktura MINIMUM: PDF/A-3b oraz 3a + UA-1; veraPDF i Mustang 2.26.0: poprawne | ADR 0034 |
+| Testy własne | 274 funkcje testowe, wszystkie przechodzą | plus `go test -tags systemfonts` dla wariantu z czcionkami systemowymi |
 | Testy przejętego kodu | 6 stałych niezaliczeń | te same od 2026-11-13 |
-| Czas renderowania (korpus) | 32–101 ms na dokument, tabela 4000 wierszy 1,10 s | `docs/benchmark.md` § 9, 2026-11-16 |
-| PDF/A-2b (`Options.Conformance`, ADR 0016) | 22 z 22 dokumentów korpusu zgodne według veraPDF 1.30, bez ostrzeżeń | 2026-11-16 |
-| PDF z tagami (`Options.Tagged`, ADR 0033, rundy 1–2), PDF/A-2a i PDF/UA-1 | PDF/A-2a: 22 z 22 dokumentów korpusu według veraPDF; PDF/UA-1 (`-pdfua 1`): 22 z 22 (po poprawieniu 5 dokumentów z wadą źródła: przeskok h1 → h3, SVG bez tekstu alternatywnego) | 2026-11-21 |
-| Rozmiar binarki | 23,35 MB (macOS arm64, `-s -w`) | 17 razy mniej niż Chromium z bibliotekami |
-| Commity | 105 w 4 dni | 13.11: 11, 14.11: 66, 15.11: 17, 16.11: 11 |
-| Zmiany w przejętym kodzie | 267 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
-| Decyzje (ADR) | 21 | otwarte pytanie 25 (parser XML dla XHTML); pytania 23 i 24 odłożone |
+| Czas i pamięć: książka 256 stron | 1,17–1,22 s, 0,42–0,44 GB (Chromium 2,10–2,56 s, 1,67–1,73 GB) | 1021 stron: 4,57–4,69 s (Chromium 4,54–4,69 s); ADR 0037 |
+| Rozmiar binarki | 19,1 MB (linux/amd64, `-s -w`) | 22.11: −13,7% po usunięciu `text/template` (ADR 0039) |
+| Commity | 554 | 13–22.11 |
+| Zmiany w przejętym kodzie | 278 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Decyzje (ADR) | 40 | otwarte pytanie 28 (dywiz na początku słowa, `widows` w krótkich blokach) |
 
 ## Sondaż ekranowy w czasie
 

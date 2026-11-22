@@ -6,14 +6,16 @@ It is not meant to print arbitrary web pages. It supports CSS Paged Media: page 
 boxes with running headers and footers, page counters, named pages, page breaks with `orphans` and
 `widows`, repeated table headers.
 
-Status on 2026-11-21:
-- W3C screen reftests across 11 CSS areas: 9502 of 10962 pass;
+Status on 2026-11-22:
+- W3C screen reftests across 11 CSS areas: 9499 of 10962 pass;
 - W3C print reftests: 310 of 340 pass (308 exact, 2 within anti-aliasing edges);
 - W3C SVG reftests: 194 of the 235 that can run without scripts pass;
 - own corpus of 22 documents: same page count as Chromium; PDF/A-2b, PDF/A-2a and PDF/UA-1 valid in
   veraPDF for all 22;
 - real documents (4 KSeF invoices, 5 e-SF financial statements): same pages and page breaks as Chromium,
-  every word within 0.81 pt of its position in Chromium.
+  every word within 0.81 pt of its position in Chromium; 12 Markdown documents and 10 diagram pages: same
+  page counts as Chromium, remaining differences explained in `docs/overview.md`;
+- Factur-X output accepted by veraPDF and the Mustang validator.
 
 Comparison with Chromium, the list of what is not supported, and requirements:
 [`docs/overview.md`](docs/overview.md).
