@@ -1203,6 +1203,25 @@ Wspólne dla obu katalogów:
     pływające, która tam przekracza dół strony albo była już podzielona, jest układana od nowa na nowej
     wysokości; wcześniej tylko ją przesuwano, a wystający dół spychał całą tabelę na następną stronę
     (pusta reszta strony; Chromium zaczyna tabelę pod elementem pływającym);
+- dokładna szerokość wiersza jak w Chromium, 2026-11-22 (ADR 0044; test `tests/linewidth22_test.go`;
+  pomiary w `bench/lw/`, poza gitem):
+  - `text/engine_gotext.go` `shapeAtSize`: szerokości znaków zaokrąglane do 1/64 px z przenoszeniem błędu
+    (pozycja końca znaku od początku przebiegu), reszty zaokrągleń `float64` w 1/4096 px, rozmiar `fine`
+    bez zaokrąglenia; źródło (i wcześniejsza wersja gopdfgo) zaokrąglało każdą szerokość osobno, więc
+    suma wiersza odbiegała od dokładnej o dziesiąte części piksela; przy pozycjach poza zakresem
+    `fixed.Int26_6` (pismo rzędu 10 000 pt) bez przenoszenia błędu (przejęty test
+    `TestShrinkToFitFloatingPointError2` zapętlał się na ujemnych szerokościach);
+  - `WrapWordBreak`: reszty zaokrągleń liczone zawsze (także przy min-/max-content) i zerowane po
+    wywołaniu; szerokość wiersza `FirstLine.Width` z `preciseLineWidth` (dokładna, przy
+    `TextStyle.LayoutUnits` w górę do 1/64 px); przycięcie do dostępnej szerokości bez zapasu 1/16 px;
+  - `LineWrap`: wiersz przyjmowany, gdy mieści się jego szerokość dokładna; wcześniej każdy wiersz
+    o zaokrąglonej szerokości nie większej niż dostępna;
+  - `text/style.go` `chromiumFontSize`: mnożenie w pojedynczej precyzji; nowe pole `TextStyle.LayoutUnits`
+    (w kluczu pamięci układów);
+  - `html/layout/pages.go` (powiększony obszar strony przy pomniejszaniu): szerokość w dół do całych
+    pikseli przy `ExactLengths: false`;
+  - przejęty test `html/layout/layout_text_test.go` `TestWordSpacing`: różnica szerokości z dokładnością
+    do 3/64 px zamiast dokładnie 33 px (kawałki tekstu w górę do 1/64 px, inny podział na pudełka);
 - szybkość dużych dokumentów, 2026-11-21 (praca pomocnika; ADR 0037; profil CPU i alokacji książki
   1021 stron, wynik bajt w bajt ten sam):
   - `text/draw/draw_gotext.go` `drawEmojiGotext`, wołane dla każdego rysowanego glifu: zamiast

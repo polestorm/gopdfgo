@@ -468,7 +468,11 @@ func TestWordSpacing(t *testing.T) {
 		line = unpack1(body)
 		strong2 := unpack1(line)
 
-		tu.AssertEqual(t, strong2.Box().Width.V()-strong1.Box().Width.V(), Fl(33))
+		// gopdfgo: szerokość każdego kawałka tekstu jest w górę do 1/64 px (ADR 0044), więc inny podział
+		// tekstu na pudełka zmienia sumę o najwyżej 1/64 px na pudełko
+		if d := strong2.Box().Width.V() - strong1.Box().Width.V(); d < 33-3./64 || d > 33+3./64 {
+			t.Errorf("%s: różnica szerokości %v, oczekiwane 33", text, d)
+		}
 	}
 }
 

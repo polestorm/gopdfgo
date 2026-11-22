@@ -46,7 +46,9 @@ type Behavior struct {
 	// ExactLengths: długości zostają dokładne. Domyślnie szerokości obramowań, konturów i linii między
 	// kolumnami, border-spacing oraz obszar strony są zaokrąglane do całych pikseli CSS jak w Chromium
 	// (ADR 0009, 0013, 0021), rozmiar pisma do składu tekstu obcinany do 0,01 px, a długości pudełek
-	// i wysokość wiersza do 1/64 px (LayoutUnit w Blink, ADR 0013).
+	// i wysokość wiersza do 1/64 px (LayoutUnit w Blink, ADR 0013), szerokość kawałka tekstu w górę
+	// do 1/64 px, a szerokość obszaru strony powiększonego przy pomniejszaniu w dół do całych pikseli
+	// (ADR 0044).
 	ExactLengths bool
 	// MaxShrink: największe pomniejszenie treści szerszej niż obszar strony (ADR 0014). Wartości do 1
 	// (także zero) wyłączają pomniejszanie.

@@ -828,6 +828,16 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 		// gopdfgo: treść układamy na powiększonym obszarze strony (ADR 0014); rozmiar z arkusza wraca
 		// przed układem pól marginesów
 		page.Width, page.Height = page.Width.V()*scale, page.Height.V()*scale
+		if !context.behavior.ExactLengths {
+			// gopdfgo: jak Chromium, szerokość powiększonego obszaru strony obcinamy w dół do całych pikseli;
+			// wysokość i skala rysowania zostają dokładne (pomiar Chrome 157, 2026-11-22, bench/lw/m6.py
+			// i m7.py: przy treści szerokiej na 450,1 px, 450,5 px i 450,9 px w obszarze strony 409 px
+			// w wierszu mieści się 450 px plus 1/64 px, a 450,2 px już nie, choć pismo jest pomniejszone
+			// w stosunku 409 : 450,9, a strona mieści 707 px treści, czyli 643 · 450,9 / 409). Blink zmienia
+			// rozmiar widoku, który jest liczbą całkowitą. Bez tego wiersze tekstu w dokumencie
+			// pomniejszonym miały do piksela więcej miejsca niż w Chromium (bench/realdocs rand-29).
+			page.Width = pr.Float(math.Floor(float64(page.Width.V()) + 1e-3))
+		}
 	}
 
 	rootBox.Box().PositionX = page.ContentBoxX()
