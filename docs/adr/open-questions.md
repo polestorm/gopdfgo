@@ -201,3 +201,8 @@ Otwarte od 2026-11-22 (rozbiór dokumentacji Markdown wobec Chromium, `docs/feat
    w całości (CSS Fragmentation 3 § 4.4, reguła 3, i § 4.5). W `md-gopdfgo-benchmark` to samo w komórce
    tabeli przesuwa resztę dokumentu (273 słowa na innej stronie). Zostajemy przy normie, chyba że użytkownik
    zdecyduje inaczej.
+
+Rozstrzygnięte 2026-11-22 przez użytkownika: w obu punktach zostajemy przy normie („normy na pierwszym
+miejscu”). Gdyby zgodność z Chromium kosztem norm okazała się potrzebna, wejdzie jako jawna opcja opt-in
+(np. tryb zgodności z Chromium), domyślnie wyłączona i opisana w osobnym ADR; obecny `Options.ExactLengths`
+działa w odwrotnym kierunku (domyślne zaokrąglenia jak w Chromium tam, gdzie norma zostawia wybór).
