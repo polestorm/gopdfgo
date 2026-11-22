@@ -216,7 +216,9 @@ streams. Measured 2026-11-21 (median of 5 runs, whole process, macOS arm64): cor
 
 gopdfgo's file size comes from:
 - zlib compression at level 6 (ADR 0023);
-- font subsets that keep only the glyphs used and short tables.
+- font subsets that keep only the glyphs used and short tables, for TrueType and for CFF outlines (`.otf`,
+  embedded as `CIDFontType0C`; CFF2 variable fonts at their default instance; ADR 0040). Two Japanese
+  characters in Hiragino Sans took 5.6 MB before CFF subsets and take 2.7 kB now.
 
 `Options.Uncompressed` writes an uncompressed file for reading in a text editor.
 

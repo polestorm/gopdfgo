@@ -48,7 +48,7 @@ Comparison with Chromium, the list of what is not supported, and requirements:
 - PNG, JPEG and GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
   are printed at the size of the element.
 - PDF output:
-  - font subsets;
+  - font subsets, TrueType and CFF (`.otf`, including CFF2 variable fonts at their default instance; ADR 0040);
   - internal and external links, bookmarks from headings;
   - PDF/A-2b and PDF/A-3b on request (`Options.Conformance`);
   - tagged PDF on request (`Options.Tagged`, `-tagged`; ADR 0033): a structure tree from the HTML elements

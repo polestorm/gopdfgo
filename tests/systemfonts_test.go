@@ -201,3 +201,21 @@ func TestSystemFontsRestrictedEmbedding(t *testing.T) {
 		t.Errorf("font z zakazem osadzania użyty:\n%s", warnings)
 	}
 }
+
+// Fonty systemowe o konturach CFF (OTF, np. Hiragino na macOS) i CFF2 (fonty zmienne OTF) są osadzane
+// jako podzbiory CIDFontType0C, tak samo jak te same pliki podane w Options.Fonts (ADR 0040).
+func TestSystemFontsCFF(t *testing.T) {
+	useSystemFontDirs(t, filepath.Join("cff", "adobe"))
+	opts := gopdfgo.Options{Fonts: []gopdfgo.Font{readTestFont(t, "tinos/Tinos-Regular.ttf")}, SystemFonts: true}
+	html := `<p style="font-family: 'Source Sans 3 VF'; font-style: italic">Zażółć gęślą jaźń</p>`
+	result := renderSystem(t, html, opts)
+	if got := embeddedFonts(result.PDF); strings.Join(got, ",") != "SourceSans3VF" {
+		t.Errorf("osadzone fonty: %v", got)
+	}
+	if !bytes.Contains(result.PDF, []byte("/Subtype /CIDFontType0C")) || len(result.PDF) > 15000 {
+		t.Errorf("oczekiwany podzbiór CIDFontType0C, PDF ma %d B", len(result.PDF))
+	}
+	if !strings.Contains(warningsText(result), "system font used: SourceSans3VF (") {
+		t.Errorf("ostrzeżenia:\n%s", warningsText(result))
+	}
+}

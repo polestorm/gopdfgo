@@ -26,6 +26,7 @@ var (
 	glyfTag = ot.MustNewTag("glyf")
 	locaTag = ot.MustNewTag("loca")
 	cffTag  = ot.MustNewTag("CFF ")
+	cff2Tag = ot.MustNewTag("CFF2")
 )
 
 // entry opisuje jeden font (twarz) z pliku w katalogu systemowym.
@@ -36,7 +37,7 @@ type entry struct {
 	Family     string
 	Aspect     font.Aspect
 	FSType     uint16    // OS/2 fsType: uprawnienia osadzania
-	Outlines   bool      // kontury TrueType (glyf) albo CFF; bez nich font nie nadaje się do PDF
+	Outlines   bool      // kontury TrueType (glyf), CFF albo CFF2 (ADR 0040); bez nich font nie nadaje się do PDF
 	Ranges     [][2]rune // znaki z cmap, przedziały domknięte, rosnąco
 }
 
@@ -183,7 +184,7 @@ func scanFile(path string) []entry {
 		desc, _ := font.Describe(ld, nil)
 		e.Family, e.Aspect = desc.Family, desc.Aspect
 		e.Aspect.SetDefaults()
-		e.Outlines = (ld.HasTable(glyfTag) && ld.HasTable(locaTag)) || ld.HasTable(cffTag)
+		e.Outlines = (ld.HasTable(glyfTag) && ld.HasTable(locaTag)) || ld.HasTable(cffTag) || ld.HasTable(cff2Tag)
 		out = append(out, e)
 	}
 	return out

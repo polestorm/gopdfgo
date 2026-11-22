@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/polestorm/gopdfgo/internal/cffsubset"
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
@@ -28,6 +29,8 @@ type fontContent struct {
 	content []byte
 	// bitmap fonts are not supported by PDF readers
 	isSupported bool
+	// cff (gopdfgo): kontury CFF albo CFF2, osadzane jako podzbiór CIDFontType0C (ADR 0040)
+	cff cffsubset.Kind
 }
 
 type cache struct {

@@ -825,10 +825,13 @@ type FontFile struct {
 
 func (f *FontFile) pdfContent(pdf pdfWriter, _ Reference) (header StreamHeader, content string, stream []byte) {
 	out := f.Stream.PDFCommonFields(true)
-	out.Fields["Length1"] = strconv.Itoa(f.Length1)
-	out.Fields["Length2"] = strconv.Itoa(f.Length2)
-	out.Fields["Length3"] = strconv.Itoa(f.Length3)
-	if f.Subtype != "" {
+	// gopdfgo: Length1, Length2 i Length3 opisują programy Type 1 i TrueType (ISO 32000-1 § 9.9,
+	// tab. 127); strumień FontFile3 (z Subtype) ich nie ma, a źródło zapisywało tam zera
+	if f.Subtype == "" {
+		out.Fields["Length1"] = strconv.Itoa(f.Length1)
+		out.Fields["Length2"] = strconv.Itoa(f.Length2)
+		out.Fields["Length3"] = strconv.Itoa(f.Length3)
+	} else {
 		out.Fields["Subtype"] = f.Subtype.String()
 	}
 	return out, "", f.Content

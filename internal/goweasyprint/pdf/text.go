@@ -12,10 +12,12 @@ import (
 	"github.com/go-text/typesetting/font"
 	ot "github.com/go-text/typesetting/font/opentype"
 	"github.com/go-text/typesetting/font/opentype/tables"
+	"github.com/polestorm/gopdfgo/internal/cffsubset"
 	"github.com/polestorm/gopdfgo/internal/pdflib/contentstream"
 	pdfFonts "github.com/polestorm/gopdfgo/internal/pdflib/fonts"
 	"github.com/polestorm/gopdfgo/internal/pdflib/model"
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
+	"github.com/polestorm/gopdfgo/internal/webrender/logger"
 	"github.com/polestorm/gopdfgo/internal/webrender/matrix"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 	drawText "github.com/polestorm/gopdfgo/internal/webrender/text/draw"
@@ -204,6 +206,7 @@ func (g *group) AddFont(font backend.Font, content []byte) *backend.FontChars {
 		g.fontFiles[origin] = fontContent{
 			content:     content,
 			isSupported: isSupportedFont(content),
+			cff:         cffsubset.FontKind(content),
 		}
 	}
 
@@ -272,6 +275,9 @@ func isSupportedFont(content []byte) bool {
 		hasValidGlyf = len(glyf) > 0
 	}
 	hasCff := ld.HasTable(ot.MustNewTag("CFF "))
+	// gopdfgo: kontury CFF2 (fonty zmienne OTF) są przepisywane na CFF (ADR 0040); źródło pomijało taki
+	// font, a tekst nim złożony znikał z PDF bez ostrzeżenia
+	hasCff = hasCff || ld.HasTable(ot.MustNewTag("CFF2"))
 
 	hasBitmap := ld.HasTable(ot.MustNewTag("EBDT")) && ld.HasTable(ot.MustNewTag("EBLC"))
 
@@ -477,6 +483,14 @@ func (c *Output) writeFonts() {
 			continue
 		}
 
+		// gopdfgo: font o konturach CFF to CIDFontType0 z podzbiorem CFF (ADR 0040); źródło zapisywało
+		// go jako CIDFontType2 z całym fontem OpenType, czego czytniki nie uznają (pdffonts: „Mismatch
+		// between font type and embedded font file”)
+		if content.cff != cffsubset.NotCFF {
+			font.writeCFFFont(bFont, content.content)
+			continue
+		}
+
 		fs := newFontFile(bFont.Description(), font, content.content)
 
 		desc := font.newFontDescriptor(bFont, fs)
@@ -502,4 +516,60 @@ func (c *Output) writeFonts() {
 		}
 		font.FontDict.ToUnicode = &model.UnicodeCMap{Stream: newStream(writeToUnicodeCMap(font.Cmap))}
 	}
+}
+
+// writeCFFFont (gopdfgo) zapisuje font o konturach CFF albo CFF2 jako font złożony Type 0 z potomkiem
+// CIDFontType0 i programem /FontFile3 /Subtype /CIDFontType0C: podzbiór CFF w postaci CID-keyed, w którym
+// CID glifu to jego numer w foncie źródłowym (ISO 32000-1 § 9.7.4, § 9.9; ADR 0040). Kodowanie Identity-H
+// i szerokości /W są takie jak dla fontów TrueType; /CIDToGIDMap dotyczy tylko CIDFontType2, a CID na glif
+// przelicza charset fontu CFF. Gdy podzbioru nie da się zbudować (uszkodzona tabela CFF albo konstrukcja
+// CFF2, której interpreter nie przepisuje), osadzany jest cały font OpenType (/Subtype /OpenType).
+func (font pdfFont) writeCFFFont(bFont backend.Font, content []byte) {
+	desc := font.newFontDescriptor(bFont, nil)
+	gids := make([]uint16, 0, len(font.Cmap))
+	for gid := range font.Cmap {
+		gids = append(gids, uint16(gid))
+	}
+	sort.Slice(gids, func(i, j int) bool { return gids[i] < gids[j] })
+	fs := &model.FontFile{Subtype: "CIDFontType0C"}
+	data, err := cffsubset.Subset(content, gids, cffFontName(string(desc.FontName)))
+	if err != nil {
+		logger.WarningLogger.Printf("CFF font subsetting failed for %s: %s; embedding the whole font", bFont.Description().Family, err)
+		fs.Subtype, data = "OpenType", content
+	}
+	fs.Stream = newStream(data)
+	desc.FontFile = fs
+	font.FontDict.Subtype = model.FontType0{
+		BaseFont: desc.FontName,
+		Encoding: model.CMapEncodingPredefined("Identity-H"),
+		DescendantFonts: model.CIDFontDictionary{
+			Subtype:  "CIDFontType0",
+			BaseFont: desc.FontName,
+			CIDSystemInfo: model.CIDSystemInfo{
+				Registry:   "Adobe",
+				Ordering:   "Identity",
+				Supplement: 0,
+			},
+			W:              cidWidths(font.Extents),
+			FontDescriptor: desc,
+		},
+	}
+	font.FontDict.ToUnicode = &model.UnicodeCMap{Stream: newStream(writeToUnicodeCMap(font.Cmap))}
+}
+
+// cffFontName (gopdfgo) zostawia w nazwie fontu dla Name INDEX tylko drukowalne znaki ASCII bez znaków
+// specjalnych PostScriptu (TN #5176 § 7), najwyżej 127 bajtów
+func cffFontName(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if r > 32 && r < 127 && !strings.ContainsRune("[](){}<>/%", r) {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+		if b.Len() >= 127 {
+			break
+		}
+	}
+	return b.String()
 }

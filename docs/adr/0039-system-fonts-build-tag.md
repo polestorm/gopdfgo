@@ -110,10 +110,12 @@ Go zachowuje wszystkie metody eksportowane typów używanych przez interfejsy.
   kaskadowe CoreText, fontconfig): ★ na macOS pochodzi z Arial Unicode MS, `monospace` bez fontów
   wywołującego to Andale Mono (pierwsza rodzina z tablicy podstawień go-text obecna w systemie), nie Menlo
   ani Courier jak w Chrome. `GenericFamilies` pozwala to zmienić.
-- Fonty o konturach CFF (OTF, np. Hiragino z kolekcji TTC na macOS) są osadzane w całości, bez podzbioru, a
-  pdffonts zgłasza „Mismatch between font type and embedded font file”; tak samo dzieje się dziś z fontem CFF
-  podanym w `Options.Fonts` (sprawdzone na STIXGeneral.otf), więc to ograniczenie osadzania, nie fontów
-  systemowych. Z fontami systemowymi łatwiej na nie trafić: strona z dwoma znakami Hiragino Sans ma 5,6 MB.
+- Fonty o konturach CFF (OTF, np. Hiragino z kolekcji TTC na macOS) były osadzane w całości, bez podzbioru, a
+  pdffonts zgłaszał „Mismatch between font type and embedded font file”; tak samo działo się z fontem CFF
+  podanym w `Options.Fonts` (sprawdzone na STIXGeneral.otf), więc było to ograniczenie osadzania, nie fontów
+  systemowych. Z fontami systemowymi łatwiej było na nie trafić: strona z dwoma znakami Hiragino Sans miała
+  5,6 MB. Usunięte 2026-11-22 przez ADR 0040 (podzbiory CIDFontType0C, ta sama strona ma 2,7 kB); od tej pory
+  indeks fontów systemowych uznaje też fonty z tabelą `CFF2`.
 - `local()` w `@font-face` dalej nie znajduje fontów systemowych (szuka w bazie fontmapy wywołującego); to
   możliwe rozszerzenie.
 - Synteza pogrubienia i pochylenia (CSS Fonts 4 § 7.2, 7.3) zna aspekt fontu systemowego

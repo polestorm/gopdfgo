@@ -2787,6 +2787,9 @@ zależnością modułu):
   potrzebna tylko przy odczycie cudzych PDF-ów;
 - skopiowane dane testowe `model/test`, `fonts/cmaps/test`; pominięte `fonts/test` (9,7 MB), przez co testy
   `TestDefinedEnc` i `TestFullToUnicodeCMap` są wyłączone przez `t.Skip`.
+- `model/fonts.go` (`FontFile.pdfContent`), 2026-11-22, ADR 0040, ISO 32000-1 § 9.9 (tab. 127): strumień
+  `FontFile3` (z `Subtype`) nie dostaje `Length1`, `Length2`, `Length3`, które opisują programy Type 1
+  i TrueType; źródło zapisywało tam zera. Strumienie `FontFile2` bez zmian.
 
 `internal/goweasyprint/`:
 
@@ -2796,6 +2799,15 @@ zależnością modułu):
   a strona nadal się do niego odwoływała, co kończyło zapis paniką dla każdego znaku spoza podanych fontów;
 - nowy plik `pdf/tounicode.go`: własny zapis CMap ToUnicode (posortowany, bloki po 100 wpisów) i kompresja
   strumieni fontów i CMap; zastępuje `cmaps.WriteAdobeIdentityUnicodeCMap`, które iteruje po mapie.
+- `pdf/text.go` (`writeFonts`, nowe `writeCFFFont`, `cffFontName`), `pdf/pdf.go` (`fontContent.cff`),
+  2026-11-22, ADR 0040, ISO 32000-1 § 9.7.4, § 9.9: font o konturach CFF albo CFF2 (bez `glyf`) to font
+  `Type0` z potomkiem `CIDFontType0` i programem `/FontFile3 /Subtype /CIDFontType0C`: podzbiór CFF
+  w postaci CID-keyed z pakietu `internal/cffsubset` (własny), CID = numer glifu źródła, bez
+  `/CIDToGIDMap`. Źródło zapisywało taki font jako `CIDFontType2` z całym plikiem OpenType (pdffonts:
+  „Mismatch between font type and embedded font file”; dwa znaki Hiragino Sans: 5,6 MB → 2,7 kB). Gdy
+  podzbioru nie da się zbudować, cały font idzie jako `/FontFile3 /Subtype /OpenType` z ostrzeżeniem
+  w `Result.Warnings`. `isSupportedFont` uznaje też tabelę `CFF2`; w źródle font zmienny `.otf` był
+  pomijany, a złożony nim tekst znikał z PDF bez ostrzeżenia. Fonty TrueType bez zmian (bajt w bajt).
 
 ## Ustawienia silnika w `render.go`
 
