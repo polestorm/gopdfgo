@@ -224,7 +224,7 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		fixed |= axisWeight
 	}
 	f.familyIndex.addFace(desc.Family, newFontStyle(ruleDescriptors.FontStyle), synthesisWeight, fixed, ft)
-	f.familyKnown = nil // gopdfgo: nowa rodzina z @font-face może zmienić wynik familyAvailable
+	f.familyKnown = nil  // gopdfgo: nowa rodzina z @font-face może zmienić wynik familyAvailable
 	f.system.leads = nil // gopdfgo: i rodziny systemowe przed nią (ADR 0039)
 	if metrics != (faceMetrics{sizeAdjust: 1}) {
 		if f.fontsMetrics == nil {
