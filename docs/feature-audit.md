@@ -2262,3 +2262,100 @@ elementów, które nie mieszczą się razem na następnej stronie, przechodzi da
 
 Sprawdzenia: reftesty druku 310 z 340 (ściśle 308, krawędziowo 2) bez zmian listy, sondaż CSS i SVG bez strat,
 korpus (22 dokumenty i 23 SVG) bez różnic pikseli wobec binarki sprzed zmiany.
+
+## Rozbiór rozbieżności z Chromium: dokumentacja Markdown i diagramy mermaid (2026-11-22)
+
+Zestaw `bench/realdocs` (poza gitem) dostał dwie grupy dokumentów: 12 plików dokumentacji Markdown (gopdfgo,
+gomdgo) przepuszczonych przez gomdgo z własnym arkuszem (`md-*`: tabele, wstawki `code`, `pre`, nagłówki
+z `break-after: avoid`, `@page` A4 z `counter(pages)`) i 10 stron z diagramami SVG z gomermaidgo (`mmd-*`).
+Strony `mmd-*` nie miały `@page`, więc Chrome drukował je na Letter z marginesem 1 cm, a my na A4 z marginesem
+arkusza domyślnego (ADR 0019); w kopiach dopisano `@page{size:A4;margin:1cm}` i wyrenderowano Chrome od nowa.
+Porównanie: Chrome 157, `pdftotext -bbox`, słowa dopasowane sekwencyjnie (`driftalign.py`); w tabeli liczba
+słów na innej stronie niż w Chromium oraz przesuniętych o ponad 3 pt w pionie.
+
+| Dokument | Przed (inna strona / dy > 3 pt) | Po |
+|---|---|---|
+| `md-gopdfgo-engine-fit` | 191 / 511 | 0 / 0 |
+| `md-gopdfgo-overview` | 36 / 1545 | 0 / 10 |
+| `md-gopdfgo-landscape` | 26 / 544 | 0 / 4 |
+| `md-gopdfgo-progress` | 0 / 422 | 0 / 27 |
+| `md-docs-0033-tagged-pdf` | 0 / 48 (dx > 3 pt: 212) | 0 / 27 (dx: 18) |
+| `md-gopdfgo-benchmark` | 273 / 1760 | 273 / 1522 |
+| `md-gomdgo-testing` | 63 / 758 | 63 / 757 |
+| `md-gomdgo-differences` | 16 / 295 | 16 / 296 |
+| pozostałe `md-*` (architecture, scope, vision, 0036) | 0 / 0–3 | bez zmian |
+| `mmd-d33` | 0 / 10 (dx: 7) | 0 / 0 (dx: 4) |
+| `mmd-p16` | 28 / 0 (4 strony, Chrome 5) | bez zmian |
+| pozostałe `mmd-*` (8) | 0 / 0–1 | bez zmian |
+| faktury KSeF (4), e-SF (5) | 0 / 0–3 | bez zmian (mediana dy 0,14–0,23 pt) |
+
+Przed ujednoliceniem formatu strony `mmd-*` różniły się od Chromium o stałe 28,5 pt (margines) i liczbą
+stron w `mmd-d33` (2 wobec 1); po nim wszystkie poza dwoma niżej opisanymi są zgodne co do setnych punktu.
+
+### Naprawione
+
+1. **Spacja przed dwukropkiem, nawiasem zamykającym, wykrzyknikiem** (ADR 0038, największy zasięg). UAX #14
+   zabrania łamania po spacji przed „:”, „)”, „!”, „,”, „/” (LB13) i po „( ” (LB14), Chromium łamie po każdej
+   spacji U+0020. Wstawka „`@page :first/:left/:right`” w komórce tabeli była u nas nierozerwalna, kolumna
+   szersza, tabela wychodziła poza obszar strony o 8% i włączało się pomniejszanie treści (ADR 0014): cały
+   dokument 7% mniejszy, inne łamanie każdego akapitu, inne podziały stron (`engine-fit`, `overview`,
+   `landscape`, `progress`). Także obserwacja koordynatora o pierwszym nagłówku „wyżej niż w Chrome” wynikała
+   z tego pomniejszenia (marginesy pierwszego elementu są obcinane poprawnie).
+2. **Ukośnik na początku słowa** („/Lang”, „/opt/google/chrome”, wstawka „`/Lang`” tuż po nawiasie): łamaliśmy
+   po nim, Chromium nie (CSS Text 3 § 5.5 ma ten sam przykład, „check /etc”); rozszerzenie ADR 0035.
+3. **Przecinek za wstawką kodu wystający o ułamek piksela**: szerokość kawałka, którego nie da się złamać,
+   była przycinana do dostępnej, jeśli przepełnienie nie przekraczało 0,5 px (tolerancja zaokrągleń
+   z `LineWrap`), więc „`Options.Accessibility`,” zostawało w wierszu, wystając o 0,1 px; Chromium łamie
+   przed wstawką. Teraz przycięcie dotyczy tylko wiersza przyjętego dzięki tej tolerancji (`landscape`:
+   ostatnie 26 słów na innej stronie).
+4. **Selektory przez przodków `<foreignObject>`** (diagram stanów mermaid, `mmd-d33`): treść foreignObject
+   układamy jako osobny dokument, w którym foreignObject był elementem `<body>`, więc reguły „`#my-svg p`”,
+   „`.label div .edgeLabel`” jej nie obejmowały; etykiety stały o 14 px za nisko (domyślny margines `p`).
+   Dokument zastępczy odtwarza teraz łańcuch przodków (zastępniki z `display: contents`).
+
+Testy: `tests/realdocs22_test.go` (5 testów; bez poprawek zawodzą wszystkie poza częścią
+z odstępem nierozdzielającym).
+
+### Cechy Chromium, przy których zostajemy przy normie
+
+- **Dywiz na początku słowa** (`-update`, `-safe`, `-refalign=style`, `-max-shrink`): Chromium łamie po nim,
+  UAX #14 LB20a (od Unicode 15.1) zabrania. To główna reszta w `md-gomdgo-testing`, `md-gomdgo-differences`
+  i część w `progress`: inna szerokość minimalna kolumn z opcjami wiersza poleceń, więc inny podział szerokości
+  tabeli. Pytanie 28 w `open-questions.md`.
+- **Wdowy w bloku krótszym niż `orphans + widows`**: wiersz tabeli z komórką na 3 wiersze, z których przy dole
+  strony mieszczą się 2 — Chromium dzieli 2 + 1, łamiąc `widows: 2`, my przenosimy wiersz w całości (CSS
+  Fragmentation 3 § 4.4, reguła 3, i § 4.5: istnieje przerwa przed blokiem, która nie łamie żadnej reguły).
+  Pomiar na zwykłych blokach: Chromium łamie `widows` tylko wtedy, gdy blok ma mniej wierszy niż
+  `orphans + widows`; przy 4 i 5 wierszach zgadzamy się. Cała różnica `md-gopdfgo-benchmark` (273 słowa na
+  innej stronie) to ten jeden wiersz na stronie 2. Pytanie 28.
+- **Pusta pierwsza strona przed elementem wyższym niż strona** (`mmd-p16`: dwa diagramy po 1195–1264 px na
+  stronie 1047 px): Chromium przenosi element niepodzielny na następną stronę także wtedy, gdy przed nim jest
+  tylko margines `body` (8 px), i zostawia pustą stronę 1; bez marginesu `body` nie. My zaczynamy od strony 1
+  (przerwa na początku fragmentatora nie daje postępu, CSS Fragmentation 3 § 4.4). 4 strony wobec 5.
+
+### Różnice zasobów, nie układu
+
+- Znaki spoza fontów z `testdata/fonts`: Chrome bierze z fontów systemu (★ w `landscape`, → w `0033` z Lucida
+  Grande zamiast Arimo), stąd przesunięcia o kilka punktów w poziomie w tych wierszach.
+- `mmd-d33`: etykiety w foreignObject mają `font-family: "Recursive Variable", arial`; Chrome znajduje w systemie
+  font Recursive, my używamy Arimo (rodzina `arial` z `families.json`) — reszta różnicy dy 2,5 pt.
+- `mmd-er-real`, `mmd-p6`, `mmd-p16`: więcej słów w naszym tekście niż w Chromium, bo diagram krojony na
+  strony rysujemy na każdej stronie w całości z przycięciem; tekst poza przycięciem jest niewidoczny, ale
+  trafia do warstwy tekstu PDF (wyszukiwanie i kopiowanie znajdują go dwa razy). Do rozważenia osobno.
+
+### Sprawdzenia
+
+- Reftesty druku: 310 z 340 (ściśle 308, krawędziowo 2), bez zmian; `go test ./tests/` przechodzi; testy
+  przejętego kodu: tylko znane niepowodzenia (wynik `css/selector` identyczny jak przed zmianą `tagSelector`).
+- Sondaż SVG 194 z 235, bez zmian; korpus (22 dokumenty, 23 SVG, rastry 48 dpi): 0 różnic.
+- Sondaż CSS 9499 z 10962 (baza 9502): zysk 1 (`background-size-cover-svg-view`), strata 4.
+  `white-space-pre-wrap-trailing-spaces-021` zawodzi tak samo binarką sprzed zmian (stan bazowy z 2026-11-21
+  się zestarzał). Trzy straty są skutkiem ADR 0038: `hanging-punctuation-last`, `-last-rtl`,
+  `-last-whitespace` sprawdzają `hanging-punctuation: last` („Yes )” w szerokości 4em: nawias wisi na
+  marginesie). Właściwości nie obsługujemy; testy przechodziły przypadkiem, bo UAX #14 nie łamał przed
+  „)” po spacji, więc nawias wystawał z wiersza tak jak wiszący. Chromium też nie obsługuje
+  `hanging-punctuation` i łamie przed nawiasem, więc tych testów nie zalicza. Odzyskanie ich wymaga
+  właściwości `hanging-punctuation` (choćby tylko wpływu na łamanie: znak zamykający na końcu wiersza nie
+  wymusza podziału).
+- Faktury i e-SF: wynik bez zmian (te same liczby co do setnych punktu); determinizm bajtów: dwa
+  renderowania czterech dokumentów zestawu identyczne.

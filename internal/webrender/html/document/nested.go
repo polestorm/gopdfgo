@@ -2,6 +2,9 @@ package document
 
 import (
 	"fmt"
+	"strings"
+
+	"golang.org/x/net/html"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 	pr "github.com/polestorm/gopdfgo/internal/webrender/css/properties"
@@ -52,19 +55,20 @@ func drawNestedDocument(dst backend.Canvas, fonts text.FontConfiguration, source
 	nestedDepth++
 	defer func() { nestedDepth-- }()
 
-	html, err := tree.NewHTML(utils.InputString(string(source)), baseURL, fetch, "print")
+	htmlDoc, err := tree.NewHTML(utils.InputString(string(source)), baseURL, fetch, "print")
 	if err != nil {
 		logger.WarningLogger.Printf("embedded document %q: %s", baseURL, err)
 		return
 	}
+	renameForeignAncestors((*html.Node)(htmlDoc.Root))
 	// strona o rozmiarze ramki, bez marginesów; wysokość rośnie z treścią (tryb ciągły), a nadmiar
 	// ucina przycięcie poniżej; bez pomniejszania treści szerszej niż ramka
-	html.Behavior = tree.Behavior{Continuous: true}
+	htmlDoc.Behavior = tree.Behavior{Continuous: true}
 	page, err := tree.NewCSSExt(utils.InputString(fmt.Sprintf("@page { size: %.4fpx %.4fpx; margin: 0 }", width, height)), baseURL, fonts)
 	if err != nil {
 		return
 	}
-	pages := layout.Layout(html, []tree.CSS{page}, true, fonts)
+	pages := layout.Layout(htmlDoc, []tree.CSS{page}, true, fonts)
 	if len(pages) == 0 {
 		return
 	}
@@ -82,4 +86,25 @@ func drawNestedDocument(dst backend.Canvas, fonts text.FontConfiguration, source
 		}
 		ctx.drawPage(pages[0])
 	})
+}
+
+// renameForeignAncestors nadaje zastępnikom przodków foreignObject (svg.ForeignAncestorTag) nazwy
+// elementów, które zastępują (małymi literami, jak nazwy elementów HTML), żeby selektory typu („svg”, „g”, „td”) do nich pasowały. DataAtom
+// zostaje zerowy, a przestrzeń nazw HTML, więc zastępnik <svg> nie staje się obrazem SVG, a <img> czy
+// <iframe> elementem zastępowanym (zob. boxes.keepsBoxWithDisplayContents); pudełek nie tworzą, bo mają
+// display: contents.
+func renameForeignAncestors(node *html.Node) {
+	if node.Type == html.ElementNode && node.Data == svg.ForeignAncestorTag {
+		for i, a := range node.Attr {
+			if a.Key == svg.ForeignAncestorName {
+				node.Data = strings.ToLower(a.Val)
+				node.DataAtom = 0
+				node.Attr = append(node.Attr[:i:i], node.Attr[i+1:]...)
+				break
+			}
+		}
+	}
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		renameForeignAncestors(c)
+	}
 }

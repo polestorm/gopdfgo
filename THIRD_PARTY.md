@@ -1122,6 +1122,33 @@ Wspólne dla obu katalogów:
     małych obiektów; rejestr tabel z korpusu: +171% rozmiaru bez nich, +31% z nimi); bez opcji zapis bez zmian;
   - bez opcji wynik bajt w bajt ten sam (korpus W3C: 11 689 dokumentów, 46 756 renderowań, 0 różnic); przejęty
     test `html/document/document_test.go` `assertLinks` pomija przy porównaniu nowe pole elementu odnośnika;
+- rozbieżności z Chromium na dokumentacji Markdown i diagramach mermaid, 2026-11-22 (ADR 0038; test
+  `tests/realdocs22_test.go`; `bench/realdocs`, dokumenty `md-*` i `mmd-*`):
+  - `text/engine_gotext.go` `breakAfterSpaces` (nowa), wołana w `LineWrap`, `CanBreakText`
+    i `getNextBreakPoint`: po ostatniej spacji U+0020 przed znakiem niebiałym zawsze jest okazja do złamania,
+    także przed „:”, „)”, „!” i po „(” (UAX #14 LB13–LB17 dostosowane jak w Chromium); źródło trzymało
+    „@page :first/:left/:right” w jednym kawałku, więc tabela z taką wstawką wychodziła poza stronę
+    i cały dokument był pomniejszany (ADR 0014);
+  - `text/engine_gotext.go` `slashesWithinWords`: także ukośnik na początku tekstu i po białym znaku
+    („/Lang”, „/opt/google/chrome”, wstawka kodu „/Lang” po nawiasie) traci okazję do złamania po sobie
+    (ADR 0035, rozszerzenie);
+  - `svg/foreign.go` `document`, `foreignAncestors` (nowa), `html/document/nested.go`
+    `renameForeignAncestors` (nowa): dokument zastępczy treści `<foreignObject>` odtwarza łańcuch przodków
+    elementu (zastępniki z `display: contents`, z nazwami i atrybutami przodków poza `style` i `href`),
+    a foreignObject jest w nim blokiem w `<body>`, nie samym `<body>`; selektory dokumentu w rodzaju
+    „#my-svg p” i „.label div .edgeLabel” (mermaid) obejmują teraz treść foreignObject, jak w przeglądarce.
+    Wcześniej takie reguły nie działały: etykiety diagramów stanów mermaid stały o 14 px za nisko
+    (domyślny margines `p`);
+  - `text/engine_gotext.go` `WrapWordBreak` (szerokość pierwszego wiersza): szerokość ponad dostępną
+    przycinamy do dostępnej tylko dla wiersza przyjętego dzięki tolerancji zaokrągleń w `LineWrap` albo
+    takiego, którego treść bez końcowych odstępów mieści się po uwzględnieniu reszt zaokrągleń; kawałek,
+    którego nie da się złamać i który naprawdę wystaje (przecinek tuż za wstawką kodu u końca wiersza), zgłasza
+    pełną szerokość, więc wiersz łamie się wcześniej, jak w Chromium. Wcześniej przycięcie dotyczyło każdego
+    przepełnienia do 0,5 px (dokumentacja: „włącza `Options.Accessibility`,” wystawało o 0,1 px; `landscape`:
+    26 słów na innej stronie);
+  - `css/selector/selector.go` `tagSelector.Match`: element bez atomu (`DataAtom` zero) porównywany po
+    nazwie także dla selektora ze znaną nazwą („svg”, „g”, „div”); dotyczy tylko zastępników przodków
+    foreignObject, którym atomu celowo nie nadajemy (zastępnik `<svg>` nie może stać się obrazem SVG);
 - szybkość dużych dokumentów, 2026-11-21 (praca pomocnika; ADR 0037; profil CPU i alokacji książki
   1021 stron, wynik bajt w bajt ten sam):
   - `text/draw/draw_gotext.go` `drawEmojiGotext`, wołane dla każdego rysowanego glifu: zamiast

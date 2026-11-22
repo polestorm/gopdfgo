@@ -231,9 +231,21 @@ engines get the same Noto fonts through `@font-face`; Chrome 157.
   writes that row in a different order). Before 2026-11-21 two of them had 1342–1491 words more than 3 pt
   away: Chromium computes layout in 1/64 px units (LayoutUnit), and gopdfgo now does the same by default
   (ADR 0013).
+- Markdown documentation (12 files rendered through gomdgo, measured 2026-11-22): all have Chromium's page
+  count; in 9 every word is on the same page and at most 27 words are more than 3 pt away. The rest come
+  from three Chromium behaviours that the standards do not support, where gopdfgo keeps the standard: a break after a word-initial hyphen
+  (`-update`; UAX #14 LB20a forbids it), splitting a 3-line block 2 + 1 against `widows: 2` although a break
+  before the block is allowed (CSS Fragmentation 3), and, in documents with font fallback, system fonts
+  that gopdfgo does not use. Fixed on the way: a break after every space (`@page |:first`, as in Chromium),
+  no break after a word-initial slash, a sub-pixel overflow before a comma, and document selectors reaching
+  into `<foreignObject>` (ADR 0038).
+- Mermaid diagram pages (10, inline SVG with `foreignObject` labels): 8 match Chromium to hundredths of a
+  point; one differs by its label font (Chromium finds a system font), one by Chromium leaving page 1 empty
+  before a diagram taller than the page.
 - The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
   draws; gopdfgo keeps the exact baseline.
-- W3C screen reftests across 11 CSS areas: 9502 of 10962 pass.
+- W3C screen reftests across 11 CSS areas: 9499 of 10962 pass (2026-11-22; three `hanging-punctuation` tests
+  passed only by accident before ADR 0038, see `docs/feature-audit.md`).
 - W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).
 - Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
   veraPDF for 22 of 22; PDF/UA-1 valid for 22 of 22 (five documents had a skipped heading level or SVG

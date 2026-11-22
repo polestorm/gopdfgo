@@ -160,6 +160,12 @@ func newTagSelector(tag string) tagSelector {
 
 // Matches elements with a given tag name.
 func (t tagSelector) Match(n *html.Node) bool {
+	// gopdfgo: element bez atomu (DataAtom zero) porównujemy po nazwie także wtedy, gdy nazwa z selektora
+	// ma atom; takie są zastępniki przodków foreignObject (svg.ForeignAncestorTag), które celowo nie
+	// dostają atomu, żeby zastępnik <svg> czy <img> nie był traktowany jak element zastępowany.
+	if t.tag != 0 && n.DataAtom == 0 && n.Type == html.ElementNode {
+		return n.Data == t.tag.String()
+	}
 	return n.Type == html.ElementNode && ((n.DataAtom != 0 && n.DataAtom == t.tag) || n.Data == t.tagS)
 }
 

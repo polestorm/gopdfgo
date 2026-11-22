@@ -932,7 +932,7 @@ func (fc *FontConfigurationGotext) CanBreakText(t []rune) pr.MaybeBool {
 	if len(t) < 2 {
 		return nil
 	}
-	fc.unicodeSeg.Init(slashesWithinWords(hyphensBeforeDigits(t))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords
+	fc.unicodeSeg.Init(breakAfterSpaces(slashesWithinWords(hyphensBeforeDigits(t)))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords, breakAfterSpaces
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -960,7 +960,7 @@ func (fc *FontConfigurationGotext) wordBoundaries(t []rune) *[2]int {
 
 // return -1 if not found
 func (fc *FontConfigurationGotext) getNextBreakPoint(text []rune) int {
-	fc.unicodeSeg.Init(slashesWithinWords(hyphensBeforeDigits(text))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords
+	fc.unicodeSeg.Init(breakAfterSpaces(slashesWithinWords(hyphensBeforeDigits(text)))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords, breakAfterSpaces
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -1492,8 +1492,26 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 
 	// gopdfgo: wiersz przyjęty dzięki tolerancji zaokrągleń (zob. LineWrap) zgłasza szerokość nie
 	// większą niż dostępna; inaczej układ wiersza uznałby go za przepełniony i złamał wcześniej.
+	// Tylko taki: LineWrap zwraca wtedy szerokość większą niż dostępna (mw) albo treść wiersza bez
+	// końcowych odstępów mieści się po uwzględnieniu reszt zaokrągleń, z zapasem 1/16 px na zaokrąglenia
+	// pudełek tekstu wcześniej w wierszu (dostępna szerokość to szerokość wiersza minus ich zaokrąglone
+	// szerokości; 12 znaków Noto Sans Mono 32 px to 0,04 px, test WPT
+	// white-space-pre-wrap-trailing-spaces-021). Kawałek, który się nie mieści,
+	// a krótszego nie ma (przecinek tuż za wstawką kodu u końca wiersza), zgłasza pełną szerokość, żeby
+	// układ wiersza złamał go wcześniej, jak Chromium; wcześniej przecinek wystający o 0,1 px był
+	// „ściskany” do dostępnej szerokości i zostawał w wierszu (bench/realdocs, 2026-11-22).
 	lineWidth := fixedToFloat(width)
-	if used := fixedToFloat(width - hang); textWrap && used > wrapingMaxWidth && used <= wrapingMaxWidth+0.5+1e-6 {
+	tolerated := wrapingMaxWidth < pr.Inf && float64(mw) > float64(wrapingMaxWidth)*64
+	if !tolerated && wrapingMaxWidth < pr.Inf {
+		if fc.residuals == nil || len(fc.residuals) != len(text) {
+			// bez reszt zaokrągleń szerokości są dokładne do 1/64 px
+			rounded, _ := fc.contentWidth(line, text)
+			tolerated = float64(rounded) <= (float64(wrapingMaxWidth)+1./16)*64
+		} else if _, precise := fc.contentWidth(line, text); float64(precise) <= (float64(wrapingMaxWidth)+1./16)*64*shapingPrecision {
+			tolerated = true
+		}
+	}
+	if used := fixedToFloat(width - hang); textWrap && tolerated && used > wrapingMaxWidth && used <= wrapingMaxWidth+0.5+1e-6 {
 		lineWidth = wrapingMaxWidth + fixedToFloat(hang)
 	}
 
@@ -1533,6 +1551,47 @@ func joinersAfterSpaces(text []rune) []rune {
 	return out
 }
 
+// breakAfterSpaces (gopdfgo) zwraca tekst do wyznaczania miejsc podziału, w którym ostatnia spacja
+// (U+0020) ciągu spacji stojącego przed znakiem niebiałym jest zamieniona na spację zerowej szerokości
+// (U+200B, klasa ZW), po której UAX #14 każe łamać zawsze (LB8; ADR 0038).
+//
+// UAX #14 (rewizja 57) zabrania łamania po spacji przed znakami zamykającymi, wykrzyknikiem,
+// dwukropkiem, przecinkiem, kropką i ukośnikiem (LB13, LB15d: „× CL”, „× IS” także po spacjach) oraz po
+// nawiasie otwierającym i cudzysłowie, za którymi stoją spacje (LB14–LB17). CSS Text 3 § 5.1 pozwala
+// dostosować reguły UAX #14. Chromium łamie po każdej spacji U+0020 niezależnie od znaku za nią:
+// „@page |:first”, „ab |) x”, „( |cd”, „mot |!” (pomiar w Chrome 157, 2026-11-22; dokumentacja Markdown
+// z wstawkami kodu w komórkach tabel). Odstępy inne niż U+0020 (U+00A0, U+3000, U+2003) i znaki klejące
+// (GL, WJ) zostają przy regułach UAX #14, tak jak w Chromium. Kształty i szerokości biorą się z tekstu
+// oryginalnego.
+func breakAfterSpaces(text []rune) []rune {
+	out := text
+	for i := 0; i+1 < len(text); i++ {
+		if text[i] != ' ' {
+			continue
+		}
+		if next := text[i+1]; unicode.IsSpace(next) || next == '\u200b' || isGlueRune(next) {
+			continue
+		}
+		if &out[0] == &text[0] {
+			out = slices.Clone(text)
+		}
+		out[i] = '\u200b'
+	}
+	return out
+}
+
+// isGlueRune (gopdfgo) mówi, czy znak należy do klasy GL, WJ albo ZWJ z UAX #14 (z U+00A0); przed takim
+// znakiem breakAfterSpaces nie dodaje okazji do złamania.
+func isGlueRune(r rune) bool {
+	switch {
+	case r == '\u00a0', r == '\u034f', r >= '\u035c' && r <= '\u0362', r == '\u0f08', r == '\u0f0c',
+		r == '\u0f12', r == '\u0fd9', r == '\u0fda', r == '\u180e', r == '\u2007', r == '\u2011',
+		r == '\u202f', r == '\u2060', r == '\ufeff', r == '\u200d':
+		return true
+	}
+	return false
+}
+
 // hyphensBeforeDigits (gopdfgo) zwraca tekst do wyznaczania miejsc podziału, w którym dywiz-minus
 // (U+002D) stojący po literze albo cyfrze i przed cyfrą jest zamieniony na dywiz U+2010.
 //
@@ -1564,7 +1623,7 @@ func hyphensBeforeDigits(text []rune) []rune {
 const slashBreakMinDistance = 20
 
 // slashesWithinWords (gopdfgo) zwraca tekst do wyznaczania miejsc podziału, w którym ukośnik (U+002F)
-// stojący między znakami niebiałymi jest zamieniony na literę, gdy następna okazja do złamania (biały
+// stojący przed znakiem niebiałym jest zamieniony na literę, gdy następna okazja do złamania (biały
 // znak, kolejny ukośnik, dywiz) jest bliżej niż slashBreakMinDistance znaków.
 //
 // UAX #14 (rewizja 57, § 5.1, klasa SY) daje po ukośniku okazję do złamania, ale zaleca, by układ z niej
@@ -1575,8 +1634,11 @@ const slashBreakMinDistance = 20
 // zabrania (LB13). Kształty i szerokości biorą się z tekstu oryginalnego.
 func slashesWithinWords(text []rune) []rune {
 	out := text
-	for i := 1; i+1 < len(text); i++ {
-		if text[i] != '/' || unicode.IsSpace(text[i-1]) || unicode.IsSpace(text[i+1]) {
+	for i := 0; i+1 < len(text); i++ {
+		// gopdfgo: także ukośnik na początku tekstu albo po białym znaku („/Lang”, „/opt/google”); Chromium
+		// i po nim nie łamie (pomiar w Chrome 157, 2026-11-22), a tekst pudełka po nawiasie zaczyna się od
+		// ukośnika, gdy wstawka kodu stoi tuż po nawiasie („(<code>/Lang</code>)”; ADR 0038)
+		if text[i] != '/' || unicode.IsSpace(text[i+1]) {
 			continue
 		}
 		distance := 0
@@ -1632,6 +1694,9 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	breakText = joinersAfterSpaces(breakText)
 	breakText = hyphensBeforeDigits(breakText)
 	breakText = slashesWithinWords(breakText)
+	if !style.breakSpaces() {
+		breakText = breakAfterSpaces(breakText)
+	}
 	wrap := func(limit fixed.Int26_6) (shaping.WrappedLine, bool) {
 		fc.lineWrapper.Prepare(config, breakText, shaping.NewSliceIterator(runs))
 		line, done := fc.lineWrapper.WrapNextLineF(limit)

@@ -3,6 +3,7 @@ package svg
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
@@ -28,13 +29,14 @@ var ForeignDocument func(dst backend.Canvas, fonts text.FontConfiguration, sourc
 // treści odbywa się w stronie o rozmiarze (width, height) elementu (SVG 2 § 23.2: foreignObject
 // ustanawia nowy blok zawierający i kontekst nakładania).
 type foreignObject struct {
-	head        string // arkusze stylów dokumentu (bez reguł @page)
-	bodyAttrs   string // atrybut class elementu foreignObject
-	bodyStyle   string // właściwości dziedziczone z kontekstu SVG i styl własny elementu
-	content     string // dzieci foreignObject zserializowane jako HTML
-	hasFontSize bool   // font-size ustawione w kontekście SVG; wartość liczona przy rysowaniu
-	clip        bool   // overflow inny niż visible
-	blendMode   string // mix-blend-mode inne niż normal (Compositing 1 § 3.2)
+	head        string            // arkusze stylów dokumentu (bez reguł @page)
+	ancestors   []foreignAncestor // przodkowie foreignObject od najdalszego (zob. foreignAncestors)
+	bodyAttrs   string            // atrybut class elementu foreignObject
+	bodyStyle   string            // właściwości dziedziczone z kontekstu SVG i styl własny elementu
+	content     string            // dzieci foreignObject zserializowane jako HTML
+	hasFontSize bool              // font-size ustawione w kontekście SVG; wartość liczona przy rysowaniu
+	clip        bool              // overflow inny niż visible
+	blendMode   string            // mix-blend-mode inne niż normal (Compositing 1 § 3.2)
 	baseURL     string
 	fetch       utils.UrlFetcher
 }
@@ -64,6 +66,7 @@ func newForeignObject(node *cascadedNode, tree *svgContext) (drawable, error) {
 	}
 	_, out.hasFontSize = node.attrs["font-size"]
 	if node.foreign != nil {
+		out.ancestors = foreignAncestors(node.foreign)
 		for _, a := range node.foreign.Attr {
 			switch a.Key {
 			case "style":
@@ -93,21 +96,91 @@ func newForeignObject(node *cascadedNode, tree *svgContext) (drawable, error) {
 
 // document składa dokument HTML; fontSize to obliczony rozmiar czcionki foreignObject w jednostkach
 // użytkownika.
+//
+// gopdfgo: element foreignObject jest w nim blokiem w <body>, a między <body> a nim stoją zastępniki jego
+// przodków (display: contents, te same nazwy i atrybuty poza style i href; zob. foreignAncestors), żeby
+// selektory dokumentu z kombinatorami potomka i dziecka obejmowały treść foreignObject tak jak
+// w przeglądarce: „#my-svg p”, „.label div .edgeLabel” (diagramy mermaid). Wcześniej foreignObject był
+// samym <body> i takie reguły nie działały.
 func (fo *foreignObject) document(fontSize Fl) []byte {
 	var b strings.Builder
 	b.WriteString(`<!DOCTYPE html><html style="margin:0;padding:0;border:0;background:none"><head><meta charset="utf-8">`)
 	b.WriteString(fo.head)
-	b.WriteString(`</head><body`)
+	b.WriteString(`</head><body style="margin:0;padding:0;border:0;background:none;width:auto;height:auto">`)
+	for _, a := range fo.ancestors {
+		fmt.Fprintf(&b, `<%s %s="%s"`, ForeignAncestorTag, ForeignAncestorName, html.EscapeString(a.name))
+		for _, attr := range a.attrs {
+			fmt.Fprintf(&b, ` %s="%s"`, attr.Key, html.EscapeString(attr.Val))
+		}
+		b.WriteString(` style="display:contents!important">`)
+	}
+	fmt.Fprintf(&b, `<%s %s="foreignObject"`, ForeignAncestorTag, ForeignAncestorName)
 	b.WriteString(fo.bodyAttrs)
-	b.WriteString(` style="`)
+	b.WriteString(` style="display:block!important;`)
 	if fo.hasFontSize {
 		fmt.Fprintf(&b, "font-size:%.4fpx;", fontSize)
 	}
 	b.WriteString(html.EscapeString(fo.bodyStyle))
 	b.WriteString(`">`)
 	b.WriteString(fo.content)
+	for range len(fo.ancestors) + 1 {
+		fmt.Fprintf(&b, `</%s>`, ForeignAncestorTag)
+	}
 	b.WriteString(`</body></html>`)
 	return []byte(b.String())
+}
+
+// ForeignAncestorTag i ForeignAncestorName (gopdfgo): zastępnik elementu w dokumencie foreignObject
+// i atrybut z nazwą elementu, który zastępuje. Parser HTML nie może dostać prawdziwych nazw (<svg>
+// zacząłby treść SVG, <table>, <p> czy <td> przestawiłyby drzewo), więc pakiet html/document po
+// sparsowaniu nadaje zastępnikom nazwy z atrybutu (zob. RenameForeignAncestors).
+const (
+	ForeignAncestorTag  = "gopdfgo-foreign-ancestor"
+	ForeignAncestorName = "data-gopdfgo-name"
+)
+
+// foreignAncestor to przodek elementu foreignObject odtwarzany w dokumencie zastępczym.
+type foreignAncestor struct {
+	name  string
+	attrs []html.Attribute
+}
+
+// foreignAncestors zwraca przodków elementu foreignObject od najdalszego do rodzica, bez <html>
+// i <body>: elementy SVG i, gdy SVG jest osadzone w HTML, elementy HTML nad nim. Atrybuty bez style
+// (styl przodków dochodzi do treści przez właściwości dziedziczone, zob. inheritedForeignProperties),
+// bez href (zastępnik <a> nie może stać się odnośnikiem z kolorem z arkusza UA) i bez atrybutów
+// z przestrzenią nazw.
+func foreignAncestors(node *html.Node) []foreignAncestor {
+	var out []foreignAncestor
+	for p := node.Parent; p != nil && p.Type == html.ElementNode; p = p.Parent {
+		if p.Namespace == "" && (p.DataAtom == atom.Html || p.DataAtom == atom.Body) {
+			break
+		}
+		a := foreignAncestor{name: p.Data}
+		for _, attr := range p.Attr {
+			if attr.Namespace != "" || attr.Key == "style" || attr.Key == "href" || strings.Contains(attr.Key, ":") ||
+				attr.Key == ForeignAncestorName || !validAttributeName(attr.Key) {
+				continue
+			}
+			a.attrs = append(a.attrs, attr)
+		}
+		out = append(out, a)
+	}
+	slices.Reverse(out)
+	return out
+}
+
+// validAttributeName mówi, czy nazwę atrybutu można bezpiecznie zapisać w serializowanym HTML.
+func validAttributeName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if r <= ' ' || r == '"' || r == '\'' || r == '>' || r == '/' || r == '=' || r == '<' {
+			return false
+		}
+	}
+	return true
 }
 
 func (fo *foreignObject) draw(dst backend.Canvas, attrs *attributes, svg *SVGImage, dims drawingDims) []vertex {

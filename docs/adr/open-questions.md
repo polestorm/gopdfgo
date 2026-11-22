@@ -186,3 +186,18 @@ kotwicy są oznaczane do ponownego układu tylko przy zmianie liczników stron k
 treści i „Strona X z Y”: 8 obiegów → 3, czas −10–12%, wynik bajt w bajt ten sam), a `target-counter(…, pages)`
 podaje liczbę stron dokumentu (wynik zmienia się tylko w dokumentach z takim odwołaniem; idą teraz drogą
 dwuprzebiegową).
+
+## 28. Dywiz na początku słowa (UAX #14 LB20a) i wdowy w krótkich blokach
+
+Otwarte od 2026-11-22 (rozbiór dokumentacji Markdown wobec Chromium, `docs/feature-audit.md`).
+
+1. UAX #14 od Unicode 15.1 nie łamie po dywizie na początku słowa (LB20a: „-update”, „-safe”,
+   „-refalign=style”); Chromium 157 łamie („-|update”), także we wstawce kodu na początku komórki. To
+   główna przyczyna pozostałych różnic w dokumentach `md-gomdgo-testing` i `md-gomdgo-differences` (opcje
+   wiersza poleceń w wąskich kolumnach). ADR 0038 zostawia normę; przejście na zachowanie Chromium to jedna
+   zamiana w `breakAfterSpaces` (dywiz po spacji albo na początku tekstu przed literą).
+2. Blok o mniejszej liczbie wierszy niż `orphans + widows` (domyślnie 3 wiersze przy 2 + 2): Chromium dzieli
+   go 2 + 1, łamiąc `widows`, choć przerwa przed blokiem spełnia wszystkie reguły; gopdfgo przenosi blok
+   w całości (CSS Fragmentation 3 § 4.4, reguła 3, i § 4.5). W `md-gopdfgo-benchmark` to samo w komórce
+   tabeli przesuwa resztę dokumentu (273 słowa na innej stronie). Zostajemy przy normie, chyba że użytkownik
+   zdecyduje inaczej.
