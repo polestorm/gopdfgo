@@ -183,9 +183,12 @@ type BoxFields struct {
 	// NarrowedBesideFloats (gopdfgo): szerokość auto kontenera flex została zmniejszona do pasa obok
 	// elementów pływających (zob. layout.narrowedBesideFloats)
 	NarrowedBesideFloats bool
-	IsFlexItem           bool
-	IsGridItem           bool
-	IsForRootElement     bool
+	// RowspanKeepsNext (gopdfgo): wiersz tabeli, za którym nie wolno dzielić strony, bo przez tę granicę
+	// biegnie komórka rozpięta (rowspan) z wiersza albo komórki z break-inside: avoid (zob. layout.groupLayout)
+	RowspanKeepsNext bool
+	IsFlexItem       bool
+	IsGridItem       bool
+	IsForRootElement bool
 	// RootDisplayNone (gopdfgo): pudełko zastępuje element główny z display: none (strona jest pusta)
 	RootDisplayNone bool
 	// MarginTopTruncated (gopdfgo): górny margines pudełka przylega do zwykłego podziału strony i jest
@@ -748,7 +751,11 @@ func EstablishesFormattingContext(box_ Box) bool {
 		(BlockT.IsInstance(box_) && (box.IsFlexItem || box.IsGridItem)) ||
 		// gopdfgo: ramka fieldset zakłada nowy kontekst formatowania blokowego (HTML § 15.3.13), więc
 		// marginesy jej dzieci nie wychodzą poza nią; w źródle ramka była zwykłym blokiem.
-		(BlockT.IsInstance(box_) && strings.EqualFold(box.ElementTag(), "fieldset")))
+		(BlockT.IsInstance(box_) && strings.EqualFold(box.ElementTag(), "fieldset")) ||
+		// gopdfgo: kontener kolumn zakłada nowy kontekst formatowania blokowego (CSS Multicol 1 § 2),
+		// więc jak każde takie pudełko nie nachodzi na elementy pływające (CSS 2.1 § 9.5); w źródle
+		// kontener kolumn obok elementu pływającego zajmował całą szerokość i nachodził na niego.
+		(BlockT.IsInstance(box_) && !box.IsTableWrapper && IsMulticol(box.Style)))
 }
 
 // ClipsOverflow (gopdfgo): czy pudełko przycina treść według overflow. Właściwość dotyczy kontenerów

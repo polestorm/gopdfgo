@@ -2813,6 +2813,36 @@ Wspólne dla obu katalogów:
 - `html/document/stacking.go`, `draw.go`: `BoxTree` z mapy `map[bo.Box]BoxTree` zamienione na strukturę pamiętającą
   kolejność wstawiania (w WeasyPrint to słownik Pythona, który ją pamięta). Z mapą kolejność rysowania bloków
   była losowa.
+- 2026-11-23, dokumenty losowe `bench/realdocs` (`rand-*`), testy w `tests/rand23_test.go`:
+  - `html/boxes/boxes.go`, `EstablishesFormattingContext`: kontener kolumn (blok z `column-count` albo
+    `column-width`) zakłada własny kontekst formatowania (CSS Multicol 1 § 2); `html/layout/column.go`,
+    `columnsLayout`: zwężenie obok elementów pływających (`narrowBesideFloats`) i własna, pusta lista
+    wykluczeń dla treści kontenera (przywracana do głębokości sprzed kontenera); `html/layout/block.go`,
+    `blockBoxLayoutLines`: kontener kolumn przesuwany obok elementów pływających (`avoidCollisions`). W źródle
+    kontener kolumn obok elementu pływającego miał pełną szerokość i nachodził na niego (CSS 2.1 § 9.5);
+  - `html/layout/block.go`, `blockContainerLayout`: przerwany układ (`abort`, `break-inside: avoid`) zamyka
+    kontekst formatowania pudełka, które go otworzyło (wcześniej tylko pudełka opakowującego tabelę). W źródle
+    lista wykluczeń przerwanej komórki tabeli zostawała otwarta, następne pudełka zamykały cudze listy
+    i elementy pływające znikały z listy widzianej przez dalszą treść (tabela nachodziła na element pływający);
+  - `html/layout/block.go`, nowe `dropPushedFloatsAfter`: blok kończący fragment usuwa zgłoszenia przeniesienia
+    (`pushFloat`) elementów pływających stojących za miejscem wznowienia, które i tak zostaną ułożone od
+    nowa; w źródle element za nagłówkiem z `break-after: avoid` stawał na następnej stronie obok nagłówka,
+    na samej górze (CSS 2.1 § 9.5.1, reguła 5);
+  - `html/layout/block.go`, `blockBoxLayoutLines`, `layout.go` (`narrowedTables`): tabela o szerokości auto
+    dzielona między strony też jest układana obok elementów pływających (`relayoutBesideFloats`), a dalsze
+    fragmenty dostają szerokość pasa z pierwszego, więc kolumny mają tę samą szerokość na każdej stronie
+    (CSS Tables 3 § 3.9). W źródle tabela dzielona szła pod element pływający albo na niego nachodziła,
+    a dalszy ciąg rozszerzał się do pełnej szerokości;
+  - `html/layout/tables.go` (`groupLayout`, koniec `tableLayout`, nowe `lastRowBottom`), ADR 0043: o tym, czy
+    wiersz się mieści, decyduje jego dół, nie odstęp `border-spacing` pod nim (za ostatnim wierszem grupy
+    także dolne obramowanie tabeli); odstęp pod ostatnim wierszem fragmentu wychodzący poza stronę jest
+    obcinany; powtarzana stopka po podziale między wierszami stoi o jeden odstęp pod wierszem (w źródle
+    o dwa);
+  - `html/layout/tables.go` (`groupLayout`), `html/layout/block.go` (`blockLevelPageBreak`), `html/boxes/boxes.go`
+    (pole `RowspanKeepsNext`): komórka rozpięta (`rowspan`) należy do wiersza, w którym się zaczyna, więc
+    `break-inside: avoid` tego wiersza albo samej komórki obejmuje granice między wierszami, przez które
+    komórka biegnie (CSS Fragmentation 3 § 3.2; Chromium tak samo). W źródle tabela dzieliła się pod
+    pierwszym wierszem takiej komórki.
 
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):

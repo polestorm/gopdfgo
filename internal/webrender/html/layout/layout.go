@@ -534,6 +534,9 @@ type layoutContext struct {
 	// gopdfgo: reszta podanej wysokości komórki tabeli podzielonej między fragmentatory; klucz to stos
 	// wznowienia komórki (resumeKey), zob. tables.go
 	cellHeightRemaining map[uintptr]pr.Float
+	// gopdfgo: szerokość pasa, w którym tabelę zwężono obok elementów pływających (relayoutBesideFloats);
+	// dalsze fragmenty tabeli dostają ją jako szerokość bloku zawierającego (zob. blockBoxLayoutLines)
+	narrowedTables map[*bo.BoxFields]pr.Float
 
 	// gopdfgo: odległość od góry następnej strony dla elementu wiersza flex przesuniętego w całości;
 	// klucz to znacznik w stanie wznowienia linii (resumeKey)

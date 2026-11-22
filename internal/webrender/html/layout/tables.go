@@ -40,7 +40,8 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 	// więc wiersze muszą zostawić na nie miejsce (tak samo jak w blockContainerLayout); źródło tego
 	// nie rezerwowało i dolna dekoracja wychodziła na margines strony.
 	outerBottomSpace := bottomSpace
-	if table.Style.GetBoxDecorationBreak() == "clone" {
+	cloneDecoration := table.Style.GetBoxDecorationBreak() == "clone"
+	if cloneDecoration {
 		bottomSpace += table.PaddingBottom.V() + table.BorderBottomWidth.V()
 	}
 
@@ -211,6 +212,26 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		skip := 0
 		if !isGroupStart {
 			skip, skipStack = skipStack.Unpack()
+		}
+
+		// gopdfgo: komórka rozpięta na kilka wierszy należy do wiersza, w którym się zaczyna, więc
+		// break-inside: avoid tego wiersza albo samej komórki obejmuje też granice między wierszami, przez
+		// które komórka biegnie (CSS Fragmentation 3 § 3.2: podział wewnątrz potomka jest podziałem wewnątrz
+		// pudełka; Chromium tak samo). W źródle wiersze pod taką komórką rozdzielano jak każde inne.
+		for _, row_ := range group.Children {
+			row_.Box().RowspanKeepsNext = false
+		}
+		for r, row_ := range group.Children {
+			rowAvoid := avoidPageBreak(string(row_.Box().Style.GetBreakInside()), context)
+			for _, cell_ := range row_.Box().Children {
+				cell := cell_.Box()
+				if cell.Rowspan <= 1 || !(rowAvoid || avoidPageBreak(string(cell.Style.GetBreakInside()), context)) {
+					continue
+				}
+				for k := r; k < min(r+cell.Rowspan-1, len(group.Children)-1); k++ {
+					group.Children[k].Box().RowspanKeepsNext = true
+				}
+			}
 		}
 
 		for i, row_ := range group.Children[skip:] {
@@ -772,15 +793,17 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			}
 
 			nextPositionY := row.PositionY + row.Height.V()
+			spacingAfter := pr.Float(0) // gopdfgo: zob. niżej, sprawdzenie przepełnienia
 			if resumeAt == nil {
 				nextPositionY += borderSpacingY
+				spacingAfter = borderSpacingY
 			}
 			// gopdfgo: wiersz z visibility: collapse bierze udział w wyznaczaniu
 			// szerokości kolumn, ale nie zajmuje wysokości i nie jest rysowany
 			// (CSS 2.1 § 17.5.5); źródło traktowało go jak zwykły wiersz
 			if row.Style.GetVisibility() == "collapse" && resumeAt == nil {
 				row.Height = pr.Float(0)
-				nextPositionY = row.PositionY
+				nextPositionY, spacingAfter = row.PositionY, 0
 				// gopdfgo: komórka rozpięta także na zwiniętym wierszu traci jego wysokość, a jej treść jest
 				// przycinana (CSS Tables 3 § 9.2, „visibility-collapse-cell-rendering”; test WPT
 				// visibility-collapse-rowspan-005); w źródle wystawała pod komórkę.
@@ -838,7 +861,17 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 
 			// Break if this row overflows the page, unless there is no
 			// other content on the page.
-			overflow := context.overflowsPage(bottomSpace, nextPositionY)
+			// gopdfgo: liczy się dół wiersza, nie odstęp border-spacing pod nim: podział za wierszem wypada
+			// w tym odstępie, więc odstęp nie musi się mieścić na stronie (CSS 2.1 § 17.6.1 i CSS
+			// Fragmentation 3 nie każą go zachować; tak drukuje Chromium). Za ostatnim wierszem grupy
+			// musi się zmieścić dolny odstęp wewnętrzny i obramowanie tabeli (tabela może się na nim
+			// skończyć; Chromium tak samo), a odstęp przed nimi jest obcinany na końcu tableLayout. W źródle
+			// wiersz, który się mieścił, ale jego odstęp już nie, przechodził na następną stronę.
+			rowEnd := nextPositionY - spacingAfter
+			if indexRow == len(group.Children)-1 && spacingAfter > 0 && table.Style.GetBoxDecorationBreak() != "clone" {
+				rowEnd += table.PaddingBottom.V() + table.BorderBottomWidth.V()
+			}
+			overflow := context.overflowsPage(bottomSpace, rowEnd)
 			if !pageIsEmpty && overflow {
 				removePlaceholders(context, row.Children, absoluteBoxes, fixedBoxes)
 				if len(newGroupChildren) != 0 {
@@ -1145,8 +1178,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
 				if resumeAt != nil {
 					// gopdfgo: po wierszu przerwanym na granicy strony odstęp jest przed powtarzaną stopką,
-					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza
-					endPositionY += borderSpacingY
+					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza.
+					// Liczymy od dołu ostatniego wiersza: po podziale między wierszami endPositionY ma już
+					// odstęp za wierszem i stopka stawała o drugi odstęp niżej niż w Chromium.
+					endPositionY = lastRowBottom(newTableChildren, endPositionY) + borderSpacingY
 					footer.Translate(0, endPositionY-footer.Box().PositionY, false)
 					endPositionY += footerHeight - borderSpacingY
 				} else {
@@ -1197,8 +1232,10 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 			if len(newTableChildren) != 0 || !rowsLeft || !pageIsEmpty {
 				if resumeAt != nil {
 					// gopdfgo: po wierszu przerwanym na granicy strony odstęp jest przed powtarzaną stopką,
-					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza
-					endPositionY += borderSpacingY
+					// a nie za nią (fragment kończy się stopką); źródło dosuwało stopkę do przerwanego wiersza.
+					// Liczymy od dołu ostatniego wiersza: po podziale między wierszami endPositionY ma już
+					// odstęp za wierszem i stopka stawała o drugi odstęp niżej niż w Chromium.
+					endPositionY = lastRowBottom(newTableChildren, endPositionY) + borderSpacingY
 					footer.Translate(0, endPositionY-footer.Box().PositionY, false)
 					endPositionY += footerHeight - borderSpacingY
 				} else {
@@ -1389,6 +1426,20 @@ func tableLayout(context *layoutContext, table_ bo.TableBoxITF, bottomSpace pr.F
 		if extra := th - (positionY - table.ContentBoxY()); extra > 0 {
 			positionY += distributeExtraTableHeight(table, extra)
 		}
+	}
+
+	// gopdfgo: odstęp border-spacing pod ostatnim wierszem fragmentu tabeli podzielonej między strony
+	// przypada na podział i jest obcinany, gdy wychodzi poza stronę (zob. groupLayout); inaczej fragment
+	// wystawał o ten odstęp i cała tabela przechodziła na następną stronę.
+	// Tak samo odstęp nad dolnym obramowaniem tabeli, która kończy się przy dole strony.
+	if end := table.PaddingBottom.V() + table.BorderBottomWidth.V(); resumeAt == nil && !cloneDecoration {
+		if borderSpacingY > 0 && len(newTableChildren) != 0 && context.overflowsPage(outerBottomSpace, positionY+end) &&
+			!context.overflowsPage(outerBottomSpace, positionY-borderSpacingY+end) {
+			positionY -= borderSpacingY
+		}
+	} else if resumeAt != nil && borderSpacingY > 0 && len(newTableChildren) != 0 &&
+		context.overflowsPage(outerBottomSpace, positionY) && !context.overflowsPage(outerBottomSpace, positionY-borderSpacingY) {
+		positionY -= borderSpacingY
 	}
 
 	// If the height property has a bigger value, just add blank space
@@ -2478,4 +2529,16 @@ func continueSpanningCells(context *layoutContext, group *bo.BoxFields, rows []B
 		}
 	}
 	return resumeAt
+}
+
+// lastRowBottom (gopdfgo) podaje dół ostatniego ułożonego wiersza we fragmencie tabeli (grupy wierszy
+// w kolejności), a bez wierszy wartość zastępczą.
+func lastRowBottom(groups []Box, fallback pr.Float) pr.Float {
+	for i := len(groups) - 1; i >= 0; i-- {
+		if rows := groups[i].Box().Children; len(rows) != 0 {
+			row := rows[len(rows)-1].Box()
+			return row.PositionY + row.Height.V()
+		}
+	}
+	return fallback
 }

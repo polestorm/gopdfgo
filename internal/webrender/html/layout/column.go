@@ -209,7 +209,23 @@ func columnsLayout(context *layoutContext, box_ bo.BlockBoxITF, bottomSpace pr.F
 	// gopdfgo: szerokość pudełka pozycjonowanego bezwzględnie wyznaczył już jego układ (CSS 2 § 10.3.7)
 	if !box.IsAbsolutelyPositioned() {
 		blockLevelWidth(box_, nil, containingBlock)
+		// gopdfgo: kontener kolumn zakłada własny kontekst formatowania (CSS Multicol 1 § 2), więc obok
+		// elementów pływających zwęża się do wolnego pasa (CSS 2.1 § 9.5), a blockBoxLayoutLines przesuwa
+		// go obok nich. Marginesy są już wliczone w PositionY, stąd pusta lista marginesów.
+		narrowBesideFloats(context, box_, containingBlock, nil)
 	}
+	// gopdfgo: elementy pływające spoza kontenera kolumn nie działają na jego treść (własny kontekst
+	// formatowania, CSS Multicol 1 § 2); bez tego element rozpinający kolumny omijał je drugi raz, choć
+	// kontener już stoi obok nich. Kolumny i tak zakładają własne konteksty, więc lista zostaje pusta.
+	shapeDepth := len(context.excludedShapesLists)
+	context.createBlockFormattingContext()
+	defer func() { // do stanu sprzed kontenera, także gdy kolumna przerwana nie zamknęła swojego kontekstu
+		context.excludedShapesLists = context.excludedShapesLists[:shapeDepth]
+		context.excludedShapes = nil
+		if shapeDepth != 0 {
+			context.excludedShapes = &context.excludedShapesLists[shapeDepth-1]
+		}
+	}()
 
 	var gap pr.Float
 	if gapV := style.GetColumnGap(); gapV.Tag == pr.Normal {

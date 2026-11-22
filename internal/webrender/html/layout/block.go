@@ -232,6 +232,14 @@ func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpac
 					containingBlock, pageIsEmpty, absoluteBoxes, fixedBoxes, *adjoiningMargins)
 			}
 		}
+		// gopdfgo: kontener kolumn omija elementy pływające jak każde pudełko z własnym kontekstem
+		// formatowania (CSS 2.1 § 9.5, CSS Multicol 1 § 2); zwężony został w columnsLayout. W źródle
+		// stał na pełnej szerokości i nachodził na element pływający.
+		if newBox_ != nil && len(context.excludedShapes.list) != 0 && !box.IsFlexItem && !box.IsGridItem &&
+			newBox_.Box().IsInNormalFlow() && bo.EstablishesFormattingContext(newBox_) {
+			positionX, positionY, _ := avoidCollisions(context, newBox_, containingBlock, false)
+			newBox_.Translate(positionX-newBox_.Box().PositionX, positionY-newBox_.Box().PositionY, false)
+		}
 		return newBox_, result, -1
 	} else if box.IsTableWrapper {
 		// gopdfgo: tabela będąca elementem flex dostaje szerokość wyznaczoną przez układ flex (rozmiar
@@ -241,7 +249,17 @@ func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpac
 		if !box.IsFlexItem || box.Width == pr.AutoF {
 			forced = -1
 		}
-		tableWrapperWidthForced(context, box_, bo.MaybePoint{containingBlock.Width, containingBlock.Height}, forced)
+		// gopdfgo: dalszy ciąg tabeli zwężonej obok elementów pływających (relayoutBesideFloats) ma te same
+		// szerokości kolumn co pierwszy fragment: szerokości kolumn wyznacza się raz dla całej tabeli (CSS
+		// Tables 3 § 3.9; Chromium tak samo). Wcześniej na następnej stronie, już bez elementu pływającego,
+		// tabela rozszerzała się do pełnej szerokości i jej kolumny zmieniały szerokość.
+		cbWidth := containingBlock.Width
+		if skipStack == nil {
+			delete(context.narrowedTables, box)
+		} else if width, ok := context.narrowedTables[box]; ok {
+			cbWidth = width
+		}
+		tableWrapperWidthForced(context, box_, bo.MaybePoint{cbWidth, containingBlock.Height}, forced)
 		// gopdfgo: wysokość nadana przez układ flex zastępuje podaną wysokość tabeli (CSS Tables 3
 		// § 3.10, test WPT table-as-item-specified-height); tabela jest układana do treści i niżej
 		// rośnie do wysokości z układu flex. Treść i tak nie pozwala jej zejść poniżej sumy wierszy.
@@ -259,7 +277,9 @@ func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpac
 	// gopdfgo: pudełko z własnym kontekstem i tabela o szerokości auto, które obok elementów pływających
 	// zajęłyby pas węższy niż ich szerokość na całej wysokości, są układane ponownie w węższym pasie
 	// albo niżej, w następnym miejscu (CSS 2.1 § 9.5); zob. relayoutBesideFloats.
-	if newBox__ != nil && skipStack == nil && result.resumeAt == nil {
+	// Tabela dzielona między strony też: jej pierwszy fragment staje obok elementów pływających, jeśli tam się
+	// mieści, a dalsze fragmenty zachowują szerokość (narrowedTables); tak drukuje Chromium.
+	if newBox__ != nil && skipStack == nil && (result.resumeAt == nil || box.IsTableWrapper) {
 		relayout := func(width pr.Float) (Box, blockLayout) {
 			removePlaceholders(context, []Box{newBox__}, absoluteBoxes, fixedBoxes)
 			box.PositionY = savedPositionY
@@ -268,6 +288,10 @@ func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpac
 				table := box.GetWrappedTable().Box()
 				table.Width = pr.AutoF
 				tableWrapperWidthForced(context, box_, bo.MaybePoint{width, containingBlock.Height}, -1)
+				if context.narrowedTables == nil {
+					context.narrowedTables = map[*bo.BoxFields]pr.Float{}
+				}
+				context.narrowedTables[box] = width
 			} else {
 				box.Width = width - (box.PaddingLeft.V() + box.PaddingRight.V() + box.BorderLeftWidth.V() + box.BorderRightWidth.V())
 			}
@@ -1146,7 +1170,10 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 				context.unlayoutFootnote(footnote)
 			}
 
-			if wrapperContext { // gopdfgo: zamknięcie kontekstu pudełka opakowującego tabelę
+			// gopdfgo: zamknięcie kontekstu otwartego wyżej (pudełko opakowujące tabelę albo pudełko
+			// z własnym kontekstem); w źródle przerwany układ zostawiał listę wykluczeń otwartą, więc
+			// następne pudełka (np. kolejne próby kolumn) trafiały do pustej listy zamiast do swojej.
+			if wrapperContext || bo.EstablishesFormattingContext(box_) {
 				context.discardBlockFormattingContext()
 			}
 			return nil, blockLayout{nextPage: tree.PageBreak{Break: "any", Page: page_, HasPage: true}}, maxLines
@@ -1286,7 +1313,7 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			delete(context.brokenOutOfFlow, child)
 		}
 
-		if wrapperContext { // gopdfgo: zamknięcie kontekstu pudełka opakowującego tabelę
+		if wrapperContext || bo.EstablishesFormattingContext(box_) { // gopdfgo: zob. wyżej
 			context.discardBlockFormattingContext()
 		}
 		return nil, blockLayout{nextPage: tree.PageBreak{Break: "any"}}, maxLines
@@ -1528,6 +1555,9 @@ func blockContainerLayout(context *layoutContext, box_ Box, bottomSpace pr.Float
 			context.overflowContinuationBoxes = map[*bo.BoxFields]bool{}
 		}
 		context.overflowContinuationBoxes[newBox] = true
+	}
+	if resumeAt != nil {
+		dropPushedFloatsAfter(context, box.Children, resumeAt)
 	}
 	if finishedWithOverflow && resumeAt != nil {
 		resumeAt = tree.OverflowResume(resumeAt)
@@ -2355,6 +2385,10 @@ func blockLevelPageBreak(siblingBefore, siblingAfter Box) string {
 		box_ = box.Children[len(box.Children)-1]
 	}
 	slices.Reverse(values) // Have them in tree order
+	// gopdfgo: przez granicę za wierszem biegnie komórka rozpięta z break-inside: avoid (zob. groupLayout)
+	if siblingBefore != nil && siblingBefore.Box().RowspanKeepsNext {
+		values = append(values, "avoid")
+	}
 
 	box_ = siblingAfter
 	for isParallel(box_) {
@@ -2502,6 +2536,38 @@ func removeFromBoxes(list *[]Box, box Box) {
 		}
 	}
 	*list = b
+}
+
+// dropPushedFloatsAfter (gopdfgo) usuwa zgłoszenia przeniesienia na następną stronę (pushFloat) elementów
+// pływających, które stoją w drzewie za miejscem wznowienia: dzieci od resumeAt wzwyż są układane na
+// następnej stronie od nowa, więc dojdą do tych elementów same. Zgłoszenie zostawało, gdy podział cofnął
+// się przed element pływający (np. break-after: avoid nagłówka, findEarlierPageBreak), i element stawał
+// na następnej stronie na samej górze, obok nagłówka, zamiast pod nim (CSS 2.1 § 9.5.1, reguła 5).
+func dropPushedFloatsAfter(context *layoutContext, children []Box, resumeAt tree.ResumeStack) {
+	if len(context.brokenOutOfFlow) == 0 {
+		return
+	}
+	first := -1
+	for index := range resumeAt {
+		if index >= 0 && (first < 0 || index < first) {
+			first = index
+		}
+	}
+	if first < 0 || first+1 >= len(children) {
+		return
+	}
+	var walk func(Box)
+	walk = func(b Box) {
+		if v, ok := context.brokenOutOfFlow[b]; ok && v.pushed {
+			delete(context.brokenOutOfFlow, b)
+		}
+		for _, child := range b.Box().Children {
+			walk(child)
+		}
+	}
+	for _, child := range children[first+1:] {
+		walk(child)
+	}
 }
 
 // For boxes that have been removed in findEarlierPageBreak(),
