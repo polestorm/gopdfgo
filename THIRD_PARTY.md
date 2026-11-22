@@ -2817,6 +2817,10 @@ Wspólne dla obu katalogów:
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):
 
+- `model/pages.go` (`PageObject` zapis, nowe `PageTree.inheritsResources`), 2026-11-22: strona bez zasobów
+  i bez przodka z zasobami dostaje pusty słownik `/Resources <<>>` (ISO 32000-1 § 7.7.3.3, tabela 30: klucz
+  wymagany, dziedziczony); źródło pomijało klucz, a veraPDF zgłaszał ostrzeżenie. Wygląd bez zmian, bajty
+  zmieniają się tylko w PDF z taką stroną; test `tests/resources22_test.go`;
 - nowy plik `model/sorted.go` z `SortedKeys`; 57 pętli po mapach w `model/` i jedna w `contentstream/commands.go`
   przepisane na iterację po posortowanych kluczach (zapis słowników zasobów, parametrów strumieni, drzew nazw);
 - `model/acroform.go`, `model/model.go`: dwa wywołania `b.fmt(tekst)` zamienione na `b.fmt("%s", tekst)` (tekst

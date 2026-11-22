@@ -225,6 +225,11 @@ func (p *PageObject) pdfString(pdf pdfWriter) string {
 		refResources := pdf.CreateObject()
 		pdf.WriteObject(p.Resources.pdfString(pdf, refResources), refResources)
 		b.line("/Resources %s", refResources)
+	} else if p.parent != nil && !p.parent.inheritsResources() {
+		// gopdfgo: /Resources jest wymagany na stronie (ISO 32000-1 § 7.7.3.3, tabela 30; dziedziczony
+		// z węzłów drzewa stron); strona bez tekstu i obrazów dostaje pusty słownik, gdy żaden przodek go
+		// nie ma. Źródło pomijało klucz, a veraPDF zgłaszał brak.
+		b.line("/Resources <<>>")
 	}
 	if p.MediaBox != nil {
 		b.line("/MediaBox %s", p.MediaBox.String())
@@ -742,4 +747,15 @@ func (o *OutlineItem) clone(cache cloneCache, parent OutlineNode) *OutlineItem {
 	out.First = o.First.clone(cache, &out)
 	out.Next = o.Next.clone(cache, parent)
 	return &out
+}
+
+// inheritsResources (gopdfgo) mówi, czy węzeł drzewa stron albo któryś z jego przodków ma niepusty
+// słownik zasobów, który strony mogą dziedziczyć (ISO 32000-1 § 7.7.3.4).
+func (pages *PageTree) inheritsResources() bool {
+	for n := pages; n != nil; n = n.parent {
+		if !n.Resources.IsEmpty() {
+			return true
+		}
+	}
+	return false
 }
