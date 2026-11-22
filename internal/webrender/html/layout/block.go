@@ -235,10 +235,18 @@ func blockBoxLayoutLines(context *layoutContext, box_ bo.BlockBoxITF, bottomSpac
 		// gopdfgo: kontener kolumn omija elementy pływające jak każde pudełko z własnym kontekstem
 		// formatowania (CSS 2.1 § 9.5, CSS Multicol 1 § 2); zwężony został w columnsLayout. W źródle
 		// stał na pełnej szerokości i nachodził na element pływający.
+		// (pozycja nieskończona to próba bez miejsca, zob. columnsLayout: nie ma czego przesuwać)
 		if newBox_ != nil && len(context.excludedShapes.list) != 0 && !box.IsFlexItem && !box.IsGridItem &&
-			newBox_.Box().IsInNormalFlow() && bo.EstablishesFormattingContext(newBox_) {
+			newBox_.Box().IsInNormalFlow() && bo.EstablishesFormattingContext(newBox_) &&
+			!math.IsInf(float64(newBox_.Box().PositionY), 0) {
 			positionX, positionY, _ := avoidCollisions(context, newBox_, containingBlock, false)
-			newBox_.Translate(positionX-newBox_.Box().PositionX, positionY-newBox_.Box().PositionY, false)
+			// kontener podzielony między strony albo kolumny zewnętrzne zostaje na swojej wysokości (jego
+			// treść jest już pocięta według niej), przesuwamy go tylko w poziomie
+			dy := positionY - newBox_.Box().PositionY
+			if result.resumeAt != nil || skipStack != nil {
+				dy = 0
+			}
+			newBox_.Translate(positionX-newBox_.Box().PositionX, dy, false)
 		}
 		return newBox_, result, -1
 	} else if box.IsTableWrapper {

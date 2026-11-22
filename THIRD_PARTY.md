@@ -2818,7 +2818,8 @@ Wspólne dla obu katalogów:
     `column-width`) zakłada własny kontekst formatowania (CSS Multicol 1 § 2); `html/layout/column.go`,
     `columnsLayout`: zwężenie obok elementów pływających (`narrowBesideFloats`) i własna, pusta lista
     wykluczeń dla treści kontenera (przywracana do głębokości sprzed kontenera); `html/layout/block.go`,
-    `blockBoxLayoutLines`: kontener kolumn przesuwany obok elementów pływających (`avoidCollisions`). W źródle
+    `blockBoxLayoutLines`: kontener kolumn przesuwany obok elementów pływających (`avoidCollisions`; podzielony
+    między strony albo kolumny zewnętrzne tylko w poziomie, a przy próbie bez miejsca wcale). W źródle
     kontener kolumn obok elementu pływającego miał pełną szerokość i nachodził na niego (CSS 2.1 § 9.5);
   - `html/layout/block.go`, `blockContainerLayout`: przerwany układ (`abort`, `break-inside: avoid`) zamyka
     kontekst formatowania pudełka, które go otworzyło (wcześniej tylko pudełka opakowującego tabelę). W źródle

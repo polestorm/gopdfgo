@@ -2464,3 +2464,69 @@ z przesunięciem rośnie, bo przesunięcie narasta stopniowo zamiast skokiem.
 - Korpus: różnice w `12-floats-positioning` i `13-forms-html-elements`, oba z wierszem z `<sub>`/`<sup>`
   (ADR 0042); pozostałe 66 renderowań bez zmian.
 - Determinizm: dwa renderowania `office-param-table`, `office-production`, `rand-23` identyczne.
+
+## Dokumenty losowe: rozbiór rozbieżności z Chromium (2026-11-23)
+
+Ciąg dalszy sekcji poprzedniej: kolejne dokumenty `rand-*` z dużym przesunięciem, rozbierane od pierwszego
+rozbieżnego słowa i minimalnego przypadku, porównanie z Chrome 157. Testy w `tests/rand23_test.go`.
+
+### Naprawione
+
+| Błąd | Gdzie znaleziony | Przyczyna, norma |
+|---|---|---|
+| kontener kolumn obok elementu pływającego nachodził na niego | `rand-23` | kontener kolumn zakłada własny kontekst formatowania (CSS Multicol 1 § 2), więc według CSS 2.1 § 9.5 zwęża się i staje obok elementu pływającego; jego treść (także element `column-span: all`) nie widzi elementów pływających spoza kontenera |
+| tabela za elementem pływającym z tabelą nachodziła na niego | `rand-27` (to była przyczyna „szerokości kolumn `table-layout: fixed`” z poprzedniej sekcji) | komórka tabeli przerwana przy podziale strony nie zamykała swojego kontekstu formatowania; lista wykluczeń zostawała otwarta, następne pudełka zamykały cudze listy i elementy pływające znikały z listy widzianej przez dalszą treść (błąd źródła). Szerokości kolumn liczyły się dobrze, tylko tabela stała w złym miejscu; `rand-27`, `-29`, `-30` miały przez to stronę mniej |
+| element pływający za nagłówkiem z `break-after: avoid` na górze następnej strony, obok nagłówka | `rand-18` (ujawnione przez poprzednią poprawkę) | zgłoszenie przeniesienia elementu (`pushFloat`) z próby, w której podział cofnął się przed niego, zostawało; teraz blok kończący fragment usuwa zgłoszenia elementów za miejscem wznowienia (CSS 2.1 § 9.5.1, reguła 5) |
+| tabela dzielona między strony nie stawała obok elementu pływającego, a jej dalszy ciąg zmieniał szerokości kolumn | `rand-30` | próbę ułożenia obok elementów pływających (`relayoutBesideFloats`) robiliśmy tylko dla tabel, które się nie dzielą; dalszy ciąg tabeli zwężonej dostawał pełną szerokość. Szerokości kolumn wyznacza się dla całej tabeli (CSS Tables 3 § 3.9) |
+| wiersz, który się mieścił, przechodził na następną stronę, bo nie mieścił się odstęp `border-spacing` pod nim; powtarzana stopka o dwa odstępy pod wierszem | `rand-09`, `rand-03` | norma milczy o odstępach przy podziale; jak w Chromium decyduje dół wiersza, a odstęp na końcu fragmentu jest obcinany (ADR 0043); podwójny odstęp przed stopką był błędem |
+| tabela dzieliła się pod pierwszym wierszem komórki rozpiętej (`rowspan`) z wiersza z `break-inside: avoid` | `rand-02`, `rand-01` | komórka należy do wiersza, w którym się zaczyna, więc podział między wierszami, przez które biegnie, jest podziałem wewnątrz tego wiersza (CSS Fragmentation 3 § 3.2); Chromium tak samo, także dla `break-inside: avoid` na samej komórce |
+
+### Tabela przed i po (inna strona / słowa dalej niż 3 pt w pionie; strony gopdfgo/Chrome)
+
+Baza: `origin/main` b16fea8, po: ta gałąź. Faktury (4), e-SF (5), `md-*` (12), `mmd-*` (10) i `office-*` (15):
+wszystkie liczby bez zmian (porównanie wierszy wyniku `runx.sh`). Strony zgodne z Chromium: 28 z 30 dokumentów
+losowych (wcześniej 26).
+
+| Dokument | Przed | Po |
+|---|---|---|
+| `rand-01` | 14/17 str., 2508 / 1056 (dy med 5,9 pt) | 15/17 str., 2614 / 535 (dy med 0,12 pt) |
+| `rand-02` | 211 / 1442 (dy med 108 pt) | 0 / 5 |
+| `rand-03` | 54 / 967 | 54 / 965 |
+| `rand-09` | 104 / 1048 | 103 / 823 |
+| `rand-23` | 0 / 582, dx > 3 pt: 184 | 0 / 91, dx > 3 pt: 12 |
+| `rand-26` | 0 / 433 | 0 / 179 |
+| `rand-27` | 4/5 str., 850 / 827 | 5/5 str., 0 / 6 |
+| `rand-29` | 15/16 str., 140 / 1147 | 16/16 str., 33 / 768 |
+| `rand-30` | 169 / 657 (dy med 135 pt) | 0 / 414 (dy med 0,39 pt) |
+| pozostałe `rand-*` (21) | | bez zmian |
+
+### Opisane, bez zmian
+
+- **`widows` łamane przez Chromium, gdy akapit musiałby przejść w całości** (`rand-20`: akapit 3-wierszowy
+  na końcu strony, `rand-22`: ostatni fragment kolumn, równoważenie kolumn za elementem `column-span`):
+  Chrome dzieli 3 wiersze 2 + 1 także przy jawnym `widows: 2`, ale `orphans` przestrzega, a `widows` też,
+  gdy wystarczy przesunąć wiersze (akapit 5-wierszowy dzieli 3 + 2). Według CSS Fragmentation 3 § 4.4 podział
+  przed akapitem spełnia wszystkie reguły, więc ma pierwszeństwo; zostajemy przy normie (pytanie 28, pkt 2,
+  rozstrzygnięte 2026-11-22).
+- **Dalszy ciąg tabeli zwężonej obok elementu pływającego w Chromium** (`rand-30`, str. 3): Chrome powtarza
+  nagłówek w kolumnach z pierwszego fragmentu, a wiersze treści układa w nowych, szerszych kolumnach, więc
+  komórki nie stoją pod nagłówkami. U nas nagłówek i treść mają kolumny z pierwszego fragmentu (CSS Tables 3
+  § 3.9); stąd 120 słów z przesunięciem poziomym.
+- **Chromium dzieli wiersze pod komórką `rowspan` z wiersza z `break-inside: avoid`, gdy za nią stoi następna
+  taka komórka** (`rand-09`, str. 5–6: komórka na 4 wiersze, a w czwartym wierszu następna na 3, oba wiersze
+  z `avoid`): Chrome dzieli między trzecim a czwartym wierszem, my przenosimy cały ciąg wierszy na następną
+  stronę. Reguły Chromium w tym przypadku nie ustaliliśmy; w prostym przypadku (test
+  `TestRowspanInAvoidRowKeepsRowsTogether`) oba silniki trzymają wiersze razem.
+- **Układ strony 1 zależny od przebiegu** (`rand-01`): dokument jest układany dwa razy (strony układane od
+  nowa po pierwszym przebiegu, także bez `counter(pages)`), a w drugim przebiegu kontener kolumn na stronie 1
+  równoważy się inaczej: trzeci akapit (z `text-indent`) zostaje w pierwszej kolumnie zamiast przejść częścią
+  do drugiej, wysokość kontenera 320 → 300 px; pierwszy przebieg zgadza się z Chromium. Wynik zależy od treści
+  dużo dalej w dokumencie (jedna komórka tabeli na str. 7 go zmienia), nie od pamięci podręcznej wyników
+  łamania wiersza (sprawdzone z wyłączoną) ani od map kluczowanych adresami stosów wznowienia. Błąd po naszej
+  stronie (stan przenoszony między przebiegami), przyczyny nie ustalono; do osobnej rundy.
+- **Łamanie wierszy o szerokości o włos inną niż w Chromium** (`rand-11`, `rand-25`, `rand-29`): pierwsza
+  rozbieżność to słowo na końcu wiersza w jednym silniku, a na początku następnego w drugim (dokładna
+  szerokość wiersza i min-/max-content, zmieniane równolegle w innej gałęzi).
+- **Metryki pogrubienia syntetycznego**: nagłówki `h3` i `th` Tinos bez pliku pogrubionego mają w Chrome ramkę
+  słowa 4–5 pt wyżej w `pdftotext -bbox` (inne metryki fontu syntetycznego w PDF), choć wiersze stoją tak samo;
+  to artefakt pomiaru, nie układu.

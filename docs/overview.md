@@ -254,8 +254,14 @@ engines get the same Noto fonts through `@font-face`; Chrome 157.
   The rest: Chromium's system fonts for ✔ and ★, `widows` in short blocks, Chromium's rounding of the
   half-leading, and lines ending within hundredths of a pixel of the edge.
 - Random documents (30 from a seeded generator: tables with spans and repeated headers, floats, lists,
-  counters, columns, breaks, margin boxes): the generator found a crash in column layout after a float and a
-  long table pushed to the next page instead of starting below a float; both fixed. No hangs.
+  counters, columns, breaks, margin boxes; measured 2026-11-23): 28 have Chromium's page count. The generator
+  found a crash in column layout after a float, multi-column containers overlapping floats, a table cell
+  broken at a page end that made later content forget earlier floats, split tables not placed beside floats,
+  rows pushed to the next page because the `border-spacing` below them did not fit (ADR 0043), and rows under
+  a `rowspan` cell of a `break-inside: avoid` row being separated; all fixed. No hangs. The rest: Chromium
+  splitting 3-line blocks 2 + 1 against `widows` (also when balancing columns), Chromium widening the body
+  rows of a table continued below a float while keeping the repeated header's columns, line widths, and one
+  document whose first page is laid out differently in the second layout pass (open).
 - The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
   draws; gopdfgo keeps the exact baseline.
 - W3C screen reftests across 11 CSS areas: 9499 of 10962 pass (2026-11-22; three `hanging-punctuation` tests
