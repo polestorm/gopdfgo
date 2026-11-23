@@ -2,6 +2,7 @@ package layout
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -910,6 +911,14 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	)
 	context.brokenOutOfFlow = make(map[Box]brokenBox) // new map
 	repushed := false                                 // gopdfgo: zob. niżej, przeniesiony element pływający
+	// gopdfgo: wpisy tej strony z jej wcześniejszego układu (obieg paginacji, przebieg w ADR 0036) są
+	// nieaktualne; zostawały, gdy strona ułożona od nowa nie dostała już przeniesionego elementu, i przepływ
+	// pomijał wtedy ten element jako już ustawiony
+	for box, onPage := range context.pushedFloatsPlaced {
+		if onPage == pageNumber {
+			delete(context.pushedFloatsPlaced, box)
+		}
+	}
 	for _, v := range orderedBroken(contextOutOfFlow) {
 		box, containingBlock := v.box, v.containingBlock
 		if v.deferredPages > 0 {
@@ -950,13 +959,21 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			}
 			continue
 		}
-		box.Box().PositionY = rootBox.Box().ContentBoxY()
+		// gopdfgo: element pływający przeniesiony na tę stronę (pushFloat) to pudełko ze źródła; układamy jego
+		// kopię. Element zastępowany (obraz) floatLayout układa w miejscu, więc ta strona pokazywała pudełko,
+		// które późniejszy układ poprzedniej strony (następny obieg paginacji) przestawiał na jej dół; strona
+		// wzięta z obiegu wcześniejszego miała wtedy obraz w złym miejscu.
+		laidBox := box
+		if v.pushed {
+			laidBox = box.Copy()
+		}
+		laidBox.Box().PositionY = rootBox.Box().ContentBoxY()
 		if previous, isPage := containingBlock.(*bo.PageBox); isPage {
 			// gopdfgo: dalszy ciąg pudełka, którego blokiem zawierającym jest strona, układamy względem
 			// bieżącej strony i przesuwamy w poziomie o różnicę lewych krawędzi obszarów stron (strony
 			// nazwane i :left/:right mają różne marginesy, CSS Page 3 § 3). Źródło zostawiało blok
 			// zawierający i położenie poziome ze strony, na której pudełko się zaczęło.
-			box.Box().PositionX += page.ContentBoxX() - previous.ContentBoxX()
+			laidBox.Box().PositionX += page.ContentBoxX() - previous.ContentBoxX()
 			containingBlock = page
 			if v.icb {
 				containingBlock = context.icbFor(page, pageNumber)
@@ -971,7 +988,7 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			if v.pushed { // gopdfgo: zob. layoutContext.canPushFloat
 				context.pushedFloatsPlaced[box] = pageNumber
 			}
-			outOfFlowBox, outOfFlowResumeAt = floatLayout(context, box, containingBlock.Box(),
+			outOfFlowBox, outOfFlowResumeAt = floatLayout(context, laidBox, containingBlock.Box(),
 				&positionedBoxes, &positionedBoxes, 0, v.resumeAt)
 			// gopdfgo: przeniesiony element pływający, który nie mieści się także tutaj pod wcześniej
 			// przeniesionymi, przechodzi dalej; za nim wszystkie następne (CSS 2.1 § 9.5.1, reguła 5)
@@ -1437,6 +1454,17 @@ func (context *layoutContext) remakePage(index int, pageGroups *[]pageGroup, roo
 			next.RightPage != tmp.RightPage ||
 			!next.PageState.Equal(pageState)
 	}
+	// gopdfgo: dalsze ciągi pudełek poza przepływem (brokenOutOfFlow) też są wejściem następnej strony, choć
+	// nie należą do pageMaker: strona, która teraz przenosi element pływający na następną (albo już go nie
+	// przenosi), zmienia następną stronę także przy tym samym miejscu wznowienia. W źródle następna strona
+	// zostawała wtedy z obiegu wcześniejszego, bez tego elementu albo z nim podwójnie.
+	if index < len(context.brokenAfterPage) && !sameBrokenOutOfFlow(context.brokenAfterPage[index], context.brokenOutOfFlow) {
+		pageMakerNextChanged = true
+	}
+	for len(context.brokenAfterPage) <= index {
+		context.brokenAfterPage = append(context.brokenAfterPage, nil)
+	}
+	context.brokenAfterPage[index] = maps.Clone(context.brokenOutOfFlow)
 
 	// gopdfgo: w przebiegu sprawdzającym (ADR 0036) stan następnej strony ma być taki jak w pierwszym
 	if pageMakerNextChanged && context.verifying {
@@ -1498,6 +1526,16 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 			resumeAt = context.pageMaker[i+1].ResumeAt
 			reportedFootnotes = nil
 			out = append(out, pages[i])
+			// gopdfgo: strona ułożona od nowa po stronie wziętej z obiegu wcześniejszego dostawała dalsze
+			// ciągi pudełek poza przepływem od ostatniej strony ułożonej w tym obiegu, często odległej:
+			// element pływający przeniesiony ze strony 125 stawał drugi raz na górze strony 129 (książka ze
+			// spisem treści w testdata/books). Odtwarzamy to, co ta strona zostawiła, gdy ją ułożono; strona
+			// ułożona od nowa jest wtedy funkcją tego samego stanu co w układzie po kolei (zob. też remakePage
+			// i ADR 0036).
+			context.brokenOutOfFlow = make(map[Box]brokenBox)
+			if i < len(context.brokenAfterPage) {
+				maps.Copy(context.brokenOutOfFlow, context.brokenAfterPage[i])
+			}
 		}
 
 		i += 1
@@ -1550,4 +1588,24 @@ func rootMarginFillsPage(context *layoutContext, root Box, page *bo.PageBox) boo
 	}
 	top := pr.ResolvePercentage(margin, page.Width.V()).V()
 	return top > 0 && box.PositionY+top >= context.pageBottom
+}
+
+// sameBrokenOutOfFlow (gopdfgo) mówi, czy dwa stany dalszych ciągów pudełek poza przepływem dają następnej
+// stronie to samo (zob. remakePage). Pudełka z różnych obiegów to różne kopie, więc porównujemy element,
+// pseudoelement, miejsce wznowienia i rodzaj dalszego ciągu, w kolejności zgłoszenia.
+func sameBrokenOutOfFlow(a, b map[Box]brokenBox) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	x, y := orderedBroken(a), orderedBroken(b)
+	for i := range x {
+		u, v := x[i], y[i]
+		ub, vb := u.box.Box(), v.box.Box()
+		if ub.Element != vb.Element || ub.PseudoType != vb.PseudoType || !u.resumeAt.Equals(v.resumeAt) ||
+			u.pushed != v.pushed || u.deferredPages != v.deferredPages || u.icb != v.icb || u.nextColumn != v.nextColumn ||
+			u.pushedFrom != v.pushedFrom || u.owner != v.owner {
+			return false
+		}
+	}
+	return true
 }

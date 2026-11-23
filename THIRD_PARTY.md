@@ -2878,6 +2878,24 @@ Wspólne dla obu katalogów:
     `break-inside: avoid` tego wiersza albo samej komórki obejmuje granice między wierszami, przez które
     komórka biegnie (CSS Fragmentation 3 § 3.2; Chromium tak samo). W źródle tabela dzieliła się pod
     pierwszym wierszem takiej komórki.
+- 2026-11-23, dalsze ciągi pudełek poza przepływem w obiegach paginacji (ADR 0036, dopisek z 2026-11-23; test
+  `tests/twopassfloats23_test.go`):
+  - `html/layout/pages.go` `remakePage`, `makeAllPages`, nowe `sameBrokenOutOfFlow`, `layout.go` (pole
+    `brokenAfterPage`): dalsze ciągi pudełek poza przepływem (`brokenOutOfFlow`, m.in. element pływający
+    przeniesiony na następną stronę) są wejściem następnej strony, ale w źródle nie należały do stanu
+    `pageMaker`. Obieg paginacji, który układał od nowa tylko niektóre strony, dawał stronie ułożonej od nowa
+    zgłoszenia zostawione przez ostatnią stronę ułożoną w tym obiegu (często odległą), a strona, która teraz
+    przenosiła element, nie oznaczała następnej do ponownego układu. Skutek: obraz drugi raz na górze dalszej
+    strony albo zgubiony, tekst nachodzący na element pływający. Teraz stan zostawiony przez każdą stronę jest
+    zapamiętywany, porównywany przy ponownym układzie (element, pseudoelement, miejsce wznowienia, rodzaj
+    dalszego ciągu) i odtwarzany za stroną wziętą z obiegu wcześniejszego;
+  - `html/layout/pages.go` `makePage`: wpisy `pushedFloatsPlaced` strony z jej wcześniejszego układu są
+    usuwane przed ponownym układem (przepływ pomijał element jako już ustawiony), a element pływający
+    przeniesiony na stronę jest układany jako kopia pudełka ze źródła (obraz był układany w miejscu, więc
+    późniejszy układ poprzedniej strony przestawiał go na stronie już ułożonej);
+  - wynik zmienia się tylko w dokumentach z ponowną paginacją i elementami pływającymi przeniesionymi na
+    następną stronę (książka ze spisem treści z `testdata/books`: 18 stron; obie drogi układu dają teraz to
+    samo co układ po kolei).
 
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):

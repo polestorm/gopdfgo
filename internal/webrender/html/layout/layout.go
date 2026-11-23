@@ -458,6 +458,10 @@ type layoutContext struct {
 	excludedShapesLists []shapeList
 	brokenOutOfFlow     map[Box]brokenBox
 	brokenSequence      int
+	// gopdfgo: brokenAfterPage[i]: dalsze ciągi pudełek poza przepływem (brokenOutOfFlow) zostawione przez
+	// stronę i, gdy ją ostatnio ułożono; remakePage porównuje z nimi nowy stan, a makeAllPages odtwarza je
+	// za stroną wziętą z obiegu wcześniejszego (zob. tam)
+	brokenAfterPage []map[Box]brokenBox
 	// gopdfgo: obszary stron ułożonych w bieżącym przebiegu (indeks = numer strony - 1), zob. pageArea
 	pageAreas []pageArea
 	// gopdfgo: numer strony, której obszar odpowiada współrzędnym bieżącego układu; zwykle bieżąca
