@@ -144,3 +144,49 @@ Pomiar jak wyżej (Apple M4, `/usr/bin/time -l`, trzy przebiegi), porównanie z 
   i korpusu W3C (11 689 dokumentów, 46 756 renderowań, 0 różnic). Zmieniają się tylko dokumenty z `target-counter(…, pages)`; w korpusach takich
   nie ma, przypadki są w `tests/twopass21_test.go` (`TestTargetCounterPages`, odwołania w przód i wstecz,
   w obu drogach).
+
+## Dopisek 2026-11-23: regresja po 438a2ef i dalsze ciągi pudełek poza przepływem
+
+Od `438a2ef` (przerwany układ zamyka kontekst formatowania pudełka, które go otworzyło) książka ze spisem
+treści wracała do starej drogi: przebieg drugi zgłaszał `anchor "page_216" moved to page 129`. Sama zmiana
+z `438a2ef` jest poprawna; przesunęła tylko elementy pływające tak, że na stronach z `counter(pages)`
+(układanych od nowa w obiegu drugim i trzecim) inicjał rozdziału przechodził na następną stronę (`pushFloat`).
+To odsłoniło trzy usterki starszych obiegów paginacji, wspólne dla obu dróg:
+
+1. Dalsze ciągi pudełek poza przepływem (`brokenOutOfFlow`) są wejściem następnej strony, ale nie należały do
+   stanu w `pageMaker`. Strona ułożona od nowa po stronie wziętej z obiegu wcześniejszego dostawała je od
+   ostatniej strony ułożonej w tym obiegu: inicjał przeniesiony ze strony 125 stawał drugi raz na górze strony
+   129. Do tego strona, która teraz przenosiła element pływający, nie oznaczała następnej do ponownego
+   układu, bo miejsce wznowienia się nie zmieniało; element ginął.
+2. `pushedFloatsPlaced` zachowywał wpisy strony z jej wcześniejszego układu, więc przepływ pomijał element jako
+   już ustawiony.
+3. Przeniesiony obraz był układany w miejscu, na pudełku ze źródła; późniejszy układ poprzedniej strony
+   przestawiał go na stronie już ułożonej (obraz na dole strony, tekst opływał puste miejsce u góry).
+
+Przebieg drugi układa strony po kolei, więc te usterki go nie dotyczą; różnicę względem przebiegu pierwszego
+wykrywał `checkAnchor` albo `remakePage`. Poprawka (`remakePage`, `makeAllPages`, `sameBrokenOutOfFlow`,
+`makePage`): stan zostawiony przez stronę jest zapamiętywany (`brokenAfterPage`), porównywany przy ponownym
+układzie (zmiana oznacza następną stronę) i odtwarzany za stroną wziętą z obiegu wcześniejszego; wpisy
+`pushedFloatsPlaced` strony są czyszczone przed jej układem; przeniesiony element pływający jest układany jako
+kopia. Strona ułożona od nowa jest teraz funkcją tego samego stanu co w układzie po kolei.
+
+Wynik zmienia się w dokumentach z ponowną paginacją i elementami pływającymi przeniesionymi na następną stronę,
+na korzyść: w książce ze spisem treści 18 stron (inicjały podwójne albo zgubione, tekst nachodzący na
+ilustracje). Test `tests/twopassfloats23_test.go`: dokument ponad 32 stron ze spisem `target-counter`,
+„strona X z Y”, przenoszonymi obrazami, tabelą dzieloną obok elementu pływającego i kontenerem kolumn obok
+niego idzie drogą dwuprzebiegową bez przeszkody i daje te same bajty co układ całości przed rysowaniem; przed
+poprawką kończył się przeszkodą `anchor "r1" moved to page 6`.
+
+Pomiar 2026-11-23, Apple M4, wiersz poleceń, `os.wait4` w Pythonie (szczyt RSS), trzy przebiegi, porównanie
+z `de62591` (dla porządku: według pomiaru koordynatora `b16fea8` miał 2,66 s i 0,44 GB dla książki ze spisem):
+
+| dokument | stron | szczyt RSS, przed | szczyt RSS, po | czas, przed | czas, po |
+|---|---|---|---|---|---|
+| książka bez spisu (ścieżka strumieniowa) | 254 | 451–465 MB | 430–458 MB | 1,24–1,29 s | 1,23–1,27 s |
+| książka ze spisem i „Strona X z Y” | 258 | 574–604 MB | 462–488 MB | 3,37–3,60 s | 2,52–2,91 s |
+| książka ×4 bez spisu | 1013 | 789–805 MB | 795–809 MB | 4,81–5,07 s | 5,01–6,13 s |
+| książka ×4 ze spisem i „Strona X z Y” | 1023 | 1434–1521 MB | 825–833 MB | 11,35–13,04 s | 8,96–9,08 s |
+
+- Książka ze spisem treści znów idzie drogą dwuprzebiegową; pamięć wraca do poziomu sprzed `438a2ef`.
+- Bajty bez zmian: książka bez spisu i jej czterokrotność, korpus `testdata/documents` i `testdata/svg`
+  (`bench/verify/corpus.sh`, fail=0), korpus W3C (11 689 dokumentów, 46 756 renderowań, 0 różnic).
