@@ -173,6 +173,7 @@ The full list with its status is in `docs/overview.md` and `docs/progress.md`.
 | File | Contents |
 |---|---|
 | `docs/overview.md` | comparison with Chromium, unsupported features, requirements |
+| `docs/comparison.md` | gopdfgo, folio and Chromium side by side: size, dependencies, speed, output, features |
 | `docs/progress.md` | progress in numbers, what is left and how important it is (Polish) |
 | `docs/vision.md` | goals and trade-offs (Polish) |
 | `docs/architecture.md` | pipeline and interfaces (Polish) |
