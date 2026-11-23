@@ -521,6 +521,9 @@ type layoutContext struct {
 	// gopdfgo: pageDone, gdy nie jest nil, makeAllPages wywołuje po ułożeniu każdej strony; false
 	// przerywa układ (rysowanie w trakcie układu, ADR 0027, zob. streamer.pageDone)
 	pageDone func(index int, pages []*bo.PageBox) bool
+	// gopdfgo: pageRemade: strona oddawana do pageDone została ułożona w tym obiegu paginacji (false: wzięta
+	// z obiegu wcześniejszego)
+	pageRemade bool
 	// gopdfgo: verifying: drugi przebieg rysowania w dwóch przebiegach (ADR 0036) układa strony ze stanem
 	// paginacji z pierwszego; drift opisuje pierwszą różnicę względem niego ("" = brak)
 	verifying bool

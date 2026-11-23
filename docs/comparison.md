@@ -45,8 +45,9 @@ it.
 folio is the fastest and the lightest: 2–3 times faster than gopdfgo on typical documents and 5–10 times on
 documents with thousands of inline styles. Chromium pays for starting a browser on small documents and is
 as fast as gopdfgo at a thousand pages. With a table of contents of page numbers and "page X of Y" in the text,
-gopdfgo needs a second layout pass (the 1020-page book takes 8.8 s instead of 4.7 s); neither of the others
-fills these in at all (see Features).
+gopdfgo needs further pagination passes over the pages that change (the 1020-page book takes an estimated
+5.5 s instead of 4.7 s, 8.8 s before 2026-11-23, ADR 0036); neither of the others fills these in at all (see
+Features).
 
 ## Output
 

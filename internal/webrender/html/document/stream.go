@@ -25,6 +25,9 @@ var (
 	// OnTwoPass, gdy nie jest nil, jest wywoływane, gdy dokument wymagał ponownej paginacji i był układany
 	// w dwóch przebiegach (ADR 0036); whole: krótki dokument, ułożony w całości przed rysowaniem.
 	OnTwoPass func(whole bool)
+	// OnDeferred, gdy nie jest nil, jest wywoływane, gdy dokument wymagał ponownej paginacji, a rysowanie
+	// pages stron zostało odłożone na koniec paginacji (ADR 0036, dopisek trzeci)
+	OnDeferred func(pages int)
 )
 
 // Stream (gopdfgo) układa dokument i rysuje każdą stronę zaraz po tym, jak jej obszar jest ostateczny
@@ -42,11 +45,12 @@ func Stream(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, f
 	newTarget func() backend.Document, zoom pr.Fl, attachments []backend.Attachment, restart func(),
 ) (pages int, fallback string) {
 	var (
-		sink    *streamSink
-		laidOut []*bo.PageBox
-		twoPass bool
+		sink     *streamSink
+		laidOut  []*bo.PageBox
+		twoPass  bool
+		deferred int
 	)
-	pages, laidOut, twoPass, fallback = layout.LayoutStreaming(html, stylesheets, presentationalHints, fontConfig, func() layout.PageSink {
+	pages, laidOut, twoPass, deferred, fallback = layout.LayoutStreaming(html, stylesheets, presentationalHints, fontConfig, func() layout.PageSink {
 		sink = &streamSink{
 			doc:    Document{urlFetcher: html.UrlFetcher, fontconfig: fontConfig, root: html.Root.AsHtmlNode()},
 			target: newTarget(),
@@ -56,6 +60,9 @@ func Stream(html *tree.HTML, stylesheets []tree.CSS, presentationalHints bool, f
 	}, restart)
 	if OnTwoPass != nil && twoPass {
 		OnTwoPass(laidOut != nil)
+	}
+	if OnDeferred != nil && deferred != 0 {
+		OnDeferred(deferred)
 	}
 	if fallback == "" && sink.fallback != "" {
 		fallback = sink.fallback
@@ -85,6 +92,9 @@ type streamSink struct {
 	target backend.Document
 	scale  fl
 	pages  []streamedPage
+	// lastBox: granice ostatnio dodanej strony; od nich zależy granica form masek miękkich
+	// (pdf.Output.AddPage), więc strona odłożona musi mieć te same
+	lastBox [4]fl
 
 	fallback string
 }
@@ -98,20 +108,24 @@ type streamedPage struct {
 	marked bool
 	// empty: element główny ma display: none, strona nie ma treści ani pól marginesowych (drawPage)
 	empty bool
+	// reserved (gopdfgo): miejsce strony odłożonej (Reserve), której obszar jeszcze nie przyszedł; box to
+	// granice strony ze spadem (zob. pageHeader)
+	reserved bool
+	box      [4]fl
 }
 
-func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
-	if s.fallback != "" {
-		return
-	}
-	// odpowiednik newPage: kotwice, odnośniki i zakładki obszaru strony; pola marginesowe dojdą w Margins
+var _ layout.DeferringSink = (*streamSink)(nil)
+
+// glyphConflicts: cel, który liczy niezgodne przypisania znaków do glifów (pdf.Output.GlyphConflicts)
+type glyphConflicts interface{ GlyphConflicts() int }
+
+// pageHeader: odpowiednik newPage bez rysowania: wymiary i spad strony oraz jej granice ze spadem w punktach
+// (left, top, right, bottom), jak w Write
+func (s *streamSink) pageHeader(pageBox *bo.PageBox) (Page, [4]fl) {
 	page := Page{
 		Width: fl(pageBox.MarginWidth()), Height: fl(pageBox.MarginHeight()),
 		Bleed: pageBox.Bleed(), anchors: anchors{},
 	}
-	gatherAnchors(pageBox, page.anchors, &page.links, &page.bookmarks, nil)
-
-	// jak w Write
 	scale := s.scale
 	pageWidth := scale * (page.Width + fl(page.Bleed.Left) + fl(page.Bleed.Right))
 	pageHeight := scale * (page.Height + fl(page.Bleed.Top) + fl(page.Bleed.Bottom))
@@ -119,9 +133,74 @@ func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
 	top := -scale * fl(page.Bleed.Top)
 	right := left + pageWidth
 	bottom := top + pageHeight
+	return page, [4]fl{left, top, right, bottom}
+}
 
+// addPage dodaje stronę o granicach box (zob. pageHeader) do celu, jak w Write.
+func (s *streamSink) addPage(page Page, box [4]fl) backend.Page {
+	scale := s.scale
+	left, top, right, bottom := box[0], box[1], box[2], box[3]
 	outputPage := s.target.AddPage(left/scale, top/scale, (right-left)/scale, (bottom-top)/scale)
 	outputPage.State().Transform(mt.New(1, 0, 0, -1, 0, page.Height*scale))
+	s.lastBox = box
+	return outputPage
+}
+
+// Reserve (layout.DeferringSink) dodaje do celu stronę index, którą Area narysuje później. Tylko cel, który
+// liczy niezgodne przypisania glifów, i bez tagów: drzewo struktury zależy od kolejności rysowania.
+func (s *streamSink) Reserve(index int, pageBox *bo.PageBox) bool {
+	if s.fallback != "" || index != len(s.pages) {
+		return false
+	}
+	if _, ok := s.target.(glyphConflicts); !ok {
+		return false
+	}
+	page, box := s.pageHeader(pageBox)
+	outputPage := s.addPage(page, box)
+	if tagged, ok := outputPage.(backend.TaggedPage); ok && tagged.Tagged() {
+		return false
+	}
+	s.doc.Pages = append(s.doc.Pages, page)
+	s.pages = append(s.pages, streamedPage{output: outputPage, reserved: true, box: box})
+	return true
+}
+
+// GlyphConflicts (layout.DeferringSink): zob. pdf.Output.GlyphConflicts.
+func (s *streamSink) GlyphConflicts() int {
+	if target, ok := s.target.(glyphConflicts); ok {
+		return target.GlyphConflicts()
+	}
+	return 0
+}
+
+func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
+	if s.fallback != "" {
+		return
+	}
+	// odpowiednik newPage: kotwice, odnośniki i zakładki obszaru strony; pola marginesowe dojdą w Margins
+	page, box := s.pageHeader(pageBox)
+	gatherAnchors(pageBox, page.anchors, &page.links, &page.bookmarks, nil)
+	scale := s.scale
+	left, top, right, bottom := box[0], box[1], box[2], box[3]
+
+	var outputPage backend.Page
+	reserved := index < len(s.pages) && s.pages[index].reserved
+	switch {
+	case reserved:
+		// strona odłożona (Reserve): ta sama wielkość co przy rezerwacji i co ostatnia dodana strona
+		reservedPage := s.doc.Pages[index]
+		if box != s.pages[index].box || box != s.lastBox || page.Width != reservedPage.Width ||
+			page.Height != reservedPage.Height || page.Bleed != reservedPage.Bleed {
+			s.fallback = "deferred page has a different size"
+			return
+		}
+		outputPage = s.pages[index].output
+	case index == len(s.pages):
+		outputPage = s.addPage(page, box)
+	default:
+		s.fallback = "pages drawn out of order"
+		return
+	}
 	streamed := streamedPage{output: outputPage}
 	for _, child := range pageBox.Children {
 		if child.Box().RootDisplayNone {
@@ -173,6 +252,10 @@ func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
 		case "rotate-left":
 			rotatable.SetRotation(270)
 		}
+	}
+	if reserved {
+		s.doc.Pages[index], s.pages[index] = page, streamed
+		return
 	}
 	s.doc.Pages = append(s.doc.Pages, page)
 	s.pages = append(s.pages, streamed)

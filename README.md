@@ -95,13 +95,17 @@ Chromium processes.
 | | Chromium 157: time | gopdfgo: time | Chromium 157: memory | gopdfgo: memory |
 |---|---|---|---|---|
 | book, 256 pages | 2.10–2.56 s | 1.17–1.22 s | 1.67–1.73 GB | 0.42–0.44 GB |
-| book with table of contents | 2.09–2.12 s ¹ | 2.23–2.31 s | 1.42–1.45 GB | 0.44–0.46 GB |
+| book with table of contents | 2.09–2.12 s ¹ | ≈ 1.4 s ² | 1.42–1.45 GB | 0.44–0.48 GB |
 | book ×4, 1021 pages | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
-| book ×4 with table of contents | 4.55–4.68 s ¹ | 8.6–8.8 s | 2.11–2.14 GB | 0.78–0.80 GB |
+| book ×4 with table of contents | 4.55–4.68 s ¹ | ≈ 5.5 s ² | 2.11–2.14 GB | 0.78–0.84 GB |
 
 ¹ Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
-contents has no page numbers and "page X of Y" reads "0 of 0". gopdfgo fills them in with a second
-layout pass (ADR 0036). Details: `docs/overview.md`.
+contents has no page numbers and "page X of Y" reads "0 of 0". gopdfgo fills them in with further
+pagination passes over the pages that change (ADR 0036). Details: `docs/overview.md`.
+
+² Estimate from 2026-11-23 (ADR 0036, third addendum): measured on a loaded machine as 1.17 times
+(median) the time of the same book without a table of contents, against 1.9 times before; the 2026-11-21
+measurement was 2.23–2.31 s and 8.6–8.8 s.
 
 ## Usage
 

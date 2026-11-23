@@ -1,6 +1,6 @@
 # ADR 0036: Dokumenty z ponowną paginacją układane w dwóch przebiegach
 
-Status: przyjęta 2026-11-21.
+Status: przyjęta 2026-11-21; dopisek trzeci 2026-11-23 (odkładanie stron zamiast drugiego przebiegu tam, gdzie się da).
 
 ## Kontekst
 
@@ -225,7 +225,7 @@ nie ma dokumentów, w których przypisy przechodzą na następną stronę); `ben
 (w `testdata/documents` przypisów nie ma); reftesty 310 z 340 (ściśle 308, z dokładnością do krawędzi 2), bez
 zmian.
 
-## Plan: tańszy przebieg drugi (2026-11-23, do wykonania)
+## Plan: tańszy przebieg drugi (2026-11-23; wykonany inaczej, zob. dopisek trzeci)
 
 Przebieg drugi układa dziś od nowa wszystkie strony, choć część z nich ma wynik znany już z pierwszego:
 strony przed pierwszą, na której liczniki stron albo odsyłaczy dają inną treść niż w obiegu, z którego
@@ -242,3 +242,113 @@ pochodzą. Koszt: książka ze spisem treści 2,5 s wobec 1,2 s bez spisu, ×4 8
    gdy ich szerokość się nie zmienia (ta sama liczba cyfr): wiersz z liczbą, bez reszty strony.
 4. Kryterium: bajty bez zmian (porównanie korpusu W3C i książek), pamięć szczytowa nie większa niż dziś
    o więcej niż 10%, czas książki ×4 ze spisem bliżej 4,7 s niż 8,8 s.
+
+## Dopisek trzeci 2026-11-23: odkładanie stron zamiast drugiego przebiegu
+
+### Pomiar (krok 1 planu)
+
+Przebieg drugi daje z założenia te same strony co mieszanka stron z obiegów przebiegu pierwszego (każdą
+różnicę zgłasza `drift`), więc pytanie z planu sprowadza się do tego, ile stron końcowego wyniku pochodzi już
+z obiegu pierwszego, czyli z układu po kolei bez znajomości liczników. Policzone z numerów stron układanych
+od nowa w każdym obiegu (`makeAllPages`, sonda poza repozytorium), 2026-11-23. Warianty „tylko spis” i „tylko
+strona X z Y” to `1342-toc.htm` i `x4-toc.htm` bez reguły `h2::after` albo bez `nav.toc` (skrypt poza
+repozytorium):
+
+| dokument | stron | ułożone od nowa w obiegu 2 / 3 | strony końcowe z obiegu 1 |
+|---|---|---|---|
+| książka, tylko spis | 256 | 2 / — | 254 (99,2%) |
+| książka, tylko „strona X z Y” | 256 | 63 / 63 | 193 (75,4%) |
+| książka, spis i „strona X z Y” | 258 | 65 / 63 | 193 (74,8%) |
+| ×4, tylko spis | 1015 | 2 / — | 1013 (99,8%) |
+| ×4, tylko „strona X z Y” | 1021 | 252 / 252 | 769 (75,3%) |
+| ×4, spis i „strona X z Y” | 1023 | 254 / 252 | 769 (75,2%) |
+
+Stron ułożonych od nowa jest zawsze tyle, ile stron z odwołaniem (strony spisu, strony z nagłówkiem
+rozdziału); żadna z nich nie zmienia stanu następnej strony, więc dalsze strony nigdy nie są układane od nowa.
+
+Profil czasu ×4 ze spisem (9,0 s): przebieg strumieniowy przerwany na stronie 11 0,5 s, budowa drzewa pudełek
+od nowa 0,45 s, obieg 1 przebiegu pierwszego 3,1 s, obiegi 2 i 3 0,7 s, przebieg drugi (układ i rysowanie)
+4,0 s. W układzie 80% czasu to łamanie wierszy (`splitFirstLine`, kształtowanie tekstu).
+
+### Rozważone
+
+- Krok 2 planu, zachowanie drzew stron z przebiegu pierwszego do rysowania w drugim. Drzewa całego dokumentu
+  ×4 to 274 MB żywej pamięci (558 wobec 284 MB po GC, profil sterty na końcu przebiegu pierwszego), 1,30 GB
+  wobec 0,83 GB szczytu RSS. Próg 10% pamięci mieści ok. 150 stron, czyli oszczędza ok. 15% przebiegu drugiego
+  przy ×4; za mało.
+- Pamięć wyników łamania wierszy między przebiegami (`text.layoutCache` bez limitu): klucz to cała pozostała
+  treść akapitu, więc pamięć rośnie z kwadratem długości akapitu; ×4 bez spisu 15 s i 0,89 GB zamiast 4,7 s.
+  Odrzucone, do tego to obszar `internal/webrender/text`.
+- Krok 3 planu, ponowny układ tylko akapitów z licznikami: dotyczy obiegów 2 i 3 (0,7 s z 9 s), nie przebiegu
+  drugiego. Odłożone.
+- Rysowanie w obiegu pierwszym stron, które są już ostateczne, i odłożenie pozostałych. Strony ostateczne to
+  75–99,8% (tabela); ich treść narysowana to kilka MB, nie drzewo pudełek. Wybrane.
+
+### Decyzja
+
+1. Pierwszy przebieg strumieniowy (ADR 0027) nie kończy się przy pierwszej potrzebie ponownej paginacji, tylko
+   odkłada strony, które mogą się jeszcze zmienić (`streamer.deferPage`): stronę oznaczoną do ponownego układu
+   (`ContentChanged`, `PagesWanted`) i stronę z treścią z `target-counter()` (`RemakeState.ContentLookups`
+   z odwołaniami do kotwic). Pozostałe strony rysuje od razu. Strona odłożona dostaje miejsce w celu w kolejności
+   stron (`DeferringSink.Reserve`, `streamSink.Reserve`), a jej drzewo jest zwalniane, gdy wiadomo, że następny
+   obieg ułoży ją od nowa.
+2. Po obiegu pierwszym przebieg wykonuje dalsze obiegi paginacji jak `paginate` (`streamer.finishDeferred`),
+   zachowując ostatni układ każdej strony odłożonej, a potem rysuje strony odłożone w kolejności stron w ich
+   miejscach w celu. Pola marginesowe, odnośniki i zakładki jak dotąd po wszystkich stronach. Wynik to ta sama
+   mieszanka stron co w starej drodze (`layoutDocument`), bez drugiego układu całego dokumentu i bez budowy
+   drzewa pudełek od nowa.
+3. Przeszkody, przy których przebieg kończy się potrzebą ponownej paginacji i dokument idzie dwoma przebiegami,
+   jak dotąd (punkt 1 decyzji): strona narysowana, którą dalszy obieg układa od nowa albo oznacza; zmiana liczby
+   stron; strona odłożona o innej wysokości albo innych wymiarach strony niż przy rezerwacji (granica form masek
+   miękkich zależy od wymiarów ostatnio dodanej strony, `pdf.Output.AddPage`); inna geometria elementu głównego
+   pierwszej strony (początek tła płótna); pudełka `fixed`; treść szersza niż strona (ADR 0014); `string-set`
+   i `bookmark-label` z `counter(pages)` albo `target-counter()`; zakładka elementu, którą wzięła strona dalsza
+   (`pageFinisher.outOfOrder`); PDF z tagami (drzewo struktury zależy od kolejności rysowania); więcej
+   zachowanych drzew niż `64 + strony/3` (`maxHeldPages`, dokument z odwołaniami na każdej stronie).
+4. Kolejność rysowania stron wpływa na wynik w jednym miejscu: znaki przypisane glifowi w ToUnicode bierze pierwsze
+   rysowanie glifu (`draw_gotext.go`). Rysowanie zlicza glify rysowane ze znakami innymi niż już przypisane
+   (`backend.FontChars.Conflicts`, `pdf.Output.GlyphConflicts`); wzrost licznika przy rysowaniu stron
+   odłożonych to przeszkoda z punktu 3. Pozostałe skutki rysowania (numery obiektów, zasoby, formy wspólne,
+   obrazy, szerokości glifów) nie zależą od kolejności: numery obiektów nadaje zapis pliku w kolejności stron.
+5. Ostrzeżenia: te same co dotąd i tyle samo; ostrzeżenia z rysowania stron odłożonych przychodzą po ostrzeżeniach
+   stron dalszych.
+6. Dwa przebiegi zostają dla przypadków z punktu 3 i dla przebiegu w skali (ADR 0014). `layout.DeferDisabled`
+   wyłącza odkładanie (testy, pomiary), `layout.OnRepaginate` i `document.OnDeferred` zgłaszają drogę.
+   Odkładanie działa też dla dokumentów krótkich (do `TwoPassMinPages`), które dotąd były układane w całości
+   przed rysowaniem.
+
+### Wyniki
+
+Bajty bez zmian wobec `e0a2934`: cztery warianty książki, korpus W3C (11 689 dokumentów, 46 756 renderowań,
+0 różnic; w nim także krótkie dokumenty z ponowną paginacją idą teraz odkładaniem), `bench/verify/corpus.sh`
+fail=0, `tests/twopass21_test.go` (każdy przypadek odkładaniem i dwoma przebiegami, z liczbą ostrzeżeń),
+`tests/twopassfloats23_test.go`, `tests/footnotes23_test.go`, `tests/streamdraw18_test.go`. Reftesty 310 z 340
+(ściśle 308, z dokładnością do krawędzi 2), bez zmian.
+
+Pomiar 2026-11-23, Apple M4, wiersz poleceń, `os.wait4` w Pythonie, 12 uruchomień każdej binarki na przemian.
+Komputer był obciążony innymi programami (średnie obciążenie 5–60), więc czasy bezwzględne są o 20–100% wyższe
+niż na komputerze bez innej pracy (wtedy 1,24 / 2,34 / 4,69 / 9,06 s przed zmianą); miarodajny jest stosunek
+czasu wariantu ze spisem do wariantu bez spisu w tej samej rundzie:
+
+| dokument | szczyt RSS, przed | szczyt RSS, po | czas, przed | czas, po | ze spisem / bez spisu, przed → po |
+|---|---|---|---|---|---|
+| książka bez spisu | 437–462 MB | 429–470 MB | 1,43–2,62 s | 1,53–2,73 s | — |
+| książka ze spisem i „Strona X z Y” | 463–486 MB | 440–478 MB | 2,74–5,61 s | 1,71–3,49 s | 1,8–2,4 → 1,0–1,3 |
+| ×4 bez spisu | 775–808 MB | 766–813 MB | 5,66–10,13 s | 5,50–10,43 s | — |
+| ×4 ze spisem i „Strona X z Y” | 781–841 MB | 780–842 MB | 11,08–20,45 s | 6,42–13,10 s | 1,8–2,0 → 1,1–1,3 (mediana 1,17) |
+
+- Czas ×4 ze spisem na nieobciążonym komputerze wynosi według stosunku z tabeli ok. 5,5 s (szacunek: 4,69 s
+  × 1,17) zamiast 9,1 s; książka ze spisem ok. 1,4 s zamiast 2,3 s. Zostaje koszt obiegów 2 i 3 oraz
+  ponownego układu stron odłożonych (25% stron przy „strona X z Y”).
+- Pamięć szczytowa bez zmian (rozrzut między uruchomieniami większy niż różnica); ×4 ze spisem trzyma naraz do
+  254 drzew stron odłożonych.
+
+### Konsekwencje
+
+- Drogą dwuprzebiegową idą już tylko dokumenty z punktu 3; testy sprawdzają obie drogi.
+- Krok 3 planu (ponowny układ tylko akapitów z licznikami) i skrócenie obiegów 2 i 3 to dalsze możliwe
+  oszczędności (ok. 0,7 s przy ×4); bez decyzji.
+- Przypadek `target-counter-pages-backward` z `tests/twopass21_test.go` (odwołania wstecz z
+  `target-counter(…, pages)`): `UpdateTargetPages` oznacza po obiegu pierwszym stronę 1, choć odwołania są na
+  ostatniej; strona 1 jest już narysowana, więc dokument idzie dwoma przebiegami. Prawdopodobnie nieaktualny
+  `PageMakerIndex` odwołania w przejętym kodzie; do zbadania osobno.

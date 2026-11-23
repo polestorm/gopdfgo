@@ -476,6 +476,16 @@ func newFontFile(fontDesc backend.FontDescription, font pdfFont, content []byte)
 // 		}
 
 // post-process the font used
+// GlyphConflicts (gopdfgo) zwraca łączną liczbę glifów rysowanych ze znakami innymi niż te, które glif ma
+// już w ToUnicode (backend.FontChars.Conflicts).
+func (c *Output) GlyphConflicts() int {
+	n := 0
+	for _, font := range c.cache.fonts {
+		n += font.Conflicts
+	}
+	return n
+}
+
 func (c *Output) writeFonts() {
 	for bFont, font := range c.cache.fonts {
 		// gopdfgo: font bez żadnego rozpoznanego glifu (sam znak zastępczy, np. litera spoza podanych

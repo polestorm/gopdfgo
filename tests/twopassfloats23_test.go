@@ -64,6 +64,12 @@ func TestTwoPassPushedFloats(t *testing.T) {
 	html := []byte(b.String())
 
 	classic := classicRender(t, html, opts)
+	// tabela obok elementu pływającego wystaje poza stronę, więc dokument jest pomniejszany (ADR 0014): to
+	// zostaje dla dwóch przebiegów; bez pomniejszania strony są odkładane (ADR 0036, dopisek trzeci)
+	checkDeferred(t, html, opts, classic, "wider than the page")
+	unscaled := opts
+	unscaled.MaxShrink = 1
+	checkDeferred(t, html, unscaled, classicRender(t, html, unscaled), "")
 	result, fallback, mode := twoPassRender(t, html, opts, layout.TwoPassMinPages)
 	if result.Pages <= layout.TwoPassMinPages {
 		t.Fatalf("stron %d, dokument ma mieć więcej niż TwoPassMinPages (%d)", result.Pages, layout.TwoPassMinPages)

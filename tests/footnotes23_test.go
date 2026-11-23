@@ -172,6 +172,7 @@ func TestFootnotesRepagination(t *testing.T) {
 			if c.long != (classic.Pages > layout.TwoPassMinPages) {
 				t.Fatalf("stron %d, próg TwoPassMinPages %d", classic.Pages, layout.TwoPassMinPages)
 			}
+			checkDeferred(t, html, opts, classic, "")
 			for _, minPages := range []int{0, layout.TwoPassMinPages} {
 				result, fallback, mode := twoPassRender(t, html, opts, minPages)
 				if !bytes.Equal(result.PDF, classic.PDF) {

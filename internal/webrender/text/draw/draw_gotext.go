@@ -282,8 +282,10 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 				invisible := gAdvance == 0 && glyphInfo.GlyphID == space && !slices.Contains(textRunes[outGlyph.TextOffset:outGlyph.TextOffset+outGlyph.TextLength], ' ')
 				if chars := withoutIgnorable(textRunes[outGlyph.TextOffset : outGlyph.TextOffset+outGlyph.TextLength]); len(chars) != 0 && !invisible {
 					chars = text.SmallCapsGlyphChars(face, glyph, chars, style.FontDescription.VariantCaps) // gopdfgo
-					if _, in := outFont.Cmap[outGlyph.Glyph]; !in {
+					if previous, in := outFont.Cmap[outGlyph.Glyph]; !in {
 						outFont.Cmap[outGlyph.Glyph] = chars
+					} else if !slices.Equal(previous, chars) {
+						outFont.Conflicts++ // gopdfgo: zob. backend.FontChars.Conflicts
 					}
 				}
 			}

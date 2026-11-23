@@ -159,6 +159,20 @@ The extra layout pass costs 35–38% of time. A few cases still lay out the whol
 drawing: a positioned box continued on an earlier page, a `position: fixed` box that first appears on a
 later page, and a margin box with a negative `z-index`.
 
+Since 2026-11-23 (ADR 0036, third addendum) most such documents skip the second pass. The old pagination
+loop produces a mix of pages from its passes, and most pages of the final result come from the first one:
+99.2–99.8% with only a table of contents at the front, 75% with "page X of Y" under every chapter heading
+(the heading pages are laid out again). The first pass now draws those pages at once and defers only pages
+that may still change (marked for another pass, or with `target-counter()` content), runs the further
+pagination passes over the deferred pages only, and draws them at the end into their reserved places in the
+PDF. Output is byte-identical (W3C corpus, document corpus, the books); the order of drawing matters only for
+the characters a glyph gets in ToUnicode, which is checked. Measured on a loaded machine (12 runs each,
+alternating): the book ×4 with a table of contents takes a median 1.17 times the time of the book ×4 without
+one, against 1.9 times before, which on an idle machine is an estimated 5.5 s instead of 9.1 s (book with
+table of contents: about 1.4 s instead of 2.3 s); peak memory is unchanged. Documents with `string-set` or
+`bookmark-label` that use page counts or `target-counter()`, `position: fixed` boxes, content wider than the
+page, tagged PDF, or references on nearly every page still take the two-pass path.
+
 The inherited pagination loop marked a page with a reference to an anchor for another layout pass every
 time the anchor was laid out, even when its page number had not changed; the book with a table of
 contents ran 8 pagination passes (the limit) instead of 3. Pages are now marked only when the value
@@ -183,13 +197,15 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 | Document | Pages, Chromium / gopdfgo | Chromium: time | gopdfgo: time | Chromium: memory | gopdfgo: memory |
 |---|---|---|---|---|---|
 | book | 253 / 256 | 2.10–2.56 s | 1.17–1.22 s | 1.67–1.73 GB | 0.42–0.44 GB |
-| book with table of contents | 256 / 259 | 2.09–2.12 s | 2.23–2.31 s | 1.42–1.45 GB | 0.44–0.46 GB |
+| book with table of contents | 256 / 259 | 2.09–2.12 s | 2.23–2.31 s ¹ | 1.42–1.45 GB | 0.44–0.46 GB |
 | book ×4 | 1009 / 1021 | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
-| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 8.6–8.8 s | 2.11–2.14 GB | 0.78–0.80 GB |
+| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 8.6–8.8 s ¹ | 2.11–2.14 GB | 0.78–0.80 GB |
+
+¹ Before deferred pages (2026-11-23, see above): now an estimated 1.4 s and 5.5 s.
 
 - Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
   contents has no page numbers and "page X of Y" reads "Strona 0 z 0". gopdfgo writes "Chapter I —
-  strona 20" and "Strona 11 z 259", which costs the second layout pass (ADR 0036). The times of the
+  strona 20" and "Strona 11 z 259", which costs further pagination passes (ADR 0036). The times of the
   table-of-contents rows therefore do not compare the same work.
 - On the plain book gopdfgo takes about half of Chromium's time, partly because Chromium starts a
   browser for each document; at 1021 pages the two take the same time. gopdfgo's time grows linearly

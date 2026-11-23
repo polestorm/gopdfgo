@@ -2918,6 +2918,20 @@ Wspólne dla obu katalogów:
     przeniesiony, żeby zmieścił się wiersz (wdowy i sieroty) albo przy przepełnieniu w kolumnach, staje przed
     przypisami już przeniesionymi, bo poprzedza je w dokumencie; źródło (i WeasyPrint) dopisywało go na koniec,
     więc przypisy szły nie po kolei (27, 25, 28).
+- 2026-11-23, odkładanie stron zamiast drugiego przebiegu układu (ADR 0036, dopisek trzeci; testy
+  `tests/twopass21_test.go`, `tests/twopassfloats23_test.go`, `tests/footnotes23_test.go`):
+  - `html/layout/stream.go` (kod gopdfgo; `deferPage`, `finishDeferred`, `DeferringSink`, pola `deferring`,
+    `deferred`; `pageFinisher.collect` pamięta numer strony z zakładką elementu): przebieg strumieniowy rysuje
+    strony ostateczne od razu, odkłada strony, które mogą się zmienić, kończy obiegi paginacji jak `paginate`
+    i rysuje strony odłożone na końcu w ich miejscach; `html/document/stream.go` (`streamSink.Reserve`,
+    `GlyphConflicts`);
+  - `html/layout/pages.go` `makeAllPages`, `layout.go` (pole `pageRemade`): `pageDone` dostaje informację, czy
+    strona była ułożona w tym obiegu;
+  - `backend/text.go` (pole `FontChars.Conflicts`), `text/draw/draw_gotext.go`, `goweasyprint/pdf/text.go`
+    (`Output.GlyphConflicts`): liczenie glifów rysowanych ze znakami innymi niż już przypisane w ToUnicode
+    (wygrywa pierwsze przypisanie, jak w źródle); wynik bez zmian;
+  - wynik bajt w bajt ten sam (korpus W3C, korpus dokumentów, książki); czas ×4 ze spisem treści ok. 1,9 →
+    1,17 raza czasu bez spisu, pamięć bez zmian.
 
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):

@@ -81,6 +81,9 @@ type FontChars struct {
 	Cmap    map[GID][]rune
 	Extents map[GID]GlyphExtents
 	Bbox    [4]int
+	// Conflicts (gopdfgo): ile razy rysowany glif miał już w Cmap inne znaki; wygrywa pierwsze przypisanie,
+	// więc przy rysowaniu stron poza kolejnością (ADR 0036, dopisek trzeci) wynik mógłby zależeć od kolejności
+	Conflicts int
 }
 
 // IsFixedPitch returns true if only one width is used,
