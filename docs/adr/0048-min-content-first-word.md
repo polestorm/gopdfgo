@@ -52,10 +52,12 @@ ADR 0032).
 
 Sprawdzenie różnicowe: wersja z sondą liczyła przy każdym użyciu drogi skróconej także krok 1 i
 porównywała warunek; na korpusie W3C (11 689 dokumentów), `bench/realdocs`, `testdata/documents` i
-książce, w trybie stronicowanym i sondażu, 0 niezgodności. Bajty bez zmian wobec `505fabd` (zob.
-`docs/benchmark.md` § 11, dopisek „min-content bez kształtowania reszty tekstu”). Udział drogi skróconej
+książce, w trybie stronicowanym i sondażu, 0 niezgodności. Bajty bez zmian wobec `505fabd` i, po scaleniu, wobec `eb09fa9`
+(W3C 46 756 renderowań, `corpus.sh`, `realbytes.sh` 77 z 77). Udział drogi skróconej
 w wywołaniach przy szerokości 0, które nie trafiły w pamięć z ADR 0046: faktura 423 z 557, `rand-01`
 1589 z 2302, `office-db-model` 524 z 1098, `esf-4` 42 z 59; pozostałe to głównie ostatnie słowa tekstów
 (jedno kształtowanie słowa, jak w drodze skróconej).
 
-Czas: zob. `docs/benchmark.md` § 11.
+Czas (stosunek po/przed z renderowań na zmianę, `docs/benchmark.md` § 11, dopisek „min-content bez
+kształtowania reszty tekstu”): faktura 0,82, `office-terminology` 0,78–0,80, `rand-01` i `rand-12` 0,92,
+`office-db-model` 0,97–0,98, `17-tables` 0,97, pozostałe 0,99–1,02 (w granicach rozrzutu).

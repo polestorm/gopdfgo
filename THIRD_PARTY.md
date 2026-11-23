@@ -1272,6 +1272,15 @@ Wspólne dla obu katalogów:
   - `goweasyprint/pdf/text.go` `AddFont`, `pdf.go` (`Output.SetFontSupportCache`, pole `cache.fontSupport`):
     wynik `isSupportedFont` z pamięci fontów według treści pliku; w źródle liczony przy każdym nowym
     `Output` (każde renderowanie, a w dwóch przebiegach dwa razy) z parsowaniem całej `glyf`;
+- min-content słowo po słowie bez kształtowania reszty tekstu, 2026-11-23 (ADR 0048; `docs/benchmark.md` § 11,
+  dopisek „min-content bez kształtowania reszty tekstu”; test `tests/mincontent23_test.go`); wynik bajt w bajt
+  ten sam (korpus W3C, korpus `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic
+  wobec `eb09fa9`):
+  - `text/engine_gotext.go` `splitFirstLineRaw`: przy szerokości 0 i tekście do 128 znaków nowe
+    `zeroWidthFirstWord` kształtuje samo pierwsze słowo i przechodzi do kroku 4 (`goto hyphenation`) z tym,
+    co dałby krok 3; w źródle krok 1 kształtował cały pozostały tekst, z którego krok 3 brał tylko znak
+    szerokości pierwszego wiersza. Zmienne `maxWidthV`, `firstLineText`, `secondLineText`, `nextWord`,
+    `breakPoint` zadeklarowane na początku funkcji; przełącznik `ZeroWidthShortcut` tylko dla testu;
 - dokładna szerokość wiersza jak w Chromium, 2026-11-22 (ADR 0044; test `tests/linewidth22_test.go`;
   pomiary w `bench/lw/`, poza gitem):
   - `text/engine_gotext.go` `shapeAtSize`: szerokości znaków zaokrąglane do 1/64 px z przenoszeniem błędu

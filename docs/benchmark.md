@@ -677,3 +677,43 @@ renderowań) 0 różnic, `bench/verify/corpus.sh` fail=0, `bench/folio/realbytes
 `go test -tags systemfonts ./tests/ -run SystemFonts` bez błędów, `go test ./tests/` bez błędów (w tym
 `tests/lazyfonts23_test.go`: parsowanie przy użyciu i przy rejestracji dają te same bajty na całym korpusie
 dokumentów), testy przejętego kodu tylko ze znanymi niepowodzeniami.
+
+### min-content bez kształtowania reszty tekstu: plan pkt 1 (2026-11-23)
+
+Plan zakładał min- i max-content z jednego kształtowania całego tekstu. Max-content już tak działa (jedno
+`wrap(tekst, ∞)` na tekst). Przy min-content (`SplitFirstLine(reszta, 0)` dla każdego słowa) zwracana
+szerokość słowa pochodzi ze słowa ukształtowanego osobno (krok 3 `splitFirstLineRaw`), a kształtowanie całej
+reszty w kroku 1 rozstrzyga tylko, czy pierwszy wiersz ma szerokość dodatnią. Szerokości z jednego
+kształtowania zmieniłyby wynik: sonda na `bench/realdocs` i `testdata/documents` znalazła 60 z ok. 19 700 słów,
+których szerokość w kontekście różni się od szerokości osobno (0,14–0,66 px; Tinos/Times, słowa kończące się
+„T”, „V”, „W”, „P”: kerning litery ze spacją), do tego zaokrąglenie w górę do 1/64 px liczone od innego
+początku przebiegu. Wdrożone (ADR 0048): przy szerokości 0 i tekście do 128 znaków `zeroWidthFirstWord`
+kształtuje samo słowo, a krok 1 pomija, gdy szerokość pierwszego wiersza jest na pewno dodatnia (warunki w ADR);
+wynik ten sam co dotąd. Droga skrócona obejmuje 43–76% wywołań przy szerokości 0, które nie trafiły w pamięć
+z ADR 0046 (reszta to głównie ostatnie słowa tekstów, kształtowane osobno i tak).
+
+Sprawdzenie różnicowe: wersja z sondą liczyła też krok 1 i porównywała warunek; korpus W3C, `bench/realdocs`,
+`testdata/documents`, książka (11 788 dokumentów, tryb stronicowany i sondażu): 0 niezgodności. Bajty na stanie
+scalonym z `eb09fa9` wobec `eb09fa9`: W3C 11 689 dokumentów (46 756 renderowań) 0 różnic, `corpus.sh` fail=0,
+`realbytes.sh` 77 z 77; test `tests/mincontent23_test.go` (obie drogi, bajty PDF).
+
+Przed i po (`eb09fa9` i ta gałąź po scaleniu, harness `bench/folio/gharness` w dwóch kopiach, na zmianę 5 par,
+mediana z 10–20 ciepłych renderowań, 3 przy książce; 2026-11-23 15:20–15:30, obciążenie 3–35):
+
+| Dokument | z `FontCache` przed / po [ms] | stosunek | bez `FontCache` przed / po [ms] | stosunek |
+|---|---|---|---|---|
+| `20-invoice` | 36,2 / 30,1 | 0,817 | 42,7 / 35,3 | 0,825 |
+| `02-register-table` | 58,5 / 58,4 | 0,997 | 65,4 / 65,1 | 0,999 |
+| `17-tables` | 12,0 / 11,7 | 0,974 | 14,5 / 14,1 | 0,974 |
+| `esf-4` | 129,6 / 135,4 | 1,018 | 133,3 / 135,2 | 1,018 |
+| `office-db-model` | 299,0 / 290,4 | 0,970 | 362,9 / 354,8 | 0,979 |
+| `office-terminology` | 159,7 / 124,5 | 0,779 | 156,3 / 125,6 | 0,804 |
+| `rand-01` | 283,3 / 261,9 | 0,925 | 294,6 / 272,0 | 0,920 |
+| `rand-12` | 148,4 / 136,5 | 0,915 | 135,8 / 124,9 | 0,918 |
+| książka (254 strony) | 1122 / 1099 | 0,990 | 1122 / 1133 | 0,997 |
+
+Pomiar wcześniejszy (przed scaleniem, wobec `505fabd`, obciążenie 30–120) dał te same kierunki: faktura 0,81,
+`office-terminology` 0,80, `rand-01` 0,93. `esf-4` w powtórzeniu z 10 parami 1,006 / 1,008 (w tym dokumencie
+droga skrócona dotyczy 42 wywołań, więc różnica to najpewniej rozrzut, jak przy ADR 0046). Szacunek z planu
+(faktura −5–8 ms, `rand-01` −10–20%) sprawdził się dla faktury (−6–7 ms), `rand-01` zyskuje 7–8%;
+najwięcej `office-terminology` (−20%), dokument z wieloma kilkuwyrazowymi komórkami.
