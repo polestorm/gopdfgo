@@ -190,3 +190,21 @@ z `de62591` (dla porządku: według pomiaru koordynatora `b16fea8` miał 2,66 s 
 - Książka ze spisem treści znów idzie drogą dwuprzebiegową; pamięć wraca do poziomu sprzed `438a2ef`.
 - Bajty bez zmian: książka bez spisu i jej czterokrotność, korpus `testdata/documents` i `testdata/svg`
   (`bench/verify/corpus.sh`, fail=0), korpus W3C (11 689 dokumentów, 46 756 renderowań, 0 różnic).
+
+## Plan: tańszy przebieg drugi (2026-11-23, do wykonania)
+
+Przebieg drugi układa dziś od nowa wszystkie strony, choć część z nich ma wynik znany już z pierwszego:
+strony przed pierwszą, na której liczniki stron albo odsyłaczy dają inną treść niż w obiegu, z którego
+pochodzą. Koszt: książka ze spisem treści 2,5 s wobec 1,2 s bez spisu, ×4 8,8 s wobec 4,7 s.
+
+1. Pomiar: ile stron przebiegu drugiego daje układ identyczny z pierwszym (stan wejścia strony, stan
+   wyjścia, treść zależna od liczników); osobno dla spisu na początku dokumentu i dla „strona X z Y”
+   w treści każdej strony.
+2. Ponowne użycie wyniku pierwszego przebiegu dla stron, których wejście (stan `pageMaker`, `brokenAfterPage`,
+   przypisy, wartości liczników użyte na stronie) jest takie samo: zamiast układu — rysowanie zachowanego
+   drzewa strony. Wymaga zachowania drzew takich stron do przebiegu drugiego, czyli kompromisu z pamięcią
+   (ADR 0027); próg albo okno ostatnich stron do ustalenia pomiarem.
+3. Ponowny układ tylko akapitów z treścią zależną od liczników (`content: counter(pages)`, `target-counter`),
+   gdy ich szerokość się nie zmienia (ta sama liczba cyfr): wiersz z liczbą, bez reszty strony.
+4. Kryterium: bajty bez zmian (porównanie korpusu W3C i książek), pamięć szczytowa nie większa niż dziś
+   o więcej niż 10%, czas książki ×4 ze spisem bliżej 4,7 s niż 8,8 s.
