@@ -462,6 +462,9 @@ type layoutContext struct {
 	// stronę i, gdy ją ostatnio ułożono; remakePage porównuje z nimi nowy stan, a makeAllPages odtwarza je
 	// za stroną wziętą z obiegu wcześniejszego (zob. tam)
 	brokenAfterPage []map[Box]brokenBox
+	// gopdfgo: reportedAfterPage[i]: przypisy przeniesione przez stronę i na następną (reportedFootnotes),
+	// gdy ją ostatnio ułożono; użycie jak brokenAfterPage
+	reportedAfterPage [][]Box
 	// gopdfgo: obszary stron ułożonych w bieżącym przebiegu (indeks = numer strony - 1), zob. pageArea
 	pageAreas []pageArea
 	// gopdfgo: numer strony, której obszar odpowiada współrzędnym bieżącego układu; zwykle bieżąca
@@ -861,6 +864,17 @@ func (l *layoutContext) unlayoutFootnote(footnote Box) {
 func (l *layoutContext) reportFootnote(footnote Box) {
 	removeFromBoxes(&l.currentPageFootnotes, footnote)
 	l.reportedFootnotes = append(l.reportedFootnotes, footnote)
+	l.updateFootnoteArea()
+}
+
+// reportFootnoteFirst (gopdfgo) przenosi przypis z bieżącej strony na następną przed przypisy już
+// przeniesione. Przypisy bieżącej strony poprzedzają w dokumencie przeniesione (po pierwszym przeniesionym
+// każdy następny też przechodzi dalej), więc ostatni przypis strony przeniesiony, gdy wiersz nie mieści się
+// nad obszarem przypisów, idzie przed nimi. Źródło (i WeasyPrint) dopisywało go na koniec: na następnej
+// stronie przypis stał za późniejszymi, a numery przypisów szły nie po kolei (np. 27, 25, 28).
+func (l *layoutContext) reportFootnoteFirst(footnote Box) {
+	removeFromBoxes(&l.currentPageFootnotes, footnote)
+	l.reportedFootnotes = append([]Box{footnote}, l.reportedFootnotes...)
 	l.updateFootnoteArea()
 }
 

@@ -1913,11 +1913,10 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 				couldBreakBefore = false
 			}
 			report := !context.inColumn && canBreakNow && !couldBreakBefore
-			reportedFootnotes := 0
 			hasBroken := false
 			for report && len(context.currentPageFootnotes) != 0 {
-				context.reportFootnote(context.currentPageFootnotes[len(context.currentPageFootnotes)-1])
-				reportedFootnotes += 1
+				// gopdfgo: przed przypisami już przeniesionymi, zob. reportFootnoteFirst
+				context.reportFootnoteFirst(context.currentPageFootnotes[len(context.currentPageFootnotes)-1])
 				if !context.overflowsPage(bottomSpace, newPositionY+offsetY) {
 					newChildren = append(newChildren, line_)
 					stop = true
@@ -1932,12 +1931,6 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 
 			if traceMode {
 				traceLogger.Dump("lineBoxLayout -> overflow")
-			}
-
-			// Revert reported footnotes, as they’ve been reported starting from the last
-			// one.
-			if reportedFootnotes >= 2 {
-				slices.Reverse(context.reportedFootnotes[len(context.reportedFootnotes)-reportedFootnotes:])
 			}
 
 			break
@@ -1978,10 +1971,16 @@ func lineBoxLayout(context *layoutContext, box_ Box, index int, child_ *bo.LineB
 								context, box, line_, &newChildren, nextLines, pageIsEmpty,
 								index, skipStack, resumeAt, absoluteBoxes, fixedBoxes)
 							breakLinebox = true
+							break
 						} else if footnote.Box().Style.GetFootnotePolicy() == "block" {
 							abort, breakLinebox = true, true
+							break
 						}
-						break
+						// gopdfgo: przy footnote-policy: auto wiersz zostaje, a następne przypisy z tego
+						// wiersza też idą do obszaru przypisów (i przechodzą na następną stronę, bo są już
+						// przypisy przeniesione). W źródle break stał poza gałęziami i kończył pętlę po
+						// pierwszym przeniesionym przypisie: dalsze przypisy wiersza ginęły (WeasyPrint
+						// i CSS GCPM § 2: przypis może trafić na późniejszą stronę, nie zniknąć).
 					}
 				}
 			}

@@ -190,3 +190,37 @@ z `de62591` (dla porządku: według pomiaru koordynatora `b16fea8` miał 2,66 s 
 - Książka ze spisem treści znów idzie drogą dwuprzebiegową; pamięć wraca do poziomu sprzed `438a2ef`.
 - Bajty bez zmian: książka bez spisu i jej czterokrotność, korpus `testdata/documents` i `testdata/svg`
   (`bench/verify/corpus.sh`, fail=0), korpus W3C (11 689 dokumentów, 46 756 renderowań, 0 różnic).
+
+## Dopisek drugi 2026-11-23: przypisy w obiegach paginacji
+
+Przypisy przeniesione na następną stronę (`reportedFootnotes`, CSS GCPM § 2) to drugi stan wejściowy strony
+spoza `pageMaker`, obok `brokenOutOfFlow` z dopisku wyżej, i miał tę samą usterkę: strona ułożona od nowa po
+stronie wziętej z obiegu wcześniejszego dostawała przypisy przeniesione przez ostatnią stronę ułożoną w tym
+obiegu. Krótki dokument (18 stron) ze spisem `target-counter`, „strona X z Y” i długimi przypisami rósł
+z obiegu na obieg (18, 17, 20 stron), aż `makeAllPages` kończył się paniką „index out of range”; dłuższe
+gubiły albo powtarzały przypisy. Poprawka jak dla `brokenOutOfFlow`: przypisy przeniesione przez każdą stronę
+są zapamiętywane (`reportedAfterPage`), porównywane w `remakePage` (zmiana oznacza następną stronę) i
+odtwarzane w `makeAllPages` za stroną wziętą z obiegu wcześniejszego, także jako ostatnią (wtedy powstaje
+strona z przeniesionymi przypisami).
+
+Przy sprawdzaniu treści (`pdftotext`: każdy przypis dokładnie raz, w kolejności, znacznik i wywołanie o tym
+samym numerze) wyszły trzy usterki niezależne od paginacji, obecne także w układzie po kolei: drugi i dalsze
+przypisy wiersza, w którym pierwszy przeszedł na następną stronę, ginęły (`break` poza gałęziami
+`footnote-policy`); z kilku przeniesionych przypisów, z których drugi lub dalszy już się nie mieścił, ginęły
+następne albo układ kończył się paniką (wycinek złej listy); przypis przeniesiony, żeby zmieścił się wiersz,
+stawał za późniejszymi (kolejność 27, 25, 28). Do tego kilka długich przypisów przeniesionych razem wychodziło
+nad górną krawędź strony (obszar bez `max-height` nie zgłaszał przepełnienia); teraz przechodzą dalej.
+Szczegóły w `THIRD_PARTY.md`.
+
+Test `tests/footnotes23_test.go`: dokument krótki (stara droga i droga dwuprzebiegowa z progiem 0) i ponad
+32 stron (droga dwuprzebiegowa bez przeszkody) z krótkimi przypisami, długimi i po trzy długie w wierszu;
+obie drogi dają te same bajty, treść przypisów jest pełna i w kolejności, a tekst każdej strony jest równy
+dokumentowi bez ponownej paginacji (wartości spisu i `counter(pages)` wpisane wprost). Przed poprawką krótki
+dokument kończył się paniką. Porównania w `remakePage` test nie wymusza (zmiana przenoszonych przypisów przy tym samym
+miejscu wznowienia następnej strony w nim nie występuje; bez porównania test przechodzi, bez odtwarzania nie);
+to zabezpieczenie na wzór `sameBrokenOutOfFlow`.
+
+Sprawdzenia 2026-11-23, wobec `18fa545`: korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic (w nim
+nie ma dokumentów, w których przypisy przechodzą na następną stronę); `bench/verify/corpus.sh` fail=0
+(w `testdata/documents` przypisów nie ma); reftesty 310 z 340 (ściśle 308, z dokładnością do krawędzi 2), bez
+zmian.
