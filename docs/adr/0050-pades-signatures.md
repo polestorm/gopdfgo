@@ -242,3 +242,22 @@ podpisane `ErrFieldNotEmpty`. Pole niewidoczne (bez `FieldName`) zawsze dostaje 
 `SignatureN`. W PDF/UA widżet pola z HTML jest w elemencie `Form` z `OBJR` (uwaga z rundy 1 załatwiona).
 Szczegóły i sprawdzenie: ADR 0051. Dalej bez zmian: B-LTA, `/DocMDP`, pliki zaszyfrowane, przedłużanie
 istniejących podpisów do B-LT, wystawcy z AIA, wygląd podpisu (`/AP` z nazwą i czasem).
+
+## Walidacja EU DSS (2026-11-23)
+
+Za zgodą użytkownika trzy pliki testowe (krótki PDF/A-2b z treścią testową, podpisany kluczem RSA
+z testowego urzędu certyfikacji z `sign/pki_test.go`, poziomy B-B, B-T, B-LT) wysłano do publicznej
+wersji demonstracyjnej walidatora EU DSS 6.5.1 (Komisja Europejska, usługa REST `validateSignature`).
+Wynik:
+
+| Plik | Rozpoznany format | Wynik | Ograniczenia OK / NOT OK |
+|---|---|---|---|
+| B-B | PAdES-BASELINE-B | INDETERMINATE / NO_CERTIFICATE_CHAIN_FOUND | 38 / 5 |
+| B-T | PAdES-BASELINE-T, znacznik czasu odczytany | INDETERMINATE / NO_CERTIFICATE_CHAIN_FOUND | 55 / 9 |
+| B-LT | PAdES-BASELINE-LT, OCSP i CRL z DSS odczytane | INDETERMINATE / NO_CERTIFICATE_CHAIN_FOUND | 65 / 11 |
+
+Wszystkie ograniczenia NOT OK i ostrzeżenia wynikają z jednej przyczyny: łańcuchy (podpisującego,
+TSA, respondera OCSP) kończą się na testowym urzędzie spoza zaufanych list UE. Struktura podpisu,
+kryptografia, `signing-certificate-v2`, znacznik czasu i słownik DSS — bez uwag. Wynik TOTAL-PASSED
+wymaga certyfikatu z urzędu na zaufanej liście, czego testowo sprawdzić się nie da. Raporty i pliki
+leżą poza gitem w `bench/dss/`.
