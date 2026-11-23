@@ -1,6 +1,6 @@
 # ADR 0050: Podpis cyfrowy PAdES (pakiet `sign`)
 
-Status: przyjęta 2026-11-24 (decyzja użytkownika: zacząć od PAdES); wdrażana rundami — runda 1 (B-B) zrobiona.
+Status: przyjęta 2026-11-24 (decyzja użytkownika: zacząć od PAdES); wdrażana rundami — runda 1 (B-B) i runda 2 (B-T, B-LT) zrobione.
 
 ## Kontekst
 
@@ -114,3 +114,116 @@ Runda 2: B-T (klient RFC 3161 przez `Options.TSA`, token w atrybucie niepodpisan
 `signature-time-stamp-token`), B-LT (słownik DSS z OCSP i CRL, aktualizacja przyrostowa po podpisie),
 podpisujący z kontekstem; dalej B-LTA (znacznik czasu dokumentu, `/SubFilter /ETSI.RFC3161`), podpis
 widoczny, pliki zaszyfrowane, `/DocMDP` (podpis certyfikujący) i poszanowanie `/DocMDP` istniejącego.
+
+## Stan rundy 2 (2026-11-23): PAdES B-T i B-LT
+
+Zrobione w pakiecie `sign` (ok. 1,2 tys. linii nowego kodu bez testów: `tsa.go`, `revocation.go`, `dss.go`
+i zmiany w `sign.go`, `cms.go`; wyłącznie biblioteka standardowa Go, bez nowych zależności modułu; kod
+własny, folio tylko przeczytane — bez przejętego kodu, więc bez wpisów w `THIRD_PARTY_NOTICES` i `NOTICE`).
+
+API (nowe pola `sign.Options` i typy):
+
+- `Level` (`sign.LevelBB` — wartość zerowa i domyślna, `LevelBT`, `LevelBLT`; `Level.String()` daje „B-B”,
+  „B-T”, „B-LT”). Nazwy bez podkreśleń (`LevelBB`, nie `LevelB_B`), zgodnie z konwencją nazw w Go.
+- `TSA sign.TimestampAuthority` — interfejs przesyłu `Timestamp(ctx, request []byte) ([]byte, error)`
+  (żądanie TimeStampReq i odpowiedź TimeStampResp w DER); `sign.TSAClient{URL, HTTPClient}` to implementacja
+  HTTP (RFC 3161 § 3.4, POST `application/timestamp-query`). `TimestampReserve int` — miejsce na token
+  w `/Contents`, zero oznacza `sign.DefaultTimestampReserve` (12 KiB).
+- `Revocation sign.RevocationFetcher` — interfejs przesyłu `FetchOCSP(ctx, url, request)`
+  i `FetchCRL(ctx, url)`; `sign.RevocationClient{HTTPClient}` to implementacja HTTP (OCSP metodą POST według
+  RFC 6960 dodatek A.1, CRL metodą GET; tylko adresy `http` i `https` z certyfikatów).
+- `ValidationData sign.ValidationData{Certificates, OCSPResponses, CRLs}` — dane podane wprost (offline).
+- `sign.ContextSigner` — `crypto.Signer` z `SignContext(ctx, digest, opts)`; gdy `Options.Signer` go
+  implementuje, `SignPDF` woła `SignContext` zamiast `Sign`.
+- Błędy: `ErrNoTSA`, `ErrNoHTTPClient`, `ErrTimestamp`, `ErrReserveTooSmall`, `ErrNoValidationData`,
+  `ErrMissingIssuer`, `ErrRevoked`.
+
+Decyzje szczegółowe:
+
+1. **Poziom domyślny bez zmian**: `Level` zerowe to B-B, przy którym `TSA`, `Revocation`
+   i `ValidationData` są pomijane i nie ma żadnego połączenia. Wynik B-B jest bajt w bajt taki sam jak
+   w rundzie 1: test `TestLevelBBUnchangedSinceRoundOne` porównuje SHA-256 wyniku dla stałego klucza
+   testowego (RSA 2048, w pliku testu, opisany jako wyłącznie testowy), stałego czasu i ręcznie zapisanego
+   PDF ze skrótem policzonym kodem rundy 1 (commit f073a28).
+2. **Klienci sieci jako interfejsy przesyłu**: `TimestampAuthority` i `RevocationFetcher` przenoszą tylko
+   bajty; sprawdzanie odpowiedzi zostaje w pakiecie, więc własna implementacja (uwierzytelnianie TSA,
+   pośrednik, pamięć podręczna, inny protokół) nie może pominąć sprawdzeń. `TSAClient` i `RevocationClient`
+   wymagają `HTTPClient` (bez niego `ErrNoHTTPClient`, a nie `http.DefaultClient`), żeby połączenie
+   zawsze szło przez klienta podanego jawnie (pkt 5 decyzji).
+3. **Znacznik czasu** (RFC 3161, ETSI EN 319 122-1 § 5.3): żądanie z SHA-256 pola `signature` SignerInfo
+   (AlgorithmIdentifier bez parametrów, RFC 5754 § 2), losowym 63-bitowym `nonce` i `certReq` TRUE.
+   Sprawdzane: status `granted` albo `grantedWithMods`, ContentInfo z SignedData o treści id-ct-TSTInfo,
+   jeden SignerInfo, atrybuty `content-type` i `message-digest` (skrót TSTInfo), podpis atrybutów kluczem
+   certyfikatu TSA (z tokenu albo z `ValidationData.Certificates`), extKeyUsage `timeStamping` certyfikatu
+   (RFC 3161 § 2.3), `messageImprint` = SHA-256 wartości podpisu, `nonce` = wysłany. Zaufania do
+   certyfikatu TSA, czasu `genTime` ani polityki pakiet nie ocenia — to zadanie walidatora. Token trafia
+   do atrybutu niepodpisanego `signature-time-stamp-token` (1.2.840.113549.1.9.16.2.14) jako jedyny
+   atrybut `[1] IMPLICIT SET OF Attribute`.
+4. **Rezerwacja `/Contents` na B-T**: rozmiar tokenu nie jest znany przed podpisem (podpis obejmuje
+   rezerwację, a znacznik czasu powstaje po podpisie), więc rezerwacja to długość tej samej struktury CMS
+   z atrybutem niepodpisanym o tokenie długości `TimestampReserve` plus 32 B. Domyślne 12 KiB to szacunek
+   górny z zapasem: token z łańcuchem trzech certyfikatów RSA 4096 ma ok. 7 kB (szacunek; token testowego
+   TSA z jednym certyfikatem RSA 2048 ma ok. 1,7 kB). Większy token daje `ErrReserveTooSmall` z długością
+   tokenu i rezerwacji w komunikacie; pakiet nie ponawia podpisu sam, bo drugie wywołanie podpisującego
+   (PIN, podpis zdalny) i drugie żądanie TSA (bywa płatne) to decyzja wywołującego. Żądanie próbne do TSA
+   przed podpisem (jak w pyHanko) odrzucone z tego samego powodu.
+5. **Dane o ważności** (ETSI EN 319 142-1 § 5.4): ścieżki od certyfikatu podpisującego i od certyfikatu
+   TSA do certyfikatu samopodpisanego; wystawca szukany wśród `Certificate`, `Chain`, certyfikatów tokenu
+   i `ValidationData.Certificates` (po nazwie i podpisie); bez wystawcy `ErrMissingIssuer` (OCSP i CRL
+   wymagają klucza wystawcy; pobieranie wystawcy z AIA `caIssuers` — później, jeśli będzie potrzebne). Dla
+   każdego certyfikatu poza samopodpisanym: najpierw odpowiedzi i listy podane wprost, potem pobrane
+   (najpierw OCSP z AIA, potem CRL z CRL DP). OCSP: odpowiedź `successful`, typ basic, CertID certyfikatu
+   (skrót SHA-1 albo SHA-2), podpis wystawcy albo respondera upoważnionego (extKeyUsage `OCSPSigning`,
+   wystawiony przez wystawcę; RFC 6960 § 4.2.2.2), status `good`; certyfikat respondera upoważnionego
+   trafia do `/Certs`, a bez rozszerzenia `id-pkix-ocsp-nocheck` potrzebuje też własnych danych. CRL:
+   wystawca listy = wystawca certyfikatu, podpis listy, numer seryjny spoza listy (listy pośrednie
+   i delta nieobsługiwane). Status `revoked` daje `ErrRevoked`; brak danych — `ErrNoValidationData`
+   z nazwą certyfikatu i przyczynami. B-LT bez `Revocation` i bez żadnej odpowiedzi OCSP lub listy CRL
+   w `ValidationData` kończy się `ErrNoValidationData` przed podpisem. Świeżości (`thisUpdate`,
+   `nextUpdate` względem czasu podpisu) pakiet nie ocenia.
+6. **OCSP bez `golang.org/x/crypto/ocsp`**: żądanie (CertID z SHA-1 — identyfikator, nie zabezpieczenie,
+   obsługiwany przez każdy responder, RFC 5019 § 2.1.1; bez nonce i podpisu) i odczyt odpowiedzi to ok.
+   200 linii na `encoding/asn1`; listy CRL czyta `x509.ParseRevocationList`. Zależność BSD-3 byłaby
+   dopuszczalna, ale uprościłaby niewiele, a dodałaby moduł do `go.mod`.
+7. **DSS** (ISO 32000-2 § 12.8.4.3, tabela 261): druga aktualizacja przyrostowa po aktualizacji
+   z podpisem, więc nie zmienia zakresu `/ByteRange`; sekcja odsyłaczy tego samego rodzaju co w pliku.
+   `/Certs`, `/OCSPs`, `/CRLs` to tablice strumieni bez filtra (DER), `/Type /DSS`; `/VRI` (§ 12.8.4.4,
+   tabela 262) dostaje wpis dla nowego podpisu z kluczem = SHA-1 całego ciągu `/Contents` (z dopełnieniem
+   zerami, jak iText i PDFBox), wielkie litery szesnastkowe, z `/Cert`, `/OCSP`, `/CRL` — bez `/TU`, żeby
+   aktualizacja nie zależała od zegara. Istniejący DSS jest uzupełniany: pośredni przepisywany pod tym samym
+   numerem, bezpośredni przenoszony do nowego obiektu; dotychczasowe strumienie i wpisy `/VRI` zostają,
+   a nowe dane o tej samej treści (porównanie po rozkodowaniu strumieni) nie są powtarzane. Katalog nie
+   dostaje rozszerzenia `/Extensions /ESIC` (ETSI TS 102 778-4 je zalecał; EN 319 142-1 nie wymaga).
+8. **`ctx`**: przerywa podpis (`ContextSigner`), żądanie TSA i pobieranie OCSP/CRL; po `Sign` bez
+   kontekstu `ctx` jest sprawdzany po powrocie. Błąd z anulowania jest zwracany jako `ctx.Err()`
+   (`errors.Is(err, context.Canceled)` albo `DeadlineExceeded`).
+
+Sprawdzenie (2026-11-23, darwin/arm64, go1.26.6): `go test ./sign/` — lokalny urząd testowy (RSA 2048),
+TSA, responder OCSP i punkt CRL na `httptest` (127.0.0.1, klucze generowane w teście); podpisujący RSA 2048
+i ECDSA P-256 wystawieni przez urząd; B-T i B-LT na PDF z gopdfgo bez tagów, PDF/A-2b, PDF/A-3b,
+PDF/A-2a + PDF/UA-1 i Factur-X; B-LT z danymi pobranymi (OCSP dla podpisującego, CRL dla TSA),
+z danymi podanymi wprost (bez żadnego żądania do serwera), z samą listą CRL i z upoważnionym responderem
+OCSP (`id-pkix-ocsp-nocheck`); drugi podpis B-LT na pliku z DSS (DSS uzupełniony bez powtórzeń: 4
+certyfikaty, 2 odpowiedzi OCSP, 1 CRL, 2 wpisy `/VRI`); B-B z podanymi klientami bez żadnego żądania; własne
+sprawdzenie w Go podpisu CMS, tokenu (podpis TSA, imprint = SHA-256 wartości podpisu), DSS i `/VRI`; błędy:
+TSA odmawia, zły imprint, zły nonce, zepsuty podpis tokenu, HTTP 404, `TSAClient` bez `HTTPClient`, B-T bez
+TSA, zbyt mała rezerwacja (token 8121 B przy `TimestampReserve` 3000), `ctx` przerwany w czasie żądania TSA
+i w czasie `SignContext`, B-LT bez danych, dane tylko dla części certyfikatów, odpowiedź OCSP innego
+certyfikatu, zepsuty podpis odpowiedzi OCSP, brak wystawcy, certyfikat unieważniony (OCSP i CRL);
+B-B bajt w bajt jak w rundzie 1.
+
+Narzędzia na wynikach testów: `pdfsig -nocert` (Poppler 26.10.0) — „Signature Validation: Signature is
+Valid.” dla każdego podpisu na każdym poziomie; po B-T „Total document signed”, po B-LT „Not total document
+signed”, bo aktualizacja z DSS leży poza zakresem podpisu (pdfsig nie odróżnia dozwolonej aktualizacji DSS
+od innych zmian; tak samo przy dwóch podpisach B-LT — oba ważne, oba „Not total”). Poppler nie pokazuje
+znacznika czasu podpisu. `openssl cms -verify -binary` (OpenSSL 4.0.3) z `-noverify` i z `-CAfile`
+urzędu testowego: „Verification successful”; `openssl ts -verify -token_in -data <wartość podpisu>
+-CAfile <urząd>` na tokenie z każdego podpisu B-T i B-LT: „Verification: OK”. veraPDF (test
+`TestVeraPDFAfterLongTerm`, uruchamiany ze zmienną `GOPDFGO_VERAPDF`): po B-T i po dwóch podpisach B-LT
+zgodne PDF/A-2b (`-f 2b`), PDF/A-3b i Factur-X (`-f 3b`), PDF/A-2a i PDF/UA-1 (`-f 2a`, `-f ua1`).
+
+Dalej: B-LTA (znacznik czasu dokumentu, `/SubFilter /ETSI.RFC3161`, i dane o ważności tego znacznika),
+podpis widoczny (pole wskazane elementem HTML przez zaczep w rdzeniu; w PDF/UA element `Form` z `OBJR`),
+`/DocMDP` (podpis certyfikujący) i poszanowanie istniejącego `/DocMDP`, pliki zaszyfrowane, osobne
+wywołanie dodające DSS do już podpisanego pliku (przedłużenie istniejących podpisów do B-LT), pobieranie
+wystawców z AIA `caIssuers`, flaga podpisu w CLI (czeka na decyzję o źródle klucza, pkt 7 rundy 1).

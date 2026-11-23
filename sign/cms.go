@@ -2,11 +2,13 @@ package sign
 
 // Podpis CMS SignedData w formie odłączonej (RFC 5652) z atrybutami podpisanymi PAdES B-B
 // (ETSI EN 319 142-1 § 5.3 i 6.3, ETSI EN 319 122-1 § 5.2): content-type, message-digest,
-// signing-certificate-v2 (RFC 5035). Bez signing-time: PAdES podaje czas podpisu w /M słownika
+// signing-certificate-v2 (RFC 5035), a od poziomu B-T z atrybutem niepodpisanym
+// signature-time-stamp-token. Bez signing-time: PAdES podaje czas podpisu w /M słownika
 // podpisu. Zapis DER własnymi funkcjami na encoding/asn1 (biblioteka standardowa Go nie ma CMS).
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -29,6 +31,9 @@ var (
 	oidSHA256               = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}     // RFC 5754 § 2.2
 	oidSHA256WithRSA        = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 11}        // RFC 5754 § 3.2
 	oidECDSAWithSHA256      = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}          // RFC 5754 § 3.3
+
+	oidSignatureTimeStampToken = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 16, 2, 14} // RFC 3161 dodatek A
+	oidTSTInfo                 = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 16, 1, 4}  // RFC 3161 § 2.4.2
 )
 
 // Kodowanie DER (X.690 § 8, 10).
@@ -139,6 +144,12 @@ var sha256Identifier = derSequence(derOID(oidSHA256))
 // signedAttributes koduje atrybuty podpisane jako SET OF Attribute (RFC 5652 § 5.3). Ten zapis,
 // ze znacznikiem SET, jest podpisywany; w SignerInfo stoi ten sam z niejawnym znacznikiem [0].
 func signedAttributes(digest []byte, cert *x509.Certificate) []byte {
+	return signedAttributesFor(oidData, digest, cert)
+}
+
+// signedAttributesFor koduje te same atrybuty dla dowolnego typu treści (np. id-ct-TSTInfo
+// w znaczniku czasu, RFC 3161 § 2.4.2).
+func signedAttributesFor(contentType asn1.ObjectIdentifier, digest []byte, cert *x509.Certificate) []byte {
 	attribute := func(oid asn1.ObjectIdentifier, value []byte) []byte {
 		return derSequence(derOID(oid), derSet(value))
 	}
@@ -149,24 +160,40 @@ func signedAttributes(digest []byte, cert *x509.Certificate) []byte {
 	essCertID := derSequence(derOctets(certHash[:]), issuerSerial)
 	signingCertificate := derSequence(derSequence(essCertID))
 	return derSet(
-		attribute(oidContentType, derOID(oidData)),
+		attribute(oidContentType, derOID(contentType)),
 		attribute(oidMessageDigest, derOctets(digest)),
 		attribute(oidSigningCertificateV2, signingCertificate),
 	)
 }
 
+// unsignedAttributes koduje atrybuty niepodpisane SignerInfo ([1] IMPLICIT SET OF Attribute,
+// RFC 5652 § 5.3) z jednym atrybutem signature-time-stamp-token (RFC 3161 dodatek A, ETSI EN 319 122-1
+// § 5.3). Pusty token daje nil: SignerInfo bez atrybutów niepodpisanych (poziom B-B).
+func unsignedAttributes(token []byte) []byte {
+	if token == nil {
+		return nil
+	}
+	set := derSet(derSequence(derOID(oidSignatureTimeStampToken), derSet(token)))
+	return append([]byte{0xa1}, set[1:]...)
+}
+
 // buildSignedData składa ContentInfo z SignedData (RFC 5652 § 5.1). certificates zachowuje kolejność
 // podaną przez wywołującego (najpierw podpisujący): DER obowiązuje tylko atrybuty podpisane (§ 5.4).
-func buildSignedData(signedAttrs, signature []byte, alg algorithm, cert *x509.Certificate, chain []*x509.Certificate) []byte {
+// unsignedAttrs to wynik unsignedAttributes albo nil.
+func buildSignedData(signedAttrs, signature []byte, alg algorithm, cert *x509.Certificate, chain []*x509.Certificate, unsignedAttrs []byte) []byte {
 	implicitAttrs := append([]byte{0xa0}, signedAttrs[1:]...)
-	signerInfo := derSequence(
+	parts := [][]byte{
 		derInteger(big.NewInt(1)),
 		derSequence(cert.RawIssuer, derInteger(cert.SerialNumber)),
 		sha256Identifier,
 		implicitAttrs,
 		alg.identifier(),
 		derOctets(signature),
-	)
+	}
+	if unsignedAttrs != nil {
+		parts = append(parts, unsignedAttrs)
+	}
+	signerInfo := derSequence(parts...)
 	certificates := [][]byte{cert.Raw}
 	for _, c := range chain {
 		if !bytes.Equal(c.Raw, cert.Raw) {
@@ -183,34 +210,58 @@ func buildSignedData(signedAttrs, signature []byte, alg algorithm, cert *x509.Ce
 	return derSequence(derOID(oidSignedData), derTLV(0xa0, signedData))
 }
 
-// signCMS podpisuje skrót SHA-256 zakresu /ByteRange i zwraca podpis CMS w DER.
-func signCMS(digest []byte, signer crypto.Signer, alg algorithm, cert *x509.Certificate, chain []*x509.Certificate) ([]byte, error) {
+// signerResult to podpis atrybutów podpisanych przed złożeniem SignedData.
+type signerResult struct {
+	attrs     []byte // atrybuty podpisane (SET OF, DER)
+	signature []byte // wartość podpisu (pole signature SignerInfo)
+}
+
+// signAttributes podpisuje atrybuty podpisane dla skrótu SHA-256 zakresu /ByteRange. Podpisujący
+// implementujący ContextSigner dostaje ctx; inny podpisuje bez niego, a ctx jest sprawdzany po powrocie.
+func signAttributes(ctx context.Context, digest []byte, signer crypto.Signer, alg algorithm, cert *x509.Certificate) (signerResult, error) {
 	attrs := signedAttributes(digest, cert)
 	attrsDigest := sha256.Sum256(attrs)
-	signature, err := signer.Sign(rand.Reader, attrsDigest[:], crypto.SHA256)
+	var signature []byte
+	var err error
+	if cs, ok := signer.(ContextSigner); ok {
+		signature, err = cs.SignContext(ctx, attrsDigest[:], crypto.SHA256)
+	} else {
+		signature, err = signer.Sign(rand.Reader, attrsDigest[:], crypto.SHA256)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("sign: podpisujący: %w", err)
+		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+			return signerResult{}, err
+		}
+		return signerResult{}, fmt.Errorf("sign: podpisujący: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return signerResult{}, err
 	}
 	// sprawdzenie podpisu kluczem z certyfikatu wyłapuje niezgodny klucz albo zły schemat (np. PSS)
 	switch key := cert.PublicKey.(type) {
 	case *rsa.PublicKey:
 		if rsa.VerifyPKCS1v15(key, crypto.SHA256, attrsDigest[:], signature) != nil {
-			return nil, ErrKeyMismatch
+			return signerResult{}, ErrKeyMismatch
 		}
 	case *ecdsa.PublicKey:
 		if !ecdsa.VerifyASN1(key, attrsDigest[:], signature) {
-			return nil, ErrKeyMismatch
+			return signerResult{}, ErrKeyMismatch
 		}
 	}
 	if len(signature) > alg.maxSignature {
-		return nil, errors.New("sign: podpis dłuższy, niż pozwala klucz")
+		return signerResult{}, errors.New("sign: podpis dłuższy, niż pozwala klucz")
 	}
-	return buildSignedData(attrs, signature, alg, cert, chain), nil
+	return signerResult{attrs: attrs, signature: signature}, nil
 }
 
 // cmsSizeLimit to górne ograniczenie długości podpisu CMS dla danego certyfikatu i łańcucha:
-// ta sama struktura z podpisem najdłuższym możliwym dla klucza.
-func cmsSizeLimit(alg algorithm, cert *x509.Certificate, chain []*x509.Certificate) int {
+// ta sama struktura z podpisem najdłuższym możliwym dla klucza, a przy tokenReserve > 0 także
+// z atrybutem signature-time-stamp-token o tokenie długości tokenReserve.
+func cmsSizeLimit(alg algorithm, cert *x509.Certificate, chain []*x509.Certificate, tokenReserve int) int {
 	attrs := signedAttributes(make([]byte, sha256.Size), cert)
-	return len(buildSignedData(attrs, make([]byte, alg.maxSignature), alg, cert, chain))
+	var unsigned []byte
+	if tokenReserve > 0 {
+		unsigned = unsignedAttributes(make([]byte, tokenReserve))
+	}
+	return len(buildSignedData(attrs, make([]byte, alg.maxSignature), alg, cert, chain, unsigned))
 }

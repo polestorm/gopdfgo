@@ -371,11 +371,14 @@ Out of scope by design:
   the profile's XSD or Schematron; the caller should do that. The output was checked with the Mustang
   validator 2.26.0 on our own MINIMUM-profile invoice (ADR 0034);
 - PNG or SVG output: the output is PDF only;
-- PDF forms; digital signatures only at the PAdES B-B level (optional package `sign`, ADR 0050):
+- PDF forms; digital signatures up to the PAdES B-LT level (optional package `sign`, ADR 0050):
   `sign.SignPDF` signs any unencrypted PDF with an invisible signature as an incremental update (CMS,
-  SHA-256, RSA or ECDSA, `signing-certificate-v2`); earlier signatures stay valid and veraPDF still accepts
-  signed PDF/A-2b, PDF/A-3b, Factur-X and PDF/UA-1 files. Not yet: timestamps (B-T), validation data
-  (B-LT, B-LTA), visible signatures, encrypted input.
+  SHA-256, RSA or ECDSA, `signing-certificate-v2`); B-T adds an RFC 3161 timestamp of the signature value
+  from a TSA client given in the options, B-LT adds certificates, OCSP responses and CRLs in a DSS
+  dictionary (ISO 32000-2 § 12.8.4.3) as a second incremental update, fetched through an explicit client
+  or passed in directly. Earlier signatures stay valid and veraPDF still accepts signed PDF/A-2b, PDF/A-3b,
+  Factur-X and PDF/UA-1 files at every level. Not yet: document timestamps (B-LTA), visible signatures,
+  certification signatures (`/DocMDP`), encrypted input, signing from the command line.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),
 `column-height`, `flex-wrap: balance`.

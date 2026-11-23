@@ -142,7 +142,7 @@ func TestSignGopdfgoDocuments(t *testing.T) {
 					t.Fatal("podpis zmienił bajty pliku wejściowego")
 				}
 				sigs := checkSignatures(t, signed, 1)
-				checkWithTools(t, signed, sigs, id)
+				checkWithTools(t, signed, sigs, id.cert, true)
 				saveForInspection(t, name+"-"+kind, signed)
 			})
 		}
@@ -178,28 +178,7 @@ func TestXrefKindFollowsInput(t *testing.T) {
 
 // Ręcznie zapisany PDF z tablicą odsyłaczy, istniejącym /AcroForm pośrednim i /Annots pośrednim.
 func TestSignHandWrittenTable(t *testing.T) {
-	objects := []string{
-		"<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>",
-		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.2756 841.8898] /Contents 4 0 R /Annots 6 0 R >>",
-		"<< /Length 0 >>\nstream\n\nendstream",
-		"<< /Fields [] /DA (/Helv 0 Tf 0 g) >>",
-		"[]",
-	}
-	var b bytes.Buffer
-	b.WriteString("%PDF-1.7\n")
-	offsets := []int{}
-	for i, obj := range objects {
-		offsets = append(offsets, b.Len())
-		b.WriteString(strconv.Itoa(i+1) + " 0 obj\n" + obj + "\nendobj\n")
-	}
-	xref := b.Len()
-	b.WriteString("xref\n0 " + strconv.Itoa(len(objects)+1) + "\n0000000000 65535 f\r\n")
-	for _, off := range offsets {
-		b.WriteString(leftPad(strconv.Itoa(off), 10) + " 00000 n\r\n")
-	}
-	b.WriteString("trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n" + strconv.Itoa(xref) + "\n%%EOF")
-	pdf := b.Bytes()
+	pdf := handWrittenPDF()
 	id := identity(t, "p384")
 	signed, err := SignPDF(t.Context(), pdf, signOptions(id))
 	if err != nil {
@@ -225,7 +204,7 @@ func TestSignHandWrittenTable(t *testing.T) {
 		t.Errorf("/AcroForm pośredni: %v", form)
 	}
 	sigs := checkSignatures(t, signed, 1)
-	checkWithTools(t, signed, sigs, id)
+	checkWithTools(t, signed, sigs, id.cert, true)
 }
 
 func leftPad(s string, n int) string { return strings.Repeat("0", n-len(s)) + s }
@@ -252,7 +231,7 @@ func TestSecondSignature(t *testing.T) {
 			if sigs[0].fieldName != "Signature1" || sigs[1].fieldName != "Signature2" {
 				t.Errorf("nazwy pól: %q, %q", sigs[0].fieldName, sigs[1].fieldName)
 			}
-			checkWithTools(t, second, sigs, identity(t, "rsa"))
+			checkWithTools(t, second, sigs, identity(t, "rsa").cert, true)
 			saveForInspection(t, "second-"+name, second)
 		})
 	}
@@ -332,6 +311,9 @@ type signatureInfo struct {
 	contentsStart, contentsEnd int
 	byteRange                  [4]int
 	cms                        []byte
+	contents                   []byte // cały ciąg /Contents (z dopełnieniem)
+	value                      []byte // pole signature z SignerInfo
+	token                      []byte // signature-time-stamp-token albo nil
 }
 
 // checkSignatures odczytuje pola podpisu własnym czytnikiem i sprawdza każdy podpis w Go:
@@ -371,17 +353,18 @@ func checkSignatures(t *testing.T, pdf []byte, want int) []signatureInfo {
 		if br[0] != 0 || pdf[br[1]] != '<' || pdf[br[2]-1] != '>' {
 			t.Errorf("/ByteRange %v nie wskazuje /Contents", br)
 		}
-		// ostatni podpis obejmuje cały plik
-		if len(sigs) == want-1 && br[2]+br[3] != len(pdf) {
+		// ostatni podpis obejmuje cały plik albo kończy się tuż przed aktualizacją z DSS
+		if len(sigs) == want-1 && br[2]+br[3] != len(pdf) && !bytes.Contains(pdf[br[2]+br[3]:], []byte("/DSS")) {
 			t.Errorf("/ByteRange %v nie kończy się na końcu pliku (%d B)", br, len(pdf))
 		}
 		contents := sig.get("Contents").(pdfString)
 		cms := trimDER(t, contents)
 		info.cms = cms
+		info.contents = contents
 		h := sha256.New()
 		h.Write(pdf[br[0] : br[0]+br[1]])
 		h.Write(pdf[br[2] : br[2]+br[3]])
-		verifyCMS(t, cms, h.Sum(nil))
+		info.value, info.token = verifyCMS(t, cms, h.Sum(nil))
 		if !regexp.MustCompile(`^D:\d{14}[+-]\d\d'\d\d'$`).Match(sig.get("M").(pdfString)) {
 			t.Errorf("/M %q", sig.get("M"))
 		}
@@ -425,8 +408,10 @@ func children(t *testing.T, der []byte) []asn1.RawValue {
 	return out
 }
 
-// verifyCMS sprawdza strukturę SignedData, atrybuty podpisane i podpis.
-func verifyCMS(t *testing.T, cms, digest []byte) {
+// verifyCMS sprawdza strukturę SignedData, atrybuty podpisane i podpis, a gdy jest atrybut
+// niepodpisany signature-time-stamp-token, także token (podpis TSA, imprint = SHA-256 wartości
+// podpisu). Zwraca wartość podpisu i token.
+func verifyCMS(t *testing.T, cms, digest []byte) (value, token []byte) {
 	t.Helper()
 	ci := children(t, cms)
 	var oid asn1.ObjectIdentifier
@@ -484,10 +469,42 @@ func verifyCMS(t *testing.T, cms, digest []byte) {
 	if err != nil {
 		t.Errorf("podpis CMS niepoprawny: %v", err)
 	}
+	if len(si) == 7 {
+		if si[6].Class != asn1.ClassContextSpecific || si[6].Tag != 1 {
+			t.Fatalf("siódme pole SignerInfo: %v", si[6])
+		}
+		unsigned := children(t, append([]byte{0x31}, si[6].FullBytes[1:]...))
+		if len(unsigned) != 1 {
+			t.Fatalf("atrybutów niepodpisanych %d", len(unsigned))
+		}
+		parts := children(t, unsigned[0].FullBytes)
+		var id asn1.ObjectIdentifier
+		asn1.Unmarshal(parts[0].FullBytes, &id)
+		if !id.Equal(oidSignatureTimeStampToken) {
+			t.Fatalf("atrybut niepodpisany %v", id)
+		}
+		token = children(t, parts[1].FullBytes)[0].FullBytes
+		sd, _, _, err := parseSignedToken(token, oidTSTInfo, nil)
+		if err != nil {
+			t.Fatalf("token: %v", err)
+		}
+		info, err := parseTSTInfo(sd.EncapContentInfo.EContent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sum := sha256.Sum256(signature); !bytes.Equal(info.imprint, sum[:]) || !info.imprintAlgorithm.Equal(oidSHA256) {
+			t.Error("messageImprint tokenu nie jest skrótem SHA-256 wartości podpisu")
+		}
+	} else if len(si) != 6 {
+		t.Fatalf("SignerInfo ma %d pól", len(si))
+	}
+	return signature, token
 }
 
-// checkWithTools sprawdza wynik programami pdfsig (Poppler) i openssl cms, jeśli są dostępne.
-func checkWithTools(t *testing.T, pdf []byte, sigs []signatureInfo, id testIdentity) {
+// checkWithTools sprawdza wynik programami pdfsig (Poppler), openssl cms i openssl ts (token
+// znacznika czasu), jeśli są dostępne. ca to certyfikat zaufany dla openssl -CAfile; total mówi,
+// czy ostatni podpis ma obejmować cały plik (nie obejmuje przy aktualizacji z DSS).
+func checkWithTools(t *testing.T, pdf []byte, sigs []signatureInfo, ca *x509.Certificate, total bool) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "signed.pdf")
@@ -502,8 +519,8 @@ func checkWithTools(t *testing.T, pdf []byte, sigs []signatureInfo, id testIdent
 		if n := strings.Count(string(out), "Signature Validation: Signature is Valid."); n != len(sigs) {
 			t.Errorf("pdfsig: ważnych podpisów %d z %d\n%s", n, len(sigs), out)
 		}
-		if !strings.Contains(string(out), "Total document signed") {
-			t.Errorf("pdfsig: ostatni podpis nie obejmuje całego dokumentu\n%s", out)
+		if got := strings.Contains(string(out), "Total document signed"); got != total {
+			t.Errorf("pdfsig: „Total document signed” %v, oczekiwane %v\n%s", got, total, out)
 		}
 		if !strings.Contains(string(out), "ETSI.CAdES.detached") {
 			t.Errorf("pdfsig: brak ETSI.CAdES.detached\n%s", out)
@@ -528,12 +545,22 @@ func checkWithTools(t *testing.T, pdf []byte, sigs []signatureInfo, id testIdent
 		if err != nil || !strings.Contains(string(out), "Verification successful") {
 			t.Errorf("openssl cms -noverify, podpis %d: %v\n%s", i+1, err, out)
 		}
+		caPath := filepath.Join(dir, "ca.pem")
+		os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ca.Raw}), 0o644)
 		if i == 0 {
-			caPath := filepath.Join(dir, "ca.pem")
-			os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: id.cert.Raw}), 0o644)
 			out, err = exec.Command(openssl, append(args, "-CAfile", caPath, "-purpose", "any")...).CombinedOutput()
 			if err != nil || !strings.Contains(string(out), "Verification successful") {
 				t.Errorf("openssl cms -CAfile: %v\n%s", err, out)
+			}
+		}
+		if sig.token != nil {
+			tokenPath := filepath.Join(dir, "token"+strconv.Itoa(i)+".der")
+			valuePath := filepath.Join(dir, "value"+strconv.Itoa(i))
+			os.WriteFile(tokenPath, sig.token, 0o644)
+			os.WriteFile(valuePath, sig.value, 0o644)
+			out, err := exec.Command(openssl, "ts", "-verify", "-in", tokenPath, "-token_in", "-data", valuePath, "-CAfile", caPath).CombinedOutput()
+			if err != nil || !strings.Contains(string(out), "Verification: OK") {
+				t.Errorf("openssl ts -verify, podpis %d: %v\n%s", i+1, err, out)
 			}
 		}
 	}
@@ -591,7 +618,7 @@ func TestSignOtherProducers(t *testing.T) {
 			if !bytes.HasPrefix(signed, pdf) {
 				t.Fatal("podpis zmienił bajty pliku wejściowego")
 			}
-			checkWithTools(t, signed, checkSignatures(t, signed, 1), id)
+			checkWithTools(t, signed, checkSignatures(t, signed, 1), id.cert, true)
 		})
 	}
 }

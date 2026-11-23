@@ -69,12 +69,16 @@ Comparison with Chromium, the list of what is not supported, and requirements:
     specification gives for the profile, the `fx` XMP properties with their PDF/A extension schema, PDF/A-3b
     (PDF/A-3a with tags, also with PDF/UA-1); veraPDF accepts the result, and the Mustang validator 2.26.0
     accepts both the PDF and the invoice XML (MINIMUM profile, measured 2026-11-21).
-- Digital signatures in the optional package `sign` (ADR 0049, 0050): `sign.SignPDF` adds a PAdES B-B
+- Digital signatures in the optional package `sign` (ADR 0049, 0050): `sign.SignPDF` adds a PAdES
   signature (CMS, SHA-256, RSA or ECDSA, `signing-certificate-v2`) to any unencrypted PDF as an
   incremental update, so earlier signatures stay valid and PDF/A and PDF/UA conformance is kept (checked
-  with `pdfsig`, `openssl cms` and veraPDF). The key is a Go `crypto.Signer`, so an HSM, a smart card or
-  a remote signing service can sign too. Programs that do not import `sign`, including `cmd/gopdfgo`, do
-  not contain its code.
+  with `pdfsig`, `openssl cms`, `openssl ts` and veraPDF). Levels: B-B (default, no network), B-T (RFC 3161
+  timestamp of the signature value) and B-LT (certificates, OCSP responses and CRLs in a DSS dictionary
+  added as a second incremental update). Network access happens only through a TSA client and a revocation
+  client passed explicitly in `sign.Options`; validation data can also be passed in directly for offline
+  signing. The key is a Go `crypto.Signer` (or `sign.ContextSigner`, which can be cancelled), so an HSM,
+  a smart card or a remote signing service can sign too. Programs that do not import `sign`, including
+  `cmd/gopdfgo`, do not contain its code.
 - Output is deterministic: the same input gives the same bytes.
 
 Where the specifications leave a choice, gopdfgo prints like Chromium, so documents designed in a browser
@@ -147,14 +151,18 @@ output then depends on the fonts installed on the machine and is not reproducibl
 default build contains no code that scans system font directories, and `Options.SystemFonts` there returns
 `ErrSystemFontsNotBuilt`; `go version -m <binary>` shows `-tags=systemfonts` for the other variant.
 
-Signing the result (optional package `github.com/polestorm/gopdfgo/sign`, PAdES B-B):
+Signing the result (optional package `github.com/polestorm/gopdfgo/sign`; PAdES B-B by default):
 
 ```go
 signed, err := sign.SignPDF(ctx, result.PDF, sign.Options{
 	Signer:      key,  // crypto.Signer: *rsa.PrivateKey, *ecdsa.PrivateKey, an HSM…
 	Certificate: cert, // *x509.Certificate of the key
-	Chain:       intermediates,
+	Chain:       intermediates, // up to the root, needed for B-LT
 	Reason:      "Approved",
+	// optional: timestamp and validation data (PAdES B-LT)
+	Level:      sign.LevelBLT,
+	TSA:        sign.TSAClient{URL: tsaURL, HTTPClient: httpClient},
+	Revocation: sign.RevocationClient{HTTPClient: httpClient}, // OCSP and CRL addresses from the certificates
 })
 ```
 
@@ -172,8 +180,8 @@ licences (list in `docs/overview.md`).
 - JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
 - Vertical writing and right-to-left/bidirectional text.
 - Structure inside SVG images and alternative text for generated content in tagged PDF.
-- Digital signatures beyond PAdES B-B: no timestamps (B-T), no validation data (B-LT, B-LTA), no visible
-  signature, no signing of encrypted files.
+- Digital signatures beyond PAdES B-LT: no document timestamp (B-LTA), no visible signature, no
+  certification signature (`/DocMDP`), no signing of encrypted files, no signing from the command line.
 - CSS `zoom`, `mask` and `mask-image` on HTML elements, animations (CSS and SVG SMIL), CSS Linked
   Parameters in SVG.
 - Validation of invoice content: when rendering, gopdfgo checks only that the Factur-X invoice XML is a CII
