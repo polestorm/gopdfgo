@@ -30,24 +30,32 @@ Documents:
 Both engines got the same font files (Noto Sans, Noto Sans Mono). All nine documents have the same page
 count in both engines.
 
-Machine: Apple M4, 10 cores, 32 GB, system load average 6.7–7.9 during the run. Times are the shortest
-of five runs of the whole process, including program start.
+Machine: Apple M4, 10 cores, 32 GB. Times are the shortest of five runs of the whole process, including
+program start. Chromium was measured on 2026-11-20 (system load average 6.7–7.9); gopdfgo again on
+2026-11-23 at commit `de62591` (load average about 2), after the speed-ups of ADR 0037 and ADR 0045, with the
+same five Noto files xml.pro passes and the e-SF statements in the variant xml.pro gives gopdfgo
+(`bench/realdocs`, without scripts). The gopdfgo
+times of 2026-11-20 are in brackets.
 
 | Document | Pages | Chromium, `--headless --print-to-pdf` (browser starts for each document) | gopdfgo, command line |
 |---|---|---|---|
-| invoice, 2 items | 1 | 409 ms | 49 ms |
-| invoice, 60 items | 3 | 426 ms | 73 ms |
-| invoice, VAT rates and bank transfer | 1 | 407 ms | 53 ms |
-| invoice, 140 items | 7 | 469 ms | 109 ms |
-| e-SF A | 6 | 476 ms | 128 ms |
-| e-SF B | 11 | 534 ms | 202 ms |
-| e-SF C | 12 | 512 ms | 197 ms |
-| e-SF D | 16 | 547 ms | 244 ms |
-| e-SF E | 4 | 462 ms | 93 ms |
+| invoice, 2 items | 1 | 409 ms | 30 ms (49 ms) |
+| invoice, 60 items | 3 | 426 ms | 51 ms (73 ms) |
+| invoice, VAT rates and bank transfer | 1 | 407 ms | 32 ms (53 ms) |
+| invoice, 140 items | 7 | 469 ms | 82 ms (109 ms) |
+| e-SF A | 6 | 476 ms | 94 ms (128 ms) |
+| e-SF B | 11 | 534 ms | 160 ms (202 ms) |
+| e-SF C | 12 | 512 ms | 152 ms (197 ms) |
+| e-SF D | 16 | 547 ms | 190 ms (244 ms) |
+| e-SF E | 4 | 462 ms | 67 ms (93 ms) |
+
+Peak memory of the gopdfgo process on 2026-11-23: invoices 48–72 MB, e-SF 67–117 MB. A program that renders
+many documents can keep parsed fonts between calls with `Options.FontCache` (ADR 0045), which saves a further
+10–15 ms per document; the command line renders one document and does not use it.
 
 Chromium kept running and driven through DevTools (`Page.printToPDF` via chromedp, no wait before
 printing) needed 0.42–0.46 s per document. That run used the same day and the same documents; see
-`docs/chromium-comparison.md` (Polish). gopdfgo is 2 to 9 times faster than that.
+`docs/chromium-comparison.md` (Polish). gopdfgo is now 2 to 15 times faster than that (2026-11-23).
 
 Memory:
 - gopdfgo, peak RSS of the process (`/usr/bin/time -l`): invoice 48 MB, 6-page e-SF 95 MB, 16-page e-SF

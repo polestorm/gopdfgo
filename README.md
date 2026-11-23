@@ -83,8 +83,8 @@ fonts in both engines and the same page counts:
 | | Chromium 157 | gopdfgo |
 |---|---|---|
 | software size | about 460 MB browser plus system libraries | 19 MB static binary (linux/amd64) |
-| time per document (whole process) | 0.41–0.55 s | 0.05–0.24 s |
-| memory | about 950 MB (two browser instances) | 48–156 MB |
+| time per document (whole process) | 0.41–0.55 s | 0.03–0.19 s (2026-11-23) |
+| memory | about 950 MB (two browser instances) | 48–117 MB |
 | PDF size, invoices (untagged PDF) | 26.8–52.9 kB | 24.9–51.0 kB |
 
 Large documents, measured 2026-11-21: the illustrated *Pride and Prejudice* (256 pages, 27 MB of images),
