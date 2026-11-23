@@ -2040,6 +2040,20 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 	if !textWrap {
 		maxWidth = nil
 	}
+	var (
+		maxWidthV                               pr.Float
+		firstLineText, secondLineText, nextWord []rune
+		breakPoint                              int
+	)
+	// gopdfgo: min-content słowo po słowie (szerokość 0) bez kształtowania reszty tekstu (ADR 0048).
+	// Kroki 1–3 kształtowały cały pozostały tekst tylko po to, żeby sprawdzić, czy pierwszy wiersz ma
+	// szerokość dodatnią; zwracany wynik i tak pochodzi z pierwszego słowa ukształtowanego osobno.
+	if mw, ok := maxWidth.(pr.Float); ok && mw == 0 && fontSize != 0 && len(text) <= 128 && ZeroWidthShortcut {
+		if line, word, ok := fc.zeroWidthFirstWord(text, style, wrap); ok {
+			firstLine, firstLineText, secondLineText, nextWord = line, []rune{}, text, word
+			goto hyphenation
+		}
+	}
 	// Step #1: Get a draft layout with the first line
 	if maxWidth, ok := maxWidth.(pr.Float); ok && maxWidth != pr.Inf && fontSize != 0 {
 		// Try to use a small amount of text instead of the whole text
@@ -2082,7 +2096,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		// The first line can take all the place needed
 		return firstLine
 	}
-	maxWidthV := maxWidth.V()
+	maxWidthV = maxWidth.V()
 
 	if firstLine.ResumeAt == -1 && firstLine.Width-firstLine.Hang <= maxWidthV {
 		// The first line really fits in the available width
@@ -2092,7 +2106,6 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 	// Step #3: Try to put the first word of the second line on the first line
 	// https://mail.gnome.org/archives/gtk-i18n-list/2013-September/msg00006
 	// is a good thread related to this problem.
-	var firstLineText, secondLineText []rune
 	if firstLine.Width-firstLine.Hang <= maxWidthV {
 		// the first line fits, but,
 		//	since we wrap without using work breaks, the first word of the second line
@@ -2106,7 +2119,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		secondLineText = text
 	}
 
-	breakPoint := len(secondLineText)
+	breakPoint = len(secondLineText)
 	if len(secondLineText) != 0 {
 		// Find the second line’s first break point.
 		breakPoint = fc.getNextBreakPoint(secondLineText)
@@ -2115,7 +2128,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		}
 	}
 
-	nextWord := trimTrailingSpaces(secondLineText[:breakPoint])
+	nextWord = trimTrailingSpaces(secondLineText[:breakPoint])
 	if len(nextWord) != 0 {
 		if style.spaceCollapse() && hasSuffix(secondLineText[:breakPoint], ' ') {
 			// Next word might fit without a space afterwards; only try when
@@ -2141,6 +2154,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		return firstLine
 	}
 
+hyphenation:
 	// Step #4: Try to hyphenate
 	hyphens := style.Hyphens
 	lang := language.NewLanguage(style.Lang)
@@ -2301,6 +2315,58 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 
 	return firstLine
 }
+
+// zeroWidthFirstWord (gopdfgo) daje wynik kroków 1–3 splitFirstLineRaw przy szerokości 0 bez
+// kształtowania całego tekstu (ADR 0048). Przy szerokości 0 kroki 1–3 kształtowały cały tekst
+// (do 128 znaków, więc min-content tekstu z n słowami kształtował łącznie ok. n²/2 słów), ale z
+// wyniku brały tylko to, czy pierwszy wiersz ma szerokość dodatnią: zwracany wiersz to pierwsze
+// słowo (do pierwszego miejsca podziału, bez końcowych spacji) ukształtowane osobno. Tę szerokość
+// rozstrzygamy tu z samego słowa, tylko gdy dowodnie jest dodatnia także w kontekście tekstu:
+// zwijane odstępy bez odstępów innych niż spacja (te wiszą, zmieniając Hang), bez letter-spacing
+// i word-spacing (mogą być ujemne i zmieniają szerokość na końcu wiersza), od lewej do prawej, tekst
+// zaczyna się od znaku widocznego (pierwszy wiersz tekstu zawiera jego glif), a pierwsze miejsce
+// podziału wypada po spacji (inaczej krok 3 nie kształtuje słowa osobno i zostaje wiersz z kroku 1).
+// Gdy warunki nie są spełnione albo słowo ma szerokość niedodatnią, zwraca ok == false i
+// splitFirstLineRaw liczy kroki 1–3 jak dotąd.
+func (fc *FontConfigurationGotext) zeroWidthFirstWord(text []rune, style *TextStyle,
+	wrap func([]rune, pr.Float) FirstLine,
+) (line FirstLine, word []rune, ok bool) {
+	if len(text) == 0 || !style.spaceCollapse() || style.Direction == pr.Rtl || style.LetterSpacing != 0 ||
+		style.WordSpacing != 0 || style.WordSpacingPercent != 0 || style.WordSpacingCalc != nil {
+		return line, nil, false
+	}
+	if r := text[0]; !(unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsPunct(r) || unicode.IsSymbol(r)) ||
+		unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Me, r) {
+		return line, nil, false
+	}
+	if slices.ContainsFunc(text, IsOtherSpaceSeparator) {
+		return line, nil, false
+	}
+	breakPoint := fc.getNextBreakPoint(text)
+	if breakPoint <= 0 || breakPoint > len(text) || text[breakPoint-1] != ' ' {
+		return line, nil, false
+	}
+	word = trimTrailingSpaces(text[:breakPoint])
+	if len(word) == 0 {
+		return line, nil, false
+	}
+	line = wrap(word, 0)
+	if line.Width-line.Hang <= 0 {
+		return line, nil, false
+	}
+	// jak w kroku 3: słowo bez spacji za nim zajmuje pierwszy wiersz, spacja znika
+	if line.ResumeAt == -1 {
+		line.ResumeAt = line.Length + 1
+		if line.ResumeAt >= len(text) {
+			line.ResumeAt = -1
+		}
+	}
+	return line, word, true
+}
+
+// ZeroWidthShortcut (gopdfgo) włącza zeroWidthFirstWord; wyłączany tylko w teście porównującym obie
+// drogi (tests/mincontent23_test.go).
+var ZeroWidthShortcut = true
 
 // tabs support
 
