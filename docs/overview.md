@@ -371,7 +371,11 @@ Out of scope by design:
   the profile's XSD or Schematron; the caller should do that. The output was checked with the Mustang
   validator 2.26.0 on our own MINIMUM-profile invoice (ADR 0034);
 - PNG or SVG output: the output is PDF only;
-- digital signatures (PAdES) and PDF forms.
+- PDF forms; digital signatures only at the PAdES B-B level (optional package `sign`, ADR 0050):
+  `sign.SignPDF` signs any unencrypted PDF with an invisible signature as an incremental update (CMS,
+  SHA-256, RSA or ECDSA, `signing-certificate-v2`); earlier signatures stay valid and veraPDF still accepts
+  signed PDF/A-2b, PDF/A-3b, Factur-X and PDF/UA-1 files. Not yet: timestamps (B-T), validation data
+  (B-LT, B-LTA), visible signatures, encrypted input.
 
 Experimental features that browsers do not generally support yet: `grid-lanes` (masonry),
 `column-height`, `flex-wrap: balance`.
@@ -498,7 +502,8 @@ substitution, the missing blur shadow, and anti-aliasing.
 - Tools needed only for tests:
   - `pdftotext` and `pdftoppm` (Poppler);
   - Ghostscript, for the pixel tests of `internal/goweasyprint/pdf`;
-  - veraPDF, optional, for PDF/A validation.
+  - veraPDF, optional, for PDF/A validation;
+  - `pdfsig` (Poppler) and `openssl`, optional, for checking signatures made by the package `sign`.
 
 ## Licence
 

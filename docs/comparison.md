@@ -86,7 +86,8 @@ Features).
 | PDF/A | ✗ | ✓ | ✓ 2b, 2a, 3b, 3a |
 | Tagged PDF / PDF/UA | ◐ tagged by default, PDF/UA not claimed | ◐ tagged | ✓ PDF/UA-1 (veraPDF on all corpus documents) |
 | Factur-X / ZUGFeRD e-invoices | ✗ | ✓ | ✓ (veraPDF and Mustang) |
-| Interactive forms, digital signatures, barcodes | ✗ | ✓ | ✗ |
+| Interactive forms, barcodes | ✗ | ✓ | ✗ |
+| Digital signatures (PAdES) | ✗ | ✓ B-B, B-T, B-LT, B-LTA | ◐ PAdES B-B (optional package `sign`) |
 | Reading, merging, redacting, encrypting PDF files | ✗ | ✓ | ✗ |
 | Other platforms | any OS with Chromium | WASM, C library, Java SDK | Go only |
 
@@ -98,7 +99,7 @@ margin boxes, built-in hyphenation for 24 languages, PDF/A, PDF/UA and Factur-X,
 binary that gives the same bytes for the same input.
 
 **gopdfgo is weaker at** speed and memory compared with folio, at writing systems (no right-to-left or
-vertical text), at everything that is not printing HTML (forms, signatures, barcodes, editing existing PDF
+vertical text), at everything that is not printing HTML (forms, signature levels above B-B, barcodes, editing existing PDF
 files), and at running scripts, which only a browser does. It is young and not yet public, while Chromium is
 the reference engine and folio already has users.
 
