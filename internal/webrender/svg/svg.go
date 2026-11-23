@@ -968,9 +968,9 @@ type attributes struct {
 
 	opacity, strokeOpacity, fillOpacity Fl // default to 1
 
-	isFillEvenOdd    bool
+	isFillEvenOdd bool
 	// isClipEvenOdd (gopdfgo): clip-rule: evenodd (CSS Masking 1 § 6.1) dla kształtów wewnątrz <clipPath>
-	isClipEvenOdd bool
+	isClipEvenOdd    bool
 	display, visible bool
 
 	// nonScalingStroke (gopdfgo): vector-effect: non-scaling-stroke (SVG 2 § 13.2); źródło tej
