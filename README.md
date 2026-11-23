@@ -78,7 +78,14 @@ Comparison with Chromium, the list of what is not supported, and requirements:
   client passed explicitly in `sign.Options`; validation data can also be passed in directly for offline
   signing. The key is a Go `crypto.Signer` (or `sign.ContextSigner`, which can be cancelled), so an HSM,
   a smart card or a remote signing service can sign too. Programs that do not import `sign`, including
-  `cmd/gopdfgo`, do not contain its code.
+  `cmd/gopdfgo`, do not contain its code. A separate command, `cmd/gopdfgo-sign` (ADR 0051), signs a
+  finished PDF with a key read from a PKCS#12 file (password from an environment variable or a file, never
+  from the command line) or from unencrypted PEM files, via the optional package `sign/keyfile`.
+- Signature fields placed in HTML (ADR 0051): an element with `data-pdf-signature="Name"` gets an empty
+  signature field over its border box (first page, first fragment), with an empty appearance stream, the
+  `Print` flag and, in tagged PDF, a `Form` structure element; veraPDF accepts it in PDF/A-2b, PDF/A-2a and
+  PDF/UA-1 before and after signing. `sign.Options.FieldName` (or `gopdfgo-sign -field`) fills that field;
+  any other signing program can fill it too. Without the attribute the output is unchanged.
 - Output is deterministic: the same input gives the same bytes.
 
 Where the specifications leave a choice, gopdfgo prints like Chromium, so documents designed in a browser
@@ -170,7 +177,15 @@ Command line:
 
 ```
 go run ./cmd/gopdfgo -fonts fonts/ -in invoice.html -out invoice.pdf
+go run ./cmd/gopdfgo-sign -in invoice.pdf -out signed.pdf -p12 signer.p12 -password-file p12-password.txt \
+	-field Signature1 -level B-T -tsa https://tsa.example/rfc3161
 ```
+
+`-field` names a field created from `data-pdf-signature`; without it the signature goes to a new invisible
+field. B-T and B-LT need `-tsa`, the only way the command connects to the network (B-LT also fetches OCSP
+responses and CRLs from the addresses in the certificates). PKCS#12 files from OpenSSL 3 (PBES2, AES-256,
+SHA-256 MAC) and older files with 3DES and a SHA-1 MAC are read; RC2-encrypted certificates (OpenSSL 1.x
+defaults, `-legacy`) give an error with the `openssl` command that converts the file.
 
 Requirements: Go 1.26 or newer, no cgo. Dependencies are pure Go under BSD-3-Clause, MIT or Unlicense
 licences (list in `docs/overview.md`).
@@ -180,8 +195,9 @@ licences (list in `docs/overview.md`).
 - JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
 - Vertical writing and right-to-left/bidirectional text.
 - Structure inside SVG images and alternative text for generated content in tagged PDF.
-- Digital signatures beyond PAdES B-LT: no document timestamp (B-LTA), no visible signature, no
-  certification signature (`/DocMDP`), no signing of encrypted files, no signing from the command line.
+- Digital signatures beyond PAdES B-LT: no document timestamp (B-LTA), no signature appearance drawn by
+  the signer (the visible part of a signature field is the HTML content of its element), no certification
+  signature (`/DocMDP`), no signing of encrypted files.
 - CSS `zoom`, `mask` and `mask-image` on HTML elements, animations (CSS and SVG SMIL), CSS Linked
   Parameters in SVG.
 - Validation of invoice content: when rendering, gopdfgo checks only that the Factur-X invoice XML is a CII

@@ -345,6 +345,9 @@ func (c *Output) Finalize() model.Document {
 		pages[i] = &p.page
 	}
 	finalizePages(c.pages)
+	for _, p := range c.pages { // gopdfgo: pola podpisu w kolejności stron (signature.go)
+		c.document.Catalog.AcroForm.Fields = append(c.document.Catalog.AcroForm.Fields, p.signatureFields...)
+	}
 	c.document.Catalog.Pages = model.PageTree{
 		Kids: pages,
 	}

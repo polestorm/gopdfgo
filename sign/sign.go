@@ -39,6 +39,10 @@ var (
 	ErrMissingIssuer = errors.New("sign: brak certyfikatu wystawcy")
 	// ErrRevoked: dane o ważności podają certyfikat jako unieważniony.
 	ErrRevoked = errors.New("sign: certyfikat unieważniony")
+	// ErrUnknownField: Options.FieldName nie wskazuje pola podpisu w pliku.
+	ErrUnknownField = errors.New("sign: brak pola podpisu o tej nazwie")
+	// ErrFieldNotEmpty: pole wskazane przez Options.FieldName jest już podpisane.
+	ErrFieldNotEmpty = errors.New("sign: pole podpisu już podpisane")
 )
 
 // Level to poziom podpisu PAdES (ETSI EN 319 142-1 § 6).
@@ -96,7 +100,10 @@ type Options struct {
 	// Name, Reason, Location i ContactInfo to opcjonalne wpisy słownika podpisu (ISO 32000-1
 	// tabela 252): podpisujący, powód, miejsce, kontakt.
 	Name, Reason, Location, ContactInfo string
-	// FieldName to nazwa pola podpisu (/T); pusta oznacza pierwszą wolną z Signature1, Signature2…
+	// FieldName to pełna nazwa istniejącego pustego pola podpisu (np. z atrybutu data-pdf-signature
+	// w HTML, ADR 0051), które podpis wypełni: pole dostaje /V, widżet i strona zostają bez zmian.
+	// Nazwa nieznana daje ErrUnknownField, pole podpisane ErrFieldNotEmpty. Pusta oznacza nowe
+	// niewidoczne pole na pierwszej stronie o pierwszej wolnej nazwie z Signature1, Signature2…
 	FieldName string
 
 	// Level to poziom podpisu; zero oznacza LevelBB (bez połączeń sieciowych).
@@ -118,8 +125,8 @@ type Options struct {
 //
 // Podpis jest dopisywany jako aktualizacja przyrostowa (ISO 32000-1 § 7.5.6): bajty pliku wejściowego
 // zostają bez zmian, więc wcześniejsze podpisy pozostają ważne. Aktualizacja dodaje niewidoczne pole
-// podpisu na pierwszej stronie, słownik podpisu z /SubFilter /ETSI.CAdES.detached i /AcroForm
-// z /SigFlags 3. Od LevelBT podpis CMS ma atrybut niepodpisany signature-time-stamp-token z tokenem
+// podpisu na pierwszej stronie (albo wypełnia /V istniejącego pustego pola Options.FieldName), słownik
+// podpisu z /SubFilter /ETSI.CAdES.detached i /AcroForm z /SigFlags 3. Od LevelBT podpis CMS ma atrybut niepodpisany signature-time-stamp-token z tokenem
 // od Options.TSA; LevelBLT dopisuje drugą aktualizację ze słownikiem DSS (certyfikaty, OCSP, CRL),
 // której podpis nie obejmuje (tak przewiduje ISO 32000-2 § 12.8.4.3). ctx przerywa podpis
 // (ContextSigner) i połączenia sieciowe.
@@ -291,6 +298,32 @@ func prepareUpdate(f *pdfFile, opts Options, when time.Time, reserve int) (*upda
 	} else {
 		rewrite(formHolder, form)
 	}
+	// SignaturesExist | AppendOnly (tabela 219), za /Fields nowego słownika /AcroForm
+	setSigFlags := func() {
+		flags := max(f.intValue(form.get("SigFlags")), 0)
+		form.set("SigFlags", pdfNumber(strconv.Itoa(flags|3)))
+	}
+
+	// pole wskazane nazwą: istniejące puste pole podpisu (np. z atrybutu data-pdf-signature, ADR 0051)
+	// dostaje /V, a jego widżet i strona zostają bez zmian
+	if opts.FieldName != "" {
+		ref, field, err := findField(f, form, opts.FieldName)
+		if err != nil {
+			return nil, err
+		}
+		setSigFlags()
+		field.set("V", sigRef)
+		rewrite(ref, field)
+		u.objects = append(u.objects, updateObject{ref: sigRef, body: signatureDict(opts, when, reserve)})
+		for num, ref := range changed {
+			var b bytes.Buffer
+			writeObject(&b, values[num])
+			u.objects = append(u.objects, updateObject{ref: ref, body: b.Bytes()})
+		}
+		u.trailer = updateTrailer(f, rootRef, when)
+		return u, nil
+	}
+
 	names := map[string]bool{}
 	var fields pdfArray
 	switch v := form.get("Fields").(type) {
@@ -316,8 +349,7 @@ func prepareUpdate(f *pdfFile, opts Options, when time.Time, reserve int) (*upda
 			}
 		}
 	}
-	flags := max(f.intValue(form.get("SigFlags")), 0)
-	form.set("SigFlags", pdfNumber(strconv.Itoa(flags|3))) // SignaturesExist | AppendOnly (tabela 219)
+	setSigFlags()
 
 	// /Annots strony: bezpośrednia tablica, pośrednia albo nowa
 	switch v := page.get("Annots").(type) {
@@ -341,14 +373,11 @@ func prepareUpdate(f *pdfFile, opts Options, when time.Time, reserve int) (*upda
 		rewrite(pageRef, page)
 	}
 
-	name := opts.FieldName
+	name := ""
 	for i := 1; name == ""; i++ {
 		if candidate := "Signature" + strconv.Itoa(i); !names[candidate] {
 			name = candidate
 		}
-	}
-	if names[name] {
-		return nil, fmt.Errorf("sign: pole %q już istnieje", name)
 	}
 
 	// pole podpisu połączone z adnotacją widżetu (§ 12.7.4.5, 12.5.6.19); prostokąt zerowy oznacza
@@ -363,26 +392,7 @@ func prepareUpdate(f *pdfFile, opts Options, when time.Time, reserve int) (*upda
 	field.set("Rect", pdfArray{pdfNumber("0"), pdfNumber("0"), pdfNumber("0"), pdfNumber("0")})
 	field.set("P", pageRef)
 
-	// słownik podpisu (§ 12.8.1, tabela 252; ETSI EN 319 142-1 § 5.3)
-	var sig bytes.Buffer
-	sig.WriteString("<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached ")
-	sig.WriteString(byteRangeKey + "0 0 0 0" + string(bytes.Repeat([]byte(" "), byteRangeWidth-7)) + "] ")
-	sig.WriteString(contentsKey[:len(contentsKey)-1])
-	sig.WriteByte('<')
-	sig.Write(bytes.Repeat([]byte("0"), 2*reserve))
-	sig.WriteString("> /M ")
-	writeObject(&sig, pdfString(pdfDate(when)))
-	for _, entry := range []struct{ key, value string }{
-		{"Name", opts.Name}, {"Reason", opts.Reason}, {"Location", opts.Location}, {"ContactInfo", opts.ContactInfo},
-	} {
-		if entry.value != "" {
-			sig.WriteString(" /" + entry.key + " ")
-			writeObject(&sig, textString(entry.value))
-		}
-	}
-	sig.WriteString(" >>")
-
-	u.objects = append(u.objects, updateObject{ref: sigRef, body: sig.Bytes()})
+	u.objects = append(u.objects, updateObject{ref: sigRef, body: signatureDict(opts, when, reserve)})
 	var b bytes.Buffer
 	writeObject(&b, field)
 	u.objects = append(u.objects, updateObject{ref: fieldRef, body: b.Bytes()})

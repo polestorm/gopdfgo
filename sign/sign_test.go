@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -288,12 +289,15 @@ func TestSignErrors(t *testing.T) {
 	}
 	opts := signOptions(rsaID)
 	opts.FieldName = "Signature1"
-	signed, err := SignPDF(t.Context(), pdf, opts)
+	if _, err := SignPDF(t.Context(), pdf, opts); !errors.Is(err, ErrUnknownField) {
+		t.Errorf("nieznane pole: %v", err)
+	}
+	signed, err := SignPDF(t.Context(), pdf, signOptions(rsaID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SignPDF(t.Context(), signed, opts); err == nil {
-		t.Error("drugie pole o tej samej nazwie przeszło")
+	if _, err := SignPDF(t.Context(), signed, opts); !errors.Is(err, ErrFieldNotEmpty) {
+		t.Errorf("pole już podpisane: %v", err)
 	}
 }
 
@@ -336,8 +340,8 @@ func checkSignatures(t *testing.T, pdf []byte, want int) []signatureInfo {
 	for _, ref := range fieldsObj.(pdfArray) {
 		fieldObj, _ := f.resolve(ref)
 		field := fieldObj.(*pdfDict)
-		if field.get("FT") != pdfName("Sig") {
-			continue
+		if field.get("FT") != pdfName("Sig") || field.get("V") == nil {
+			continue // pole innego rodzaju albo puste pole podpisu (ADR 0051)
 		}
 		sigObj, _ := f.resolve(field.get("V"))
 		sig := sigObj.(*pdfDict)
@@ -352,10 +356,6 @@ func checkSignatures(t *testing.T, pdf []byte, want int) []signatureInfo {
 		info.contentsStart, info.contentsEnd = br[1], br[2]
 		if br[0] != 0 || pdf[br[1]] != '<' || pdf[br[2]-1] != '>' {
 			t.Errorf("/ByteRange %v nie wskazuje /Contents", br)
-		}
-		// ostatni podpis obejmuje cały plik albo kończy się tuż przed aktualizacją z DSS
-		if len(sigs) == want-1 && br[2]+br[3] != len(pdf) && !bytes.Contains(pdf[br[2]+br[3]:], []byte("/DSS")) {
-			t.Errorf("/ByteRange %v nie kończy się na końcu pliku (%d B)", br, len(pdf))
 		}
 		contents := sig.get("Contents").(pdfString)
 		cms := trimDER(t, contents)
@@ -372,6 +372,12 @@ func checkSignatures(t *testing.T, pdf []byte, want int) []signatureInfo {
 	}
 	if len(sigs) != want {
 		t.Fatalf("podpisów %d, oczekiwane %d", len(sigs), want)
+	}
+	// kolejność podpisów, nie pól (pola z HTML bywają podpisywane w innej kolejności, ADR 0051)
+	sort.Slice(sigs, func(i, j int) bool { return sigs[i].contentsStart < sigs[j].contentsStart })
+	// ostatni podpis obejmuje cały plik albo kończy się tuż przed aktualizacją z DSS
+	if br := sigs[len(sigs)-1].byteRange; br[2]+br[3] != len(pdf) && !bytes.Contains(pdf[br[2]+br[3]:], []byte("/DSS")) {
+		t.Errorf("/ByteRange %v nie kończy się na końcu pliku (%d B)", br, len(pdf))
 	}
 	return sigs
 }

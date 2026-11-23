@@ -3,10 +3,21 @@
 // Pakiet jest opcjonalny (ADR 0049, 0050): rdzeń gopdfgo go nie importuje, więc program, który
 // go nie importuje, nie ma w binarce kodu podpisu. Podpis CMS (RFC 5652) jest odłączony, SHA-256,
 // z atrybutami podpisanymi content-type, message-digest i signing-certificate-v2, w niewidocznym
-// polu podpisu na pierwszej stronie. Podpis jest dopisywany aktualizacją przyrostową, więc działa na
-// każdym poprawnym, niezaszyfrowanym PDF (także z tagami, PDF/A-2, PDF/A-3, Factur-X i już
-// podpisanym) i nie narusza wcześniejszych podpisów. Pakiet nie czyta kluczy z plików: klucz
-// i certyfikat podaje wywołujący.
+// polu podpisu na pierwszej stronie albo w istniejącym pustym polu wskazanym przez Options.FieldName.
+// Podpis jest dopisywany aktualizacją przyrostową, więc działa na każdym poprawnym, niezaszyfrowanym PDF
+// (także z tagami, PDF/A-2, PDF/A-3, Factur-X i już podpisanym) i nie narusza wcześniejszych podpisów.
+// Pakiet nie czyta kluczy z plików: klucz i certyfikat podaje wywołujący; odczyt z plików PKCS#12
+// i PEM daje osobny pakiet sign/keyfile (z niego korzysta polecenie gopdfgo-sign, ADR 0051).
+//
+// Pole widoczne: element HTML z atrybutem data-pdf-signature="Nazwa" dostaje przy renderowaniu puste
+// pole podpisu na prostokącie swojego pudełka (rdzeń gopdfgo, bez kodu tego pakietu; w PDF z tagami
+// widżet ma element struktury Form). Podpis w tym polu:
+//
+//	opts.FieldName = "Nazwa"
+//	signed, err := sign.SignPDF(ctx, result.PDF, opts)
+//
+// Pole dostaje /V, a widżet, strona i wygląd pola zostają bez zmian: to, co widać w miejscu podpisu,
+// jest treścią HTML elementu. Nazwa nieznana daje ErrUnknownField, pole już podpisane ErrFieldNotEmpty.
 //
 // Poziomy (Options.Level):
 //

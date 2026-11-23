@@ -220,6 +220,8 @@ type outputPage struct {
 	customMediaBox *model.Rectangle // overing bbox
 
 	embeddedFiles map[string]*model.FileSpec
+	// gopdfgo: pola podpisu strony (signature.go), dopisywane do /AcroForm w Output.Finalize
+	signatureFields []*model.FormFieldDict
 	group
 }
 

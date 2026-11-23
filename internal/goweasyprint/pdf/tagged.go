@@ -216,6 +216,7 @@ func (c *Output) buildStructure() {
 	}
 
 	elementOf := map[any]*model.StructureElement{}
+	formOf := map[*model.AnnotationDict]*model.StructureElement{} // element Form widżetu (ADR 0051)
 	// build zwraca element węzła, numer jego pierwszego odcinka w kolejności rysowania (-1: brak)
 	// i to, czy element ma treść (własną albo potomków); element bez treści wraca tylko z Keep.
 	var build func(node *backend.StructureNode, parent *model.StructureElement) (*model.StructureElement, int, bool)
@@ -290,7 +291,15 @@ func (c *Output) buildStructure() {
 			}
 		}
 		for _, it := range annotations {
-			element.K = append(element.K, model.ContentItemObjectReference{Pg: it.page, Obj: it.annotation})
+			reference := model.ContentItemObjectReference{Pg: it.page, Obj: it.annotation}
+			if isWidget(it.annotation) {
+				// widżet pola formularza w osobnym elemencie Form (ISO 14289-1 § 7.18.4, ADR 0051)
+				form := &model.StructureElement{S: "Form", P: element, Pg: it.page, K: []model.ContentItem{reference}}
+				formOf[it.annotation] = form
+				element.K = append(element.K, form)
+				continue
+			}
+			element.K = append(element.K, reference)
 		}
 		return element, minSeq, true
 	}
@@ -332,12 +341,18 @@ func (c *Output) buildStructure() {
 	for _, p := range c.pages {
 		for _, a := range p.marking.annotations {
 			element := elementOf[a.owner]
+			if form := formOf[a.annotation]; form != nil {
+				element = form
+			}
 			if element == nil {
 				// adnotacja bez elementu: własny element w korzeniu (każda adnotacja należy do struktury)
 				element = &model.StructureElement{S: "Link", P: root, Pg: &p.page,
 					K: []model.ContentItem{model.ContentItemObjectReference{Pg: &p.page, Obj: a.annotation}}}
 				if _, isFile := a.annotation.Subtype.(model.AnnotationFileAttachment); isFile {
 					element.S = "Annot"
+				}
+				if isWidget(a.annotation) {
+					element.S = "Form" // gopdfgo: ADR 0051
 				}
 				root.K = append(root.K, element)
 			}
@@ -378,4 +393,10 @@ func structureAttributes(node *backend.StructureNode) []model.AttributeObject {
 		out = append(out, model.AttributeObject{O: "List", Attributes: map[model.Name]model.Object{"ListNumbering": model.ObjName(node.ListNumbering)}})
 	}
 	return out
+}
+
+// isWidget: adnotacja widżetu pola formularza (pole podpisu, ADR 0051).
+func isWidget(an *model.AnnotationDict) bool {
+	_, ok := an.Subtype.(model.AnnotationWidget)
+	return ok
 }

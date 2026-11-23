@@ -3000,6 +3000,13 @@ Wspólne dla obu katalogów:
   `target-counter(…, pages)` nie oznacza już strony kotwicy jako `PagesWanted`; liczbę stron w licznikach kotwic
   i oznaczenie stron odwołań daje `UpdateTargetPages`. Wynik bez zmian, a dokument z takim odwołaniem idzie
   odkładaniem stron zamiast dwóch przebiegów.
+- `html/document/document.go` (`gatherAnchors` z nowym parametrem `fields`, `Page.signatureFields`,
+  `Write`), `html/document/stream.go` (`Area`, `Margins`, `finish`), nowe pliki własne
+  `html/document/signature_fields.go` i `backend/signature.go` (`backend.SignatureFieldPage`), 2026-11-23,
+  ADR 0051: pudełko elementu z atrybutem `data-pdf-signature` daje puste pole podpisu na prostokącie
+  obramowania (pierwsza strona, pierwszy fragment; ostrzeżenie dla nazwy pustej, z kropką i powtórzonej),
+  dodawane za odnośnikami strony w obu drogach rysowania; w PDF z tagami widżet należy do elementu
+  struktury pola. Bez atrybutu wynik bajt w bajt ten sam (`bench/verify/w3cbytes.py`).
 
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):
@@ -3043,6 +3050,11 @@ zależnością modułu):
   ostrożna ramka nie przecina obszaru wycinka, nie jest zapisywany; obszar należy do stanu graficznego. Forma
   współdzielona obrazu SVG z tekstem jest dla wycinka, z którego odpadł tekst, rysowana osobno bez niego;
   obraz bez tekstu dalej korzysta ze wspólnej formy. Bez krojenia wynik bajt w bajt ten sam.
+- `pdf/page.go` (`outputPage.signatureFields`), `pdf/pdf.go` (`Finalize`: pola do `/AcroForm` w kolejności
+  stron), `pdf/tagged.go` (`buildStructure`: widżet w elemencie `Form` z `OBJR`, nowe `isWidget`), nowy plik
+  własny `pdf/signature.go` (`AddSignatureField`), 2026-11-23, ADR 0051, ISO 32000-1 § 12.7.4.5, ISO 19005-2
+  § 6.3.2–6.3.3, ISO 14289-1 § 7.18.4: pole `/FT /Sig` bez `/V` połączone z widżetem `/F 4` i pustą formą
+  `/AP /N`; `/AcroForm` bez `/SigFlags`. Model `pdflib` (pola formularza, scalanie pola z widżetem) bez zmian.
 
 ## Ustawienia silnika w `render.go`
 

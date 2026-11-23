@@ -179,7 +179,7 @@ func (s *streamSink) Area(index int, pageBox *bo.PageBox) {
 	}
 	// odpowiednik newPage: kotwice, odnośniki i zakładki obszaru strony; pola marginesowe dojdą w Margins
 	page, box := s.pageHeader(pageBox)
-	gatherAnchors(pageBox, page.anchors, &page.links, &page.bookmarks, nil)
+	gatherAnchors(pageBox, page.anchors, &page.links, &page.bookmarks, &page.signatureFields, nil)
 	scale := s.scale
 	left, top, right, bottom := box[0], box[1], box[2], box[3]
 
@@ -267,7 +267,7 @@ func (s *streamSink) Margins(index int, pageBox *bo.PageBox, boxes []Box) string
 	}
 	page := &s.doc.Pages[index]
 	for _, box := range boxes {
-		gatherAnchors(box, page.anchors, &page.links, &page.bookmarks, nil)
+		gatherAnchors(box, page.anchors, &page.links, &page.bookmarks, &page.signatureFields, nil)
 	}
 	streamed := &s.pages[index]
 	if streamed.empty || len(boxes) == 0 {
@@ -313,12 +313,14 @@ func (s *streamSink) Margins(index int, pageBox *bo.PageBox, boxes []Box) string
 func (s *streamSink) finish(attachments []backend.Attachment) {
 	d, target := &s.doc, s.target
 	pagedLinks, pagedAnchors, _ := d.resolveLinks()
+	pagedFields := resolveSignatureFields(d.Pages) // gopdfgo: zob. signature_fields.go
 	// files must be embedded before being used on the pages
 	d.embedFileAnnotations(pagedLinks, target)
 	for i, page := range d.Pages {
 		// Draw from the top-left corner
 		matrix := mt.New(s.scale, 0, 0, -s.scale, 0, page.Height*s.scale)
 		d.addHyperlinks(pagedLinks[i], s.pages[i].output, matrix)
+		d.addSignatureFields(pagedFields[i], s.pages[i].output, matrix) // gopdfgo: zob. signature_fields.go
 		d.scaleAnchors(pagedAnchors[i], matrix)
 	}
 	target.CreateAnchors(pagedAnchors)

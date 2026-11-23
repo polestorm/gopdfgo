@@ -1,6 +1,7 @@
 # ADR 0050: Podpis cyfrowy PAdES (pakiet `sign`)
 
-Status: przyjęta 2026-11-24 (decyzja użytkownika: zacząć od PAdES); wdrażana rundami — runda 1 (B-B) i runda 2 (B-T, B-LT) zrobione.
+Status: przyjęta 2026-11-24 (decyzja użytkownika: zacząć od PAdES); wdrażana rundami — runda 1 (B-B) i runda 2 (B-T, B-LT) zrobione;
+polecenie `gopdfgo-sign` (klucz z pliku) i podpis w polu wskazanym w HTML: ADR 0051. Pkt 3 zmieniony 2026-11-24.
 
 ## Kontekst
 
@@ -21,7 +22,10 @@ pakiet `sign` (ok. 3,2 tys. linii) z PAdES B-B, B-T, B-LT i zewnętrznym podpisu
    bajtów, więc istniejące podpisy zostają ważne.
 3. Klucz: podpisujący to `crypto.Signer` z Go (klucz lokalny RSA lub ECDSA) albo interfejs
    zewnętrznego podpisującego, który dostaje skrót i zwraca podpis (HSM, karta, zdalny podpis
-   kwalifikowany). gopdfgo nie przechowuje i nie odczytuje kluczy z plików sam.
+   kwalifikowany). Pakiet `sign` nie przechowuje i nie odczytuje kluczy z plików. Zmiana 2026-11-24
+   (decyzja użytkownika, ADR 0051): polecenie `gopdfgo-sign` czyta klucz z pliku wskazanego jawnie
+   (PKCS#12 z hasłem ze zmiennej środowiska albo z pliku, albo PEM bez szyfrowania) przez osobny pakiet
+   `sign/keyfile`; biblioteka `sign` dalej dostaje tylko `crypto.Signer`.
 4. Poziomy: runda 1 — PAdES B-B (SHA-256, `SubFilter /ETSI.CAdES.detached`, atrybut
    `signing-certificate-v2`), niewidoczny podpis; runda 2 — B-T (klient RFC 3161) i B-LT (DSS z OCSP
    i CRL); B-LTA i podpis widoczny (pole wskazane elementem HTML przez zaczep w rdzeniu) później.
@@ -96,6 +100,7 @@ Decyzje szczegółowe:
 7. **CLI**: `cmd/gopdfgo` nie importuje `sign` (test `tests/optional_packages_test.go`: `go list -deps`
    rdzenia i `go tool nm` binarki). Flaga podpisu w CLI (ADR 0049 pkt 4) czeka na decyzję, skąd CLI ma brać
    klucz (plik PKCS#8/PKCS#12 to odczyt kluczy z plików, którego punkt 3 tego ADR nie przewiduje).
+   Rozstrzygnięte w ADR 0051: osobny program `cmd/gopdfgo-sign`, klucz z pliku przez `sign/keyfile`.
 
 Sprawdzenie (2026-11-23, darwin/arm64, go1.26): `go test ./sign/` — RSA 2048, ECDSA P-256 i P-384 na PDF
 z gopdfgo bez tagów, z tagami (PDF/A-2a + PDF/UA-1, strumień odsyłaczy), PDF/A-2b, PDF/A-3b, Factur-X
@@ -227,3 +232,13 @@ podpis widoczny (pole wskazane elementem HTML przez zaczep w rdzeniu; w PDF/UA e
 `/DocMDP` (podpis certyfikujący) i poszanowanie istniejącego `/DocMDP`, pliki zaszyfrowane, osobne
 wywołanie dodające DSS do już podpisanego pliku (przedłużenie istniejących podpisów do B-LT), pobieranie
 wystawców z AIA `caIssuers`, flaga podpisu w CLI (czeka na decyzję o źródle klucza, pkt 7 rundy 1).
+
+## Stan po ADR 0051 (2026-11-23)
+
+Zrobione: polecenie `cmd/gopdfgo-sign` (PKCS#12 i PEM przez pakiet `sign/keyfile`, poziomy B-B, B-T, B-LT,
+sieć tylko z `-tsa`) oraz podpis w istniejącym pustym polu: `Options.FieldName` wskazuje pole (np. utworzone
+przez rdzeń z atrybutu `data-pdf-signature`), które dostaje `/V`; nazwa nieznana daje `ErrUnknownField`, pole
+podpisane `ErrFieldNotEmpty`. Pole niewidoczne (bez `FieldName`) zawsze dostaje pierwszą wolną nazwę
+`SignatureN`. W PDF/UA widżet pola z HTML jest w elemencie `Form` z `OBJR` (uwaga z rundy 1 załatwiona).
+Szczegóły i sprawdzenie: ADR 0051. Dalej bez zmian: B-LTA, `/DocMDP`, pliki zaszyfrowane, przedłużanie
+istniejących podpisów do B-LT, wystawcy z AIA, wygląd podpisu (`/AP` z nazwą i czasem).

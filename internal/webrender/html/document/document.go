@@ -224,7 +224,8 @@ type bookmarkData struct {
 	level    int
 }
 
-func gatherAnchors(box_ bo.Box, anchors anchors, links *[]Link, bookmarks *[]bookmarkData, matrix *mt.Transform) {
+// gopdfgo: fields – pola podpisu (signature_fields.go)
+func gatherAnchors(box_ bo.Box, anchors anchors, links *[]Link, bookmarks *[]bookmarkData, fields *[]signatureField, matrix *mt.Transform) {
 	if transform, hasTransform := getMatrix(box_); hasTransform {
 		if matrix != nil {
 			t := mt.Mul(*matrix, transform)
@@ -249,6 +250,7 @@ func gatherAnchors(box_ bo.Box, anchors anchors, links *[]Link, bookmarks *[]boo
 	_, inAnchors := anchors[anchorName]
 	hasAnchor := anchorName != "" && !inAnchors
 	isAttachment := box.IsAttachment()
+	gatherSignatureField(box_, fields, matrix) // gopdfgo: zob. signature_fields.go
 
 	if hasBookmark || hasLink || hasAnchor {
 		posX, posY, width, height := bo.HitArea(box_).Unpack()
@@ -285,7 +287,7 @@ func gatherAnchors(box_ bo.Box, anchors anchors, links *[]Link, bookmarks *[]boo
 	}
 
 	for _, child := range box_.AllChildren() {
-		gatherAnchors(child, anchors, links, bookmarks, matrix)
+		gatherAnchors(child, anchors, links, bookmarks, fields, matrix)
 	}
 }
 
@@ -308,6 +310,8 @@ type Page struct {
 	// svgLinks (gopdfgo): odnośniki elementów <a> obrazów SVG (gatherSVGLinks), zbierane po narysowaniu
 	// strony; w PDF leżą za odnośnikami HTML, więc nad nimi
 	svgLinks []Link
+	// signatureFields (gopdfgo): pola podpisu elementów z atrybutem data-pdf-signature (signature_fields.go)
+	signatureFields []signatureField
 
 	// The page bleed widths with values in CSS pixels.
 	Bleed bo.Bleed
@@ -332,7 +336,7 @@ func newPage(pageBox *bo.PageBox) Page {
 	d.Bleed = pageBox.Bleed()
 	d.anchors = anchors{}
 
-	gatherAnchors(pageBox, d.anchors, &d.links, &d.bookmarks, nil)
+	gatherAnchors(pageBox, d.anchors, &d.links, &d.bookmarks, &d.signatureFields, nil)
 	d.pageBox = pageBox
 	return d
 }
@@ -611,6 +615,7 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 
 	// Links and anchors
 	pagedLinks, pagedAnchors, anchorNames := d.resolveLinks()
+	pagedFields := resolveSignatureFields(d.Pages) // gopdfgo: zob. signature_fields.go
 
 	// files must be embedded before being used on the pages
 	d.embedFileAnnotations(pagedLinks, target)
@@ -638,6 +643,7 @@ func (d *Document) Write(target backend.Document, zoom pr.Fl, attachments []back
 		matrix := mt.New(scale, 0, 0, -scale, 0, page.Height*scale)
 
 		d.addHyperlinks(pagedLinks[i], outputPage, matrix)
+		d.addSignatureFields(pagedFields[i], outputPage, matrix) // gopdfgo: zob. signature_fields.go
 		d.scaleAnchors(pagedAnchors[i], matrix)
 		setMediaBoxes(page.Bleed, [4]fl{left, top, right, bottom}, outputPage)
 		// gopdfgo: page-orientation obraca stronę po ułożeniu, przy prezentacji (CSS Page 3 § 7.2);

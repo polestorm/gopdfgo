@@ -28,6 +28,7 @@ binarki pakietów, których program nie importuje, więc ten sam skutek daje zwy
    (`cmd/gopdfgo` i program bez importu) sprawdza test z `go tool nm`, jak w ADR 0039.
 4. Polecenie `gopdfgo` (CLI) może importować pakiety opcjonalne za flagami; zwalidowany wariant CLI
    bez nich buduje się z osobnego `main` albo znacznikiem — decyzja przy pierwszym takim pakiecie.
+   Rozstrzygnięte dla `sign` w ADR 0051: osobny program `cmd/gopdfgo-sign`, a `cmd/gopdfgo` bez zmian.
 5. Czcionki systemowe zostają przy znaczniku kompilacji (ADR 0039), bo zmieniają zachowanie samego
    rdzenia (wybór fontu), a nie dodają funkcji obok niego.
 
