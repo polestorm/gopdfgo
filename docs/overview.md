@@ -168,8 +168,9 @@ pagination passes over the deferred pages only, and draws them at the end into t
 PDF. Output is byte-identical (W3C corpus, document corpus, the books); the order of drawing matters only for
 the characters a glyph gets in ToUnicode, which is checked. Measured on a loaded machine (12 runs each,
 alternating): the book ×4 with a table of contents takes a median 1.17 times the time of the book ×4 without
-one, against 1.9 times before, which on an idle machine is an estimated 5.5 s instead of 9.1 s (book with
-table of contents: about 1.4 s instead of 2.3 s); peak memory is unchanged. Documents with `string-set` or
+one, against 1.9 times before. Measured again at commit `5b5fbe8` (three runs, load average about 5): book ×4
+with a table of contents 5.18–5.38 s instead of 8.6–8.8 s, book with a table of contents 1.38–1.47 s instead of
+2.23–2.31 s; peak memory is unchanged. Documents with `string-set` or
 `bookmark-label` that use page counts or `target-counter()`, `position: fixed` boxes, content wider than the
 page, tagged PDF, or references on nearly every page still take the two-pass path.
 
@@ -197,11 +198,11 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 | Document | Pages, Chromium / gopdfgo | Chromium: time | gopdfgo: time | Chromium: memory | gopdfgo: memory |
 |---|---|---|---|---|---|
 | book | 253 / 256 | 2.10–2.56 s | 1.17–1.22 s | 1.67–1.73 GB | 0.42–0.44 GB |
-| book with table of contents | 256 / 259 | 2.09–2.12 s | 2.23–2.31 s ¹ | 1.42–1.45 GB | 0.44–0.46 GB |
+| book with table of contents | 256 / 259 | 2.09–2.12 s | 1.38–1.47 s ¹ | 1.42–1.45 GB | 0.43–0.45 GB |
 | book ×4 | 1009 / 1021 | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
-| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 8.6–8.8 s ¹ | 2.11–2.14 GB | 0.78–0.80 GB |
+| book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 5.18–5.38 s ¹ | 2.11–2.14 GB | 0.77–0.82 GB |
 
-¹ Before deferred pages (2026-11-23, see above): now an estimated 1.4 s and 5.5 s.
+¹ After deferred pages, commit `5b5fbe8` (2026-11-23, see above); before them 2.23–2.31 s and 8.6–8.8 s.
 
 - Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
   contents has no page numbers and "page X of Y" reads "Strona 0 z 0". gopdfgo writes "Chapter I —
