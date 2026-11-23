@@ -208,9 +208,15 @@ func (g *group) AddFont(font backend.Font, content []byte) *backend.FontChars {
 	origin := font.Origin()
 	// until then, we store the content
 	if _, ok := g.fontFiles[origin]; !ok {
+		supported := false
+		if g.fontSupport != nil { // gopdfgo: wynik zapamiętany dla treści fontu (ADR 0047)
+			supported = g.fontSupport(content, isSupportedFont)
+		} else {
+			supported = isSupportedFont(content)
+		}
 		g.fontFiles[origin] = fontContent{
 			content:     content,
-			isSupported: isSupportedFont(content),
+			isSupported: supported,
 			cff:         cffsubset.FontKind(content),
 		}
 	}

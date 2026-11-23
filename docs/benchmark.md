@@ -624,3 +624,56 @@ mediana gopdfgo/folio w procesie: 2,77, zakres 0,99–5,35
 strony zgodne z Chromium: folio 17, gopdfgo 33 z 35
 folio: słowa wzorca dopasowane na tej samej stronie 20898 z 59068 (35.4%), mediana dy median 55.24
 gopdfgo: słowa wzorca dopasowane na tej samej stronie 54045 z 59068 (91.5%), mediana dy median 0.19
+
+### Leniwe wczytywanie fontów: plan pkt 3 i 4 (2026-11-23)
+
+Wdrożone według ADR 0047: fonty z `Options.Fonts` i z reguł `@font-face` są rejestrowane w fontmapie ze
+streszczenia (`cmap`, rodzina i odmiana, oś `wght`), a parsowane w całości (`font.NewFont`) dopiero przy
+pierwszym wyborze twarzy; wynik `isSupportedFont` (druga pełna `glyf` przy zapisie PDF) jest zapamiętany w
+pamięci fontów według treści pliku. Z dróg z planu: własny indeks z własnym wyborem fontu odrzucony (wybór
+twarzy zostaje w `fontscan.FontMap`, zmienia się tylko chwila parsowania), `isSupportedFont` z samej `loca`
+odrzucone (zmiana wyniku dla fontu z uszkodzonym glifem), zamiast tego pamięć wyniku. Profil przed zmianą (w
+procesie, bez `FontCache`, faktura i `05-hyphenation`, wszystkie i same fonty Noto): `parseFontFile` 17% czasu
+procesora, z tego `tables.ParseGlyf` 15%; `isSupportedFont` 3%.
+
+Przed i po (`271c17e` i ta gałąź, 2026-11-23 15:05; obciążenie maszyny 10–25 po wcześniejszych 110, więc
+czasy bezwzględne są zawyżone, a rozrzut duży; „wszystkie” to `-fonts testdata/fonts`, 67 plików, „Noto” to
+katalog z sześcioma plikami `testdata/fonts/Noto*.ttf`; dokumenty `bench/realdocs` z `-root bench/realdocs`).
+Cały proces: polecenie `gopdfgo`, czas i szczyt RSS z `os.wait4`, 12 uruchomień każdej binarki na przemian,
+mediana (w nawiasie najkrótszy):
+
+| Dokument | fonty | czas przed [ms] | czas po [ms] | RSS przed / po [MB] |
+|---|---|---|---|---|
+| `20-invoice` | wszystkie | 80,3 (71,3) | 63,1 (56,6) | 94 / 63 |
+| `05-hyphenation` | wszystkie | 84,2 (80,3) | 65,8 (62,5) | 94 / 59 |
+| `invoice-a-basic` | wszystkie | 58,8 (54,8) | 39,8 (37,4) | 77 / 49 |
+| `office-agreement` | wszystkie | 101,3 (97,9) | 83,4 (80,6) | 128 / 93 |
+| `20-invoice` | Noto | 69,7 (68,0) | 64,6 (63,5) | 64 / 53 |
+| `05-hyphenation` | Noto | 63,5 (60,6) | 58,1 (55,8) | 61 / 53 |
+| `invoice-a-basic` | Noto | 37,5 (36,1) | 32,8 (31,8) | 50 / 40 |
+| `office-agreement` | Noto | 89,9 (88,4) | 76,2 (74,6) | 108 / 83 |
+
+W procesie (harness jak `bench/inproc`, kopia z `replace` na każdą wersję poza repozytorium, fonty tylko w
+`Options.Fonts`, bez `Resolver`; 30 renderowań na pomiar, 3 pomiary na zmianę, mediana; przydziały z
+`-benchmem`):
+
+| Dokument | fonty | bez `FontCache` przed / po [ms] | przydziały przed / po [MB] | z `FontCache` przed / po [ms] | przydziały z `FontCache` przed / po [MB] |
+|---|---|---|---|---|---|
+| `20-invoice` | wszystkie | 63,5 / 48,6 | 70,6 / 38,0 | 46,2 / 46,5 | 33,9 / 29,2 |
+| `20-invoice` | Noto | 50,9 / 48,8 | 48,0 / 37,7 | 43,7 / 49,6 | 31,1 / 27,8 |
+| `05-hyphenation` | wszystkie | 47,3 / 32,4 | 54,4 / 22,3 | — | — |
+| `05-hyphenation` | Noto | 34,5 / 29,9 | 30,9 / 20,7 | — | — |
+
+- Pierwsze renderowanie (polecenie, w procesie bez `FontCache`) z wszystkimi fontami `testdata/fonts`: −15 do
+  −19 ms i −30 do −35 MB szczytu RSS; z samymi fontami Noto −5 ms (−14 ms w `office-agreement`) i −8 do −25 MB.
+  Szacunek z planu (−10–15 ms) sprawdził się dla wielu fontów; z kilkoma fontami, z których większość jest
+  użyta, zysk jest mniejszy, bo użyte fonty i tak są parsowane w całości.
+- Z ciepłą `FontCache` parsowania nie było już wcześniej; zostaje pamięć wyniku `isSupportedFont` (−3,3 do −4,7 MB
+  przydziałów na renderowanie), której wpływu na czas (szacunek z planu ok. 1 ms) nie da się zobaczyć w
+  rozrzucie tego pomiaru.
+
+Sprawdzenie (binarki z `271c17e` i z tej gałęzi): porównanie bajtowe W3C (11 689 dokumentów, 46 756
+renderowań) 0 różnic, `bench/verify/corpus.sh` fail=0, `bench/folio/realbytes.sh` 77 z 77 zgodnych,
+`go test -tags systemfonts ./tests/ -run SystemFonts` bez błędów, `go test ./tests/` bez błędów (w tym
+`tests/lazyfonts23_test.go`: parsowanie przy użyciu i przy rejestracji dają te same bajty na całym korpusie
+dokumentów), testy przejętego kodu tylko ze znanymi niepowodzeniami.

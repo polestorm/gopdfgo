@@ -297,28 +297,24 @@ func render(html []byte, opts Options) (result Result, err error) {
 		fontCache = &FontCache{cache: text.NewTransientFontCache()}
 	}
 	fontMap := fontscan.NewFontMap(log.New(io.Discard, "", 0))
-	// identyfikatory w kolejności Options.Fonts: przy dwóch fontach o tej samej nazwie rodziny (także
-	// zlokalizowanej) wygrywa podany wcześniej; rejestracja w kolejności iteracji po mapie losowała
-	// zwycięzcę przy każdym uruchomieniu (test WPT css-fonts/font-family-name-010)
-	ids := make([]string, len(opts.Fonts))
-	for i, font := range opts.Fonts {
-		id := fmt.Sprintf("gopdfgo-font-%d:%s", i, font.Name)
-		if err := addCachedFont(fontMap, fontCache, font.Data, id); err != nil {
-			return Result{}, fmt.Errorf("gopdfgo: font %q: %w", font.Name, err)
-		}
-		ids[i] = id
-	}
 	fontConfig := text.NewFontConfigurationGotext(fontMap)
 	fontConfig.ReuseLoadedFaces = true
 	fontConfig.Cache = fontCache.cache
+	// identyfikatory w kolejności Options.Fonts: przy dwóch fontach o tej samej nazwie rodziny (także
+	// zlokalizowanej) wygrywa podany wcześniej; rejestracja w kolejności iteracji po mapie losowała
+	// zwycięzcę przy każdym uruchomieniu (test WPT css-fonts/font-family-name-010). Fonty są
+	// rejestrowane ze streszczenia, a parsowane w całości przy pierwszym użyciu (ADR 0047).
+	for i, font := range opts.Fonts {
+		id := fmt.Sprintf("gopdfgo-font-%d:%s", i, font.Name)
+		if err := fontConfig.AddFontFile(id, font.Data); err != nil {
+			return Result{}, fmt.Errorf("gopdfgo: font %q: %w", font.Name, err)
+		}
+	}
 	if len(opts.GenericFamilies) != 0 {
 		fontConfig.GenericFamilies = map[string][]string{}
 		for generic, families := range opts.GenericFamilies {
 			fontConfig.GenericFamilies[strings.ToLower(strings.TrimSpace(generic))] = families
 		}
-	}
-	for i, id := range ids {
-		fontConfig.RegisterFontContent(id, opts.Fonts[i].Data)
 	}
 	var system systemFontSource
 	if opts.SystemFonts {
@@ -411,7 +407,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 		warningsBefore := warnings.Len()
 		pages, fallback = document.Stream(parsed, sheets, true, fontConfig, func() backend.Document {
 			pdfmodel.NonFiniteNumbers.Store(0)
-			output = newOutput(tagged)
+			output = newOutput(tagged, fontCache)
 			return output
 		}, 1, attachments, func() { warnings.Truncate(warningsBefore) })
 		if fallback != "" {
@@ -421,7 +417,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	if fallback != "" {
 		laidOut := document.Render(parsed, sheets, true, fontConfig)
 		pdfmodel.NonFiniteNumbers.Store(0)
-		output = newOutput(tagged)
+		output = newOutput(tagged, fontCache)
 		laidOut.ReleaseDrawnPages = true // strony zwalniane zaraz po narysowaniu, zob. document.Document
 		laidOut.Write(output, 1, attachments)
 		pages = len(laidOut.Pages)
@@ -517,8 +513,10 @@ func prepareFacturX(opts *Options) (*facturXDescription, []Warning, error) {
 }
 
 // newOutput tworzy cel rysowania; tagged włącza oznaczanie treści i drzewo struktury (ADR 0033).
-func newOutput(tagged bool) *pdf.Output {
+// Sprawdzenie konturów fontów przy zapisie jest zapamiętywane w pamięci fontów (ADR 0047).
+func newOutput(tagged bool, fonts *FontCache) *pdf.Output {
 	output := pdf.NewOutput()
+	output.SetFontSupportCache(fonts.cache.Supported)
 	if tagged {
 		output.SetTagged()
 	}

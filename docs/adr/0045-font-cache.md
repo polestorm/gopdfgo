@@ -47,6 +47,7 @@ wskaźniku `*font.Font`.
   przydziały na wywołanie ok. 90 → 45 MB.
 - Polecenie `gopdfgo` (jedno renderowanie na proces) korzysta tylko z punktu 4.
 - Pozostały koszt fontów przy pierwszym użyciu to pełne parsowanie go-text. Leniwe parsowanie (jak w folio)
-  wymagałoby zmian w go-text (zależność zewnętrzna, nie fork) albo własnego indeksu fontów; nie teraz.
+  wymagałoby zmian w go-text (zależność zewnętrzna, nie fork) albo własnego indeksu fontów; nie teraz. Dopisek
+  2026-11-23: wdrożone bez zmian w go-text, ADR 0047.
 - Zmiana w przejętym kodzie (`internal/webrender/text`): plik `font_cache.go`, pole
   `FontConfigurationGotext.Cache`, `loadOneFont` parsuje przez pamięć podręczną; opis w `THIRD_PARTY.md`.

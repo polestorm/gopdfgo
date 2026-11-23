@@ -62,6 +62,10 @@ type FontConfigurationGotext struct {
 	// Cache (gopdfgo): sparsowane fonty z reguł @font-face współdzielone między renderowaniami
 	// (ADR 0045); nil oznacza parsowanie przy każdym wczytaniu, jak w źródle.
 	Cache *FontCache
+	// ownCache (gopdfgo): pamięć fontów, gdy Cache jest nil (zob. fontCache w lazy_fonts.go)
+	ownCache *FontCache
+	// lazy (gopdfgo): twarze zarejestrowane bez pełnego parsowania fontu (ADR 0047, lazy_fonts.go)
+	lazy map[*font.Font]lazyFont
 
 	textLayoutCache layoutCache // gopdfgo: ograniczony rozmiar, zob. layout_cache.go
 
@@ -188,49 +192,46 @@ func (f *FontConfigurationGotext) loadOneFont(url pr.TaggedString, ruleDescripto
 		return "", fmt.Errorf("failed to load font at %s", url.S)
 	}
 
-	// gopdfgo: z pamięcią podręczną (ADR 0045) font sparsowany w poprzednim renderowaniu; kopia, bo
-	// niżej podmieniamy Cmap, a mapy konfiguracji rozpoznają twarze po wskaźniku
-	var parsed []ParsedFont
 	// kolekcji z więcej niż jednym fontem nie parsujemy, skoro i tak jest odrzucana (nagłówek TTC:
 	// znacznik ttcf, wersja, liczba fontów)
 	if len(content) >= 12 && bytes.HasPrefix(content, []byte("ttcf")) && binary.BigEndian.Uint32(content[8:]) != 1 {
 		return "", fmt.Errorf("font collections are not supported (at %s)", url.S)
 	}
-	if f.Cache != nil {
-		parsed, err = f.Cache.Parse(content)
-	} else {
-		parsed, err = parseFontFile(content)
-	}
+	// gopdfgo: z pamięcią podręczną (ADR 0045) font z poprzedniego renderowania. Do rejestracji wystarcza
+	// streszczenie fontu; pełne parsowanie przy pierwszym użyciu twarzy (ADR 0047, lazy_fonts.go)
+	summaries, err := f.fontCache().Summary(content)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse font at %s : %s", url.S, err)
 	}
-	if len(parsed) != 1 {
+	if len(summaries) != 1 {
 		return "", fmt.Errorf("font collections are not supported (at %s)", url.S)
 	}
-	ft := parsed[0].Copy()
+	summary := summaries[0]
+	face := f.addLazyFace(content, 0, summary.Cmap)
+	ft := face.Font
 
 	if len(ruleDescriptors.UnicodeRange) != 0 {
 		ft.Cmap = rangeCmap{ft.Cmap, ruleDescriptors.UnicodeRange}
 	}
-	if desc.Aspect.Weight == 0 && !parsed[0].WeightAxis {
+	if desc.Aspect.Weight == 0 && !summary.WeightAxis {
 		// gopdfgo: reguła bez deskryptora font-weight ma wartość początkową auto, czyli grubość samego
 		// fontu (CSS Fonts 4 § 4.5), a nie 0. W źródle twarz bez deskryptora dostawała grubość 0, więc
 		// tekst o grubości 400 wybierał z tej samej rodziny twarz bold (700 jest bliżej 400 niż 0);
 		// rodzina z regułami „regular bez font-weight” + „bold” drukowała cały tekst pogrubionym fontem.
 		// Font zmienny z osią wght zostaje bez grubości: auto oznacza tam cały zakres osi, który
 		// obsługuje familyIndex (zob. family_names.go).
-		desc.Aspect.Weight = ft.Describe().Aspect.Weight
+		desc.Aspect.Weight = summary.Description.Aspect.Weight
 		if desc.Aspect.Weight == 0 {
 			desc.Aspect.Weight = font.WeightNormal
 		}
 	}
-	f.fm.AddFace(font.NewFace(ft), fontscan.Location{File: key}, desc)
+	f.fm.AddFace(face, fontscan.Location{File: key}, desc)
 	// gopdfgo: style i grubości twarzy dla dopasowania i syntezy, zob. family_names.go
 	synthesisWeight := uint16(desc.Aspect.Weight)
 	if r := ruleDescriptors.FontWeightRange; r[1] != 0 {
 		synthesisWeight = uint16(r[1])
 	} else if synthesisWeight == 0 {
-		synthesisWeight = uint16(ft.Describe().Aspect.Weight)
+		synthesisWeight = uint16(summary.Description.Aspect.Weight)
 	}
 	var fixed uint8
 	if ruleDescriptors.FontStyle != "" {

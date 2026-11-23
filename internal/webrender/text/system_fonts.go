@@ -61,6 +61,12 @@ func (fc *FontConfigurationGotext) setQuery(fd FontDescription) {
 // faces (gopdfgo) zwraca fontmapę do wyboru twarzy dla znaków: fc.fm albo, z fontami systemowymi,
 // warstwę, która sięga po nie, gdy fonty wywołującego nie mają rodziny albo znaku.
 func (fc *FontConfigurationGotext) faces() shaping.Fontmap {
+	if len(fc.lazy) != 0 { // twarze bez pełnego fontu, zob. lazy_fonts.go
+		if fc.System == nil {
+			return lazyLayer{fc}
+		}
+		return lazySystemLayer{fc}
+	}
 	if fc.System == nil {
 		return fc.fm
 	}
