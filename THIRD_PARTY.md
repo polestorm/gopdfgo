@@ -1017,6 +1017,12 @@ Wspólne dla obu katalogów:
   i przy wyznaczaniu słów do min-content): ukośnik między znakami niebiałymi traci okazję do złamania po nim,
   gdy następna okazja jest bliżej niż 20 znaków (UAX #14 § 5.1); źródło łamało „zyskiem/|stratą”;
   test `tests/slashbreak18_test.go`;
+- `svg/svg.go` (`parseSharedAttributes`, `applyClipPath`, nowe `clipPathEvenOdd`), 2026-11-23: źródło czytało
+  atrybut „fill-rull” zamiast `fill-rule`, więc `fill-rule: evenodd` (atrybut, styl, dziedziczenie) było
+  pomijane i kształty z otworami wypełniały się w całości (SVG 2 § 13.3.4); `clip-rule` nie było
+  obsługiwane wcale, obszar przycięcia zawsze nonzero (CSS Masking 1 § 6.1) — teraz evenodd, gdy mają
+  je wszystkie kształty `<clipPath>` (PDF ma jedną regułę na obszar); zgłoszenie z innej sesji;
+  test `tests/fillrule23_test.go`;
 - pojedyncze poprawki SVG z sondażu W3C, 2026-11-21 (praca pomocnika; ADR 0031; test
   `tests/svgsingles18_test.go`; sondaż `svg/` z 181 na 194 z 235, bez strat; korpus: flaga Brazylii w `img`
   i inline bliżej oryginału, bo litery napisu wstawione przez `<use>` dziedziczą zielone wypełnienie, reszta

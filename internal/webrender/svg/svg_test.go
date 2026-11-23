@@ -301,7 +301,8 @@ func randAttributes() nodeAttributes {
 		"transform",
 		"stroke",
 		"fill",
-		"fill-rull",
+		"fill-rule",
+		"clip-rule",
 		"stroke-dashoffset",
 		"stroke-dasharray",
 

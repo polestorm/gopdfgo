@@ -656,7 +656,10 @@ func (svg *SVGImage) applyClipPath(dst backend.Canvas, clipPath *clipPath, node 
 	// At least set the clipping area to an empty path, so that it’s
 	// totally clipped when the clipping path is empty.
 	dst.Rectangle(0, 0, 0, 0)
-	dst.State().Clip(false)
+	// gopdfgo: clip-rule kształtów obszaru przycięcia (CSS Masking 1 § 6.1); źródło zawsze przycinało
+	// regułą nonzero. PDF ma jedną regułę na cały obszar, więc evenodd obowiązuje, gdy mają ją wszystkie
+	// kształty (przypadek typowy: jedna ścieżka z otworami); pusty prostokąt powyżej nie zmienia wyniku.
+	dst.State().Clip(clipPathEvenOdd(&clipPath.svgNode))
 	newCtm := dst.State().GetTransform()
 	// gopdfgo: Transform dokłada macierz po prawej stronie (CTM' = CTM × M, zob. matrix.Mul3), więc
 	// powrót do oldCtm wymaga M = newCtm⁻¹ × oldCtm; źródło mnożyło w odwrotnej kolejności, co przy
@@ -966,6 +969,8 @@ type attributes struct {
 	opacity, strokeOpacity, fillOpacity Fl // default to 1
 
 	isFillEvenOdd    bool
+	// isClipEvenOdd (gopdfgo): clip-rule: evenodd (CSS Masking 1 § 6.1) dla kształtów wewnątrz <clipPath>
+	isClipEvenOdd bool
 	display, visible bool
 
 	// nonScalingStroke (gopdfgo): vector-effect: non-scaling-stroke (SVG 2 § 13.2); źródło tej
@@ -1219,7 +1224,10 @@ func (na nodeAttributes) parseSharedAttributes(out *attributes) error {
 	if err != nil {
 		return err
 	}
-	out.isFillEvenOdd = na["fill-rull"] == "evenodd"
+	// gopdfgo: źródło czytało atrybut „fill-rull”, więc fill-rule: evenodd było pomijane i kształty
+	// z otworami (pierścienie, litery, ikony) wypełniały się w całości (SVG 2 § 13.3.4)
+	out.isFillEvenOdd = strings.TrimSpace(na["fill-rule"]) == "evenodd"
+	out.isClipEvenOdd = strings.TrimSpace(na["clip-rule"]) == "evenodd"
 
 	out.dashOffset, err = parseValue(na["stroke-dashoffset"])
 	if err != nil {
@@ -1276,4 +1284,25 @@ func isPlainShape(d drawable) bool {
 		return true
 	}
 	return false
+}
+
+// clipPathEvenOdd (gopdfgo) mówi, czy wszystkie kształty obszaru przycięcia mają clip-rule: evenodd.
+func clipPathEvenOdd(node *svgNode) bool {
+	shapes, evenOdd := 0, 0
+	var walk func(n *svgNode)
+	walk = func(n *svgNode) {
+		if len(n.children) == 0 && n.graphicContent != nil {
+			shapes++
+			if n.isClipEvenOdd {
+				evenOdd++
+			}
+		}
+		for _, c := range n.children {
+			walk(c)
+		}
+	}
+	for _, c := range node.children {
+		walk(c)
+	}
+	return shapes > 0 && shapes == evenOdd
 }
