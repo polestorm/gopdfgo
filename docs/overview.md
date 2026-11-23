@@ -220,15 +220,16 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 [folio](https://github.com/carlos7ags/folio) (Apache-2.0, commit `29bca95`) is the other pure-Go HTML-to-PDF
 engine. Both engines rendered the same 36 documents (the 22 of `testdata/documents`, 13 real documents:
 invoices, e-SF statements, Markdown pages, Word documents, random documents, and the 254-page book) with
-the same Noto fonts through `@font-face`; Apple M4, in-process median of repeated renders. Details and
+the same Noto fonts through `@font-face`; Apple M4, in-process median of repeated renders; measured again on
+2026-11-24 at commit `5961ab8` on an idle machine. Details and
 the full table: `docs/benchmark.md` § 11 (Polish).
 
 | | folio | gopdfgo | gopdfgo with `FontCache` |
 |---|---|---|---|
-| in-process time, median ratio to folio | 1 | 2.9× (1.0–9.8×) | 1.9× |
-| invoice `20-invoice` (3 pages), in process | 15.6 ms | 51.4 ms | 37.9 ms |
-| book (254 pages), in process | 0.46 s | 1.14 s | 1.13 s |
-| peak memory (whole process) | 22–80 MB | 72–457 MB | |
+| in-process time, median ratio to folio | 1 | 2.8× (1.0–5.4×) | about 1.9× (2026-11-23) |
+| invoice `20-invoice` (3 pages), in process | 15.6 ms | 48.7 ms | about 36 ms |
+| book (254 pages), in process | 0.46 s | 1.10 s | |
+| peak memory (whole process) | 22–281 MB | 73–469 MB (book: 0.28 against 0.47 GB) | |
 | page count as in Chromium | 17 of 35 | 33 of 35 | |
 | reference words on the same page as in Chromium | 35% | 92% | |
 | median vertical offset of words | 55 pt | 0.2 pt | |

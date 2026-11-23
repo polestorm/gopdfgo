@@ -30,9 +30,9 @@ named in each source.
 
 | Document | Chromium | folio | gopdfgo |
 |---|---|---|---|
-| invoice, 3 pages, whole process | about 0.43 s (browser started per document) | 22 ms | 66 ms |
-| invoice, 3 pages, inside a running program | 0.42–0.46 s per document through DevTools | 16 ms | 51 ms; 38 ms with a font cache shared between calls |
-| illustrated book, about 255 pages | 2.1–2.6 s | 0.48 s | 1.2 s |
+| invoice, 3 pages, whole process | about 0.43 s (browser started per document) | 22 ms | 62 ms |
+| invoice, 3 pages, inside a running program | 0.42–0.46 s per document through DevTools | 16 ms | 49 ms; about 36 ms with a font cache shared between calls |
+| illustrated book, about 255 pages | 2.1–2.6 s | 0.48 s | 1.14 s |
 | the same book four times, about 1020 pages | 4.5–4.7 s | not measured | 4.6–4.7 s |
 | peak memory, business documents | about 950 MB (browser processes) | 22–80 MB | 48–117 MB |
 | peak memory, book | 1.7 GB | 0.29 GB | 0.42 GB |
@@ -42,8 +42,8 @@ contents, so gopdfgo lays them out in a single pass. folio does not support `tar
 or `counter(pages)` in the page content, so documents that need a second layout pass were not compared with
 it.
 
-folio is the fastest and the lightest: 2–3 times faster than gopdfgo on typical documents and 5–10 times on
-documents with thousands of inline styles. Chromium pays for starting a browser on small documents and is
+folio is the fastest and the lightest: about 2.8 times faster than gopdfgo on typical documents (median of 36,
+measured 2026-11-24) and up to 5 times on documents with thousands of inline styles or many small tables. Chromium pays for starting a browser on small documents and is
 as fast as gopdfgo at a thousand pages. With a table of contents of page numbers and "page X of Y" in the text,
 gopdfgo needs further pagination passes over the pages that change (the 1020-page book takes 5.2–5.4 s
 instead of 4.6–4.8 s, 8.6–8.8 s before 2026-11-23, ADR 0036); neither of the others fills these in at all (see

@@ -572,3 +572,55 @@ pudełko) niż mniejszą liczbą kopii; bez szacunku.
 Sprawdzenie: porównanie bajtowe W3C (11 689 dokumentów, 46 756 renderowań) 0 różnic, `bench/verify/corpus.sh`
 fail=0, `bench/realdocs` i książka 77 z 77 zgodnych, cztery warianty książki identyczne, `go test ./tests/`
 bez błędów, testy przejętego kodu tylko ze znanymi niepowodzeniami.
+
+### Ponowny pomiar 2026-11-24 (main `5961ab8`)
+
+Ten sam sposób pomiaru co wyżej (`bench/folio/run.py`, wyniki `bench/folio/out/2026-11-24/`), maszyna wolna
+(średnie obciążenie ok. 3), po dwóch rundach przyspieszeń (indeks selektorów i wspólna kaskada, pamięć
+wyników łamania wierszy, ADR 0046) i tańszym drugim przebiegu (ADR 0036). Kolumna z `FontCache` nie była
+mierzona. Mediana stosunku czasów gopdfgo/folio w procesie: 2,8 (było 2,9), zakres 1,0–5,4 (było 1,0–9,8);
+`office-db-model` 309 wobec 58 ms (było 561), książka 1,10 wobec 0,46 s.
+
+| Dokument | Strony Chromium / folio / gopdfgo | W procesie [ms] folio / gopdfgo / gopdfgo z `FontCache` | Cały proces [ms] folio / gopdfgo | RSS [MB] folio / gopdfgo | PDF [kB] folio / gopdfgo | Słowa na miejscu folio / gopdfgo | dy mediana [pt] folio / gopdfgo |
+|---|---|---|---|---|---|---|---|
+| `01-record-copy` | 3 / 2 / 3 | 19,2 / 40,9 / — | 26 / 55 | 29 / 89 | 35,7 / 28,2 | 48% / 100% | 36,7 / 0,2 |
+| `02-register-table` | 8 / 7 / 8 | 64,4 / 66,6 / — | 71 / 81 | 52 / 111 | 111,9 / 81,3 | 15% / 100% | 116,0 / 0,2 |
+| `03-report-svg-chart` | 2 / 2 / 2 | 30,2 / 29,9 / — | 36 / 44 | 31 / 83 | 57,9 / 27,1 | 81% / 100% | 18,8 / 0,2 |
+| `04-qms-procedure` | 10 / 11 / 10 | 18,4 / 54,2 / — | 25 / 67 | 28 / 101 | 49,5 / 55,3 | 1% / 98% | 114,7 / 0,2 |
+| `05-hyphenation` | 1 / 1 / 1 | 8,2 / 36,2 / — | 14 / 58 | 25 / 92 | 12,5 / 12,8 | 60% / 93% | 44,7 / 0,1 |
+| `06-margin-boxes` | 2 / 1 / 3 | 8,4 / 24,3 / — | 14 / 37 | 25 / 76 | 14,0 / 18,6 | 30% / 47% | 9,8 / 0,2 |
+| `07-images` | 6 / 6 / 6 | 13,3 / 25,6 / — | 19 / 39 | 24 / 83 | 62,0 / 42,7 | 94% / 100% | 94,7 / 0,2 |
+| `08-flex` | 2 / 2 / 2 | 9,1 / 25,2 / — | 15 / 38 | 25 / 75 | 15,9 / 14,6 | 99% / 100% | 7,5 / 0,2 |
+| `09-lists-counters` | 1 / 1 / 1 | 8,6 / 27,9 / — | 14 / 41 | 24 / 77 | 14,1 / 19,5 | 80% / 99% | 21,1 / 0,2 |
+| `10-preformatted` | 1 / 1 / 1 | 9,0 / 29,7 / — | 15 / 43 | 25 / 78 | 14,4 / 17,2 | 68% / 98% | 130,9 / 0,1 |
+| `11-edge-cases` | 2 / 4 / 2 | 15,9 / 31,5 / — | 22 / 44 | 32 / 82 | 23,4 / 23,1 | 75% / 99% | 232,7 / 0,1 |
+| `12-floats-positioning` | 2 / 4 / 2 | 9,3 / 25,7 / — | 15 / 38 | 24 / 76 | 19,5 / 18,7 | 61% / 100% | 45,4 / 0,2 |
+| `13-forms-html-elements` | 1 / 1 / 1 | 12,4 / 29,6 / — | 18 / 42 | 27 / 80 | 21,6 / 27,2 | 81% / 98% | 49,8 / 1,1 |
+| `14-cascade-selectors` | 1 / 1 / 1 | 9,1 / 26,8 / — | 15 / 40 | 24 / 75 | 14,6 / 13,8 | 97% / 100% | 63,2 / 0,2 |
+| `15-page-breaks` | 13 / 12 / 13 | 19,4 / 26,9 / — | 26 / 41 | 27 / 85 | 24,8 / 49,7 | 11% / 100% | 4,1 / 0,2 |
+| `16-typography-fonts` | 1 / 1 / 1 | 22,7 / 35,3 / — | 29 / 47 | 37 / 90 | 38,9 / 46,9 | 96% / 97% | 10,8 / 0,2 |
+| `17-tables` | 2 / 2 / 2 | 9,3 / 25,2 / — | 15 / 39 | 24 / 76 | 16,4 / 15,6 | 87% / 100% | 75,7 / 0,2 |
+| `18-toc-running-elements` | 6 / 6 / 6 | 11,3 / 34,0 / — | 17 / 47 | 27 / 86 | 25,4 / 35,9 | 100% / 100% | 6,6 / 0,2 |
+| `19-flex-grid-pagination` | 13 / 12 / 13 | 18,3 / 75,6 / — | 25 / 89 | 33 / 101 | 38,9 / 37,3 | 65% / 100% | 30,0 / 0,2 |
+| `20-invoice` | 3 / 3 / 3 | 15,6 / 48,7 / — | 22 / 62 | 30 / 94 | 29,6 / 28,6 | 94% / 100% | 28,7 / 0,2 |
+| `21-mixed-report` | 3 / 4 / 3 | 16,2 / 41,4 / — | 22 / 55 | 33 / 93 | 31,5 / 38,5 | 44% / 100% | 45,2 / 0,2 |
+| `22-multicol-pagination` | 11 / 13 / 11 | 28,8 / 76,6 / — | 35 / 92 | 32 / 102 | 38,9 / 38,7 | 13% / 100% | 31,3 / 0,2 |
+| `invoice-a-basic` | 1 / 1 / 1 | 11,3 / 26,7 / — | 17 / 39 | 25 / 73 | 25,6 / 25,0 | 98% / 100% | 16,9 / 0,2 |
+| `invoice-d-140rows` | 7 / 7 / 7 | 35,9 / 67,0 / — | 42 / 83 | 36 / 107 | 55,7 / 51,1 | 88% / 100% | 53,2 / 0,2 |
+| `esf-1` | 6 / 13 / 6 | 39,9 / 74,4 / — | 47 / 90 | 40 / 109 | 70,5 / 63,2 | 4% / 100% | 180,3 / 0,2 |
+| `esf-4` | 16 / 31 / 16 | 84,8 / 140,6 / — | 91 / 159 | 55 / 140 | 140,8 / 123,7 | 2% / 100% | 222,2 / 0,2 |
+| `md-gopdfgo-overview` | 11 / 11 / 11 | 33,2 / 96,4 / — | 40 / 112 | 41 / 117 | 90,9 / 118,3 | 50% / 100% | 329,6 / 0,2 |
+| `md-gomdgo-testing` | 7 / 8 / 7 | 21,7 / 82,1 / — | 28 / 96 | 34 / 103 | 57,0 / 75,5 | 40% / 93% | 111,8 / 0,4 |
+| `office-agreement` | 6 / 6 / 6 | 21,8 / 57,8 / — | 28 / 72 | 45 / 125 | 65,0 / 54,3 | 79% / 99% | 152,3 / 0,0 |
+| `office-db-model` | 13 / 13 / 13 | 57,7 / 308,6 / — | 65 / 349 | 81 / 255 | 89,7 / 168,9 | 32% / 80% | 195,3 / 69,8 |
+| `office-terminology` | 6 / 4 / 6 | 36,0 / 136,6 / — | 41 / 154 | 64 / 166 | 65,4 / 74,1 | 24% / 71% | 312,3 / 45,5 |
+| `office-usb-protocol` | 10 / 8 / 10 | 25,0 / 82,5 / — | 31 / 98 | 65 / 138 | 99,5 / 89,5 | 77% / 100% | 103,2 / 0,0 |
+| `mmd-p6` | 4 / 3 / 4 | 7,0 / 36,0 / — | 12 / 48 | 22 / 85 | 5,2 / 19,1 | 38% / 100% | 102,5 / 0,0 |
+| `rand-01` | 17 / 19 / 15 | 59,6 / 253,3 / — | 65 / 276 | 54 / 167 | 105,3 / 116,7 | 5% / 34% | 95,7 / 0,0 |
+| `rand-12` | 14 / 15 / 14 | 44,0 / 143,4 / — | 51 / 159 | 40 / 142 | 122,3 / 127,6 | 49% / 100% | 55,2 / 0,2 |
+| `book-1342` | — / 309 / 254 | 463,7 / 1103,3 / — | 483 / 1137 | 281 / 469 | 26744,6 / 26296,6 | — / — | — / — |
+
+mediana gopdfgo/folio w procesie: 2,77, zakres 0,99–5,35
+strony zgodne z Chromium: folio 17, gopdfgo 33 z 35
+folio: słowa wzorca dopasowane na tej samej stronie 20898 z 59068 (35.4%), mediana dy median 55.24
+gopdfgo: słowa wzorca dopasowane na tej samej stronie 54045 z 59068 (91.5%), mediana dy median 0.19
