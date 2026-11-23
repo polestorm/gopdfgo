@@ -2535,3 +2535,20 @@ losowych (wcześniej 26).
 - **Metryki pogrubienia syntetycznego**: nagłówki `h3` i `th` Tinos bez pliku pogrubionego mają w Chrome ramkę
   słowa 4–5 pt wyżej w `pdftotext -bbox` (inne metryki fontu syntetycznego w PDF), choć wiersze stoją tak samo;
   to artefakt pomiaru, nie układu.
+
+## Przypisy w ponownej paginacji i przy przenoszeniu na następną stronę (2026-11-23)
+
+Sprawdzone dokumenty (`tests/footnotes23_test.go`): spis treści `target-counter`, „strona X z Y”
+(`counter(pages)` w treści), `::footnote-call` i `::footnote-marker` z numerami, `@footnote` z ramką, przypisy
+krótkie, długie (dwa nie mieszczą się razem na stronie A6) i po trzy długie w jednym wierszu; dokument krótki
+(stara droga) i ponad 32 stron (droga dwuprzebiegowa, ADR 0036). Przed poprawką: krótki dokument kończył się
+paniką (liczba stron rosła z obiegu na obieg), a w układzie po kolei ginęło 7 z 22 przypisów i dwa stały nie po
+kolei. Naprawione (ADR 0036, dopisek drugi; `THIRD_PARTY.md`): przypisy przeniesione na następną stronę należą
+do stanu strony w obiegach paginacji; nie giną dalsze przypisy wiersza ani dalsze przypisy przeniesione razem;
+przypis przeniesiony dla zmieszczenia wiersza zachowuje kolejność; przeniesione przypisy nie wychodzą nad
+stronę. Teraz każdy przypis jest dokładnie raz, w kolejności, nie przed stroną wywołania, obie drogi dają te
+same bajty, a strony są równe układowi bez ponownej paginacji.
+
+Zostaje (jak w WeasyPrint): przypis nie dzieli się między strony, więc pojedynczy przypis wyższy niż strona
+wychodzi nad jej górną krawędź; przypisy przeniesione mogą się kumulować i trafiać kilka stron za wywołanie,
+a strona, na której przeniesiony przypis ustępuje miejsca wierszom (wdowy, sieroty), bywa prawie pusta.
