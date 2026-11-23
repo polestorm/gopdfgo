@@ -2915,6 +2915,28 @@ Wspólne dla obu katalogów:
   - wynik zmienia się tylko w dokumentach z ponowną paginacją i elementami pływającymi przeniesionymi na
     następną stronę (książka ze spisem treści z `testdata/books`: 18 stron; obie drogi układu dają teraz to
     samo co układ po kolei).
+- 2026-11-23, przypisy (`float: footnote`, CSS GCPM § 2) w obiegach paginacji i przy przenoszeniu na następną
+  stronę (ADR 0036, dopisek drugi z 2026-11-23; test `tests/footnotes23_test.go`):
+  - `html/layout/pages.go` `remakePage`, `makeAllPages`, `layout.go` (pole `reportedAfterPage`): przypisy
+    przeniesione na następną stronę (`reportedFootnotes`) to, jak `brokenOutOfFlow`, wejście następnej strony
+    spoza `pageMaker`. Strona ułożona od nowa po stronie wziętej z obiegu wcześniejszego dostawała przypisy
+    przeniesione przez ostatnią stronę ułożoną w tym obiegu (przypis drugi raz albo zgubiony; liczba stron
+    rosła z obiegu na obieg, aż `makeAllPages` kończył się paniką „index out of range”), a strona wzięta z obiegu
+    wcześniejszego jako ostatnia kończyła dokument bez strony z przeniesionymi przypisami. Teraz przypisy
+    przeniesione przez każdą stronę są zapamiętywane, porównywane przy ponownym układzie i odtwarzane za stroną
+    wziętą z obiegu wcześniejszego;
+  - `html/layout/block.go` (wiersz z wywołaniami przypisów): `break` stał poza gałęziami `footnote-policy`, więc
+    po pierwszym przypisie przeniesionym na następną stronę pętla kończyła się i dalsze przypisy tego wiersza
+    ginęły; teraz, jak w WeasyPrint, kończą ją tylko `footnote-policy: line` i `block`;
+  - `html/layout/pages.go` `makePage`: z kilku przeniesionych przypisów, z których drugi lub dalszy już się nie
+    mieścił, dalej przechodziły nie `reportedFootnotes[i:]` (WeasyPrint `reported_footnotes[i:]`), lecz wycinek
+    listy z jednym przypisem: ginęły (i = 1) albo układ kończył się paniką (i > 1). Do tego przeniesiony przypis,
+    z którym obszar przypisów (bez `max-height`) wychodzi nad górną krawędź obszaru strony, też przechodzi dalej
+    (pierwszy zostaje zawsze); w źródle kilka długich przypisów przeniesionych razem wychodziło nad stronę;
+  - `html/layout/block.go`, `column.go`, nowe `reportFootnoteFirst` w `layout.go`: przypis bieżącej strony
+    przeniesiony, żeby zmieścił się wiersz (wdowy i sieroty) albo przy przepełnieniu w kolumnach, staje przed
+    przypisami już przeniesionymi, bo poprzedza je w dokumencie; źródło (i WeasyPrint) dopisywało go na koniec,
+    więc przypisy szły nie po kolei (27, 25, 28).
 
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):

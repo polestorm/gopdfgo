@@ -893,9 +893,16 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 	for i, reportedFootnote := range reportedFootnotes {
 		context.footnotes = append(context.footnotes, reportedFootnote)
 		overflow := context.layoutFootnote(reportedFootnote)
+		// gopdfgo: obszar przypisów bez max-height rośnie w górę bez ograniczeń; gdy z tym przypisem nie
+		// mieści się w obszarze strony, ten i następne przechodzą dalej (jak przy przepełnieniu max-height).
+		// W źródle kilka długich przypisów przeniesionych razem wychodziło nad górną krawędź strony.
+		overflow = overflow || context.pageBottom < page.ContentBoxY()
 		if overflow && i != 0 {
 			context.reportFootnote(reportedFootnote)
-			context.reportedFootnotes = context.reportedFootnotes[i:]
+			// gopdfgo: dalej przechodzą ten i wszystkie następne przeniesione przypisy (WeasyPrint:
+			// reported_footnotes[i:]); źródło cięło context.reportedFootnotes, w którym jest już tylko ten
+			// jeden, więc następne ginęły (i == 1) albo układ kończył się paniką (i > 1)
+			context.reportedFootnotes = slices.Clone(reportedFootnotes[i:])
 			break
 		}
 	}
@@ -1465,6 +1472,17 @@ func (context *layoutContext) remakePage(index int, pageGroups *[]pageGroup, roo
 		context.brokenAfterPage = append(context.brokenAfterPage, nil)
 	}
 	context.brokenAfterPage[index] = maps.Clone(context.brokenOutOfFlow)
+	// gopdfgo: tak samo przypisy przeniesione na następną stronę (reportedFootnotes, CSS GCPM § 2): strona,
+	// która teraz przenosi inne przypisy niż w obiegu wcześniejszym, zmienia następną stronę także przy tym
+	// samym miejscu wznowienia. To te same pudełka w każdym obiegu (przypisy z originalFootnotes), więc
+	// porównujemy je wprost.
+	if index < len(context.reportedAfterPage) && !slices.Equal(context.reportedAfterPage[index], context.reportedFootnotes) {
+		pageMakerNextChanged = true
+	}
+	for len(context.reportedAfterPage) <= index {
+		context.reportedAfterPage = append(context.reportedAfterPage, nil)
+	}
+	context.reportedAfterPage[index] = slices.Clone(context.reportedFootnotes)
 
 	// gopdfgo: w przebiegu sprawdzającym (ADR 0036) stan następnej strony ma być taki jak w pierwszym
 	if pageMakerNextChanged && context.verifying {
@@ -1524,7 +1542,6 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 		} else {
 			logger.ProgressLogger.Printf("Step 5 - Creating layout - Page %d (up-to-date)", i+1)
 			resumeAt = context.pageMaker[i+1].ResumeAt
-			reportedFootnotes = nil
 			out = append(out, pages[i])
 			// gopdfgo: strona ułożona od nowa po stronie wziętej z obiegu wcześniejszego dostawała dalsze
 			// ciągi pudełek poza przepływem od ostatniej strony ułożonej w tym obiegu, często odległej:
@@ -1536,6 +1553,15 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 			if i < len(context.brokenAfterPage) {
 				maps.Copy(context.brokenOutOfFlow, context.brokenAfterPage[i])
 			}
+			// gopdfgo: tak samo przypisy przeniesione na następną stronę. W źródle następna strona ułożona od
+			// nowa brała przypisy przeniesione przez ostatnią stronę ułożoną w tym obiegu (przypis drugi raz,
+			// dalej w dokumencie) albo żadnych (przypis ginął), a strona wzięta z obiegu wcześniejszego jako
+			// ostatnia kończyła dokument bez strony z przeniesionymi przypisami.
+			context.reportedFootnotes = nil
+			if i < len(context.reportedAfterPage) {
+				context.reportedFootnotes = slices.Clone(context.reportedAfterPage[i])
+			}
+			reportedFootnotes = context.reportedFootnotes
 		}
 
 		i += 1

@@ -1029,16 +1029,10 @@ func reportFootnotes(context *layoutContext, footnotesHeight pr.Float) {
 	if len(context.currentPageFootnotes) == 0 {
 		return
 	}
-	// Report and count footnotes
-	reportedFootnotes := 0
+	// gopdfgo: przenosimy od ostatniego, każdy przed przypisami już przeniesionymi (zob.
+	// reportFootnoteFirst); źródło dopisywało je na koniec i odwracało tylko tę grupę
 	for context.currentFootnoteArea.MarginHeight() > footnotesHeight {
-		context.reportFootnote(context.currentPageFootnotes[len(context.currentPageFootnotes)-1])
-		reportedFootnotes += 1
-	}
-	// Revert reported footnotes, as they’ve been reported starting from the
-	// last one
-	if reportedFootnotes >= 2 {
-		slices.Reverse(context.reportedFootnotes[len(context.reportedFootnotes)-reportedFootnotes:])
+		context.reportFootnoteFirst(context.currentPageFootnotes[len(context.currentPageFootnotes)-1])
 	}
 }
 
