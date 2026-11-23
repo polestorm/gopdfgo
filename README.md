@@ -72,7 +72,8 @@ Comparison with Chromium, the list of what is not supported, and requirements:
 - Digital signatures in the optional package `sign` (ADR 0049, 0050): `sign.SignPDF` adds a PAdES
   signature (CMS, SHA-256, RSA or ECDSA, `signing-certificate-v2`) to any unencrypted PDF as an
   incremental update, so earlier signatures stay valid and PDF/A and PDF/UA conformance is kept (checked
-  with `pdfsig`, `openssl cms`, `openssl ts` and veraPDF). Levels: B-B (default, no network), B-T (RFC 3161
+  with `pdfsig`, `openssl cms`, `openssl ts` and veraPDF; the EU DSS validator recognises the test signatures
+  as PAdES-BASELINE-B, -T and -LT, and its only objection is the untrusted test certificate). Levels: B-B (default, no network), B-T (RFC 3161
   timestamp of the signature value) and B-LT (certificates, OCSP responses and CRLs in a DSS dictionary
   added as a second incremental update). Network access happens only through a TSA client and a revocation
   client passed explicitly in `sign.Options`; validation data can also be passed in directly for offline

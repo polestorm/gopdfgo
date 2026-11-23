@@ -87,7 +87,13 @@ Features).
 | Tagged PDF / PDF/UA | ◐ tagged by default, PDF/UA not claimed | ◐ tagged | ✓ PDF/UA-1 (veraPDF on all corpus documents) |
 | Factur-X / ZUGFeRD e-invoices | ✗ | ✓ | ✓ (veraPDF and Mustang) |
 | Interactive forms, barcodes | ✗ | ✓ | ✗ |
-| Digital signatures (PAdES) | ✗ | ✓ B-B, B-T, B-LT, B-LTA | ◐ B-B, B-T, B-LT (optional package `sign` and command `gopdfgo-sign` with PKCS#12 or PEM keys; signature fields placed in HTML with `data-pdf-signature`; no B-LTA) |
+| Digital signatures: PAdES levels | ✗ | ✓ B-B, B-T, B-LT, B-LTA | ◐ B-B, B-T, B-LT (optional package `sign`; no B-LTA); checked with `pdfsig`, `openssl` and the EU DSS validator |
+| Signing any existing PDF (incremental update, earlier signatures kept) | ✗ | ✓ | ✓ |
+| Signature fields placed in HTML (visible signature) | ✗ | ✗ (invisible only) | ✓ `data-pdf-signature`, tagged as `Form` in PDF/UA |
+| Signing from the command line | ✗ | ✓ PEM key | ✓ separate command `gopdfgo-sign`, PEM or PKCS#12 key |
+| External signers (HSM, smart card, remote signing) | ✗ | ✓ | ✓ any Go `crypto.Signer` |
+| Verifying signatures in existing PDF files | ✗ | ✓ | ✗ |
+| Certification signatures (`/DocMDP`) | ✗ | ✗ (not documented) | ✗ |
 | Reading, merging, redacting, encrypting PDF files | ✗ | ✓ | ✗ |
 | Other platforms | any OS with Chromium | WASM, C library, Java SDK | Go only |
 
@@ -99,7 +105,7 @@ margin boxes, built-in hyphenation for 24 languages, PDF/A, PDF/UA and Factur-X,
 binary that gives the same bytes for the same input.
 
 **gopdfgo is weaker at** speed and memory compared with folio, at writing systems (no right-to-left or
-vertical text), at everything that is not printing HTML (forms other than empty signature fields, the B-LTA signature level, barcodes, editing existing PDF
+vertical text), at everything that is not printing HTML (forms other than signature fields, the B-LTA signature level, verifying signatures, barcodes, editing existing PDF
 files), and at running scripts, which only a browser does. It is young and not yet public, while Chromium is
 the reference engine and folio already has users.
 

@@ -377,7 +377,9 @@ Out of scope by design:
   from a TSA client given in the options, B-LT adds certificates, OCSP responses and CRLs in a DSS
   dictionary (ISO 32000-2 § 12.8.4.3) as a second incremental update, fetched through an explicit client
   or passed in directly. Earlier signatures stay valid and veraPDF still accepts signed PDF/A-2b, PDF/A-3b,
-  Factur-X and PDF/UA-1 files at every level. Signature fields can be placed in HTML (ADR 0051): an
+  Factur-X and PDF/UA-1 files at every level. The EU DSS validator (6.5.1, public demo, test files only)
+  recognises the signatures as PAdES-BASELINE-B, -T and -LT; its only objection is that the test
+  certificate authority is not on an EU trusted list. Signature fields can be placed in HTML (ADR 0051): an
   element with `data-pdf-signature="Name"` gets an empty signature field (`/FT /Sig` without a value) over
   its border box on its first page, with an empty appearance stream and, in tagged PDF, a `Form` structure
   element with an object reference (PDF/UA-1 § 7.18.4); `sign.Options.FieldName` signs into that field.

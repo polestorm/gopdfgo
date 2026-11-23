@@ -77,5 +77,7 @@ nie źródłem wymagań.
 - Nie jest przeglądarką: brak JS, DOM API, zdarzeń, animacji, wideo, canvas, Web Components.
 - Nie jest silnikiem „do wszystkiego”: dowolna strona z internetu nie jest celem.
 - Nie jest edytorem ani podglądem interaktywnym.
-- Nie jest biblioteką PDF ogólnego przeznaczenia (scalanie, podpisy, wypełnianie formularzy); oddaje PDF, który
-  inne narzędzia mogą dalej przetwarzać.
+- Nie jest biblioteką PDF ogólnego przeznaczenia (scalanie, wypełnianie formularzy, odczyt i weryfikacja
+  podpisów); oddaje PDF, który inne narzędzia mogą dalej przetwarzać. Wyjątkiem są funkcje opcjonalne
+  w osobnych pakietach, których rdzeń nie importuje (ADR 0049): podpis PAdES gotowego pliku (pakiet `sign`,
+  polecenie `gopdfgo-sign`, ADR 0050 i 0051).
