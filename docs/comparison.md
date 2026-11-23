@@ -37,6 +37,11 @@ named in each source.
 | peak memory, business documents | about 950 MB (browser processes) | 22–80 MB | 48–117 MB |
 | peak memory, book | 1.7 GB | 0.29 GB | 0.42 GB |
 
+The folio and gopdfgo rows compare the same work: the book and the business documents have no table of
+contents, so gopdfgo lays them out in a single pass. folio does not support `target-counter()` (its issue #222)
+or `counter(pages)` in the page content, so documents that need a second layout pass were not compared with
+it.
+
 folio is the fastest and the lightest: 2–3 times faster than gopdfgo on typical documents and 5–10 times on
 documents with thousands of inline styles. Chromium pays for starting a browser on small documents and is
 as fast as gopdfgo at a thousand pages. With a table of contents of page numbers and "page X of Y" in the text,
