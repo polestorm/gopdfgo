@@ -59,6 +59,8 @@ type cache struct {
 	forms map[sharedFormKey]*model.XObjectForm
 	// formTexts (gopdfgo): czy forma wspólna zawiera tekst (zob. DrawShared i ADR 0041)
 	formTexts map[*model.XObjectForm]bool
+	// fontSupport (gopdfgo): pamięć wyniku isSupportedFont według treści fontu (SetFontSupportCache)
+	fontSupport func(content []byte, compute func([]byte) bool) bool
 }
 
 func newCache() cache {
@@ -102,6 +104,13 @@ func NewOutput() *Output {
 		cache:         newCache(),
 	}
 	return &out
+}
+
+// SetFontSupportCache (gopdfgo) podaje pamięć wyniku sprawdzenia, czy font ma kontury do osadzenia
+// (isSupportedFont parsuje całą tablicę glyf). cache zwraca zapamiętany wynik dla treści content albo
+// wylicza go funkcją compute (ADR 0047).
+func (c *Output) SetFontSupportCache(cache func(content []byte, compute func([]byte) bool) bool) {
+	c.cache.fontSupport = cache
 }
 
 func (c *Output) AddPage(left, top, right, bottom fl) backend.Page {

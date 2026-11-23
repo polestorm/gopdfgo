@@ -1257,6 +1257,21 @@ Wspólne dla obu katalogów:
     każdym łamaniu;
   - `text/style.go` `FontDescription.binary`: nazwy rodzin rozdzielone bajtem zerowym; w źródle sklejone,
     więc rodziny `["ab", "c"]` i `["a", "bc"]` miały ten sam klucz pamięci łamania i proporcji fontu;
+- fonty parsowane w całości przy pierwszym użyciu, 2026-11-23 (ADR 0047; `docs/benchmark.md` § 11, dopisek
+  „Leniwe wczytywanie fontów”; test `tests/lazyfonts23_test.go`); wynik bajt w bajt ten sam (korpus W3C, korpus
+  `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `271c17e`):
+  - `text/font_cache.go`: pozycja pamięci fontów ma streszczenie (`Summary`: `cmap`, opis, oś `wght`; te same
+    tablice wymagane co `font.NewFont`) i pełne parsowanie na żądanie (`Parse`); nowe `Supported` (pamięć
+    wyniku sprawdzenia konturów przy zapisie PDF);
+  - `text/lazy_fonts.go` (nowy, własny): `AddFontFile` (fonty z `Options.Fonts`, wcześniej `addCachedFont` w
+    `fontcache.go` z pełnym parsowaniem), twarze z fontem pustym (`addLazyFace`) wypełniane przez `loadFace`
+    przy pierwszym wyborze twarzy (`lazyLayer`, `lazySystemLayer`); `LazyFontsDisabled`, `OnFontParsed`;
+  - `text/engine_gotext.go` `loadOneFont`: rejestracja reguły `@font-face` ze streszczenia (grubość z opisu
+    streszczenia zamiast `Font.Describe()`), pola `ownCache`, `lazy`; `text/system_fonts.go` `faces`: warstwa
+    wypełniająca twarze, póki są twarze puste;
+  - `goweasyprint/pdf/text.go` `AddFont`, `pdf.go` (`Output.SetFontSupportCache`, pole `cache.fontSupport`):
+    wynik `isSupportedFont` z pamięci fontów według treści pliku; w źródle liczony przy każdym nowym
+    `Output` (każde renderowanie, a w dwóch przebiegach dwa razy) z parsowaniem całej `glyf`;
 - dokładna szerokość wiersza jak w Chromium, 2026-11-22 (ADR 0044; test `tests/linewidth22_test.go`;
   pomiary w `bench/lw/`, poza gitem):
   - `text/engine_gotext.go` `shapeAtSize`: szerokości znaków zaokrąglane do 1/64 px z przenoszeniem błędu
