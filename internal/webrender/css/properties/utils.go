@@ -2,7 +2,9 @@ package properties
 
 import (
 	"fmt"
+	"iter"
 	"math"
+	"math/bits"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/parser"
 )
@@ -256,50 +258,75 @@ func (r Rectangle) IsNone() bool {
 	return r == Rectangle{}
 }
 
-var has = struct{}{}
-
-type SetK map[KnownProp]struct{}
+// SetK to zbiór właściwości znanych.
+//
+// gopdfgo: mapa zastąpiona tablicą bitów (KnownProp to uint8). Has wołane przy każdym odczycie
+// wartości stylu (Inherited, InitialNotComputed) było ok. 7% czasu dokumentu losowego. Zbiór
+// przechodzimy (All) w kolejności rosnącej, a nie losowej jak mapę.
+type SetK struct {
+	bits *[4]uint64
+}
 
 func (s SetK) Add(key KnownProp) {
-	s[key] = has
+	s.bits[key>>6] |= 1 << (key & 63)
 }
 
 func (s SetK) Extend(keys []KnownProp) {
 	for _, key := range keys {
-		s[key] = has
+		s.Add(key)
 	}
 }
 
 func (s SetK) Has(key KnownProp) bool {
-	_, in := s[key]
-	return in
+	return s.bits != nil && s.bits[key>>6]&(1<<(key&63)) != 0
+}
+
+// Len zwraca liczbę właściwości w zbiorze.
+func (s SetK) Len() int {
+	if s.bits == nil {
+		return 0
+	}
+	n := 0
+	for _, w := range s.bits {
+		n += bits.OnesCount64(w)
+	}
+	return n
+}
+
+// All przechodzi właściwości zbioru w kolejności rosnącej.
+func (s SetK) All() iter.Seq[KnownProp] {
+	return func(yield func(KnownProp) bool) {
+		if s.bits == nil {
+			return
+		}
+		for i := 0; i < 256; i++ {
+			if s.bits[i>>6]&(1<<(i&63)) != 0 && !yield(KnownProp(i)) {
+				return
+			}
+		}
+	}
 }
 
 // Copy returns a deepcopy.
 func (s SetK) Copy() SetK {
-	out := make(SetK, len(s))
-	for k, v := range s {
-		out[k] = v
+	if s.bits == nil {
+		return SetK{}
 	}
-	return out
+	b := *s.bits
+	return SetK{bits: &b}
 }
 
-func (s SetK) IsNone() bool { return s == nil }
+func (s SetK) IsNone() bool { return s.bits == nil }
 
 func (s SetK) Equal(other SetK) bool {
-	if len(s) != len(other) {
-		return false
+	if s.bits == nil || other.bits == nil {
+		return s.Len() == other.Len()
 	}
-	for i := range s {
-		if _, in := other[i]; !in {
-			return false
-		}
-	}
-	return true
+	return *s.bits == *other.bits
 }
 
 func NewSetK(values ...KnownProp) SetK {
-	s := make(SetK, len(values))
+	s := SetK{bits: new([4]uint64)}
 	for _, v := range values {
 		s.Add(v)
 	}

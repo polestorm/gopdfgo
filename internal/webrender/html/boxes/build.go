@@ -1672,7 +1672,7 @@ func wrapTable(box TableBoxITF, children boxIterator) Box {
 	// Non-inherited properties of the table element apply to one
 	// of the wrapper and the table. The other get the initial value.
 	wbStyle, tbStyle := wrapperBox.Style, table.Box().Style
-	for name := range pr.TableWrapperBoxProperties {
+	for name := range pr.TableWrapperBoxProperties.All() {
 		key := name.Key()
 		wbStyle.Set(key, tbStyle.Get(key))
 		tbStyle.Set(key, pr.InitialValues[name])

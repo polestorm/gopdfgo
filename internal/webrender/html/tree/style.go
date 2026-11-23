@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"reflect"
 	"sort"
 	"strconv"
@@ -232,20 +233,64 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		textContext.Fonts().SetFontFeatureValues(fontFeatureValues(sheets, out.layers))
 	}
 
-	for _, styleAttr := range findStyleAttributes(html.Root, presentationalHints, html.BaseUrl) {
-		// Element, declarations, BaseUrl = attributes
-		style, ok := out.cascadedStyles[styleAttr.element.ToKey("")]
-		if !ok {
-			style = cascadedStyle{}
-			out.cascadedStyles[styleAttr.element.ToKey("")] = style
+	// gopdfgo: deklaracje własne elementów (atrybut style, atrybuty prezentacyjne) zbieramy w kluczu
+	// zależnym tylko od ich tekstu i szczególności. Elementy o tym samym kluczu i tych samych
+	// dopasowanych regułach dostają w pętli niżej wspólną kaskadę, więc i wspólną tablicę wartości
+	// obliczonych (dokumenty z edytorów mają tysiące elementów z tym samym atrybutem style; każdy
+	// budował własną kaskadę i liczył każdą wartość od nowa). Ten sam tekst jest walidowany raz,
+	// a ostrzeżenia z walidacji powtarzamy przy każdym elemencie jak wcześniej.
+	ownKeys := map[*utils.HTMLNode][]byte{}
+	ownTemplates := map[string]cascadedStyle{}
+	{
+		type validatedAttr struct {
+			declarations []validation.Declaration
+			warnings     warningRecorder
 		}
-		for _, decl := range validation.PreprocessDeclarations(styleAttr.baseUrl, styleAttr.declaration) {
-			// name, values, importance = decl
-			precedence := declarationPrecedence("author", decl.Important)
-			we := weight{precedence: precedence, specificity: styleAttr.specificity, styleAttribute: styleAttr.specificity != selector.Specificity{}}
-			oldWeight := style[decl.Name].weight
-			if oldWeight.isNone() || oldWeight.Less(we) {
-				style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}
+		validated := map[string]validatedAttr{}
+		ownEntries := findStyleAttributes(html.Root, presentationalHints, html.BaseUrl)
+		for _, styleAttr := range ownEntries {
+			entry, ok := validated[styleAttr.source]
+			if !ok {
+				warningsOut := logger.WarningLogger.Writer()
+				logger.WarningLogger.SetOutput(&entry.warnings)
+				entry.declarations = validation.PreprocessDeclarations(styleAttr.baseUrl, styleAttr.declaration)
+				logger.WarningLogger.SetOutput(warningsOut)
+				validated[styleAttr.source] = entry
+			}
+			// każde ostrzeżenie osobnym zapisem, jak z logger.WarningLogger.Printf
+			for _, message := range entry.warnings {
+				logger.WarningLogger.Writer().Write(message)
+			}
+			key := ownKeys[styleAttr.element]
+			for _, part := range styleAttr.specificity {
+				key = binary.LittleEndian.AppendUint32(key, uint32(part))
+			}
+			key = binary.LittleEndian.AppendUint32(key, uint32(len(styleAttr.source)))
+			ownKeys[styleAttr.element] = append(key, styleAttr.source...)
+		}
+		// szablon kaskady własnej dla każdego klucza, z deklaracji pierwszego elementu o tym kluczu
+		// w kolejności jak w źródle
+		owners := map[string]*utils.HTMLNode{}
+		for _, styleAttr := range ownEntries {
+			key := ownKeys[styleAttr.element]
+			owner, ok := owners[string(key)]
+			if !ok {
+				owner = styleAttr.element
+				owners[string(key)] = owner
+				ownTemplates[string(key)] = cascadedStyle{}
+			}
+			if owner != styleAttr.element {
+				continue
+			}
+			style := ownTemplates[string(key)]
+			for _, decl := range validated[styleAttr.source].declarations {
+				// name, values, importance = decl
+				precedence := declarationPrecedence("author", decl.Important)
+				we := weight{precedence: precedence, specificity: styleAttr.specificity, styleAttribute: styleAttr.specificity != selector.Specificity{}}
+				oldWeight := style[decl.Name].weight
+				if oldWeight.isNone() || oldWeight.Less(we) {
+					style[decl.Name] = weigthedValue{weight: we, value: decl.Value, shortand: decl.Shortand}
+				}
 			}
 		}
 	}
@@ -257,10 +302,11 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	// Iterate on all elements, even if there is no cascaded style for them.
 	// gopdfgo: elementy dopasowane przez ten sam ciąg reguł (wiersze i komórki
 	// dużej tabeli) mają identyczną kaskadę, więc dzielą jedną mapę zamiast
-	// budować własną. Mapa po zbudowaniu jest tylko czytana. Elementów z
-	// atrybutem style albo atrybutami prezentacyjnymi to nie dotyczy: ich
-	// kaskada zawiera deklaracje własne.
+	// budować własną. Mapa po zbudowaniu jest tylko czytana. Elementy z
+	// atrybutem style albo atrybutami prezentacyjnymi dzielą kaskadę tylko
+	// z elementami o tych samych deklaracjach własnych (ownKeys).
 	sharedCascades := map[string][]sharedCascade{}
+	ownSharedCascades := map[string][]sharedCascade{} // gopdfgo: klucz deklaracji własnych + podpis dopasowań
 	var (
 		signature []byte
 		matches   [][]matchResult
@@ -268,10 +314,14 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	iter := html.Root.Iter()
 	for iter.HasNext() {
 		element := iter.Next()
-		_, hasOwnDeclarations := out.cascadedStyles[element.ToKey("")]
+		ownKey, hasOwnDeclarations := ownKeys[element]
 		signature, matches = signature[:0], matches[:0]
+		if hasOwnDeclarations {
+			signature = binary.LittleEndian.AppendUint32(signature, uint32(len(ownKey)))
+			signature = append(signature, ownKey...)
+		}
 		for i, sh := range sheets {
-			matched := sh.sheet.matcher.match(element.AsHtmlNode())
+			matched := sh.sheet.match(element.AsHtmlNode())
 			matches = append(matches, matched)
 			for _, sel := range matched {
 				signature = sel.appendSignature(signature, i)
@@ -280,13 +330,20 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 		if element.Namespace == "svg" {
 			out.recordSVGMatches(element, matches)
 		}
-		if !hasOwnDeclarations {
-			if shared, ok := sharedCascades[string(signature)]; ok {
-				out.finishElement(element, shared)
-				continue
-			}
+		cascades := sharedCascades
+		if hasOwnDeclarations {
+			cascades = ownSharedCascades
+		}
+		if shared, ok := cascades[string(signature)]; ok {
+			out.finishElement(element, shared)
+			continue
 		}
 		var built []sharedCascade
+		if hasOwnDeclarations {
+			style := maps.Clone(ownTemplates[string(ownKey)])
+			out.cascadedStyles[element.ToKey("")] = style
+			built = append(built, sharedCascade{style: style})
+		}
 		for i, sh := range sheets {
 			// sheet, origin, sheetSpecificity
 			// Add declarations for matched elements
@@ -317,9 +374,7 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 				}
 			}
 		}
-		if !hasOwnDeclarations {
-			sharedCascades[string(signature)] = built
-		}
+		cascades[string(signature)] = built
 		for _, sc := range built {
 			delete(out.cascadedStyles, element.ToKey(sc.pseudoType))
 		}
@@ -335,6 +390,14 @@ func newStyleFor(html *HTML, sheets []sheet, presentationalHints bool,
 	// The cascaded styles of elements are not needed anymore. Keep the
 	// dictionary, it is used later for page margins.
 	return &out
+}
+
+// warningRecorder (gopdfgo) zapamiętuje zapisy loggera ostrzeżeń, każdy osobno.
+type warningRecorder [][]byte
+
+func (w *warningRecorder) Write(p []byte) (int, error) {
+	*w = append(*w, bytes.Clone(p))
+	return len(p), nil
 }
 
 // finishElement oblicza styl elementu z jego kaskady (wpis bez pseudoelementu
@@ -637,10 +700,13 @@ type ownValue struct {
 }
 
 type propsCache struct {
-	own    []ownValue
-	vars   map[string]pr.CssProperty
-	shared *sharedValues // nil w stylach anonimowych
-	share  *shareContext // nil w stylach anonimowych
+	own []ownValue
+	// ownIndex (gopdfgo): pozycja+1 wartości w own dla każdej właściwości, gdy nakładka jest
+	// duża (ownIndexFrom); przeszukiwanie own po kolei było ok. 7% czasu dokumentu losowego
+	ownIndex []int16
+	vars     map[string]pr.CssProperty
+	shared   *sharedValues // nil w stylach anonimowych
+	share    *shareContext // nil w stylach anonimowych
 }
 
 // sharedValues to wartości wynikające wyłącznie z kaskady i z przodków.
@@ -670,12 +736,21 @@ func newShareContext() *shareContext {
 
 func (c *propsCache) get(key pr.PropKey) (out pr.CssProperty, ok bool) {
 	if k := key.KnownProp; k != 0 {
-		for i := range c.own {
-			if c.own[i].prop == k {
+		if c.ownIndex != nil {
+			if p := c.ownIndex[k]; p != 0 {
 				if c.share != nil {
 					c.share.tainted = true
 				}
-				return c.own[i].value, true
+				return c.own[p-1].value, true
+			}
+		} else {
+			for i := range c.own {
+				if c.own[i].prop == k {
+					if c.share != nil {
+						c.share.tainted = true
+					}
+					return c.own[i].value, true
+				}
 			}
 		}
 		if c.shared != nil && int(k) < len(c.shared.known) {
@@ -693,6 +768,15 @@ func (c *propsCache) get(key pr.PropKey) (out pr.CssProperty, ok bool) {
 
 // setKnown zapisuje wartość w nakładce tego stylu.
 func (c *propsCache) setKnown(k pr.KnownProp, value pr.CssProperty) {
+	if c.ownIndex != nil {
+		if p := c.ownIndex[k]; p != 0 {
+			c.own[p-1].value = value
+			return
+		}
+		c.own = append(c.own, ownValue{prop: k, value: value})
+		c.ownIndex[k] = int16(len(c.own))
+		return
+	}
 	for i := range c.own {
 		if c.own[i].prop == k {
 			c.own[i].value = value
@@ -700,7 +784,16 @@ func (c *propsCache) setKnown(k pr.KnownProp, value pr.CssProperty) {
 		}
 	}
 	c.own = append(c.own, ownValue{prop: k, value: value})
+	if len(c.own) >= ownIndexFrom {
+		c.ownIndex = make([]int16, pr.NbProperties)
+		for i, v := range c.own {
+			c.ownIndex[v.prop] = int16(i + 1)
+		}
+	}
 }
+
+// ownIndexFrom (gopdfgo) to liczba wartości w nakładce, od której szukamy ich przez ownIndex.
+const ownIndexFrom = 16
 
 func (c *propsCache) Set(key pr.PropKey, value pr.CssProperty) {
 	if key.KnownProp != 0 {
@@ -716,6 +809,12 @@ func (c *propsCache) Set(key pr.PropKey, value pr.CssProperty) {
 // setShared zapisuje wartość we wspólnej tablicy.
 func (s *sharedValues) set(k_ pr.KnownProp, value pr.CssProperty) {
 	k := int(k_)
+	if s.known == nil {
+		// gopdfgo: od razu na wszystkie właściwości: tablica rosnąca po jednej
+		// właściwości przydzielała pamięć wielokrotnie (ok. 20% przydziałów
+		// dokumentu z tysiącami atrybutów style)
+		s.known = make([]pr.CssProperty, pr.NbProperties)
+	}
 	if L := len(s.known); k >= L {
 		s.known = append(s.known, make([]pr.CssProperty, k+1-L)...)
 	}
@@ -1441,7 +1540,7 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 			declarations = pa.ParseBlocksContentsString(styleAttribute)
 			parsed[styleAttribute] = declarations
 		}
-		return styleAttr{element: element, declaration: declarations, baseUrl: baseUrl}
+		return styleAttr{element: element, declaration: declarations, baseUrl: baseUrl, source: styleAttribute}
 	}
 
 	iter := tree.Iter()
@@ -1543,12 +1642,12 @@ func findStyleAttributes(tree *utils.HTMLNode, presentationalHints bool, baseUrl
 					cellpadding += "px"
 				}
 				// TODO: don't match subtables cells
+				padding := fmt.Sprintf("padding-left:%s;padding-right:%s;padding-top:%s;padding-bottom:%s;", cellpadding, cellpadding, cellpadding, cellpadding)
 				iterElement := element.Iter()
 				for iterElement.HasNext() {
 					subelement := iterElement.Next()
 					if subelement.DataAtom == atom.Td || subelement.DataAtom == atom.Th {
-						out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(subelement,
-							fmt.Sprintf("padding-left:%s;padding-right:%s;padding-top:%s;padding-bottom:%s;", cellpadding, cellpadding, cellpadding, cellpadding))})
+						out = append(out, styleAttrSpec{specificity: specificity, styleAttr: checkStyleAttribute(subelement, padding)})
 					}
 				}
 			}
@@ -2422,6 +2521,7 @@ type styleAttr struct {
 	element     *utils.HTMLNode
 	baseUrl     string
 	declaration []pa.Compound
+	source      string // gopdfgo: tekst deklaracji, z którego powstało declaration
 }
 
 type styleAttrSpec struct {

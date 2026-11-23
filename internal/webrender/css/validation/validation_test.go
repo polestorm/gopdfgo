@@ -98,7 +98,7 @@ func TestUnknownPrefix(t *testing.T) {
 func TestEmptyPropertyValue(t *testing.T) {
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
-	for prop := range allValidators {
+	for prop := range allValidators.All() {
 		assertInvalid(t, fmt.Sprintf("%s:", prop), "Ignored")
 	}
 }
