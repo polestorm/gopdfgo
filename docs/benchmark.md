@@ -518,3 +518,57 @@ Plan reszty (szacunki; kolejność według stosunku zysku do ryzyka):
 
 Pozycje 1–5 nie dotykają plików przebiegu drugiego. Przebieg drugi powtarza układ, więc przyspieszenie układu
 (pkt 1, 2, 5) działa w nim drugi raz i skraca też dokumenty ze spisem treści; pkt 6 warto mierzyć po nich.
+
+### Pamięć wyniku podziału wiersza i kopie pudełek: plan pkt 2 i 5 (2026-11-23)
+
+Profil wyjściowy (`c2d6fb1`, pprof, `-cache`, ciepłe renderowania): `splitFirstLine` 35% czasu procesora
+faktury, `rand-01` i książki, w tym `WrapWordBreak` 32%, prawie w całości chybienia (segmentacja, kształtowanie
+HarfBuzz, `LineWrap`); trafienia w pamięć z ADR 0032 ok. 2%. `CopyWithChildren` to 5–8% przydzielanych bajtów
+(pudełko ma ok. 1 kB: `BoxFields` 1024 B, `LineBox` 1096 B), bez widocznego udziału w czasie procesora; z tego
+w rysowaniu (`dispatchChildren`) 28% (`rand-01`) do 50% (`office-db-model`), reszta to kopie w układzie
+(`splitInlineBox` 20–50%, `blockContainerLayout` 17–28%, tabele).
+
+**Pkt 2, pamięć wyniku `splitFirstLine` — wdrożone (ADR 0046).** Sonda: 16–84% wywołań powtarza argumenty
+(tekst, styl, szerokość, `minimum`, `isLineStart`), ale powtórzenie kosztowało tylko 0,5–2 µs, bo
+kształtowanie było już w pamięci; czas wszystkich powtórzeń to 1–8% renderowania (`rand-01` 21 ms z ok. 250).
+Wynik trafia do tej samej pamięci co wyniki `WrapWordBreak` (pole `split` w kluczu), tylko dla pomiarów
+min-/max-content (`minimum`, szerokość 0 albo bez szerokości) i tekstów do 128 znaków; wariant ze wszystkimi
+wywołaniami był w książce i `esf-4` o 0,6–1% wolniejszy, bez progu długości książka o 1,4% (klucz z całej
+reszty akapitu). Styl serializowany raz na podział zamiast przy każdym wewnętrznym łamaniu.
+
+Przed i po (`c2d6fb1` i ta gałąź, harness z `bench/folio/gharness` w dwóch kopiach, mierzone na zmianę: 5 par
+w procesie, mediana z 10–20 ciepłych renderowań, 3 przy książce, 1 przy ×4 ze spisem; cały proces: mediana z
+5 uruchomień, RSS: szczyt z `os.wait4`; 2026-11-23 12:45–13:10, obciążenie 3–20, więc ważniejszy jest stosunek):
+
+| Dokument | w procesie z `FontCache` przed / po [ms] | stosunek | bez `FontCache` przed / po [ms] | stosunek | cały proces przed / po [ms] | RSS przed / po [MB] |
+|---|---|---|---|---|---|---|
+| `20-invoice` | 35,5 / 35,3 | 0,989 | 48,7 / 48,5 | 0,992 | 64 / 64 | 96 / 96 |
+| `02-register-table` | 52,3 / 52,4 | 1,001 | 65,8 / 65,7 | 1,002 | 87 / 85 | 116 / 118 |
+| `esf-4` | 126,0 / 127,3 | 1,010 | 139,1 / 139,8 | 1,005 | 163 / 164 | 147 / 146 |
+| `office-db-model` | 296,4 / 294,6 | 0,989 | 309,7 / 308,3 | 0,995 | 339 / 331 | 258 / 249 |
+| `office-terminology` | 127,5 / 122,2 | 0,958 | 141,8 / 136,7 | 0,965 | 160 / 159 | 161 / 163 |
+| `rand-01` | 245,8 / 237,1 | 0,965 | 261,1 / 251,3 | 0,966 | 279 / 276 | 168 / 171 |
+| `rand-12` | 127,0 / 127,0 | 0,998 | 141,2 / 140,6 | 0,994 | 159 / 159 | 143 / 148 |
+| książka (254 strony) | 1085 / 1087 | 1,001 | 1099 / 1108 | 1,004 | 1173 / 1160 | 464 / 466 |
+| książka ×4 ze spisem (`x4-toc.htm`) | 4987 / 4931 | 0,984 | — | — | 5119 / 5019 | 875 / 880 |
+
+Zysk 3,5–4% w dokumentach z wieloma krótkimi tekstami w tabelach (`rand-01`, `office-terminology`), 1–1,5% w
+fakturze, `office-db-model` i ×4 ze spisem, pozostałe bez zmiany w granicach rozrzutu (`esf-4` +0,5–1% we
+wszystkich pomiarach, przyczyny nie ustaliłam). Szacunek z planu (−3–5% w dokumentach z tabelami) sprawdził się
+tylko dla dokumentów z wieloma powtórzeniami min-content.
+
+**Pkt 5, mniej kopii pudełek — pominięte.** Kopie w układzie (`splitInlineBox`, `blockContainerLayout`,
+tabele) są potrzebne: pudełko źródłowe zostaje wzorcem dla ponownych prób podziału strony, stron odłożonych i
+przebiegu drugiego (ADR 0036), a układ zmienia położenie i wymiary kopii. Kandydatem były tylko kopie w
+rysowaniu: `dispatchChildren` kopiuje każdego rodzica, także gdy lista dzieci się nie zmieniła. Próba (bez
+kopii, gdy dzieci są te same; bajty 7 dokumentów z § 11 bez zmian): `office-db-model` 0,980, `rand-01` 1,000,
+faktura 0,997, książka 1,000 (stosunek po/przed, 4 pary). Zysk do 2% tylko w jednym dokumencie, a zmiana
+usuwa dwie własności, na których może polegać reszta kodu: kopia zeruje `RemoveDecorationSides` oryginału
+(dalsze użycie oryginału widzi czyste boki) i daje każdej stronie własne pudełka (pudełka `fixed` i
+zastępowane bywają wspólne dla wielu stron, a `blocksAndCells` jest kluczowane pudełkiem). Przy takim zysku
+ryzyko nie jest opłacalne. Udział kopii w czasie da się zmniejszyć raczej mniejszym pudełkiem (1 kB na
+pudełko) niż mniejszą liczbą kopii; bez szacunku.
+
+Sprawdzenie: porównanie bajtowe W3C (11 689 dokumentów, 46 756 renderowań) 0 różnic, `bench/verify/corpus.sh`
+fail=0, `bench/realdocs` i książka 77 z 77 zgodnych, cztery warianty książki identyczne, `go test ./tests/`
+bez błędów, testy przejętego kodu tylko ze znanymi niepowodzeniami.

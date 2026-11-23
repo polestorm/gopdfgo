@@ -1243,6 +1243,20 @@ Wspólne dla obu katalogów:
   - `css/properties/utils.go` `SetK`: tablica bitów zamiast mapy (`Has` przy każdym odczycie stylu);
     przechodzenie zbioru (`All`) w kolejności rosnącej. `html/boxes/build.go` (właściwości opakowania
     tabeli) przechodzi zbiór w tej kolejności zamiast losowej kolejności mapy;
+- pamięć wyniku podziału pierwszego wiersza, 2026-11-23 (ADR 0046; `docs/benchmark.md` § 11, dopisek „Pamięć
+  wyniku podziału wiersza i kopie pudełek”); wynik bajt w bajt ten sam (korpus W3C, korpus `testdata/documents` i
+  `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `c2d6fb1`):
+  - `text/engine_gotext.go` `splitFirstLine`: wynik pomiarów szerokości wewnętrznych (`minimum`, szerokość 0
+    albo `nil`) dla tekstów do 128 znaków (`splitCacheMaxText`) zapamiętany w `textLayoutCache` (ADR 0032) pod kluczem `textKey` z nowym polem `split` (flagi
+    `splitEntry`, `splitMinimum`, `splitLineStart`, `splitNoMaxWidth`); wołający dostaje kopię układu
+    (`privateLayout`). W źródle każde wywołanie liczyło kroki podziału od nowa; `text/layout_cache.go`
+    `entryCost`: wpis `splitFirstLine` liczony bez glifów (wspólnych z wpisem `WrapWordBreak`);
+  - `text/engine_gotext.go`: `WrapWordBreak` woła nowe `wrapWordBreak` z kluczem stylu policzonym przez
+    wołającego; `splitFirstLineRaw` przyjmuje klucz stylu i przekazuje go do wszystkich wywołań łamania
+    (lokalna funkcja `wrap` zamiast `fc.wrap`), więc styl jest serializowany raz na podział, nie przy
+    każdym łamaniu;
+  - `text/style.go` `FontDescription.binary`: nazwy rodzin rozdzielone bajtem zerowym; w źródle sklejone,
+    więc rodziny `["ab", "c"]` i `["a", "bc"]` miały ten sam klucz pamięci łamania i proporcji fontu;
 - dokładna szerokość wiersza jak w Chromium, 2026-11-22 (ADR 0044; test `tests/linewidth22_test.go`;
   pomiary w `bench/lw/`, poza gitem):
   - `text/engine_gotext.go` `shapeAtSize`: szerokości znaków zaokrąglane do 1/64 px z przenoszeniem błędu

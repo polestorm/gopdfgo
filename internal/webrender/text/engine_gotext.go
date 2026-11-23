@@ -1067,10 +1067,31 @@ type textKey struct {
 	style          styleKey
 	maxWidth       pr.Float
 	allowWordBreak bool
+	// split (gopdfgo): zero dla wyniku WrapWordBreak; dla wyniku splitFirstLine zbiór splitEntry
+	// i flag jego argumentów (zob. splitFirstLine)
+	split splitFlags
 }
+
+// splitFlags (gopdfgo) odróżnia w kluczu pamięci wyniki splitFirstLine od wyników WrapWordBreak i
+// zapisuje argumenty splitFirstLine, których nie ma w textKey.
+type splitFlags uint8
+
+const (
+	splitEntry      splitFlags = 1 << iota // wpis jest wynikiem splitFirstLine
+	splitMinimum                           // argument minimum
+	splitLineStart                         // argument isLineStart
+	splitNoMaxWidth                        // maxWidth == nil (bez ograniczenia szerokości)
+)
 
 // same as wrap, but may allows break inside words
 func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, maxWidth pr.Float, allowWordBreak bool) FirstLine {
+	return fc.wrapWordBreak(text, style, style.key(), maxWidth, allowWordBreak)
+}
+
+// wrapWordBreak (gopdfgo) to WrapWordBreak z kluczem stylu policzonym przez wołającego: splitFirstLine
+// woła łamanie kilka razy z tym samym stylem, a serializacja stylu (style.key) była przy każdym
+// wywołaniu liczona od nowa.
+func (fc *FontConfigurationGotext) wrapWordBreak(text []rune, style *TextStyle, sk styleKey, maxWidth pr.Float, allowWordBreak bool) FirstLine {
 	if len(text) == 0 {
 		return FirstLine{
 			Layout:   &TextLayoutGotext{Style: style, MaxWidth: maxWidth},
@@ -1081,7 +1102,7 @@ func (fc *FontConfigurationGotext) WrapWordBreak(text []rune, style *TextStyle, 
 		}
 	}
 
-	key := textKey{string(text), style.key(), maxWidth, allowWordBreak}
+	key := textKey{text: string(text), style: sk, maxWidth: maxWidth, allowWordBreak: allowWordBreak}
 	if l, ok := fc.textLayoutCache.get(key); ok {
 		return privateLayout(l)
 	}
@@ -1935,10 +1956,56 @@ func trimTrailingSpace(wrapped *shaping.WrappedLine, text []rune, dir di.Directi
 
 // splitFirstLineGotext fit as much text from [text_] as possible in the available width given by [maxWidth].
 // minimum should defaults to false
+// splitCacheMaxText (gopdfgo) to najdłuższy tekst (w znakach), którego wynik splitFirstLine jest
+// zapamiętywany. Klucz to cały pozostały tekst akapitu, więc dla długich akapitów każdy wiersz
+// dokładałby klucz długości reszty akapitu (n²/2 znaków na akapit, zob. ADR 0032), a powtórzenia
+// dotyczą głównie krótkich tekstów (komórki tabel, min- i max-content).
+const splitCacheMaxText = 128
+
 func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]hyphen.Hyphener, text []rune, style *TextStyle,
 	maxWidth pr.MaybeFloat, minimum, isLineStart bool,
 ) FirstLine {
-	firstLine := fc.splitFirstLineRaw(hyphenCache, text, style, maxWidth, minimum, isLineStart)
+	// gopdfgo: wynik jest zapamiętany w tej samej ograniczonej pamięci co wyniki WrapWordBreak (ADR 0032,
+	// ADR 0046). Ten sam tekst z tym samym stylem wraca wielokrotnie przy szerokościach min- i
+	// max-content (komórki tabel, elementy pływające, flex; każda miara liczona przy kilku próbach
+	// układu). Wewnętrzne wywołania łamania trafiały wtedy w pamięć, ale każde
+	// budowało klucz z całego tekstu i stylu, a kroki 3–5 (szukanie miejsca podziału, dzielenie
+	// wyrazów, łamanie słowa) liczyły się od nowa. splitFirstLineRaw jest funkcją swoich argumentów
+	// (tekst, pola stylu w styleKey, maxWidth, minimum, isLineStart; słownik dzielenia wynika z języka
+	// i limitów ze stylu), więc wynik nie zależy od trafień. Wartości maxWidth innych niż nil i
+	// pr.Float (pr.AutoF) liczymy bez pamięci, bo klucz ich nie odróżnia.
+	sk := style.key()
+	var key textKey
+	cacheable := len(text) <= splitCacheMaxText
+	if cacheable {
+		key = textKey{text: string(text), style: sk, split: splitEntry}
+	}
+	switch w := maxWidth.(type) {
+	case nil:
+		key.split |= splitNoMaxWidth
+	case pr.Float:
+		key.maxWidth = w
+	default:
+		cacheable = false
+	}
+	if minimum {
+		key.split |= splitMinimum
+	}
+	if isLineStart {
+		key.split |= splitLineStart
+	}
+	// tylko pomiary szerokości wewnętrznych (min-content: szerokość 0 albo minimum, max-content: bez
+	// szerokości), które powtarzają się w 55–90% wywołań; wywołania układu przy danej szerokości
+	// powtarzają się rzadziej (książka 15%), a pamięć kosztowała na nich więcej, niż oszczędzała
+	if !minimum && maxWidth != nil && key.maxWidth != 0 {
+		cacheable = false
+	}
+	if cacheable {
+		if l, ok := fc.textLayoutCache.get(key); ok {
+			return privateLayout(l)
+		}
+	}
+	firstLine := fc.splitFirstLineRaw(hyphenCache, text, style, sk, maxWidth, minimum, isLineStart)
 	// gopdfgo: wiersz złamany wewnątrz tekstu kończy się tutaj, więc odstęp między literami za jego
 	// ostatnim znakiem znika (CSS Text 3 § 7.2). Tu trafiają wiersze ułożone z części tekstu (np. przy
 	// dzieleniu wyrazów), które silnik zakończył jak koniec tekstu.
@@ -1947,12 +2014,22 @@ func (fc *FontConfigurationGotext) splitFirstLine(hyphenCache map[HyphenDictKey]
 		firstLine.Width -= trimmed
 		firstLine.Hang -= trimmed
 	}
+	if cacheable {
+		// wpis trzyma własny obiekt układu, a wołający dostaje kopię (privateLayout): justowanie
+		// i przycięcia u wołającego nie zmieniają wpisu
+		fc.textLayoutCache.put(key, firstLine)
+		return privateLayout(firstLine)
+	}
 	return firstLine
 }
 
 func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictKey]hyphen.Hyphener, text []rune, style *TextStyle,
-	maxWidth pr.MaybeFloat, minimum, isLineStart bool,
+	sk styleKey, maxWidth pr.MaybeFloat, minimum, isLineStart bool,
 ) FirstLine {
+	// gopdfgo: klucz stylu policzony raz dla wszystkich wywołań łamania (zob. wrapWordBreak)
+	wrap := func(text []rune, maxWidth pr.Float) FirstLine {
+		return fc.wrapWordBreak(text, style, sk, maxWidth, false)
+	}
 	// See https://www.w3.org/TR/css-text-3/#white-space-property
 	var (
 		textWrap         = style.textWrap()
@@ -1977,10 +2054,10 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 			shortText = text
 		}
 
-		firstLine = fc.wrap(shortText, style, maxWidth)
+		firstLine = wrap(shortText, maxWidth)
 		if firstLine.ResumeAt == -1 && len(shortText) != len(text) {
 			// The small amount of text fits in one line, give up and use the whole text
-			firstLine = fc.wrap(text, style, maxWidth)
+			firstLine = wrap(text, maxWidth)
 		} else {
 			// If the second line of the short text can break, we have the next
 			// line break point required for step #3 in it, drop the end of the text.
@@ -1997,7 +2074,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		if originalMaxWidth != nil {
 			originalMaxW = originalMaxWidth.V()
 		}
-		firstLine = fc.wrap(text, style, originalMaxW)
+		firstLine = wrap(text, originalMaxW)
 	}
 
 	// Step #2: Don't split lines when it's not needed
@@ -2044,7 +2121,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 			// Next word might fit without a space afterwards; only try when
 			// space collapsing is allowed.
 			newFirstLineText := slices.Concat(firstLineText, nextWord)
-			firstLine = fc.wrap(newFirstLineText, style, maxWidthV)
+			firstLine = wrap(newFirstLineText, maxWidthV)
 			if firstLine.ResumeAt == -1 {
 				if len(firstLineText) != 0 {
 					// The next word fits in the first line, keep the layout.
@@ -2133,7 +2210,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 			// The first line has been split on a soft hyphen
 			if i := lastIndex(firstLineText, ' '); i != -1 {
 				firstLineText, nextWord = firstLineText[:i], firstLineText[i:] // next word start with a space
-				firstLine = fc.wrap(firstLineText, style, maxWidthV)
+				firstLine = wrap(firstLineText, maxWidthV)
 				firstLine.ResumeAt = len(firstLineText) + 1 // track the space we have remove
 			} else {
 				firstLineText, nextWord = nil, firstLineText
@@ -2157,7 +2234,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		for _, firstWordPart := range dictionaryIterations {
 			newFirstLineText = slices.Concat(firstLineText, []rune(firstWordPart))
 			hyphenatedFirstLineText = append(newFirstLineText, hyphenateCharacter...)
-			newFirstLine := fc.wrap(hyphenatedFirstLineText, style, maxWidthV)
+			newFirstLine := wrap(hyphenatedFirstLineText, maxWidthV)
 			newSpace := maxWidthV - newFirstLine.Width + newFirstLine.Hang
 			hyphenated = newFirstLine.ResumeAt == -1 && (newSpace >= 0 || firstWordPart == dictionaryIterations[len(dictionaryIterations)-1])
 			if hyphenated {
@@ -2171,7 +2248,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 			// Recreate the layout with no maxWidth to be sure that
 			// we don't break before or inside the hyphenate character
 			hyphenated = true
-			firstLine = fc.wrap(hyphenatedFirstLineText, style, pr.Inf)
+			firstLine = wrap(hyphenatedFirstLineText, pr.Inf)
 			firstLine.ResumeAt = len(newFirstLineText)
 			if text[firstLine.ResumeAt] == softHyphen {
 				firstLine.ResumeAt += 1
@@ -2184,7 +2261,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 		// we don't break inside the hyphenate-character string
 		hyphenated = true
 		hyphenatedFirstLineText = slices.Concat(firstLineText, hyphenateCharacter)
-		firstLine = fc.wrap(hyphenatedFirstLineText, style, pr.Inf)
+		firstLine = wrap(hyphenatedFirstLineText, pr.Inf)
 		firstLine.ResumeAt = len(firstLineText)
 	}
 
@@ -2201,7 +2278,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 	if (space < 0 && canBreak) || breakAll {
 		// Is it really OK to remove hyphenation for word-break ?
 		hyphenated = false
-		firstLine = fc.WrapWordBreak(text, style, maxWidthV, true)
+		firstLine = fc.wrapWordBreak(text, style, sk, maxWidthV, true)
 		// gopdfgo: word-break: break-all pozwala łamać między literami i cyframi (traktowanymi jak
 		// znaki ideograficzne), ale reguły dla znaków przestankowych zostają (CSS Text 3 § 5.2):
 		// wiersz nie zaczyna się od kropki ani od spacji nierozdzielającej. Biblioteka łamie w dowolnym
@@ -2212,7 +2289,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 				at--
 			}
 			if at > 0 && at < firstLine.ResumeAt {
-				firstLine = fc.wrap(text[:at], style, pr.Inf)
+				firstLine = wrap(text[:at], pr.Inf)
 				firstLine.ResumeAt = at
 			}
 		}

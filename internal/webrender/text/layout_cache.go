@@ -50,6 +50,11 @@ func (c *layoutCache) put(key textKey, l FirstLine) {
 // (zob. compactGlyph) i stały narzut struktur.
 func entryCost(key textKey, l FirstLine) int {
 	cost := len(key.text) + 256
+	if key.split != 0 {
+		// gopdfgo: wynik splitFirstLine dzieli glify z wpisem WrapWordBreak, z którego powstał (kopia
+		// obiektu układu, te same tablice glifów), więc liczymy tylko klucz i narzut (ADR 0046)
+		return cost
+	}
 	if layout, ok := l.Layout.(*TextLayoutGotext); ok && layout != nil {
 		cost += 48*layout.store.glyphTotal() + 4*len(layout.text)
 	}

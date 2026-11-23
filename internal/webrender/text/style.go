@@ -79,7 +79,9 @@ func newFontSynthesis(style pr.StyleAccessor) FontSynthesis {
 
 func (fd FontDescription) binary(dst []byte, includeSize bool) []byte {
 	for _, f := range fd.Family {
-		dst = append(dst, f...)
+		// gopdfgo: nazwy rozdzielone bajtem zerowym; sklejone bez rozdzielenia rodziny ["ab", "c"]
+		// i ["a", "bc"] dawały ten sam klucz pamięci łamania wierszy i proporcji fontu
+		dst = append(append(dst, f...), 0)
 	}
 	dst = append(dst, byte(fd.Style), byte(fd.Stretch), byte(fd.VariantCaps), byte(fd.Synthesis))
 	dst = binary.BigEndian.AppendUint32(dst, math.Float32bits(float32(fd.ObliqueAngle)))

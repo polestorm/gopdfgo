@@ -31,3 +31,8 @@ min/max-content); trafienia w wpisy sprzed wielu stron pochodzą z treści powt�
 - Pamięć szczytowa przy dużych dokumentach zależy głównie od wejścia (style, drzewo pudełek, obrazy).
 - Gdyby powtarzalne dokumenty (np. setki identycznych formularzy) okazały się ważne, można dodać pamięć
   krótkich tekstów bez limitu albo opcję rozmiaru; na razie bez tego.
+
+## Dopisek 2026-11-23
+
+Ta sama pamięć trzyma też wyniki `splitFirstLine` dla pomiarów min- i max-content (teksty do 128 znaków,
+ADR 0046); klucz odróżnia je polem `split`, limit i pokolenia są wspólne.
