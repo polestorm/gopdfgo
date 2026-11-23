@@ -392,7 +392,7 @@ func TestVariableInitialDefaultVar(t *testing.T) {
 }
 
 func TestVariableFallback(t *testing.T) {
-	for prop := range pr.KnownProperties {
+	for prop := range pr.KnownProperties.All() {
 		_, style := setupVar(t, fmt.Sprintf(`
 		  <style>
 			div {

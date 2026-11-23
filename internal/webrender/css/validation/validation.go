@@ -423,7 +423,7 @@ func validateNonShorthand(baseUrl string, name string, tokens []pa.Token, requir
 		return out, errors.New("unknown property")
 	}
 
-	if _, isSupported := allValidators[prop]; !required && !isSupported {
+	if isSupported := allValidators.Has(prop); !required && !isSupported {
 		return out, fmt.Errorf("property %s not supported yet", name)
 	}
 

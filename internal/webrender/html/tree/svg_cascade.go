@@ -69,7 +69,7 @@ func (s StyleFor) matchSVGRules(element *utils.HTMLNode) []svgMatch {
 		if !svgSheetUsable(sh) {
 			continue
 		}
-		for _, m := range sh.sheet.matcher.match(element.AsHtmlNode()) {
+		for _, m := range sh.sheet.match(element.AsHtmlNode()) {
 			if m.pseudoType == "" && len(m.raw) != 0 {
 				out = append(out, svgMatch{user: sh.origin == "user", result: m})
 			}

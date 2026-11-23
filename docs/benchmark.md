@@ -416,3 +416,105 @@ parsowanie fontów Noto), z `FontCache` mały dokument 35–60% szybciej (`17-ta
   pusta (ok. 2 MB przydziałów na wywołanie); wystarczy `loca`. Szacunek < 1 ms.
 - **Sterta**: na dużych dokumentach 20–37% czasu to `madvise` przy wzroście sterty (macOS); pomogłoby
   zmniejszenie przydziałów w kaskadzie (`newStyleFor`) i drzewie pudełek (`CopyWithChildren`). Bez szacunku.
+
+### Druga runda: techniki folio, profil etapów i plan (2026-11-23)
+
+Przeczytany kod folio (`ARCHITECTURE.md`, pakiety `html`, `layout`, `font`, `core`) w tym samym klonie
+`29bca95`; bez przejmowania kodu, tylko pomysły. Zestawienie technik, które dają folio szybkość:
+
+| Technika folio | Odpowiednik w gopdfgo | Uwagi |
+|---|---|---|
+| Indeks selektorów według najbardziej prawego selektora prostego (`html/css.go` `ruleIndex`: `byID`, `byClass`, `byTag`, reszta) | `tree.matcher.match` sprawdzał każdy selektor każdego arkusza przy każdym elemencie (arkusz domyślny ma kilkaset selektorów) | **wdrożone** (niżej) |
+| Styl obliczony jako zwykła struktura o polach typowanych, liczony raz na element, dziedziczenie przez kopię struktury rodzica (`html/style.go` `computedStyle`) | Wartości obliczane na żądanie (`ComputedStyle.Get`), dwie warstwy: wspólna tablica `sharedValues` i nakładka `own`; `pr.Inherited.Has` przy każdym odczycie | nie przenosimy modelu (leniwe obliczanie jest potrzebne dla zależności między właściwościami i `var()`); **wdrożone**: tablica bitów zamiast mapy w `SetK`, indeks dużej nakładki, wspólne kaskady dla deklaracji własnych |
+| Pomiar tekstu bez kształtowania: suma szerokości glifów z `hmtx` i par `kern`/`GPOS` (`font.EmbeddedFont.MeasureString`) | HarfBuzz (go-text) przy każdym `SplitFirstLine`, także przy min-/max-content | nie do przeniesienia bez utraty wierności (ligatury, znaki łączone, pisma złożone, ADR 0044); folio na tej różnicy traci zgodność z Chromium (§ 11) |
+| min-/max-content akapitu: najdłuższe słowo i suma słów, każde słowo mierzone raz, wynik zapamiętany w akapicie (`layout/paragraph_measure.go`) | min-content komórki: `SplitFirstLine` z szerokością 0 dla każdego słowa, a dla tekstu do 128 znaków kształtowana jest cała reszta tekstu (O(słowa²)); szerokości tabeli zapamiętane na tabelę (`context.tables`) | plan, pkt 1 |
+| Szerokości kolumn tabeli zapamiętane dla danej szerokości dostępnej (`layout/table.go` `resolveColWidths`) | jest (`context.tables`) | bez zmian |
+| Font: tablice metryczne dekodowane od razu własnym parserem, `glyf`, `GSUB`, `GPOS`, `kern`, `CFF` jako surowe bajty dekodowane przy pierwszym użyciu (`font/truetype.go`, `sync.Once`) | go-text parsuje cały font (`font.NewFont`), także `glyf` w `isSupportedFont` przy zapisie | plan, pkt 3–4 |
+| Jeden przebieg układu bez ponownych prób podziału strony; plan układu niezmienny (`LayoutPlan`) | `remakePage`/`makePage` z ponownymi próbami, przebieg drugi dla liczników stron (ADR 0036) | przebieg drugi: plan w ADR 0036, ostatnia sekcja |
+| Kompresja: nowy `zlib.Writer` na każdy strumień | pula kompresorów (`model.Compress`, już jest) | gopdfgo tu lepsze |
+| Zapis PDF strumieniem bez buforów całego dokumentu | `goweasyprint/pdf` buduje model i zapisuje na końcu; 4–9% czasu | bez zmian (mały udział) |
+
+Profil po zmianach z tej rundy (pprof, `-cache`, ciepłe renderowania, udział w próbkach procesora całego
+procesu; „kaskada” to `GetAllComputedStyles`, „pudełka” `BuildFormattingStructure`, „układ” `makeAllPages`,
+w tym min-/max-content tabel; „rysowanie” `drawPage`; „zapis” finalizacja stron i `Output.Finalize`;
+`madvise` to pobieranie pamięci od systemu, GC to odśmiecanie w tle):
+
+| Etap (udział w czasie procesora `render`) | `office-db-model` przed / po | `rand-01` przed / po | `20-invoice` przed / po | książka przed / po |
+|---|---|---|---|---|
+| kaskada CSS | 56% / 33% | 8% / 5% | 8% / 9% | 4% / 2% |
+| drzewo pudełek | 11% / 18% | 6% / 6% | 7% / 1% | 7% / 8% |
+| układ | 31% / 45% | 86% / 89% | 78% / 83% | 87% / 88% |
+| — w tym min-/max-content tabel | 9% / 15% | 21% / 27% | 40% / 43% | 1% / 1% |
+| — w tym `SplitFirstLine` (kształtowanie i łamanie) | 8% / 17% | 55% / 54% | 50% / 56% | 58% / 55% |
+| rysowanie stron | 3% / 5% | 7% / 8% | 8% / 9% | 7% / 9% |
+| zapis PDF i kompresja | 2% / 6% | 5% / 7% | 7% / 5% | 14% / 20% |
+| `madvise` (udział we wszystkich próbkach) | 30% / 24% | 4% / 6% | 2% / 2% | 15% / 10% |
+
+Czas procesora `render` na renderowanie po zmianach (profil, maszyna obciążona innymi procesami, więc liczby
+są orientacyjne): `office-db-model` ok. 260 ms, `rand-01` 270 ms, `20-invoice` 43 ms, książka 830 ms. Po
+zmianach we wszystkich czterech dokumentach (poza `office-db-model`, gdzie zostały jeszcze kaskada i `madvise`)
+ponad 80% czasu to układ, a w nim połowa to `SplitFirstLine`: kształtowanie HarfBuzz i łamanie wierszy.
+To jest główna różnica wobec folio, które tekstu nie kształtuje (zob. tabela technik).
+
+Gdzie gopdfgo traci najwięcej wobec folio (folio na tych dokumentach: 57, 58, 16 ms i 0,46 s):
+- `office-db-model` (43 tabele, 4144 komórki z `valign` i `cellpadding`): kaskada była ok. 30% czasu, z tego
+  dopasowanie selektorów 40% i walidacja tych samych atrybutów prezentacyjnych przy każdej komórce 30%;
+  reszta to `madvise` przy wzroście sterty. Po zmianach kaskada to ok. 33% krótszego czasu.
+- `rand-01`: układ ok. 70% (wiersze i elementy pływające w tabelach, ponowne próby podziału strony);
+  odczyt stylów (`propsCache.get`, `SetK.Has`) był ok. 14% próbek.
+- `20-invoice`: min-/max-content komórek ok. 30% (kształtowanie każdej reszty tekstu komórki).
+- książka: układ 59%, kompresja zlib 9%, `madvise` 15%.
+
+Wdrożone w tej rundzie (wszystko bez zmiany wyniku, opis zmian w `THIRD_PARTY.md`):
+1. **Indeks selektorów** (`css/selector/index.go`, `tree.matcherIndex`): kubełki według identyfikatora,
+   klasy albo nazwy elementu z najbardziej prawego selektora złożonego; kandydaci sortowani według pozycji w
+   arkuszu, więc kolejność dopasowań jest ta sama. Test `TestMatcherIndexSameAsLinear` porównuje z
+   dopasowaniem liniowym na arkuszach domyślnych i arkuszach korpusu.
+2. **Wspólne kaskady elementów z deklaracjami własnymi**: ten sam tekst atrybutu `style` i atrybutów
+   prezentacyjnych (w tej samej kolejności i szczególności) plus te same reguły → jedna kaskada i jedna tablica
+   wartości obliczonych; walidacja raz na tekst, ostrzeżenia powtarzane (porównane: 4732 wiersze ostrzeżeń na
+   `bench/realdocs` i `testdata/documents` identyczne).
+3. **Odczyt stylów**: `SetK` jako tablica bitów, indeks nakładki `own` od 16 wartości, `sharedValues` od razu
+   na wszystkie właściwości.
+
+Przed i po (w procesie, mediana; `-cache` to `Options.FontCache`; cały proces: mediana z 5, RSS: szczyt;
+binarki i harness z `65c52c3` i z tej gałęzi, mierzone na zmianę w tej samej chwili):
+
+| Dokument | `65c52c3` [ms] | po [ms] | z `FontCache` przed / po [ms] | cały proces przed / po [ms] | RSS przed / po [MB] |
+|---|---|---|---|---|---|
+| `20-invoice` | 52,4 | 50,0 | 38,5 / 35,8 | 66 / 63 | 95 / 96 |
+| `17-tables` | 26,1 | 25,7 | 12,6 / 12,0 | 39 / 39 | 75 / 74 |
+| `02-register-table` | 73,9 | 66,9 | 60,8 / 53,1 | 89 / 83 | 113 / 115 |
+| `22-multicol-pagination` | 84,3 | 76,7 | 70,8 / 62,9 | 100 / 92 | 100 / 98 |
+| `invoice-a-basic` | 27,2 | 26,6 | 13,6 / 12,9 | 40 / 40 | 74 / 72 |
+| `esf-4` (16 stron) | 181,8 | 140,8 | 168,5 / 128,8 | 204 / 159 | 154 / 142 |
+| `office-agreement` | 59,9 | 57,8 | 46,1 / 43,9 | 74 / 72 | 127 / 127 |
+| `office-usb-protocol` | 92,1 | 83,4 | 78,6 / 69,5 | 109 / 100 | 152 / 142 |
+| `office-terminology` | 175,0 | 167,9 | 161,5 / 146,9 | 193 / 180 | 177 / 158 |
+| `office-db-model` | 785,7 | 340,3 | 574,5 / 464,3 | 618 / 483 | 437 / 247 |
+| `rand-01` | 308,6 | 281,7 | 324,4 / 267,9 | 327 / 301 | 160 / 154 |
+| `rand-12` | 167,1 | 152,8 | 153,8 / 138,3 | 189 / 172 | 142 / 136 |
+
+Pomiar z 2026-11-23 ok. 10:05 na maszynie, na której równolegle szły testy innego pomocnika (obciążenie 6–60),
+więc czasy dużych dokumentów skaczą między powtórzeniami o kilkadziesiąt procent. Dla nich ważniejszy jest
+stosunek z renderowań na zmianę (stara, nowa, stara, nowa; po 5 par, mediana stosunków po/przed):
+`office-db-model` 0,55 (−45%), `office-terminology` 0,79 (−21%), `rand-01` 0,87 (−13%), książka ok. 0,94
+(−6%; rozrzut większy niż efekt). Dokumenty bez atrybutów prezentacyjnych zyskują 2–15% (indeks selektorów i
+odczyt stylów), e-SF z dużymi tabelami 23%, `office-db-model` prawie połowę, a jego RSS spada z 437 do 247 MB.
+Liczby w tabeli porównania z folio wyżej i w `docs/comparison.md` są sprzed tej rundy; do odświeżenia
+pomiarem na wolnej maszynie (`bench/folio/run.py`).
+
+Plan reszty (szacunki; kolejność według stosunku zysku do ryzyka):
+
+| # | Technika (folio) | Odpowiednik u nas | Szacunek zysku | Ryzyko dla wierności | Koszt |
+|---|---|---|---|---|---|
+| 1 | min-content z każdego słowa mierzonego raz | `inlineLineWidthsHang` przy `minimum`: zamiast `SplitFirstLine(reszta, 0)` dla każdego słowa jedno kształtowanie tekstu i odczyt szerokości słów z podziału na wiersze przy szerokości 0 | faktura −5–8 ms (30% → ok. 15%), `rand-01` −10–20% | średnie: szerokość słowa ukształtowanego w całości może różnić się od ukształtowanego osobno (kerning przez spację, ligatury przez granicę, zaokrąglenia ADR 0044); wymaga porównania bajtowego, a przy różnicach rozstrzygnięcia według CSS Text 3 § 5 (min-content = najszersza jednostka niełamliwa w kontekście akapitu) | 2–3 dni |
+| 2 | — (u nas: ta sama treść w obu miarach) | wspólna pamięć szerokości wierszy/słów dla min-, max-content i układu właściwego według (tekst, styl, szerokość) już istnieje w `layoutCache` dla `wrap`; brakuje jej dla wyniku `splitFirstLineRaw` (kroki 3–4: łamanie słowa, dzielenie wyrazów) | −3–5% w dokumentach z tabelami | małe (czysta pamięć wyniku funkcji czystej; trzeba ująć w kluczu `isLineStart`, `minimum`, słownik dzielenia) | 1 dzień |
+| 3 | leniwe tablice fontu | własny indeks fontów (rodzina, odmiana, pokrycie `cmap` z surowych tablic), parsowanie go-text przy pierwszym użyciu; pierwsze renderowanie i polecenie `gopdfgo` | pierwsze renderowanie małego dokumentu −10–15 ms; polecenie z `-fonts testdata/fonts` (67 plików) więcej | małe, jeśli wybór fontu daje te same twarze (porównanie bajtowe); go-text to zależność, nie fork | 3–4 dni |
+| 4 | `glyf` dekodowany przy użyciu | `isSupportedFont`: wynik zapamiętany dla treści fontu (w `FontCache`) zamiast parsowania całej `glyf` przy każdym zapisie | ok. 1 ms na renderowanie (3% faktury) | żadne przy pamięci wyniku; zastąpienie przez sprawdzenie samej `loca` zmieniłoby wynik dla fontów z uszkodzonym glifem | 0,5 dnia |
+| 5 | mniej przydziałów, mniej `madvise` | drzewo pudełek: `CopyWithChildren` w `dispatchChildren` (rysowanie) i w podziale bloków kopiuje każde pudełko; `NewTextBox` przy budowie | `madvise` i GC to 20–35% czasu dużych dokumentów; −5–10% | małe przy kopiowaniu tylko zmienionych pudełek, ale `CopyWithChildren` zeruje też `RemoveDecorationSides` oryginału, więc każda zmiana wymaga ostrożności | 2 dni |
+| 6 | jeden przebieg układu | tańszy przebieg drugi: ponowne użycie stron z pierwszego przebiegu (ADR 0036, ostatnia sekcja; pliki `layout/pages.go`, `layout.go`, `stream.go`, w których trwa praca nad przypisami) | książka ze spisem 2,5 → ok. 1,5 s | średnie (stan wejścia strony musi być pełny) | według ADR 0036 |
+| 7 | kaskada bez atrybutów prezentacyjnych w pętli po tabeli | `findStyleAttributes`: `cellpadding` dodaje wpis dla każdej komórki każdej tabeli przodka (także komórek tabel zagnieżdżonych, TODO ze źródła); ok. 10% przydziałów `office-db-model` | −2–3% na takich dokumentach | zmiana zachowania dla tabel zagnieżdżonych (HTML § 15.3.10: `cellpadding` dotyczy komórek tej tabeli) — osobna decyzja, zmienia wynik | 0,5 dnia |
+
+Pozycje 1–5 nie dotykają plików przebiegu drugiego. Przebieg drugi powtarza układ, więc przyspieszenie układu
+(pkt 1, 2, 5) działa w nim drugi raz i skraca też dokumenty ze spisem treści; pkt 6 warto mierzyć po nich.

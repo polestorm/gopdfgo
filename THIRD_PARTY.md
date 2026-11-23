@@ -1218,6 +1218,25 @@ Wspólne dla obu katalogów:
     wywołaniu; `utils/html.go` `AsciiLower`: napis ASCII bez wielkich liter wraca bez kopiowania;
   - `html/tree/style.go` `findStyleAttributes`: ten sam tekst atrybutu `style` parsowany raz na
     renderowanie (walidacja i ostrzeżenia dalej przy każdym elemencie);
+- szybkość kaskady i odczytu stylów, druga runda po porównaniu z folio, 2026-11-23 (`docs/benchmark.md`
+  § 11, „Druga runda”; test `html/tree/index_test.go`); wynik bajt w bajt ten sam (korpus W3C, korpus
+  `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `65c52c3`):
+  - `css/selector/index.go` (nowy, własny) i `html/tree/tree.go` (`matcherIndex`, `CSS.match`): indeks
+    selektorów arkusza według klucza najbardziej prawego selektora złożonego (identyfikator, klasa, nazwa
+    elementu); kaskada sprawdza tylko selektory z kubełków elementu i selektory bez klucza, w kolejności
+    arkusza. W źródle każdy element był porównywany z każdym selektorem każdego arkusza;
+  - `html/tree/style.go` `newStyleFor`: elementy o tych samych deklaracjach własnych (atrybut `style`,
+    atrybuty prezentacyjne: ten sam tekst i szczególność w tej samej kolejności) i tych samych dopasowanych
+    regułach dzielą kaskadę, a przez nią tablicę `sharedValues` (zmienia pkt 1 wpisu o pamięci stylów:
+    wcześniej każdy taki element miał kaskadę własną). Ten sam tekst jest walidowany raz, ostrzeżenia
+    z walidacji są powtarzane przy każdym elemencie w tej samej kolejności co wcześniej. `findStyleAttributes`:
+    tekst `cellpadding` składany raz na tabelę, nie raz na komórkę;
+  - `html/tree/style.go` `propsCache`: nakładka `own` od 16 wartości ma indeks pozycji według właściwości
+    (`ownIndex`) zamiast przeszukiwania po kolei; `sharedValues.known` przydzielana od razu na wszystkie
+    właściwości zamiast rosnąć po jednej;
+  - `css/properties/utils.go` `SetK`: tablica bitów zamiast mapy (`Has` przy każdym odczycie stylu);
+    przechodzenie zbioru (`All`) w kolejności rosnącej. `html/boxes/build.go` (właściwości opakowania
+    tabeli) przechodzi zbiór w tej kolejności zamiast losowej kolejności mapy;
 - dokładna szerokość wiersza jak w Chromium, 2026-11-22 (ADR 0044; test `tests/linewidth22_test.go`;
   pomiary w `bench/lw/`, poza gitem):
   - `text/engine_gotext.go` `shapeAtSize`: szerokości znaków zaokrąglane do 1/64 px z przenoszeniem błędu

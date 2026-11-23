@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/polestorm/gopdfgo/internal/webrender/css/counters"
 	"github.com/polestorm/gopdfgo/internal/webrender/css/parser"
@@ -162,6 +163,7 @@ func init() {
 // CSS represents a parsed CSS stylesheet.
 type CSS struct {
 	matcher   matcher
+	index     *matcherIndex // gopdfgo: indeks selektorów matcher, zob. newMatcherIndex
 	pageRules []PageRule
 	baseUrl   string
 }
@@ -208,6 +210,7 @@ func newCSS(input utils.ContentInput, baseUrl string,
 	preprocessStylesheet(mediaType, ressource.BaseUrl, stylesheet, urlFetcher, matcher,
 		pageRules, fontConfig, counterStyle, false)
 	out.matcher = *matcher
+	out.index = newMatcherIndex(out.matcher)
 	out.pageRules = *pageRules
 	return out, nil
 }
@@ -258,6 +261,71 @@ func (m matcher) match(element *html.Node) (out []matchResult) {
 			if sel.Match(element) {
 				out = append(out, matchResult{specificity: sel.Specificity(), pseudoType: sel.PseudoElement(), payload: mat.declarations, layer: mat.layer, raw: mat.raw})
 			}
+		}
+	}
+	return
+}
+
+// matcherIndex (gopdfgo) dzieli selektory arkusza na kubełki według klucza najbardziej prawego
+// selektora złożonego (selector.IndexKey), jak w przeglądarkach i w folio. Arkusz domyślny ma kilkaset
+// selektorów, a match sprawdzał każdy z nich przy każdym elemencie (ok. 15% czasu dokumentu z
+// tysiącami komórek tabel). Pozycja selektora to jego numer w kolejności przechodzenia matcher,
+// więc wynik jest w tej samej kolejności co w match.
+type matcherIndex struct {
+	byID, byClass, byTag map[string][]int32
+	universal            []int32
+	positions            [][2]int32 // pozycja -> (reguła, selektor w grupie)
+}
+
+func newMatcherIndex(m matcher) *matcherIndex {
+	index := &matcherIndex{byID: map[string][]int32{}, byClass: map[string][]int32{}, byTag: map[string][]int32{}}
+	for i, mat := range m {
+		for j, sel := range mat.selector {
+			position := int32(len(index.positions))
+			index.positions = append(index.positions, [2]int32{int32(i), int32(j)})
+			switch kind, key := selector.IndexKey(sel); kind {
+			case selector.KeyID:
+				index.byID[key] = append(index.byID[key], position)
+			case selector.KeyClass:
+				index.byClass[key] = append(index.byClass[key], position)
+			case selector.KeyTag:
+				index.byTag[key] = append(index.byTag[key], position)
+			default:
+				index.universal = append(index.universal, position)
+			}
+		}
+	}
+	return index
+}
+
+// match działa jak matcher.match, ale sprawdza tylko selektory z kubełków elementu.
+func (sheet CSS) match(element *html.Node) (out []matchResult) {
+	index := sheet.index
+	if index == nil {
+		return sheet.matcher.match(element)
+	}
+	candidates := append([]int32(nil), index.universal...)
+	selector.ElementKeys(element, func(kind selector.KeyKind, key string) {
+		var bucket map[string][]int32
+		switch kind {
+		case selector.KeyID:
+			bucket = index.byID
+		case selector.KeyClass:
+			bucket = index.byClass
+		default:
+			bucket = index.byTag
+		}
+		candidates = append(candidates, bucket[key]...)
+	})
+	// selektor leży w jednym kubełku, ale klucz elementu może się powtarzać (class="a a")
+	slices.Sort(candidates)
+	candidates = slices.Compact(candidates)
+	for _, position := range candidates {
+		at := index.positions[position]
+		mat := &sheet.matcher[at[0]]
+		sel := mat.selector[at[1]]
+		if sel.Match(element) {
+			out = append(out, matchResult{specificity: sel.Specificity(), pseudoType: sel.PseudoElement(), payload: mat.declarations, layer: mat.layer, raw: mat.raw})
 		}
 	}
 	return
