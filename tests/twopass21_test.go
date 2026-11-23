@@ -109,7 +109,11 @@ func twoPassCases() []struct{ name, html, want, deferWant string } {
 		{"target-counter-pages", `<style>@page { size: A6 } .toc a::after { content: target-counter(attr(href), page) "/" target-counter(attr(href), pages) }</style>` +
 			toc(6) + chapters(6, 3), "", ""},
 		{"target-counter-pages-backward", `<style>@page { size: A6 } .back::after { content: " s. " target-counter(attr(href), page) "/" target-counter(attr(href), pages) }</style>` +
-			chapters(6, 3) + `<p><a class="back" href="#r0">wstecz do 1</a> <a class="back" href="#r4">wstecz do 5</a></p>`, "", "changed after it was drawn"},
+			chapters(6, 3) + `<p><a class="back" href="#r0">wstecz do 1</a> <a class="back" href="#r4">wstecz do 5</a></p>`, "", ""},
+		// odwołanie wstecz z pages w środku dokumentu: strona kotwicy (1) jest już narysowana i nie może być
+		// oznaczona do ponownego układu, odłożona jest tylko strona odwołania
+		{"target-counter-pages-backward-middle", `<style>@page { size: A6 } .back::after { content: " s. " target-counter(attr(href), page) "/" target-counter(attr(href), pages) }</style>` +
+			chapters(3, 3) + `<p><a class="back" href="#r0">wstecz do 1</a></p>` + strings.ReplaceAll(chapters(6, 3), `id="r`, `id="s`), "", ""},
 		{"target-text", `<style>@page { size: A6 } .toc a::after { content: " — " target-text(attr(href)) " s. " target-counter(attr(href), page) }</style>` +
 			toc(6) + chapters(6, 3), "", ""},
 		{"string-set-pages", `<style>@page { size: A6; @top-center { content: string(head) } }

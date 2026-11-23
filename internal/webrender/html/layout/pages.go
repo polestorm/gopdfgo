@@ -1238,20 +1238,12 @@ func (context *layoutContext) makePage(rootBox bo.BlockLevelBoxITF, pageType uti
 			}
 
 			// Step 3: targeted counters
-			targetMissing := counterLookup.MissingTargetCounters
-			for anchorName, missedCounters := range targetMissing {
-				if !missedCounters.Has("pages") {
-					continue
-				}
-				// Adjust "pagesWanted"
-				item := targetCollector.TargetLookupItems[anchorName]
-				pageMakerIndex := item.PageMakerIndex
-				if pageMakerIndex >= 0 && cachedAnchors.Has(anchorName) {
-					pageMaker[pageMakerIndex].RemakeState.PagesWanted = true
-				}
-				// "contentChanged" is triggered in
-				// targets.cacheTargetPageCounters()
-			}
+			// gopdfgo: źródło oznaczało tu stronę kotwicy (nie stronę odwołania) jako PagesWanted, żeby jej
+			// ponowny układ po zmianie liczby stron wpisał nową liczbę do liczników kotwicy i przez
+			// CacheTargetPageCounters oznaczył stronę odwołania. Liczbę stron wpisuje do liczników kotwic po
+			// każdym obiegu UpdateTargetPages, które samo oznacza strony odwołań (ContentChanged), więc ponowny
+			// układ strony kotwicy niczego nie zmieniał, a przy odkładaniu stron (ADR 0036) oznaczał stronę już
+			// narysowaną: odwołanie wstecz z target-counter(…, pages) wymuszało dwa przebiegi.
 
 			if callParseAgain {
 				if context.verifying { // gopdfgo: treść strony przeliczona po jej ułożeniu (ADR 0036)

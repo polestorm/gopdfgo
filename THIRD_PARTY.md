@@ -2971,6 +2971,11 @@ Wspólne dla obu katalogów:
     (wygrywa pierwsze przypisanie, jak w źródle); wynik bez zmian;
   - wynik bajt w bajt ten sam (korpus W3C, korpus dokumentów, książki); czas ×4 ze spisem treści ok. 1,9 →
     1,17 raza czasu bez spisu, pamięć bez zmian.
+- 2026-11-23, `html/layout/pages.go` `makePage`, krok 3 („targeted counters”) (ADR 0036, dopisek czwarty;
+  test `tests/twopass21_test.go`, przypadki `target-counter-pages-backward*`): odwołanie wstecz z
+  `target-counter(…, pages)` nie oznacza już strony kotwicy jako `PagesWanted`; liczbę stron w licznikach kotwic
+  i oznaczenie stron odwołań daje `UpdateTargetPages`. Wynik bez zmian, a dokument z takim odwołaniem idzie
+  odkładaniem stron zamiast dwóch przebiegów.
 
 `internal/pdflib/` (kopia pięciu pakietów, które dzielą typy `model`; pozostałe pakiety biblioteki zostają
 zależnością modułu):

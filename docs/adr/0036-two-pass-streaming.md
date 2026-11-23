@@ -1,6 +1,7 @@
 # ADR 0036: Dokumenty z ponowną paginacją układane w dwóch przebiegach
 
-Status: przyjęta 2026-11-21; dopisek trzeci 2026-11-23 (odkładanie stron zamiast drugiego przebiegu tam, gdzie się da).
+Status: przyjęta 2026-11-21; dopisek trzeci 2026-11-23 (odkładanie stron zamiast drugiego przebiegu tam, gdzie się da);
+dopisek czwarty 2026-11-23 (odwołania wstecz z `target-counter(…, pages)` odkładaniem).
 
 ## Kontekst
 
@@ -352,3 +353,25 @@ czasu wariantu ze spisem do wariantu bez spisu w tej samej rundzie:
   `target-counter(…, pages)`): `UpdateTargetPages` oznacza po obiegu pierwszym stronę 1, choć odwołania są na
   ostatniej; strona 1 jest już narysowana, więc dokument idzie dwoma przebiegami. Prawdopodobnie nieaktualny
   `PageMakerIndex` odwołania w przejętym kodzie; do zbadania osobno.
+
+## Dopisek czwarty 2026-11-23: odwołania wstecz z `target-counter(…, pages)`
+
+Przyczyna (przypadek `target-counter-pages-backward` z sekcji „Konsekwencje” dopisku trzeciego): nie
+nieaktualny `PageMakerIndex`, tylko krok 3 rozwiązywania liczników w `makePage` (`html/layout/pages.go`, w
+WeasyPrint `layout/page.py`, „targeted counters”). Dla odwołania z `pages` do kotwicy już ułożonej oznaczał on
+`PagesWanted` na stronie **kotwicy**, nie odwołania: ponowny układ strony kotwicy po zmianie liczby stron miał
+wpisać nową liczbę do jej liczników stron, a `CacheTargetPageCounters` oznaczyć wtedy strony odwołań. U nas
+liczbę stron wpisuje do liczników wszystkich kotwic po każdym obiegu `UpdateTargetPages` (dopisek z
+2026-11-21) i sama oznacza strony odwołań (`ContentChanged`), więc ponowny układ strony kotwicy niczego nie
+zmieniał. Przy odkładaniu stron oznaczał jednak stronę już narysowaną (tu stronę 1 z `#r0`), co jest
+przeszkodą z punktu 3 decyzji dopisku trzeciego.
+
+Decyzja: krok 3 nie oznacza strony kotwicy. Warunek ponownego obiegu się nie zmienia: `PagesWanted` strony
+kotwicy dawał obieg wtedy, gdy zmieniła się liczba stron, a wtedy `UpdateTargetPages` oznacza stronę odwołania
+(liczba stron w licznikach kotwicy jest po każdym obiegu liczbą stron dokumentu). Strona kotwicy nie jest już
+układana od nowa; jej stan wejścia się nie zmienia, więc układ byłby ten sam.
+
+Wyniki: bajty bez zmian wobec `505fabd` (korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic);
+przypadek `target-counter-pages-backward` i nowy `target-counter-pages-backward-middle` (odwołanie wstecz w
+środku dokumentu, z dalszymi stronami narysowanymi przed nim) idą odkładaniem (`deferWant = ""`; przed zmianą
+oba kończyły się przeszkodą „content of page 1 changed after it was drawn”).
