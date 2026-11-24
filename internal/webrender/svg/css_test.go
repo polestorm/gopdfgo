@@ -62,7 +62,7 @@ func TestProcessStyle(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := fetchStyleAndTextRefs((*utils.HTMLNode)(root))
-	normal, important := parseStylesheets(got, "")
+	normal, important := parseStylesheets(got, "", nil)
 	if len(normal) != 1 {
 		t.Fatalf("unexpected normal style: %v", normal)
 	}

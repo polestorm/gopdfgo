@@ -23,13 +23,13 @@ engine in Go (details in [Comparison](#comparison)):
   of Y" in the text, footnotes, all 16 margin boxes, running headers, hyphenation for 24 languages built in.
 - **Archival and accessible output**: PDF/A-2 and PDF/A-3 (levels b and a), PDF/UA-1 and Factur-X e-invoices,
   checked with veraPDF and Mustang; PAdES signatures in an optional package.
-- **One small program**: a single Go binary of 25 MB instead of a 460 MB browser, 2–9 times faster than
+- **One small program**: a single Go binary of 21 MB instead of a 460 MB browser, 2–9 times faster than
   Chromium on business documents and with a tenth of its memory. Fonts and files come only from the caller;
   nothing is read from the disk or the network unless you allow it.
 - **Standards first**: the layout follows the W3C specifications and is tested on their test suites: 9484 of
   10962 CSS reftests, 310 of 340 print reftests, 194 of 235 SVG reftests.
 
-Where it is weaker: folio is about 2.8 times faster and uses less memory, and neither gopdfgo nor folio runs
+Where it is weaker: folio is about twice as fast and uses half the memory, and neither gopdfgo nor folio runs
 JavaScript. gopdfgo has no right-to-left or vertical text yet.
 
 ## Contents
@@ -49,12 +49,12 @@ with its own layout engine and an HTML converter.
 |---|:---:|:---:|:---:|
 | Approach | WeasyPrint's layout model ported to Go, extended | a web browser printing a page | own layout engine in Go |
 | Dependencies[^deps] | 7 Go modules | a browser process and system libraries | 3 Go modules 🥇 |
-| Program size[^size] | 25 MB | about 460 MB on Linux | 12 MB 🥇 |
-| Invoice, 3 pages[^bench] | 62 ms | 430 ms | 22 ms 🥇 |
-| Book, 255 pages | 1.1 s | 2.1–2.6 s | 0.48 s 🥇 |
+| Program size[^size] | 20.5 MB | about 460 MB on Linux | 11.7 MB 🥇 |
+| Invoice, 3 pages[^bench] | 44 ms | 430 ms | 22 ms 🥇 |
+| Book, 255 pages | 1.1 s | 2.1–2.6 s | 0.50 s 🥇 |
 | Book with a table of contents | 1.4 s 🥇 | no page numbers | not supported |
-| Memory, business documents | 48–117 MB | about 950 MB | 22–80 MB 🥇 |
-| Memory, book | 0.42 GB | 1.7 GB | 0.29 GB 🥇 |
+| Memory, business documents | 49–113 MB | about 950 MB | 25–56 MB 🥇 |
+| Memory, book | 0.43 GB | 1.7 GB | 0.27 GB 🥇 |
 | PDF size, invoice[^pdf] | 25–51 kB 🥇 | 27–53 kB | 26–56 kB |
 | PDF size, book | 26.3 MB 🥇 | 27.6 MB | 26.7 MB |
 | Same page count as Chromium[^fidelity] | 33 of 35 🥇 | reference | 17 of 35 |
@@ -83,14 +83,16 @@ with its own layout engine and an HTML converter.
 [^deps]: Go modules the program needs (`go version -m`). gopdfgo: go-text (shaping), benoitkugler/pdf and
     pstokenizer (PDF writing), hhrutter/lzw and three `golang.org/x` modules; all pure Go.
 [^size]: The command-line program as built by `go build` on macOS arm64 on 2026-11-24 (folio at commit
-    `29bca95`); gopdfgo includes 24 hyphenation dictionaries. Chromium: the headless shell with its libraries on
-    Linux; the macOS application is 2.2 GB.
-[^bench]: Whole process. Business documents: Polish e-invoices and financial statements of 1–16 pages.
-    Measured 2026-11-20 to 2026-11-24 on one Apple M4 laptop with the same input and fonts
-    for every engine; details and per-document numbers in [`docs/comparison.md`](docs/comparison.md). folio is about
-    2.8 times faster than gopdfgo on typical documents (median of 36), from 1.0 to 5.4 times. Chromium's time
-    includes starting the browser; inside a running program through DevTools it still needs 0.42–0.46 s per
-    document, gopdfgo 49 ms (36 ms with a shared font cache).
+    `29bca95`). gopdfgo includes HarfBuzz shaping, 24 hyphenation dictionaries and the PDF/A and PDF/UA writers;
+    it contains no network code. Chromium: the headless shell with its libraries on Linux; the macOS application
+    is 2.2 GB.
+[^bench]: Whole process, measured 2026-11-24 on one Apple M4 laptop with the same input and fonts for every
+    engine; Chromium measured 2026-11-20 and 2026-11-21. Business documents: Polish e-invoices and financial
+    statements of 1–16 pages. Over 36 documents rendered inside a running program, folio is a median 2.0 times
+    faster than gopdfgo (from 0.7 to 5.1 times; 1.5 times when gopdfgo keeps its fonts parsed between calls with
+    `FontCache`); gopdfgo is faster on the SVG report, the page-break document and the long register table. Chromium's
+    time includes starting the browser; inside a running program through DevTools it still needs 0.42–0.46 s per
+    document. Per-document numbers in [`docs/comparison.md`](docs/comparison.md).
 [^pdf]: Untagged PDF, fonts embedded as subsets.
 [^fidelity]: 35 documents printed by all three: the test corpus, financial statements, office documents
     converted to HTML, Markdown and diagram pages, generated random documents; positions of words compared with Chromium's PDF. Chromium is the reference because

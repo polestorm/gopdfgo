@@ -30,7 +30,12 @@ func handleStyleElement(n *utils.HTMLNode) []byte {
 	return n.GetChildrenText()
 }
 
-func fetchURL(url, baseURL string) ([]byte, string, error) {
+// gopdfgo: arkusz z @import pobiera ten sam fetcher co reszta zasobów obrazu SVG (w gopdfgo: Options.Resolver);
+// źródło wołało tu zawsze DefaultUrlFetcher, czyli plik z dysku albo sieć z pominięciem fetchera dokumentu.
+func fetchURL(url, baseURL string, fetcher utils.UrlFetcher) ([]byte, string, error) {
+	if fetcher == nil {
+		fetcher = utils.DefaultUrlFetcher
+	}
 	joinedUrl, err := utils.SafeUrljoin(baseURL, url, true)
 	if err != nil {
 		return nil, "", err
@@ -40,7 +45,7 @@ func fetchURL(url, baseURL string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	resolvedURL := cssUrl.String()
-	content, err := utils.FetchSource(utils.InputUrl(resolvedURL), baseURL, utils.DefaultUrlFetcher, false)
+	content, err := utils.FetchSource(utils.InputUrl(resolvedURL), baseURL, fetcher, false)
 	if err != nil {
 		return nil, "", err
 	}
@@ -48,7 +53,7 @@ func fetchURL(url, baseURL string) ([]byte, string, error) {
 }
 
 // Find rules among stylesheet rules and imports.
-func findStylesheetsRules(rules []pa.Compound, baseUrl string) (out []pa.QualifiedRule) {
+func findStylesheetsRules(rules []pa.Compound, baseUrl string, fetcher utils.UrlFetcher) (out []pa.QualifiedRule) {
 	for _, rule := range rules {
 		switch rule := rule.(type) {
 		case pa.AtRule:
@@ -63,14 +68,14 @@ func findStylesheetsRules(rules []pa.Compound, baseUrl string) (out []pa.Qualifi
 				default:
 					continue
 				}
-				cssContent, resolvedURL, err := fetchURL(url, baseUrl)
+				cssContent, resolvedURL, err := fetchURL(url, baseUrl, fetcher)
 				if err != nil {
 					logger.WarningLogger.Printf("failed to load stylesheet: %s", err)
 					continue
 				}
 
 				stylesheet := pa.ParseStylesheetBytes(cssContent, true, true)
-				out = append(out, findStylesheetsRules(stylesheet, resolvedURL)...)
+				out = append(out, findStylesheetsRules(stylesheet, resolvedURL, fetcher)...)
 			}
 			// if rule.AtKeyword.Lower() == "media":
 		case pa.QualifiedRule:
@@ -116,12 +121,12 @@ type match struct {
 type matcher []match
 
 // Find stylesheets and return rule matchers.
-func parseStylesheets(stylesheets [][]byte, url string) (matcher, matcher) {
+func parseStylesheets(stylesheets [][]byte, url string, fetcher utils.UrlFetcher) (matcher, matcher) {
 	var normalMatcher, importantMatcher matcher
 	// Parse rules and fill matchers
 	for _, css := range stylesheets {
 		stylesheet := pa.ParseStylesheetBytes(css, true, true)
-		for _, rule := range findStylesheetsRules(stylesheet, url) {
+		for _, rule := range findStylesheetsRules(stylesheet, url, fetcher) {
 			normalDeclarations, importantDeclarations := parseDeclarations(rule.Content)
 			prelude := pa.Serialize(rule.Prelude)
 			selector, err := selector.ParseGroup(prelude)

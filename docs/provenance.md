@@ -3000,6 +3000,11 @@ Wspólne dla obu katalogów:
   `target-counter(…, pages)` nie oznacza już strony kotwicy jako `PagesWanted`; liczbę stron w licznikach kotwic
   i oznaczenie stron odwołań daje `UpdateTargetPages`. Wynik bez zmian, a dokument z takim odwołaniem idzie
   odkładaniem stron zamiast dwóch przebiegów.
+- 2026-11-24, `utils/urls.go` (`DefaultUrlFetcher`), `svg/css.go` (`fetchURL`, `findStylesheetsRules`,
+  `parseStylesheets` z fetcherem), `svg/tree.go`, ADR 0053: bez klienta HTTP (adresy inne niż `data:` i `file:`
+  dają błąd „no network access”; było pobieranie przez `http.DefaultClient` z dekompresją gzip/deflate);
+  `@import` w arkuszu obrazu SVG idzie przez fetcher dokumentu zamiast wprost przez `DefaultUrlFetcher`, który
+  omijał `Options.Resolver`. Binarka 25,2 → 20,5 MB.
 - 2026-11-24, `html/boxes/build.go` (`blockify`, `ContentToBoxes` → `parseAgain`), `html/boxes/boxes.go`
   (`BoxFields.blockifiedAs`), CSS Display 3 § 2.7, CSS GCPM 3 `target-counter()` (test
   `tests/tocflex24_test.go`): pudełko liniowe albo liniowo-blokowe zamienione w element flex lub grid przekazuje

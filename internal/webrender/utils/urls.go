@@ -2,14 +2,10 @@ package utils
 
 import (
 	"bytes"
-	"compress/gzip"
-	"compress/zlib"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"mime"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -207,56 +203,10 @@ func DefaultUrlFetcher(urlTarget string) (RemoteRessource, error) {
 		}, nil
 	}
 
-	req, err := http.NewRequest(http.MethodGet, urlTarget, nil)
-	if err != nil {
-		return RemoteRessource{}, err
-	}
-	req.Header.Set("User-Agent", VersionString)
-	req.Header.Set("Accept-Encoding", "gzip, deflate")
-	response, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return RemoteRessource{}, err
-	}
-	defer response.Body.Close()
-
-	result := RemoteRessource{}
-	redirect, err := response.Location()
-	if err == nil {
-		result.RedirectedUrl = redirect.String()
-	}
-	mediaType, params, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
-	if err == nil {
-		result.MimeType = mediaType
-		result.ProtocolEncoding = params["charset"]
-	}
-	_, params, err = mime.ParseMediaType(response.Header.Get("Content-Disposition"))
-	if err == nil {
-		result.Filename = params["filename"]
-	}
-
-	contentEncoding := response.Header.Get("Content-Encoding")
-	var r io.Reader
-	if contentEncoding == "gzip" {
-		r, err = gzip.NewReader(response.Body)
-		if err != nil {
-			return RemoteRessource{}, err
-		}
-	} else if contentEncoding == "deflate" {
-		r, err = zlib.NewReader(response.Body)
-		if err != nil {
-			return RemoteRessource{}, err
-		}
-	} else {
-		r = response.Body
-	}
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
-		return RemoteRessource{}, err
-	}
-	result.Content = bytes.NewReader(buf.Bytes())
-
-	return result, nil
+	// gopdfgo: bez klienta HTTP. Rdzeń gopdfgo nie łączy się z siecią: zasoby spoza data: dostarcza
+	// wywołujący przez Options.Resolver (htmlpdf), a ta funkcja służy tylko adresom data: i plikom w testach
+	// przejętych z webrender. Klient HTTP ze źródła dodawał do binarki net/http i crypto/tls (ok. 4,6 MB).
+	return RemoteRessource{}, fmt.Errorf("unsupported URL scheme %q (no network access): %s", data.Scheme, urlTarget)
 }
 
 // dataURI represents the parsed "data" URL

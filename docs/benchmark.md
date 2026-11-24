@@ -717,3 +717,44 @@ Pomiar wcześniejszy (przed scaleniem, wobec `505fabd`, obciążenie 30–120) d
 droga skrócona dotyczy 42 wywołań, więc różnica to najpewniej rozrzut, jak przy ADR 0046). Szacunek z planu
 (faktura −5–8 ms, `rand-01` −10–20%) sprawdził się dla faktury (−6–7 ms), `rand-01` zyskuje 7–8%;
 najwięcej `office-terminology` (−20%), dokument z wieloma kilkuwyrazowymi komórkami.
+
+### Rozmiar binarki i ponowny pomiar szybkości (2026-11-24, po ADR 0047 i 0048)
+
+Pytanie użytkownika: folio prowadzi rozmiarem i szybkością; co da się poprawić u nas.
+
+**Rozmiar** (`go build`, macOS arm64, go1.26): gopdfgo 25,2 MB, folio 11,7 MB; bez symboli (`-ldflags "-s -w"`)
+18,3 i 8,1 MB. Rozbicie symboli (`go tool nm -size -type`, binarka bez klienta HTTP, 17,5 MB symboli): środowisko
+Go i tablice funkcji ok. 10,9 MB (rosną z ilością kodu), układ `html/layout` 0,74 MB, go-text (font, HarfBuzz,
+Unicode) ok. 0,9 MB, walidacja CSS 0,38 MB, drzewo stylów 0,33 MB, kodowania CJK z `x/text` ok. 0,8 MB, metryki
+14 fontów standardowych PDF 0,23 MB, SVG 0,23 MB; słowniki dzielenia wyrazów 1,3 MB danych. Największa pozycja do
+usunięcia to klient HTTP przejęty z webrender: −4,6 MB (ADR 0053). Po nim 20,5 MB (bez symboli 15,1 MB). Resztę
+różnicy wobec folio dają funkcje, których folio nie ma (kształtowanie HarfBuzz, dzielenie wyrazów w 24 językach,
+pełne SVG, PDF/A i PDF/UA z tagami, przypisy, liczniki stron) — bez rezygnacji z nich rozmiaru folio nie osiągniemy.
+Odłożone: kompresja słowników (−0,7 MB), usunięcie kodowań CJK (−0,8 MB, wbrew WHATWG Encoding).
+
+**Szybkość**: `bench/folio/run.py`, wyniki `bench/folio/out/2026-11-24b/`, main `f9b2ff5`, obciążenie ok. 2–4.
+Mediana stosunku czasów gopdfgo/folio w procesie: **2,0** (było 2,8 w pomiarze `5961ab8`), zakres 0,67–5,1;
+z `FontCache` 1,5; cały proces 2,0. gopdfgo jest szybsze od folio na `03-report-svg-chart` (0,67), `15-page-breaks`
+(0,88) i `02-register-table` (0,93); najdalej `office-db-model` (5,1), `rand-01` (3,9), `19-flex-grid-pagination`
+i `mmd-p6` (3,4). Faktura `20-invoice`: folio 15,8 ms w procesie i 22 ms cały proces, gopdfgo 31,4 / 44 ms (z
+`FontCache` 27,5 ms); książka 0,46 wobec 1,15 s w procesie. RSS dokumentów biznesowych (faktury, e-SF): folio
+25–56 MB, gopdfgo 49–113 MB; książka 265 wobec 432 MB.
+
+Profil faktury po zmianach (pprof, 200 renderowań bez `FontCache`): układ 50% czasu procesora wątku, w tym
+`SplitFirstLine` (kształtowanie i łamanie) 29% i min-/max-content tabeli 13%; parsowanie fontów przy pierwszym
+użyciu ok. 9% (go-text parsuje całą tablicę `glyf`: 4,6 MB przydziałów na renderowanie z 32 MB); rysowanie 6%;
+kaskada 4%; kompresja 4%; odśmiecanie w tle 14% i `madvise` 12% próbek. `GOGC=200…off` w poleceniu: −2…−6% czasu
+kosztem 10–50% RSS — nie wdrożone. Start procesu (`gopdfgo -h`) ok. 15 ms wobec 9 ms folio; `init` pakietów
+ok. 3 ms (arkusz domyślny `html/tree` 2 ms).
+
+Co dalej (szacunki):
+
+| # | Zmiana | Zysk | Ryzyko | Koszt |
+|---|---|---|---|---|
+| 1 | leniwa tablica `glyf` w go-text (fork modułu do `internal/` albo poprawka u autorów): glif dekodowany przy pierwszym użyciu | bez `FontCache` −8–10% czasu małych dokumentów, −15% przydziałów; polecenie `gopdfgo` | małe dla wyniku (te same dane), utrzymanie forka go-text | 2–3 dni |
+| 2 | mniej kopii pudełek (`CopyWithChildren`, 6% przydziałów) i krótsze życie struktur układu | −5–10% na dużych dokumentach (GC i `madvise` 25% próbek) | średnie | 2 dni |
+| 3 | arkusz domyślny przetworzony raz przy budowie (zamiast parsowania w `init`) | −2 ms startu procesu | małe | 0,5 dnia |
+| 4 | `cellpadding` tabel zagnieżdżonych według HTML (plan pkt 7 wyżej) | `office-db-model` −2–3% | zmiana wyniku | 0,5 dnia |
+
+Reszta różnicy to kształtowanie HarfBuzz i pełne łamanie wierszy, które dają wierność (strony zgodne z Chromium
+w 33 z 35 dokumentów wobec 17 w folio); tego nie przenosimy.

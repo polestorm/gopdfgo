@@ -90,7 +90,7 @@ func buildSVGContext(svgRoot *html.Node, baseURL string, urlFetcher utils.UrlFet
 	var normalMatcher, importantMatcher matcher
 	var fontFaces *svgFontFaces
 	if doc == nil {
-		normalMatcher, importantMatcher = parseStylesheets(stylesheets, baseURL)
+		normalMatcher, importantMatcher = parseStylesheets(stylesheets, baseURL, urlFetcher)
 		fontFaces = collectFontFaces(stylesheets, baseURL, urlFetcher)
 	}
 

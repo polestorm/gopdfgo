@@ -31,6 +31,21 @@ func TestCoreDoesNotImportOptionalPackages(t *testing.T) {
 	}
 }
 
+// Rdzeń nie łączy się z siecią (ADR 0053): nie zależy od pakietów sieci ani TLS. Zasoby spoza data: dostarcza
+// wywołujący przez Options.Resolver; klient HTTP z przejętego webrender usunięto.
+func TestCoreHasNoNetworkCode(t *testing.T) {
+	out, err := exec.Command("go", "list", "-deps", "../htmlpdf", "../cmd/gopdfgo").Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	for _, dep := range strings.Fields(string(out)) {
+		switch dep {
+		case "net", "net/http", "crypto/tls":
+			t.Errorf("rdzeń zależy od %s", dep)
+		}
+	}
+}
+
 // Binarka cmd/gopdfgo nie zawiera kodu pakietu sign ani jego podpakietów (go tool nm); podpis z wiersza
 // poleceń to osobny program cmd/gopdfgo-sign (ADR 0051).
 func TestDefaultBinaryWithoutSignPackage(t *testing.T) {
