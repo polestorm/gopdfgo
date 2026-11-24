@@ -24,38 +24,38 @@ import (
 	"time"
 )
 
-// ValidationData to dane o ważności podane wprost (np. pobrane wcześniej albo offline).
+// ValidationData is validation data given directly (e.g. fetched earlier or offline).
 type ValidationData struct {
-	// Certificates to certyfikaty dodatkowe: wystawcy (aż do korzenia) certyfikatów TSA, korzeń
-	// łańcucha podpisującego, certyfikaty responderów OCSP. Wchodzą do /Certs, jeśli leżą na ścieżce.
+	// Certificates are additional certificates: the issuers (up to the root) of the TSA certificates, the root
+	// of the signer's chain, OCSP responder certificates. They go into /Certs if they lie on the path.
 	Certificates []*x509.Certificate
-	// OCSPResponses to odpowiedzi OCSPResponse w DER (RFC 6960 § 4.2.1).
+	// OCSPResponses are OCSPResponse messages in DER (RFC 6960 § 4.2.1).
 	OCSPResponses [][]byte
-	// CRLs to listy CertificateList w DER (RFC 5280 § 5.1) podpisane przez wystawcę certyfikatu.
+	// CRLs are CertificateList structures in DER (RFC 5280 § 5.1) signed by the certificate's issuer.
 	CRLs [][]byte
 }
 
-// RevocationFetcher pobiera dane o ważności na poziomie przesyłu; sprawdza je SignPDF.
-// RevocationClient to implementacja przez HTTP.
+// RevocationFetcher fetches validation data at the transport level; SignPDF checks it.
+// RevocationClient is the implementation over HTTP.
 type RevocationFetcher interface {
-	// FetchOCSP wysyła OCSPRequest (DER) pod adres respondera i zwraca OCSPResponse (DER).
+	// FetchOCSP sends an OCSPRequest (DER) to the responder's address and returns the OCSPResponse (DER).
 	FetchOCSP(ctx context.Context, url string, request []byte) ([]byte, error)
-	// FetchCRL pobiera listę CRL (DER) spod adresu url.
+	// FetchCRL fetches a CRL (DER) from the address url.
 	FetchCRL(ctx context.Context, url string) ([]byte, error)
 }
 
-// RevocationClient pobiera odpowiedzi OCSP metodą POST (RFC 6960 dodatek A.1) i listy CRL metodą GET
-// przez HTTPClient (wymagany). Adresy pochodzą z certyfikatów; obsługiwane są tylko http i https.
+// RevocationClient fetches OCSP responses with POST (RFC 6960 appendix A.1) and CRLs with GET
+// through HTTPClient (required). The addresses come from the certificates; only http and https are supported.
 type RevocationClient struct {
 	HTTPClient *http.Client
 }
 
-// FetchOCSP implementuje RevocationFetcher.
+// FetchOCSP implements RevocationFetcher.
 func (c RevocationClient) FetchOCSP(ctx context.Context, url string, request []byte) ([]byte, error) {
 	return postDER(ctx, c.HTTPClient, url, "application/ocsp-request", request)
 }
 
-// FetchCRL implementuje RevocationFetcher.
+// FetchCRL implements RevocationFetcher.
 func (c RevocationClient) FetchCRL(ctx context.Context, url string) ([]byte, error) {
 	return getDER(ctx, c.HTTPClient, url)
 }

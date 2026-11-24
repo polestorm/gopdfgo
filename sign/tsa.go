@@ -24,23 +24,23 @@ import (
 	"time"
 )
 
-// TimestampAuthority to dostawca znaczników czasu RFC 3161 na poziomie przesyłu: dostaje żądanie
-// TimeStampReq w DER (RFC 3161 § 2.4.1) i zwraca odpowiedź TimeStampResp w DER (§ 2.4.2). Odpowiedź
-// sprawdza SignPDF, więc własna implementacja (inny protokół, uwierzytelnianie, pamięć podręczna)
-// odpowiada tylko za przesył. TSAClient to implementacja przez HTTP (RFC 3161 § 3.4).
+// TimestampAuthority is an RFC 3161 timestamp provider at the transport level: it receives a TimeStampReq
+// request in DER (RFC 3161 § 2.4.1) and returns a TimeStampResp response in DER (§ 2.4.2). SignPDF checks
+// the response, so a custom implementation (another protocol, authentication, a cache)
+// is responsible only for transport. TSAClient is the implementation over HTTP (RFC 3161 § 3.4).
 type TimestampAuthority interface {
 	Timestamp(ctx context.Context, request []byte) ([]byte, error)
 }
 
-// TSAClient wysyła żądanie znacznika czasu metodą POST z typem application/timestamp-query
-// (RFC 3161 § 3.4) pod URL przez HTTPClient. Oba pola są wymagane: pakiet nie łączy się z siecią
-// inaczej niż przez klienta i adres podane jawnie.
+// TSAClient sends the timestamp request with POST and the type application/timestamp-query
+// (RFC 3161 § 3.4) to URL through HTTPClient. Both fields are required: the package does not connect
+// to the network other than through a client and an address passed explicitly.
 type TSAClient struct {
 	URL        string
 	HTTPClient *http.Client
 }
 
-// Timestamp implementuje TimestampAuthority.
+// Timestamp implements TimestampAuthority.
 func (c TSAClient) Timestamp(ctx context.Context, request []byte) ([]byte, error) {
 	return postDER(ctx, c.HTTPClient, c.URL, "application/timestamp-query", request)
 }

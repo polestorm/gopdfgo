@@ -32,6 +32,9 @@ Zasady:
   podawana liczba zaliczeń rozróżnia obie miary;
 - komunikaty programów (`gopdfgo -h`, `gopdfgo-sign`), ostrzeżenia w `Result.Warnings` i błędy API po angielsku
   (decyzja użytkownika z 2026-11-24, przed publikacją); komentarze w kodzie dalej po polsku;
+  wyjątek: komentarze dokumentacyjne publicznego API (opis pakietu, eksportowane typy, funkcje, metody, stałe,
+  zmienne i pola struktur w `htmlpdf/`, `sign/`, `sign/keyfile/`) piszemy po angielsku, bo pokazuje je
+  pkg.go.dev (decyzja użytkownika z 2026-11-24); komentarze wewnętrzne zostają po polsku;
 - opis commita kończy się jedną linią `Made with the help of Claude Code` (po pustym wierszu); nie dopisuj
   `Co-Authored-By` ani `Claude-Session` (decyzja użytkownika z 2026-11-24; tego dnia przepisano opisy wszystkich
   commitów, więc identyfikatory commitów sprzed tej daty zmieniły się, a w dokumentach są już nowe);

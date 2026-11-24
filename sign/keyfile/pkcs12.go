@@ -120,11 +120,11 @@ type (
 	}
 )
 
-// ParsePKCS12 odczytuje z pliku PKCS#12 (RFC 7292) klucz prywatny, jego certyfikat i pozostałe
-// certyfikaty. Obsługiwane: integralność hasłem (MAC HMAC z kluczem z KDF PKCS#12, SHA-1 i SHA-2,
-// albo PBMAC1, RFC 9579), szyfrowanie PBES2 z PBKDF2 (AES-CBC, 3DES-CBC; domyślne w OpenSSL 3)
-// i pbeWithSHAAnd3-KeyTripleDES-CBC (domyślne w starszych programach). Szyfry RC2 i RC4 (np.
-// certyfikaty w plikach z OpenSSL 1.x) dają ErrUnsupportedAlgorithm z poleceniem konwersji.
+// ParsePKCS12 reads from a PKCS#12 file (RFC 7292) the private key, its certificate and the remaining
+// certificates. Supported: password integrity (HMAC MAC with a key from the PKCS#12 KDF, SHA-1 and SHA-2,
+// or PBMAC1, RFC 9579), PBES2 encryption with PBKDF2 (AES-CBC, 3DES-CBC; the default in OpenSSL 3) and
+// pbeWithSHAAnd3-KeyTripleDES-CBC (the default in older programs). The RC2 and RC4 ciphers (for example
+// certificates in files from OpenSSL 1.x) give ErrUnsupportedAlgorithm with a conversion command.
 func ParsePKCS12(data []byte, password string) (*Identity, error) {
 	var p pfx
 	if rest, err := asn1.Unmarshal(data, &p); err != nil || len(rest) != 0 {

@@ -10,41 +10,41 @@ import (
 	pdfmodel "github.com/polestorm/gopdfgo/internal/pdflib/model"
 )
 
-// Conformance wybiera normę, z którą ma być zgodny plik wynikowy.
+// Conformance selects the standard the output file is to conform to.
 type Conformance string
 
 const (
-	// ConformanceNone: zwykły PDF 1.7 (domyślnie).
+	// ConformanceNone: plain PDF 1.7 (the default).
 	ConformanceNone Conformance = ""
-	// PDFA2b: PDF/A-2b (ISO 19005-2, poziom zgodności B), plik do długotrwałego przechowywania:
-	// metadane XMP z identyfikatorem PDF/A, profil sRGB jako zamierzone wyjście, identyfikator pliku,
-	// bez interpolacji obrazów (ADR 0016).
+	// PDFA2b: PDF/A-2b (ISO 19005-2, conformance level B), a file for long-term preservation:
+	// XMP metadata with the PDF/A identifier, an sRGB profile as the output intent, a file identifier,
+	// no image interpolation (ADR 0016).
 	PDFA2b Conformance = "PDF/A-2b"
-	// PDFA3b: PDF/A-3b (ISO 19005-3, poziom B): to samo co PDFA2b, a ponadto załączniki dowolnego typu
-	// jako pliki stowarzyszone z dokumentem (/AF katalogu, /AFRelationship; § 6.8), np. XML e-faktury
-	// (ADR 0026).
+	// PDFA3b: PDF/A-3b (ISO 19005-3, level B): the same as PDFA2b plus attachments of any type
+	// as files associated with the document (the catalog's /AF, /AFRelationship; § 6.8), e.g. the XML
+	// of an e-invoice (ADR 0026).
 	PDFA3b Conformance = "PDF/A-3b"
-	// PDFA2a: PDF/A-2a (ISO 19005-2, poziom A): to samo co PDFA2b, a ponadto struktura logiczna (PDF
-	// z tagami, ISO 19005-2 § 6.8, ADR 0033); włącza Options.Tagged.
+	// PDFA2a: PDF/A-2a (ISO 19005-2, level A): the same as PDFA2b plus the logical structure (tagged
+	// PDF, ISO 19005-2 § 6.8, ADR 0033); turns Options.Tagged on.
 	PDFA2a Conformance = "PDF/A-2a"
-	// PDFA3a: PDF/A-3a (ISO 19005-3, poziom A): PDFA3b z tagami, jak PDFA2a.
+	// PDFA3a: PDF/A-3a (ISO 19005-3, level A): PDFA3b with tags, like PDFA2a.
 	PDFA3a Conformance = "PDF/A-3a"
 )
 
 // tagged mówi, czy norma wymaga PDF z tagami.
 func (c Conformance) tagged() bool { return c == PDFA2a || c == PDFA3a }
 
-// Accessibility wybiera normę dostępności pliku wynikowego (ADR 0033). Jest niezależna od Conformance:
-// PDF/UA i PDF/A to osobne normy, które jeden plik może spełniać naraz (np. PDF/A-2a i PDF/UA-1).
+// Accessibility selects the accessibility standard of the output file (ADR 0033). It is independent of
+// Conformance: PDF/UA and PDF/A are separate standards that one file can meet at once (e.g. PDF/A-2a and PDF/UA-1).
 type Accessibility string
 
 const (
-	// AccessibilityNone: bez deklaracji dostępności (domyślnie).
+	// AccessibilityNone: no accessibility declaration (the default).
 	AccessibilityNone Accessibility = ""
-	// PDFUA1: PDF/UA-1 (ISO 14289-1): PDF z tagami (włącza Options.Tagged), identyfikator pdfuaid:part 1
-	// w metadanych XMP z tytułem dokumentu, a przy PDF/A także opis schematu pdfuaid w XMP (ISO 19005-2
-	// § 6.6.2.3). Wady dokumentu, których silnik nie naprawia (brak tytułu, języka, tekstu
-	// alternatywnego obrazu, przeskok poziomu nagłówka), dają ostrzeżenia.
+	// PDFUA1: PDF/UA-1 (ISO 14289-1): tagged PDF (turns Options.Tagged on), the pdfuaid:part 1 identifier
+	// in the XMP metadata together with the document title, and with PDF/A also the description of the
+	// pdfuaid schema in XMP (ISO 19005-2 § 6.6.2.3). Defects of the document that the engine does not repair
+	// (a missing title, language or image alternative text, a skipped heading level) give warnings.
 	PDFUA1 Accessibility = "PDF/UA-1"
 )
 

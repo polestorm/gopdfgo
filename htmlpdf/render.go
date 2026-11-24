@@ -29,173 +29,173 @@ import (
 	"github.com/polestorm/gopdfgo/internal/webrender/utils"
 )
 
-// EngineName i EngineVersion identyfikują silnik w wyniku; odbiorca zapisuje je przy kopii dokumentu.
-// Wersję podnosimy przy każdej zmianie, która zmienia bajty wyniku na korpusie.
+// EngineName and EngineVersion identify the engine in the result; the recipient stores them with the copy of
+// the document. The version is raised with every change that alters the output bytes on the corpus.
 const (
 	EngineName    = "gopdfgo/webrender"
 	EngineVersion = "0.1.0"
 )
 
-// Błędy zwracane przez Render; sprawdzać przez errors.Is.
+// Errors returned by Render; check them with errors.Is.
 var (
-	// ErrNoFonts: w Options.Fonts nie ma żadnego fontu, a fonty systemowe są wyłączone (albo włączone,
-	// ale w katalogach systemu nie ma żadnego fontu nadającego się do osadzenia).
+	// ErrNoFonts: Options.Fonts contains no font and system fonts are turned off (or turned on, but the
+	// system directories contain no font that can be embedded).
 	ErrNoFonts = errors.New("gopdfgo: no fonts provided")
-	// ErrSystemFontsNotBuilt: Options.SystemFonts w binarce zbudowanej bez znacznika systemfonts
-	// (ADR 0039). Wariant domyślny nie zawiera kodu przeglądania katalogów fontów systemu.
+	// ErrSystemFontsNotBuilt: Options.SystemFonts in a binary built without the systemfonts build tag
+	// (ADR 0039). The default variant does not contain the code that scans the system font directories.
 	ErrSystemFontsNotBuilt = errors.New("gopdfgo: system fonts not compiled in (build with -tags systemfonts)")
-	// ErrEngine: silnik zakończył pracę paniką; komunikat zawiera ślad stosu.
+	// ErrEngine: the engine ended with a panic; the message contains the stack trace.
 	ErrEngine = errors.New("gopdfgo: engine failure")
-	// ErrResourceDenied: zwracany przez DenyAll dla każdego zasobu poza data:.
+	// ErrResourceDenied: returned by DenyAll for every resource other than data:.
 	ErrResourceDenied = errors.New("gopdfgo: resource denied")
 )
 
-// Font to jeden plik fontu (TTF lub OTF) dostępny dla dokumentu.
+// Font is a single font file (TTF or OTF) available to the document.
 type Font struct {
-	Name string // nazwa do komunikatów, np. nazwa pliku
+	Name string // name used in messages, e.g. the file name
 	Data []byte
 }
 
-// Resource to zasób zwrócony przez Resolver.
+// Resource is a resource returned by a Resolver.
 type Resource struct {
 	Data      []byte
-	MediaType string // np. "text/css"; pusty oznacza rozpoznanie po rozszerzeniu adresu
+	MediaType string // e.g. "text/css"; empty means detection by the extension of the address
 }
 
-// Resolver dostarcza zasoby wskazane w dokumencie przez url(...), src i href. Dostaje adres bezwzględny,
-// rozwiązany względem Options.BaseURL. Adresów data: silnik nie przekazuje, obsługuje je sam.
+// Resolver supplies the resources the document refers to through url(...), src and href. It receives an absolute
+// address, resolved against Options.BaseURL. The engine does not pass data: addresses; it handles them itself.
 type Resolver func(url string) (Resource, error)
 
-// DenyAll odmawia każdego zasobu; to domyślny Resolver.
+// DenyAll refuses every resource; it is the default Resolver.
 func DenyAll(url string) (Resource, error) {
 	return Resource{}, fmt.Errorf("%w: %s", ErrResourceDenied, url)
 }
 
-// Options ustawia renderowanie. Wartość zerowa nie wystarcza: wymagane są fonty.
+// Options configures rendering. The zero value is not enough: fonts are required.
 type Options struct {
-	// Fonts to jedyne fonty, jakich silnik użyje, także dla rodzin generycznych i znaków zastępczych,
-	// chyba że włączono SystemFonts.
+	// Fonts are the only fonts the engine will use, also for generic families and fallback characters,
+	// unless SystemFonts is turned on.
 	Fonts []Font
-	// SystemFonts dopuszcza fonty zainstalowane w systemie jako fonty zastępcze (ADR 0039). Działa tylko
-	// w binarce zbudowanej ze znacznikiem systemfonts (go build -tags systemfonts); w wariancie domyślnym
-	// Render kończy się błędem ErrSystemFontsNotBuilt. Fonty z Fonts i rodziny z GenericFamilies mają
-	// pierwszeństwo: font systemowy jest używany dopiero dla rodziny, której nie ma w Fonts (ani przez
-	// podstawienie zgodne metrycznie), i dla znaku, którego nie ma font wybrany z Fonts (CSS Fonts 4 § 5).
-	// Fonts może być wtedy puste. Każdy użyty font systemowy daje ostrzeżenie z nazwą rodziny i ścieżką
-	// pliku: dodanie tego pliku do Fonts uniezależnia wynik od maszyny. Fonty, których licencja zabrania
-	// osadzania (OS/2 fsType), są pomijane z ostrzeżeniem. Wynik zależy od fontów zainstalowanych
-	// na maszynie, więc nie jest powtarzalny między maszynami.
-	// Katalogi fontów systemu są przeglądane przy pierwszym renderowaniu z SystemFonts w procesie,
-	// a ich indeks żyje w pamięci do końca procesu; silnik nic nie zapisuje na dysk.
+	// SystemFonts allows fonts installed in the system to be used as fallback fonts (ADR 0039). It works only
+	// in a binary built with the systemfonts build tag (go build -tags systemfonts); in the default variant
+	// Render fails with ErrSystemFontsNotBuilt. Fonts from Fonts and families from GenericFamilies take
+	// precedence: a system font is used only for a family that is not in Fonts (not even through
+	// a metric-compatible substitution) and for a character missing from the font chosen from Fonts (CSS Fonts 4
+	// § 5). Fonts may then be empty. Every system font used gives a warning with the family name and the file
+	// path: adding that file to Fonts makes the output independent of the machine. Fonts whose licence forbids
+	// embedding (OS/2 fsType) are skipped with a warning. The output depends on the fonts installed
+	// on the machine, so it is not reproducible across machines.
+	// The system font directories are scanned on the first rendering with SystemFonts in the process,
+	// and their index stays in memory until the process ends; the engine writes nothing to disk.
 	SystemFonts bool
-	// Resolver dostarcza zasoby zewnętrzne; nil oznacza DenyAll.
+	// Resolver supplies external resources; nil means DenyAll.
 	Resolver Resolver
-	// BaseURL to adres, względem którego rozwiązywane są adresy względne w dokumencie.
+	// BaseURL is the address against which relative addresses in the document are resolved.
 	BaseURL string
-	// UserCSS to arkusz użytkownika (niższy priorytet niż arkusze dokumentu), np. domyślny @page.
+	// UserCSS is the user stylesheet (lower priority than the document's stylesheets), e.g. a default @page.
 	UserCSS string
-	// GenericFamilies wskazuje, których rodzin z Fonts użyć dla rodzin generycznych CSS. Klucz to nazwa
-	// rodziny generycznej ("serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"), wartość to
-	// nazwy rodzin fontów w kolejności prób, np. {"serif": {"Tinos"}}. Dotyczy też fontu domyślnego dokumentu,
-	// bo wartością początkową font-family jest serif. Rodzina generyczna bez wpisu, albo z wpisem, którego
-	// rodzin nie ma w Fonts, jest rozstrzygana jak dotąd (ADR 0005).
+	// GenericFamilies tells which families from Fonts to use for the CSS generic families. The key is the name
+	// of a generic family ("serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"), the value is
+	// the font family names in the order they are tried, e.g. {"serif": {"Tinos"}}. It also applies to the
+	// document's default font, because the initial value of font-family is serif. A generic family without an
+	// entry, or with an entry whose families are not in Fonts, is resolved as before (ADR 0005).
 	GenericFamilies map[string][]string
-	// MarginsEscapeHeightLimits przełącza zwijanie marginesów przy min-height i max-height. Domyślnie
-	// (false), jak w Chromium, dolny margines ostatniego dziecka zostaje w pudełku, którego wysokość
-	// zmieniło ograniczenie. Wartość true daje zachowanie z dosłownego tekstu CSS 2.2 § 10.7: margines
-	// zwija się z marginesem rodzica i odsuwa następne pudełko (ADR 0006).
+	// MarginsEscapeHeightLimits switches margin collapsing at min-height and max-height. By default
+	// (false), as in Chromium, the bottom margin of the last child stays inside the box whose height
+	// was changed by the limit. The value true gives the behaviour of the literal text of CSS 2.2 § 10.7:
+	// the margin collapses with the parent's margin and pushes the next box away (ADR 0006).
 	MarginsEscapeHeightLimits bool
-	// MonospaceFontSize to rozmiar w pikselach, jaki ma font-size: medium, gdy font-family jest samym
-	// słowem monospace (<pre>, <code>, <kbd>, <samp>, <tt>). Zero oznacza 13, jak w przeglądarkach;
-	// 16 wyłącza tę regułę i daje pismo tej samej wielkości co reszta tekstu (ADR 0008).
+	// MonospaceFontSize is the size in pixels of font-size: medium when font-family is the single
+	// keyword monospace (<pre>, <code>, <kbd>, <samp>, <tt>). Zero means 13, as in browsers;
+	// 16 turns this rule off and gives type of the same size as the rest of the text (ADR 0008).
 	MonospaceFontSize float64
-	// ExactLengths wybiera między wydrukiem jak w Chromium a wiernością arkuszowi (ADR 0013).
-	// Domyślnie (false) długości, które Chromium zaokrągla do całych pikseli CSS, są zaokrąglane tak samo:
-	//   - border-width, outline-width i column-rule-width: wartości między 0 a 1 px rosną do 1 px,
-	//     większe są obcinane w dół (0.5pt daje 0,75 pt, 1pt daje 0,75 pt, 1.5pt daje 1,5 pt; ADR 0009);
-	//   - border-spacing: obcinane w dół do całych pikseli (1mm daje 3 px);
-	//   - obszar strony: szerokość i wysokość w górę do całych pikseli, lewy i górny margines do najbliższego
-	//     piksela (A4 z marginesami 15 mm: 681 px zamiast 680,31; ADR 0021, 0013);
-	//   - rozmiar pisma, którym składany jest tekst: obcinany do 0,01 px (9,625 px daje 9,62 px; em
-	//     liczy się dalej od pełnego font-size);
-	//   - długości pudełek (marginesy, dopełnienia, width, height, ich granice, top/left…), wysokość
-	//     wiersza z line-height i udziały nadwyżki w tabeli o układzie stałym: obcinane do 1/64 px jak
-	//     LayoutUnit w Blink (padding 2.2px daje 2,1875 px), a wiersz mieści treść szerszą od niego
-	//     o mniej niż 1/64 px; interlinia nad tekstem w dół do całego piksela (ADR 0013, uzupełnienie
-	//     z 2026-11-21);
-	//   - szerokość kawałka tekstu (część pudełka tekstu w wierszu, także przy min-/max-content): dokładna
-	//     suma szerokości znaków w górę do 1/64 px (ADR 0044);
-	//   - szerokość obszaru strony powiększonego przy pomniejszaniu treści (MaxShrink): w dół do całych
-	//     pikseli (ADR 0044).
-	// Wartość true układa i rysuje wszystkie długości dokładnie takie, jak podano, z dokładnością,
-	// na jaką pozwala PDF; wynik różni się wtedy od wydruku Chromium.
+	// ExactLengths chooses between a printout like Chromium's and fidelity to the stylesheet (ADR 0013).
+	// By default (false) the lengths that Chromium rounds to whole CSS pixels are rounded the same way:
+	//   - border-width, outline-width and column-rule-width: values between 0 and 1 px grow to 1 px,
+	//     larger ones are truncated down (0.5pt gives 0.75 pt, 1pt gives 0.75 pt, 1.5pt gives 1.5 pt; ADR 0009);
+	//   - border-spacing: truncated down to whole pixels (1mm gives 3 px);
+	//   - page area: width and height up to whole pixels, left and top margin to the nearest
+	//     pixel (A4 with 15 mm margins: 681 px instead of 680.31; ADR 0021, 0013);
+	//   - the font size the text is set in: truncated to 0.01 px (9.625 px gives 9.62 px; em
+	//     is still computed from the full font-size);
+	//   - box lengths (margins, paddings, width, height, their limits, top/left…), the line height
+	//     from line-height and the shares of the excess in a fixed-layout table: truncated to 1/64 px like
+	//     LayoutUnit in Blink (padding 2.2px gives 2.1875 px), and a line fits content wider than itself
+	//     by less than 1/64 px; the leading above the text down to a whole pixel (ADR 0013, addendum
+	//     of 2026-11-21);
+	//   - width of a text fragment (the part of a text box within a line, also for min-/max-content): the exact
+	//     sum of the character widths up to 1/64 px (ADR 0044);
+	//   - width of the page area enlarged when the content is shrunk (MaxShrink): down to whole
+	//     pixels (ADR 0044).
+	// The value true lays out and draws all lengths exactly as given, with the precision
+	// that PDF allows; the output then differs from Chromium's printout.
 	ExactLengths bool
-	// MaxShrink ogranicza pomniejszanie treści szerszej niż obszar strony (ADR 0014). Gdy coś wystaje
-	// poza prawą krawędź obszaru strony (sztywna szerokość, szeroka tabela, długi wiersz bez łamania),
-	// cała treść jest pomniejszana tak, żeby się zmieściła, najwyżej MaxShrink razy; pola marginesów
-	// zostają w skali 1. Zero oznacza 1,5, jak w Chromium; 1 wyłącza pomniejszanie (treść wystaje
-	// i jest ucinana na krawędzi kartki); math.Inf(1) pomniejsza bez limitu.
+	// MaxShrink limits the shrinking of content wider than the page area (ADR 0014). When something sticks
+	// out past the right edge of the page area (a fixed width, a wide table, a long line with no break),
+	// all the content is scaled down so that it fits, by a factor of at most MaxShrink; the margin boxes
+	// stay at scale 1. Zero means 1.5, as in Chromium; 1 turns shrinking off (the content sticks out
+	// and is cut off at the edge of the sheet); math.Inf(1) shrinks without a limit.
 	MaxShrink float64
-	// Continuous wyłącza podział na strony: powstaje jedna strona o szerokości z @page, która rośnie
-	// w dół do wysokości treści i nie jest niższa niż strona z arkusza. Wysokość z @page pozostaje
-	// podstawą procentów, jednostek vh i elementów pozycjonowanych, jak okno przeglądarki; właściwości
-	// podziału (break-*, orphans, widows) i powtarzanie nagłówków tabel nie mają wtedy zastosowania
-	// (ADR 0017).
+	// Continuous turns pagination off: the result is a single page with the width from @page, which grows
+	// downwards to the height of the content and is not shorter than the page from the stylesheet. The height
+	// from @page remains the basis for percentages, vh units and positioned elements, like a browser window;
+	// the fragmentation properties (break-*, orphans, widows) and the repetition of table headers do not
+	// apply then (ADR 0017).
 	Continuous bool
-	// Conformance wybiera normę pliku wynikowego; wartość pusta to zwykły PDF 1.7, PDFA2b to PDF/A-2b
-	// (ADR 0016), PDFA3b to PDF/A-3b z plikami stowarzyszonymi (ADR 0026), PDFA2a i PDFA3a to te same
-	// normy na poziomie A, z tagami (ADR 0033). W trybie PDF/A plik dostaje metadane XMP, profil sRGB
-	// i identyfikator wyliczony z treści; układ i wygląd stron się nie zmieniają.
+	// Conformance selects the standard of the output file; the empty value is plain PDF 1.7, PDFA2b is PDF/A-2b
+	// (ADR 0016), PDFA3b is PDF/A-3b with associated files (ADR 0026), PDFA2a and PDFA3a are the same
+	// standards at level A, with tags (ADR 0033). In PDF/A mode the file gets XMP metadata, an sRGB profile
+	// and an identifier computed from the content; the layout and appearance of the pages do not change.
 	Conformance Conformance
-	// Tagged tworzy PDF z tagami (ADR 0033): drzewo struktury logicznej z elementów HTML w kolejności
-	// dokumentu (nagłówki, akapity, listy, tabele, odnośniki, obrazy z tekstem alternatywnym), treść
-	// stron oznaczoną jako należąca do elementów, a tła, obramowania i pola marginesów jako artefakty,
-	// język z atrybutu lang i tytuł z <title> wyświetlany przez czytnik. Czytniki ekranu i eksport
-	// tekstu korzystają z kolejności i znaczenia elementów. Plik jest większy i powstaje trochę dłużej,
-	// wygląd stron się nie zmienia. Conformance PDFA2a i PDFA3a włączają tagi same. Obraz bez tekstu
-	// alternatywnego i dokument bez tytułu dają ostrzeżenia.
+	// Tagged produces a tagged PDF (ADR 0033): a logical structure tree built from the HTML elements in
+	// document order (headings, paragraphs, lists, tables, links, images with alternative text), page
+	// content marked as belonging to elements, backgrounds, borders and margin boxes marked as artifacts,
+	// the language from the lang attribute and the title from <title> displayed by the reader. Screen readers
+	// and text export rely on the order and meaning of the elements. The file is larger and takes a little
+	// longer to produce; the appearance of the pages does not change. Conformance PDFA2a and PDFA3a turn
+	// tags on by themselves. An image without alternative text and a document without a title give warnings.
 	Tagged bool
-	// Accessibility wybiera normę dostępności: PDFUA1 to PDF/UA-1 (ISO 14289-1, ADR 0033), z tagami
-	// i identyfikatorem PDF/UA w metadanych XMP; łączy się z każdą wartością Conformance (zwykle
-	// PDFA2a). Wady dokumentu, których silnik nie naprawia (brak tytułu, języka, tekstu alternatywnego
-	// obrazu, przeskok poziomu nagłówka), dają ostrzeżenia.
+	// Accessibility selects the accessibility standard: PDFUA1 is PDF/UA-1 (ISO 14289-1, ADR 0033), with tags
+	// and with the PDF/UA identifier in the XMP metadata; it combines with any value of Conformance (usually
+	// PDFA2a). Defects of the document that the engine does not repair (a missing title, language or image
+	// alternative text, a skipped heading level) give warnings.
 	Accessibility Accessibility
-	// Uncompressed zapisuje strumienie treści stron, fontów i map ToUnicode bez kompresji, żeby dało się je
-	// czytać w edytorze tekstu (diagnostyka). Obrazy zostają skompresowane bezstratnie stopniem 0, bo ich
-	// filtr jest częścią formatu. Domyślnie (false) wszystko jest kompresowane zlib w stopniu 6.
+	// Uncompressed writes the streams of page content, fonts and ToUnicode maps without compression, so that
+	// they can be read in a text editor (diagnostics). Images stay losslessly compressed at level 0, because
+	// their filter is part of the format. By default (false) everything is compressed with zlib at level 6.
 	Uncompressed bool
-	// Hyphenation to słowniki dzielenia wyrazów (hyphens: auto) podane przez wywołującego: klucz to znacznik
-	// języka BCP 47 ("cs", "sv-SE"), wartość to wzorce Lianga w UTF-8, jeden w wierszu (plik .pat.txt
-	// z hyph-utf8 albo słownik .dic Hunspella). Mają pierwszeństwo przed wbudowanymi. Wbudowane są tylko
-	// słowniki na licencjach MIT, BSD, Unlicense i FSF all-permissive (ADR 0024): af, be, bg, da, de, el,
-	// en, es, et, fr, gl, it, lt, mn, nb, nl, nn, pl, pt, sk, sl, sq, te, uk. Za licencję słownika
-	// podanego tutaj odpowiada wywołujący.
+	// Hyphenation holds hyphenation dictionaries (hyphens: auto) supplied by the caller: the key is a BCP 47
+	// language tag ("cs", "sv-SE"), the value is Liang patterns in UTF-8, one per line (a .pat.txt file
+	// from hyph-utf8 or a Hunspell .dic dictionary). They take precedence over the built-in ones. Only
+	// dictionaries under the MIT, BSD, Unlicense and FSF all-permissive licences are built in (ADR 0024): af,
+	// be, bg, da, de, el, en, es, et, fr, gl, it, lt, mn, nb, nl, nn, pl, pt, sk, sl, sq, te, uk. The caller
+	// is responsible for the licence of a dictionary supplied here.
 	Hyphenation map[string][]byte
-	// Attachments to pliki osadzane w dokumencie obok tych, które wskazuje sam HTML (<link rel=attachment>,
-	// <a rel=attachment>, pobierane przez Resolver). Trafiają do drzewa /EmbeddedFiles katalogu, a w trybie
-	// PDFA3b także do tablicy /AF katalogu (pliki stowarzyszone, ISO 19005-3 § 6.8), np. XML faktury
-	// Factur-X/ZUGFeRD jako RelationshipAlternative. PDFA2b dopuszcza tylko załączniki będące plikami
-	// PDF/A-1 albo PDF/A-2; inne kończą Render błędem ErrAttachmentNotPDFA (ADR 0026).
+	// Attachments are files embedded in the document in addition to those the HTML itself points to (<link
+	// rel=attachment>, <a rel=attachment>, fetched through Resolver). They go into the catalog's /EmbeddedFiles
+	// tree and, in PDFA3b mode, also into the catalog's /AF array (associated files, ISO 19005-3 § 6.8), e.g.
+	// a Factur-X/ZUGFeRD invoice XML as RelationshipAlternative. PDFA2b allows only attachments that are
+	// PDF/A-1 or PDF/A-2 files; others make Render fail with ErrAttachmentNotPDFA (ADR 0026).
 	Attachments []Attachment
-	// FacturX tworzy fakturę hybrydową Factur-X 1.0 / ZUGFeRD 2.x (ADR 0034): XML faktury CII osadzony
-	// jako factur-x.xml (xrechnung.xml dla profilu XRECHNUNG) ze związkiem Data albo Alternative według
-	// profilu, metadane XMP fx z opisem schematu rozszerzenia i norma PDF/A-3: pusta Conformance daje
-	// PDFA3b, a z tagami (Tagged, Accessibility) PDFA3a; PDFA2b i PDFA2a kończą Render błędem
-	// ErrInvalidFacturX. XML, który nie jest fakturą CII, też kończy Render tym błędem; profil
-	// niezgodny z identyfikatorem specyfikacji w XML daje ostrzeżenie.
+	// FacturX produces a Factur-X 1.0 / ZUGFeRD 2.x hybrid invoice (ADR 0034): the CII invoice XML embedded
+	// as factur-x.xml (xrechnung.xml for the XRECHNUNG profile) with the Data or Alternative relationship
+	// according to the profile, fx XMP metadata with the description of the extension schema, and the PDF/A-3
+	// standard: an empty Conformance gives PDFA3b, and with tags (Tagged, Accessibility) PDFA3a; PDFA2b
+	// and PDFA2a make Render fail with ErrInvalidFacturX. XML that is not a CII invoice also makes Render fail
+	// with that error; a profile that disagrees with the specification identifier in the XML gives a warning.
 	FacturX *FacturX
-	// FontCache zachowuje sparsowane fonty (z Fonts i z reguł @font-face) dla kolejnych wywołań Render
-	// (ADR 0045); nil oznacza parsowanie fontów przy każdym wywołaniu. Wynik jest ten sam.
+	// FontCache keeps parsed fonts (from Fonts and from @font-face rules) for subsequent Render calls
+	// (ADR 0045); nil means that fonts are parsed on every call. The output is the same.
 	FontCache *FontCache
 }
 
-// Warning to zgłoszenie silnika, które nie przerywa renderowania: nieobsługiwana właściwość albo wartość,
-// zasób, którego nie udało się wczytać, nieznany selektor.
+// Warning is a report from the engine that does not interrupt rendering: an unsupported property or value,
+// a resource that could not be loaded, an unknown selector.
 type Warning struct {
 	Message string
 }
 
-// Result to wynik renderowania.
+// Result is the outcome of rendering.
 type Result struct {
 	PDF           []byte
 	Pages         int
@@ -208,11 +208,11 @@ type Result struct {
 // globalną (logger.WarningLogger) i nie jest sprawdzony pod kątem współbieżności.
 var engineSlot = make(chan struct{}, 1)
 
-// Render zamienia dokument HTML na PDF.
+// Render converts an HTML document to PDF.
 //
-// Renderowania są wykonywane po kolei. Silnik nie ma punktów przerwania, więc gdy ctx wygaśnie w trakcie
-// pracy, Render wraca z ctx.Err(), a praca trwa w tle do końca i do tego czasu kolejne wywołania czekają
-// (albo wracają z własnym ctx.Err()).
+// Renderings are executed one after another. The engine has no cancellation points, so when ctx expires during
+// the work, Render returns ctx.Err() while the work continues in the background until it finishes, and until
+// then subsequent calls wait (or return with their own ctx.Err()).
 func Render(ctx context.Context, html []byte, opts Options) (Result, error) {
 	if opts.SystemFonts && !systemFontsBuilt {
 		return Result{}, ErrSystemFontsNotBuilt

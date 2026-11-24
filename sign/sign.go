@@ -13,51 +13,51 @@ import (
 	"time"
 )
 
-// Błędy zwracane przez SignPDF.
+// Errors returned by SignPDF.
 var (
-	// ErrNoSigner: brak Options.Signer albo Options.Certificate.
+	// ErrNoSigner: Options.Signer or Options.Certificate is missing.
 	ErrNoSigner = errors.New("sign: no signer or certificate")
-	// ErrUnsupportedKey: klucz certyfikatu nie jest kluczem RSA ani ECDSA.
+	// ErrUnsupportedKey: the certificate's key is neither an RSA nor an ECDSA key.
 	ErrUnsupportedKey = errors.New("sign: unsupported key type")
-	// ErrKeyMismatch: klucz podpisującego nie odpowiada certyfikatowi albo podpis nie jest
-	// podpisem RSA PKCS#1 v1.5 / ECDSA skrótu SHA-256.
+	// ErrKeyMismatch: the signer's key does not match the certificate, or the signature is not
+	// an RSA PKCS#1 v1.5 / ECDSA signature of the SHA-256 digest.
 	ErrKeyMismatch = errors.New("sign: signature does not match the certificate's public key")
-	// ErrEncrypted: plik wejściowy jest zaszyfrowany (runda 1 nie podpisuje plików zaszyfrowanych).
+	// ErrEncrypted: the input file is encrypted (round 1 does not sign encrypted files).
 	ErrEncrypted = errors.New("sign: encrypted files are not supported")
-	// ErrNoTSA: poziom B-T albo B-LT bez Options.TSA.
+	// ErrNoTSA: level B-T or B-LT without Options.TSA.
 	ErrNoTSA = errors.New("sign: levels B-T and B-LT require Options.TSA")
-	// ErrNoHTTPClient: TSAClient albo RevocationClient bez HTTPClient.
+	// ErrNoHTTPClient: a TSAClient or RevocationClient without HTTPClient.
 	ErrNoHTTPClient = errors.New("sign: no HTTPClient (the package connects only through a client passed explicitly)")
-	// ErrTimestamp: odpowiedź TSA odmowna albo niepoprawna (status, skrót, nonce, podpis tokenu).
+	// ErrTimestamp: the TSA response is a refusal or is invalid (status, digest, nonce, token signature).
 	ErrTimestamp = errors.New("sign: invalid timestamp")
-	// ErrReserveTooSmall: token znacznika czasu nie mieści się w miejscu zarezerwowanym w /Contents.
+	// ErrReserveTooSmall: the timestamp token does not fit in the space reserved in /Contents.
 	ErrReserveTooSmall = errors.New("sign: signature does not fit in the reserved /Contents")
-	// ErrNoValidationData: poziom B-LT bez danych o ważności dla któregoś certyfikatu (ani podanych
-	// w Options.ValidationData, ani pobranych przez Options.Revocation).
+	// ErrNoValidationData: level B-LT without validation data for one of the certificates (neither given
+	// in Options.ValidationData nor fetched through Options.Revocation).
 	ErrNoValidationData = errors.New("sign: no validation data")
-	// ErrMissingIssuer: poziom B-LT, a wśród certyfikatów nie ma wystawcy któregoś certyfikatu ścieżki.
+	// ErrMissingIssuer: level B-LT, and the issuer of one of the path's certificates is not among the certificates.
 	ErrMissingIssuer = errors.New("sign: no issuer certificate")
-	// ErrRevoked: dane o ważności podają certyfikat jako unieważniony.
+	// ErrRevoked: the validation data reports the certificate as revoked.
 	ErrRevoked = errors.New("sign: certificate revoked")
-	// ErrUnknownField: Options.FieldName nie wskazuje pola podpisu w pliku.
+	// ErrUnknownField: Options.FieldName does not name a signature field in the file.
 	ErrUnknownField = errors.New("sign: no signature field with this name")
-	// ErrFieldNotEmpty: pole wskazane przez Options.FieldName jest już podpisane.
+	// ErrFieldNotEmpty: the field named by Options.FieldName is already signed.
 	ErrFieldNotEmpty = errors.New("sign: signature field already signed")
 )
 
-// Level to poziom podpisu PAdES (ETSI EN 319 142-1 § 6).
+// Level is the PAdES signature level (ETSI EN 319 142-1 § 6).
 type Level int
 
 const (
-	// LevelBB (domyślny): podpis CMS z certyfikatem podpisującego, bez połączeń sieciowych.
+	// LevelBB (the default): a CMS signature with the signer's certificate, no network connections.
 	LevelBB Level = iota
-	// LevelBT: LevelBB i znacznik czasu RFC 3161 wartości podpisu od Options.TSA.
+	// LevelBT: LevelBB plus an RFC 3161 timestamp of the signature value from Options.TSA.
 	LevelBT
-	// LevelBLT: LevelBT i dane o ważności certyfikatów (słownik DSS w drugiej aktualizacji przyrostowej).
+	// LevelBLT: LevelBT plus certificate validation data (a DSS dictionary in a second incremental update).
 	LevelBLT
 )
 
-// String zwraca nazwę poziomu według ETSI: B-B, B-T, B-LT.
+// String returns the name of the level according to ETSI: B-B, B-T, B-LT.
 func (l Level) String() string {
 	switch l {
 	case LevelBB:
@@ -70,66 +70,66 @@ func (l Level) String() string {
 	return "Level(" + strconv.Itoa(int(l)) + ")"
 }
 
-// DefaultTimestampReserve to miejsce na token znacznika czasu w /Contents, gdy
-// Options.TimestampReserve jest zerem: token z łańcuchem trzech certyfikatów RSA 4096 ma ok. 7 kB
-// (szacunek), więc 12 KiB zostawia zapas ok. 70%.
+// DefaultTimestampReserve is the space for the timestamp token in /Contents when
+// Options.TimestampReserve is zero: a token with a chain of three RSA 4096 certificates is about 7 kB
+// (an estimate), so 12 KiB leaves a margin of about 70%.
 const DefaultTimestampReserve = 12 << 10
 
-// ContextSigner to podpisujący, który przyjmuje kontekst (np. podpis zdalny przez sieć). Gdy
-// Options.Signer go implementuje, SignPDF woła SignContext zamiast Sign, więc anulowanie ctx
-// przerywa podpis w trakcie. Wymagania co do wyniku są te same co dla Sign.
+// ContextSigner is a signer that accepts a context (e.g. a remote signature over the network). When
+// Options.Signer implements it, SignPDF calls SignContext instead of Sign, so cancelling ctx
+// aborts the signing in progress. The requirements for the result are the same as for Sign.
 type ContextSigner interface {
 	crypto.Signer
 	SignContext(ctx context.Context, digest []byte, opts crypto.SignerOpts) ([]byte, error)
 }
 
-// Options opisuje podpis.
+// Options describes the signature.
 type Options struct {
-	// Signer podpisuje skrót SHA-256 atrybutów podpisanych: Sign(rand, digest, crypto.SHA256) ma
-	// zwrócić podpis RSA PKCS#1 v1.5 albo ECDSA w DER (Ecdsa-Sig-Value), jak *rsa.PrivateKey
-	// i *ecdsa.PrivateKey. Podpisujący zewnętrzny (HSM, karta, podpis zdalny) implementuje
-	// crypto.Signer: Public zwraca klucz publiczny certyfikatu, Sign wysyła skrót i zwraca podpis.
+	// Signer signs the SHA-256 digest of the signed attributes: Sign(rand, digest, crypto.SHA256) must
+	// return an RSA PKCS#1 v1.5 signature or an ECDSA one in DER (Ecdsa-Sig-Value), as *rsa.PrivateKey
+	// and *ecdsa.PrivateKey do. An external signer (HSM, smart card, remote signature) implements
+	// crypto.Signer: Public returns the certificate's public key, Sign sends the digest and returns the signature.
 	Signer crypto.Signer
-	// Certificate to certyfikat podpisującego (RSA albo ECDSA P-256, P-384, P-521).
+	// Certificate is the signer's certificate (RSA or ECDSA P-256, P-384, P-521).
 	Certificate *x509.Certificate
-	// Chain to opcjonalne certyfikaty pośrednie (i ewentualnie główny) dołączane do podpisu.
+	// Chain is the optional intermediate certificates (and possibly the root) attached to the signature.
 	Chain []*x509.Certificate
-	// Time to czas podpisu zapisany w /M słownika podpisu; zero oznacza time.Now(). Stały czas
-	// daje powtarzalny wynik przy podpisie deterministycznym (RSA PKCS#1 v1.5).
+	// Time is the signing time written in /M of the signature dictionary; zero means time.Now(). A fixed
+	// time gives a reproducible output with a deterministic signature (RSA PKCS#1 v1.5).
 	Time time.Time
-	// Name, Reason, Location i ContactInfo to opcjonalne wpisy słownika podpisu (ISO 32000-1
-	// tabela 252): podpisujący, powód, miejsce, kontakt.
+	// Name, Reason, Location and ContactInfo are optional entries of the signature dictionary (ISO 32000-1
+	// table 252): the signer, the reason, the place, the contact.
 	Name, Reason, Location, ContactInfo string
-	// FieldName to pełna nazwa istniejącego pustego pola podpisu (np. z atrybutu data-pdf-signature
-	// w HTML, ADR 0051), które podpis wypełni: pole dostaje /V, widżet i strona zostają bez zmian.
-	// Nazwa nieznana daje ErrUnknownField, pole podpisane ErrFieldNotEmpty. Pusta oznacza nowe
-	// niewidoczne pole na pierwszej stronie o pierwszej wolnej nazwie z Signature1, Signature2…
+	// FieldName is the full name of an existing empty signature field (e.g. from the data-pdf-signature
+	// attribute in HTML, ADR 0051) that the signature will fill: the field gets /V, the widget and the page stay
+	// unchanged. An unknown name gives ErrUnknownField, a signed field ErrFieldNotEmpty. Empty means a new
+	// invisible field on the first page with the first free name among Signature1, Signature2…
 	FieldName string
 
-	// Level to poziom podpisu; zero oznacza LevelBB (bez połączeń sieciowych).
+	// Level is the signature level; zero means LevelBB (no network connections).
 	Level Level
-	// TSA to dostawca znaczników czasu (np. TSAClient); wymagany od LevelBT, a przy LevelBB nieużywany.
+	// TSA is the timestamp provider (e.g. a TSAClient); required from LevelBT up and unused at LevelBB.
 	TSA TimestampAuthority
-	// TimestampReserve to liczba bajtów rezerwowanych w /Contents na token znacznika czasu; zero
-	// oznacza DefaultTimestampReserve. Większy token daje ErrReserveTooSmall.
+	// TimestampReserve is the number of bytes reserved in /Contents for the timestamp token; zero
+	// means DefaultTimestampReserve. A larger token gives ErrReserveTooSmall.
 	TimestampReserve int
-	// Revocation pobiera brakujące dane o ważności dla LevelBLT (np. RevocationClient); nil oznacza
-	// brak połączeń: wtedy wszystkie dane muszą być w ValidationData.
+	// Revocation fetches the missing validation data for LevelBLT (e.g. a RevocationClient); nil means
+	// no connections: all the data must then be in ValidationData.
 	Revocation RevocationFetcher
-	// ValidationData to certyfikaty, odpowiedzi OCSP i listy CRL podane wprost dla LevelBLT.
+	// ValidationData is certificates, OCSP responses and CRLs given directly for LevelBLT.
 	ValidationData ValidationData
 }
 
-// SignPDF podpisuje plik PDF podpisem PAdES (ETSI EN 319 142-1) na poziomie Options.Level
-// i zwraca plik podpisany.
+// SignPDF signs a PDF file with a PAdES signature (ETSI EN 319 142-1) at the level Options.Level
+// and returns the signed file.
 //
-// Podpis jest dopisywany jako aktualizacja przyrostowa (ISO 32000-1 § 7.5.6): bajty pliku wejściowego
-// zostają bez zmian, więc wcześniejsze podpisy pozostają ważne. Aktualizacja dodaje niewidoczne pole
-// podpisu na pierwszej stronie (albo wypełnia /V istniejącego pustego pola Options.FieldName), słownik
-// podpisu z /SubFilter /ETSI.CAdES.detached i /AcroForm z /SigFlags 3. Od LevelBT podpis CMS ma atrybut niepodpisany signature-time-stamp-token z tokenem
-// od Options.TSA; LevelBLT dopisuje drugą aktualizację ze słownikiem DSS (certyfikaty, OCSP, CRL),
-// której podpis nie obejmuje (tak przewiduje ISO 32000-2 § 12.8.4.3). ctx przerywa podpis
-// (ContextSigner) i połączenia sieciowe.
+// The signature is appended as an incremental update (ISO 32000-1 § 7.5.6): the bytes of the input file
+// stay unchanged, so earlier signatures remain valid. The update adds an invisible signature field
+// on the first page (or fills /V of the existing empty field Options.FieldName), a signature dictionary
+// with /SubFilter /ETSI.CAdES.detached and an /AcroForm with /SigFlags 3. From LevelBT up the CMS signature has
+// the unsigned attribute signature-time-stamp-token with a token from Options.TSA; LevelBLT appends a second
+// update with the DSS dictionary (certificates, OCSP, CRL), which the signature does not cover (as
+// ISO 32000-2 § 12.8.4.3 provides). ctx aborts the signing (ContextSigner) and the network connections.
 func SignPDF(ctx context.Context, pdf []byte, opts Options) ([]byte, error) {
 	if opts.Signer == nil || opts.Certificate == nil {
 		return nil, ErrNoSigner

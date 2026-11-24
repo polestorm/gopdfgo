@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// FacturXLevel to profil danych faktury Factur-X / ZUGFeRD; wartość jest zapisywana dosłownie
-// w fx:ConformanceLevel metadanych XMP (Factur-X 1.0.07 § 6.3.1, lista kodów HybridConformanceType).
+// FacturXLevel is the data profile of a Factur-X / ZUGFeRD invoice; the value is written verbatim to
+// fx:ConformanceLevel in the XMP metadata (Factur-X 1.0.07 § 6.3.1, code list HybridConformanceType).
 type FacturXLevel string
 
 const (
@@ -23,32 +23,32 @@ const (
 	FacturXXRechnung FacturXLevel = "XRECHNUNG"
 )
 
-// FacturX opisuje fakturę hybrydową Factur-X 1.0 / ZUGFeRD 2.x (ADR 0034): XML faktury w składni
-// UN/CEFACT CII osadzony w pliku PDF/A-3 z metadanymi XMP, które oznaczają plik jako fakturę.
+// FacturX describes a Factur-X 1.0 / ZUGFeRD 2.x hybrid invoice (ADR 0034): the invoice XML in UN/CEFACT
+// CII syntax embedded in a PDF/A-3 file with XMP metadata that mark the file as an invoice.
 type FacturX struct {
-	// XML to treść faktury: dokument XML w kodowaniu UTF-8 z korzeniem rsm:CrossIndustryInvoice
-	// (przestrzeń urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100); wymagany.
+	// XML is the content of the invoice: a UTF-8 encoded XML document with the root rsm:CrossIndustryInvoice
+	// (namespace urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100); required.
 	XML []byte
-	// Level to profil faktury. Pusty oznacza profil odczytany z identyfikatora specyfikacji (BT-24,
-	// ram:GuidelineSpecifiedDocumentContextParameter/ram:ID); gdy go nie da się rozpoznać, Render kończy
-	// się błędem ErrInvalidFacturX. Profil podany, ale inny niż w XML, daje ostrzeżenie (BR-HYBRID-15).
+	// Level is the invoice profile. Empty means the profile read from the specification identifier (BT-24,
+	// ram:GuidelineSpecifiedDocumentContextParameter/ram:ID); when it cannot be recognised, Render fails
+	// with ErrInvalidFacturX. A profile that is given but differs from the XML gives a warning (BR-HYBRID-15).
 	Level FacturXLevel
-	// Relationship to związek XML z dokumentem (/AFRelationship). Pusty oznacza wartość z tabeli
-	// Factur-X § 6.2.2: Data dla MINIMUM i BASIC WL, Alternative dla pozostałych profili. Dopuszczalne są
-	// Data, Source i Alternative; wartość spoza tabeli dla profilu daje ostrzeżenie (BR-HYBRID-11).
+	// Relationship is the relationship of the XML to the document (/AFRelationship). Empty means the value from
+	// the table in Factur-X § 6.2.2: Data for MINIMUM and BASIC WL, Alternative for the other profiles. Data,
+	// Source and Alternative are allowed; a value outside the table for the profile gives a warning (BR-HYBRID-11).
 	Relationship Relationship
-	// Description to opis pliku (/Desc); pusty oznacza "Factur-X invoice (<profil>)".
+	// Description is the description of the file (/Desc); empty means "Factur-X invoice (<profile>)".
 	Description string
-	// Version to fx:Version; pusta oznacza "1.0" (BR-HYBRID-10). Dopuszczalne wartości to lista kodów
+	// Version is fx:Version; empty means "1.0" (BR-HYBRID-10). The allowed values are the code list
 	// HybridDocumentVersion: 1.0, 1p0, 2p0, 2p1, 2p2.
 	Version string
-	// ModTime to data modyfikacji pliku XML (/Params /ModDate), zalecana przez § 6.2. Wartość zerowa:
-	// wpis jest pomijany, żeby wynik był powtarzalny (ADR 0026).
+	// ModTime is the modification date of the XML file (/Params /ModDate), recommended by § 6.2. Zero value:
+	// the entry is omitted, so that the output is reproducible (ADR 0026).
 	ModTime time.Time
 }
 
-// ErrInvalidFacturX: Options.FacturX z XML-em, który nie jest fakturą CII, z nieznanym profilem albo
-// związkiem, albo w połączeniu z normą inną niż PDF/A-3.
+// ErrInvalidFacturX: Options.FacturX with XML that is not a CII invoice, with an unknown profile or
+// relationship, or combined with a standard other than PDF/A-3.
 var ErrInvalidFacturX = errors.New("gopdfgo: invalid Factur-X invoice")
 
 const (

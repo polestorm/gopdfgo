@@ -10,49 +10,49 @@ import (
 	"github.com/polestorm/gopdfgo/internal/webrender/backend"
 )
 
-// Relationship to związek pliku dołączonego z dokumentem, zapisywany jako /AFRelationship w słowniku
-// specyfikacji pliku (ISO 32000-2 § 7.11.3, tabela 43; ISO 19005-3 § 6.8).
+// Relationship is the relationship of an attached file to the document, written as /AFRelationship in the
+// file specification dictionary (ISO 32000-2 § 7.11.3, table 43; ISO 19005-3 § 6.8).
 type Relationship string
 
 const (
-	// RelationshipSource: plik źródłowy, z którego powstał dokument (np. arkusz, z którego wydrukowano tabelę).
+	// RelationshipSource: the source file the document was made from (e.g. the spreadsheet a table was printed from).
 	RelationshipSource Relationship = "Source"
-	// RelationshipData: dane, z których powstała treść dokumentu (np. dane wykresu).
+	// RelationshipData: the data the content of the document was made from (e.g. the data of a chart).
 	RelationshipData Relationship = "Data"
-	// RelationshipAlternative: inna postać tej samej treści (np. XML faktury Factur-X/ZUGFeRD).
+	// RelationshipAlternative: another form of the same content (e.g. the XML of a Factur-X/ZUGFeRD invoice).
 	RelationshipAlternative Relationship = "Alternative"
-	// RelationshipSupplement: uzupełnienie treści dokumentu.
+	// RelationshipSupplement: a supplement to the content of the document.
 	RelationshipSupplement Relationship = "Supplement"
-	// RelationshipUnspecified: związek nieznany albo inny niż powyższe; wartość domyślna.
+	// RelationshipUnspecified: a relationship that is unknown or other than the above; the default value.
 	RelationshipUnspecified Relationship = "Unspecified"
 )
 
-// Attachment to plik osadzany w dokumencie na poziomie całego dokumentu (drzewo nazw /EmbeddedFiles
-// katalogu, a w trybie PDF/A-3 także tablica /AF katalogu).
+// Attachment is a file embedded in the document at the level of the whole document (the catalog's
+// /EmbeddedFiles name tree and, in PDF/A-3 mode, also the catalog's /AF array).
 type Attachment struct {
-	// Name to nazwa pliku (/F i /UF specyfikacji pliku, klucz w drzewie nazw); wymagana i niepowtarzalna.
+	// Name is the file name (/F and /UF of the file specification, the key in the name tree); required and unique.
 	Name string
-	// Data to treść pliku.
+	// Data is the content of the file.
 	Data []byte
-	// MediaType to typ MIME, np. "text/xml", zapisywany jako /Subtype strumienia pliku. Pusty oznacza
-	// "application/octet-stream" (ISO 19005-3 § 6.8). Parametry (";charset=...") są pomijane.
+	// MediaType is the MIME type, e.g. "text/xml", written as the /Subtype of the file stream. Empty means
+	// "application/octet-stream" (ISO 19005-3 § 6.8). Parameters (";charset=...") are dropped.
 	MediaType string
-	// Description to opis pliku (/Desc); może być pusty.
+	// Description is the description of the file (/Desc); it may be empty.
 	Description string
-	// Relationship to związek z dokumentem; pusty oznacza RelationshipUnspecified.
+	// Relationship is the relationship to the document; empty means RelationshipUnspecified.
 	Relationship Relationship
-	// ModTime to data modyfikacji pliku (/Params /ModDate). Wartość zerowa: wpis jest pomijany, bo
-	// ISO 32000-1 tabela 46 czyni go opcjonalnym, a ISO 19005-3 § 6.8 go nie wymaga; silnik nie wstawia
-	// bieżącego czasu, żeby wynik był powtarzalny.
+	// ModTime is the modification date of the file (/Params /ModDate). Zero value: the entry is omitted, because
+	// ISO 32000-1 table 46 makes it optional and ISO 19005-3 § 6.8 does not require it; the engine does not
+	// insert the current time, so that the output is reproducible.
 	ModTime time.Time
 }
 
 var (
-	// ErrInvalidAttachment: załącznik z Options.Attachments bez nazwy, z nazwą powtórzoną albo z nieznaną
-	// wartością Relationship.
+	// ErrInvalidAttachment: an attachment from Options.Attachments without a name, with a repeated name or
+	// with an unknown Relationship value.
 	ErrInvalidAttachment = errors.New("gopdfgo: invalid attachment")
-	// ErrAttachmentNotPDFA: w trybie PDF/A-2b dokument ma załącznik, który nie jest plikiem PDF/A-1 ani
-	// PDF/A-2, a tego zabrania ISO 19005-2 § 6.8. Załączniki dowolnego typu dopuszcza PDF/A-3b.
+	// ErrAttachmentNotPDFA: in PDF/A-2b mode the document has an attachment that is not a PDF/A-1 or
+	// PDF/A-2 file, which ISO 19005-2 § 6.8 forbids. PDF/A-3b allows attachments of any type.
 	ErrAttachmentNotPDFA = errors.New("gopdfgo: PDF/A-2 allows only PDF/A-1 or PDF/A-2 files as attachments")
 )
 

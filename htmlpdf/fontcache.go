@@ -4,20 +4,20 @@ import (
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 )
 
-// FontCache przechowuje sparsowane fonty między wywołaniami Render (ADR 0045). Program renderujący
-// wiele dokumentów tymi samymi fontami tworzy jedną pamięć podręczną i podaje ją w Options.FontCache;
-// fonty z Options.Fonts i z reguł @font-face (pobrane przez Resolver) są wtedy parsowane raz, przy
-// pierwszym użyciu. Wynik renderowania jest taki sam jak bez pamięci podręcznej.
+// FontCache stores parsed fonts between Render calls (ADR 0045). A program that renders many
+// documents with the same fonts creates one cache and passes it in Options.FontCache; fonts
+// from Options.Fonts and from @font-face rules (fetched through Resolver) are then parsed once, on
+// first use. The rendering output is the same as without the cache.
 //
-// Pozycje rozpoznawane są po treści pliku, nie po nazwie. Pamięć podręczna jest bezpieczna dla wielu
-// wątków i może być współdzielona przez dowolnie wiele wywołań Render.
+// Entries are identified by the content of the file, not by its name. The cache is safe for concurrent
+// use and may be shared by any number of Render calls.
 type FontCache struct {
 	cache *text.FontCache
 }
 
-// NewFontCache tworzy pamięć podręczną fontów. maxBytes ogranicza łączną długość zapamiętanych plików
-// fontów (sparsowany font zajmuje w pamięci zwykle kilka razy więcej niż plik); po przekroczeniu
-// usuwane są fonty najdawniej użyte. maxBytes <= 0 oznacza brak limitu.
+// NewFontCache creates a font cache. maxBytes limits the total length of the font files kept
+// (a parsed font usually takes several times more memory than its file); when the limit is exceeded,
+// the least recently used fonts are removed. maxBytes <= 0 means no limit.
 func NewFontCache(maxBytes int64) *FontCache {
 	return &FontCache{cache: text.NewFontCache(maxBytes)}
 }

@@ -1,56 +1,56 @@
-// Package sign podpisuje gotowe pliki PDF podpisem cyfrowym PAdES (ETSI EN 319 142-1).
+// Package sign signs finished PDF files with a PAdES digital signature (ETSI EN 319 142-1).
 //
-// Pakiet jest opcjonalny (ADR 0049, 0050): rdzeń gopdfgo go nie importuje, więc program, który
-// go nie importuje, nie ma w binarce kodu podpisu. Podpis CMS (RFC 5652) jest odłączony, SHA-256,
-// z atrybutami podpisanymi content-type, message-digest i signing-certificate-v2, w niewidocznym
-// polu podpisu na pierwszej stronie albo w istniejącym pustym polu wskazanym przez Options.FieldName.
-// Podpis jest dopisywany aktualizacją przyrostową, więc działa na każdym poprawnym, niezaszyfrowanym PDF
-// (także z tagami, PDF/A-2, PDF/A-3, Factur-X i już podpisanym) i nie narusza wcześniejszych podpisów.
-// Pakiet nie czyta kluczy z plików: klucz i certyfikat podaje wywołujący; odczyt z plików PKCS#12
-// i PEM daje osobny pakiet sign/keyfile (z niego korzysta polecenie gopdfgo-sign, ADR 0051).
+// The package is optional (ADR 0049, 0050): the gopdfgo core does not import it, so a program that
+// does not import it has no signing code in its binary. The CMS signature (RFC 5652) is detached, SHA-256,
+// with the signed attributes content-type, message-digest and signing-certificate-v2, in an invisible
+// signature field on the first page or in an existing empty field named by Options.FieldName.
+// The signature is appended as an incremental update, so it works on any valid, unencrypted PDF
+// (also tagged, PDF/A-2, PDF/A-3, Factur-X and already signed) and does not break earlier signatures.
+// The package does not read keys from files: the caller supplies the key and the certificate; reading PKCS#12
+// and PEM files is provided by the separate package sign/keyfile (used by the gopdfgo-sign command, ADR 0051).
 //
-// Pole widoczne: element HTML z atrybutem data-pdf-signature="Nazwa" dostaje przy renderowaniu puste
-// pole podpisu na prostokącie swojego pudełka (rdzeń gopdfgo, bez kodu tego pakietu; w PDF z tagami
-// widżet ma element struktury Form). Podpis w tym polu:
+// Visible field: an HTML element with the attribute data-pdf-signature="Name" gets, at rendering time, an empty
+// signature field on the rectangle of its box (the gopdfgo core, without any code of this package; in a tagged
+// PDF the widget has a Form structure element). Signing in that field:
 //
-//	opts.FieldName = "Nazwa"
+//	opts.FieldName = "Name"
 //	signed, err := sign.SignPDF(ctx, result.PDF, opts)
 //
-// Pole dostaje /V, a widżet, strona i wygląd pola zostają bez zmian: to, co widać w miejscu podpisu,
-// jest treścią HTML elementu. Nazwa nieznana daje ErrUnknownField, pole już podpisane ErrFieldNotEmpty.
+// The field gets /V; the widget, the page and the field's appearance stay unchanged: what shows at the signature's
+// place is the element's HTML content. An unknown name gives ErrUnknownField, a signed field ErrFieldNotEmpty.
 //
-// Poziomy (Options.Level):
+// Levels (Options.Level):
 //
-//   - LevelBB (domyślny): sam podpis; bez połączeń sieciowych.
-//   - LevelBT: podpis i znacznik czasu RFC 3161 wartości podpisu (atrybut niepodpisany
-//     signature-time-stamp-token) od Options.TSA.
-//   - LevelBLT: jak LevelBT, a do tego druga aktualizacja przyrostowa ze słownikiem DSS
-//     (ISO 32000-2 § 12.8.4.3): certyfikaty, odpowiedzi OCSP i listy CRL dla certyfikatu
-//     podpisującego, certyfikatu TSA i ich wystawców, z wpisem /VRI podpisu.
+//   - LevelBB (the default): the signature alone; no network connections.
+//   - LevelBT: the signature and an RFC 3161 timestamp of the signature value (the unsigned attribute
+//     signature-time-stamp-token) from Options.TSA.
+//   - LevelBLT: like LevelBT, plus a second incremental update with the DSS dictionary
+//     (ISO 32000-2 § 12.8.4.3): certificates, OCSP responses and CRLs for the signing
+//     certificate, the TSA certificate and their issuers, with the signature's /VRI entry.
 //
-// Pakiet łączy się z siecią tylko przez klientów podanych jawnie: Options.TSA (TimestampAuthority,
-// np. TSAClient z adresem i *http.Client) i Options.Revocation (RevocationFetcher, np.
-// RevocationClient, który bierze adresy OCSP i CRL z certyfikatów). Odpowiedzi sprawdza sam pakiet
-// (status, skrót, nonce, podpisy TSA i respondera, status certyfikatu), więc własna implementacja
-// tych interfejsów odpowiada tylko za przesył. ctx przerywa połączenia i podpis (ContextSigner).
+// The package connects to the network only through clients passed explicitly: Options.TSA (TimestampAuthority,
+// e.g. a TSAClient with an address and an *http.Client) and Options.Revocation (RevocationFetcher, e.g.
+// a RevocationClient, which takes the OCSP and CRL addresses from the certificates). The responses are checked
+// by the package itself (status, digest, nonce, TSA and responder signatures, certificate status), so a custom
+// implementation of these interfaces handles transport only. ctx aborts connections and signing (ContextSigner).
 //
-// Podpis PAdES B-B:
+// PAdES B-B signature:
 //
-//	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Conformance: gopdfgo.PDFA2b})
+//	result, err := htmlpdf.Render(ctx, html, htmlpdf.Options{Fonts: fonts, Conformance: htmlpdf.PDFA2b})
 //	if err != nil {
 //		return err
 //	}
-//	// key: *rsa.PrivateKey albo *ecdsa.PrivateKey (albo dowolny crypto.Signer, np. HSM)
-//	// cert: *x509.Certificate odpowiadający kluczowi; chain: certyfikaty pośrednie
+//	// key: *rsa.PrivateKey or *ecdsa.PrivateKey (or any crypto.Signer, e.g. an HSM)
+//	// cert: the *x509.Certificate matching the key; chain: intermediate certificates
 //	signed, err := sign.SignPDF(ctx, result.PDF, sign.Options{
 //		Signer:      key,
 //		Certificate: cert,
 //		Chain:       chain,
-//		Reason:      "Zatwierdzenie dokumentu",
-//		Location:    "Warszawa",
+//		Reason:      "Document approval",
+//		Location:    "Warsaw",
 //	})
 //
-// PAdES B-T (znacznik czasu):
+// PAdES B-T (timestamp):
 //
 //	client := &http.Client{Timeout: 30 * time.Second}
 //	signed, err := sign.SignPDF(ctx, result.PDF, sign.Options{
@@ -61,9 +61,9 @@
 //		TSA:         sign.TSAClient{URL: "https://tsa.example/rfc3161", HTTPClient: client},
 //	})
 //
-// PAdES B-LT z danymi o ważności pobranymi z sieci (OCSP z authorityInfoAccess, CRL
-// z cRLDistributionPoints). Chain powinien sięgać korzenia, a certyfikaty wystawców certyfikatu TSA
-// podaje ValidationData.Certificates:
+// PAdES B-LT with validation data fetched from the network (OCSP from authorityInfoAccess, CRL
+// from cRLDistributionPoints). Chain should reach the root, and the issuer certificates of the TSA
+// certificate are supplied in ValidationData.Certificates:
 //
 //	signed, err := sign.SignPDF(ctx, result.PDF, sign.Options{
 //		Signer:         key,
@@ -75,8 +75,8 @@
 //		ValidationData: sign.ValidationData{Certificates: []*x509.Certificate{tsaCA}},
 //	})
 //
-// PAdES B-LT offline: odpowiedzi OCSP i listy CRL pobrane wcześniej (DER) zamiast Revocation;
-// brakujące dane dla któregoś certyfikatu dają ErrNoValidationData:
+// PAdES B-LT offline: OCSP responses and CRLs fetched earlier (DER) instead of Revocation;
+// missing data for any of the certificates gives ErrNoValidationData:
 //
 //	opts.Revocation = nil
 //	opts.ValidationData = sign.ValidationData{
@@ -85,13 +85,13 @@
 //		CRLs:          [][]byte{caCRL},
 //	}
 //
-// Podpisujący zewnętrzny (HSM, karta, zdalny podpis kwalifikowany) implementuje crypto.Signer:
-// Public zwraca klucz publiczny z certyfikatu, a Sign(rand, digest, crypto.SHA256) dostaje skrót
-// SHA-256 atrybutów podpisanych i zwraca podpis RSA PKCS#1 v1.5 albo ECDSA w DER. Podpisujący,
-// który implementuje też ContextSigner, dostaje ctx w SignContext. SignPDF sprawdza podpis kluczem
-// z certyfikatu, zanim go zapisze.
+// An external signer (HSM, smart card, remote qualified signature) implements crypto.Signer:
+// Public returns the public key from the certificate, and Sign(rand, digest, crypto.SHA256) receives the
+// SHA-256 digest of the signed attributes and returns an RSA PKCS#1 v1.5 signature or an ECDSA one in DER.
+// A signer that also implements ContextSigner receives ctx in SignContext. SignPDF verifies the signature
+// with the key from the certificate before writing it.
 //
-// Na poziomie B-LT ostatnia aktualizacja pliku (DSS) leży poza zakresem /ByteRange podpisu, jak
-// przewiduje ISO 32000-2 § 12.8.4.3; walidatory PAdES traktują ją jako dozwoloną, a pdfsig (Poppler)
-// pokazuje przy podpisie „Not total document signed”.
+// At level B-LT the last update of the file (DSS) lies outside the signature's /ByteRange, as
+// ISO 32000-2 § 12.8.4.3 provides; PAdES validators treat it as permitted, while pdfsig (Poppler)
+// shows "Not total document signed" next to the signature.
 package sign

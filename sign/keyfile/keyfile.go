@@ -1,20 +1,20 @@
-// Package keyfile odczytuje klucz prywatny i certyfikaty do podpisu z plików: PKCS#12 (RFC 7292)
-// oraz PEM (klucz PKCS#8, PKCS#1 albo SEC1 i certyfikaty X.509).
+// Package keyfile reads a private key and certificates for signing from files: PKCS#12 (RFC 7292)
+// and PEM (a PKCS#8, PKCS#1 or SEC1 key and X.509 certificates).
 //
-// Pakiet jest opcjonalny (ADR 0049, 0050 pkt 3, ADR 0051): pakiet sign nie czyta kluczy z plików,
-// a polecenie gopdfgo-sign czyta je przez ten pakiet z pliku wskazanego jawnie. Wynik (Identity)
-// przekazuje się do sign.Options: Signer, Certificate, Chain. Kod własny na bibliotece standardowej Go,
-// bez zależności.
+// The package is optional (ADR 0049, 0050 item 3, ADR 0051): package sign does not read keys from files,
+// and the gopdfgo-sign command reads them through this package from a file named explicitly. The result
+// (Identity) is passed to sign.Options: Signer, Certificate, Chain. Own code on the Go standard library,
+// with no dependencies.
 //
-//	data, _ := os.ReadFile("podpis.p12")
+//	data, _ := os.ReadFile("signer.p12")
 //	id, err := keyfile.ParsePKCS12(data, password)
 //	if err != nil {
 //		return err
 //	}
 //	signed, err := sign.SignPDF(ctx, pdf, sign.Options{Signer: id.Signer, Certificate: id.Certificate, Chain: id.Chain})
 //
-// Zaszyfrowane pliki PEM (ENCRYPTED PRIVATE KEY, nagłówek Proc-Type: 4,ENCRYPTED) nie są obsługiwane:
-// dają ErrEncryptedPEM z podpowiedzią; klucz chroniony hasłem przechowuje się w pliku PKCS#12.
+// Encrypted PEM files (ENCRYPTED PRIVATE KEY, the header Proc-Type: 4,ENCRYPTED) are not supported:
+// they give ErrEncryptedPEM with a hint; a password-protected key is kept in a PKCS#12 file.
 package keyfile
 
 import (
@@ -26,39 +26,39 @@ import (
 	"fmt"
 )
 
-// Błędy pakietu.
+// Errors of the package.
 var (
-	// ErrPassword: złe hasło (MAC albo dopełnienie po odszyfrowaniu się nie zgadza).
+	// ErrPassword: wrong password (the MAC or the padding after decryption does not match).
 	ErrPassword = errors.New("keyfile: wrong password or damaged file")
-	// ErrUnsupportedAlgorithm: algorytm szyfrowania albo integralności spoza obsługiwanych.
+	// ErrUnsupportedAlgorithm: an encryption or integrity algorithm outside the supported ones.
 	ErrUnsupportedAlgorithm = errors.New("keyfile: unsupported algorithm")
-	// ErrMalformed: plik niezgodny ze strukturą PKCS#12, PKCS#8 albo PEM.
+	// ErrMalformed: the file does not follow the structure of PKCS#12, PKCS#8 or PEM.
 	ErrMalformed = errors.New("keyfile: malformed file")
-	// ErrNoKey: brak klucza prywatnego w pliku.
+	// ErrNoKey: no private key in the file.
 	ErrNoKey = errors.New("keyfile: no private key")
-	// ErrNoCertificate: brak certyfikatu odpowiadającego kluczowi.
+	// ErrNoCertificate: no certificate that matches the key.
 	ErrNoCertificate = errors.New("keyfile: no certificate for the key")
-	// ErrAmbiguous: plik zawiera więcej niż jeden klucz prywatny.
+	// ErrAmbiguous: the file contains more than one private key.
 	ErrAmbiguous = errors.New("keyfile: more than one key")
-	// ErrEncryptedPEM: klucz PEM zaszyfrowany hasłem.
+	// ErrEncryptedPEM: a PEM key encrypted with a password.
 	ErrEncryptedPEM = errors.New("keyfile: encrypted PEM keys are not supported " +
 		"(use a PKCS#12 file: openssl pkcs12 -export -inkey key.pem -in certificate.pem -out signer.p12)")
 )
 
-// Identity to klucz i certyfikaty do podpisu.
+// Identity is a key and the certificates for signing.
 type Identity struct {
-	// Signer to klucz prywatny (*rsa.PrivateKey, *ecdsa.PrivateKey albo ed25519.PrivateKey).
+	// Signer is the private key (*rsa.PrivateKey, *ecdsa.PrivateKey or ed25519.PrivateKey).
 	Signer crypto.Signer
-	// Certificate to certyfikat klucza.
+	// Certificate is the certificate of the key.
 	Certificate *x509.Certificate
-	// Chain to pozostałe certyfikaty: najpierw ścieżka od wystawcy Certificate w górę (po nazwie
-	// i podpisie), potem reszta w kolejności z pliku.
+	// Chain is the remaining certificates: first the path from the issuer of Certificate upwards (by
+	// name and signature), then the rest in file order.
 	Chain []*x509.Certificate
 }
 
-// ParsePEMKey odczytuje pierwszy klucz prywatny z danych PEM: PRIVATE KEY (PKCS#8), RSA PRIVATE KEY
-// (PKCS#1) albo EC PRIVATE KEY (SEC1, RFC 5915). Bloki innych rodzajów (np. EC PARAMETERS,
-// CERTIFICATE) są pomijane.
+// ParsePEMKey reads the first private key from PEM data: PRIVATE KEY (PKCS#8), RSA PRIVATE KEY
+// (PKCS#1) or EC PRIVATE KEY (SEC1, RFC 5915). Blocks of other kinds (for example EC PARAMETERS,
+// CERTIFICATE) are skipped.
 func ParsePEMKey(data []byte) (crypto.Signer, error) {
 	for rest := data; ; {
 		var block *pem.Block
@@ -92,7 +92,7 @@ func ParsePEMKey(data []byte) (crypto.Signer, error) {
 	}
 }
 
-// ParsePEMCertificates odczytuje wszystkie bloki CERTIFICATE z danych PEM w kolejności z pliku.
+// ParsePEMCertificates reads all CERTIFICATE blocks from PEM data in file order.
 func ParsePEMCertificates(data []byte) ([]*x509.Certificate, error) {
 	var out []*x509.Certificate
 	for rest := data; ; {
@@ -116,8 +116,8 @@ func ParsePEMCertificates(data []byte) ([]*x509.Certificate, error) {
 	return out, nil
 }
 
-// ParsePEM składa tożsamość z klucza PEM (ParsePEMKey), certyfikatów PEM klucza (pierwszy pasujący
-// do klucza jest certyfikatem, reszta trafia do łańcucha) i opcjonalnego łańcucha PEM.
+// ParsePEM assembles an identity from a PEM key (ParsePEMKey), the PEM certificates of the key (the first
+// one matching the key is the certificate, the rest go to the chain) and an optional PEM chain.
 func ParsePEM(key, certs, chain []byte) (*Identity, error) {
 	signer, err := ParsePEMKey(key)
 	if err != nil {
