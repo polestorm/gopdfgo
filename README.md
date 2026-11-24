@@ -17,10 +17,9 @@ result, err := htmlpdf.Render(ctx, html, htmlpdf.Options{Fonts: fonts})
 Compared with headless Chromium and with [folio](https://github.com/carlos7ags/folio), another HTML to PDF
 engine in Go (details in [Comparison](#comparison)):
 
-- **Prints like a browser**: the same page count as Chromium on 33 of 35 test documents, words a median 0.2 pt
-  from where Chromium puts them.
+- **Prints like a browser**: the same page count as Chromium on 33 of 35 test documents.
 - **Does what browsers don't do for print**: tables of contents with page numbers (`target-counter()`), "page X
-  of Y" in the text, footnotes, all 16 margin boxes, running headers, hyphenation for 24 languages built in.
+  of Y" in the text, footnotes, all 16 margin boxes, running headers, **hyphenation** for 24 languages built in.
 - **Archival and accessible output**: PDF/A-2 and PDF/A-3 (levels b and a), PDF/UA-1 and Factur-X e-invoices,
   checked with veraPDF and Mustang; PAdES signatures in an optional package.
 - **One small program**: a single Go binary of 21 MB instead of a 460 MB browser, 2–9 times faster than
@@ -28,9 +27,6 @@ engine in Go (details in [Comparison](#comparison)):
   nothing is read from the disk or the network unless you allow it.
 - **Standards first**: the layout follows the W3C specifications and is tested on their test suites: 9484 of
   10962 CSS reftests, 310 of 340 print reftests, 194 of 235 SVG reftests.
-
-Where it is weaker: folio is about twice as fast and uses half the memory, and neither gopdfgo nor folio runs
-JavaScript. gopdfgo has no right-to-left or vertical text yet.
 
 ## Contents
 
