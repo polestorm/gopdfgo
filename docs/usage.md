@@ -165,7 +165,8 @@ B-T and B-LT need `-tsa`, the only way the command connects to the network.
 
 - JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
 - Right-to-left and bidirectional text, vertical writing.
-- Interactive forms (form fields are printed as they look), barcodes as a feature (they can be drawn as SVG).
+- Fillable form fields: HTML form elements are printed as they look (as in Chromium and folio); only signature
+  fields can be placed in HTML. Barcodes as a feature (they can be drawn as SVG).
 - `subgrid`, `grid-lanes`, `column-height`, CSS `zoom`, `mask` on HTML elements, animations.
 - Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
   lighting and displacement (the element is drawn without the filter), `backdrop-filter`.

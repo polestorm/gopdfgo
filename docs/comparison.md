@@ -89,7 +89,9 @@ Features).
 | PDF/A | ✗ | ✓ | ✓ 2b, 2a, 3b, 3a |
 | Tagged PDF / PDF/UA | ◐ tagged by default, PDF/UA not claimed | ◐ tagged | ✓ PDF/UA-1 (veraPDF on all corpus documents) |
 | Factur-X / ZUGFeRD e-invoices | ✗ | ✓ | ✓ (veraPDF and Mustang) |
-| Interactive forms, barcodes | ✗ | ✓ | ✗ |
+| HTML form elements (`<input>`, `<select>`, `<textarea>`) | printed as they look | printed as they look | printed as they look |
+| Fillable PDF form fields | ✗ | ◐ created from Go code at given coordinates (not from HTML); filling and flattening existing PDF forms | ◐ signature fields placed in HTML (`data-pdf-signature`) |
+| Barcodes | ✗ | ✓ | ✗ |
 | Digital signatures: PAdES levels | ✗ | ✓ B-B, B-T, B-LT, B-LTA | ◐ B-B, B-T, B-LT (optional package `sign`; no B-LTA); checked with `pdfsig`, `openssl` and the EU DSS validator |
 | Signing any existing PDF (incremental update, earlier signatures kept) | ✗ | ✓ | ✓ |
 | Signature fields placed in HTML (visible signature) | ✗ | ✗ (invisible only) | ✓ `data-pdf-signature`, tagged as `Form` in PDF/UA |
@@ -108,7 +110,7 @@ margin boxes, built-in hyphenation for 24 languages, PDF/A, PDF/UA and Factur-X,
 binary that gives the same bytes for the same input.
 
 **gopdfgo is weaker at** speed and memory compared with folio, at writing systems (no right-to-left or
-vertical text), at everything that is not printing HTML (forms other than signature fields, the B-LTA signature level, verifying signatures, barcodes, editing existing PDF
+vertical text), at everything that is not printing HTML (fillable form fields other than signature fields, the B-LTA signature level, verifying signatures, barcodes, editing existing PDF
 files), and at running scripts, which only a browser does. It is young and not yet public, while Chromium is
 the reference engine and folio already has users.
 

@@ -78,7 +78,9 @@ with its own layout engine and an HTML converter.
 | Tagged PDF, PDF/UA | PDF/UA-1, checked with veraPDF 🥇 | tagged | tagged |
 | Factur-X / ZUGFeRD | yes, checked with Mustang 🥇 | no | yes |
 | PAdES signatures | B-B, B-T, B-LT; fields placed in HTML (optional package) | no | B-B to B-LTA 🥇 |
-| Forms, barcodes, editing PDF files | no | no | yes 🥇 |
+| HTML form elements (`<input>`, `<select>`, `<textarea>`) | printed as they look | printed as they look | printed as they look |
+| Fillable PDF form fields | signature fields placed in HTML | no | created from Go code at given coordinates; filling existing PDF forms 🥇 |
+| Barcodes, editing PDF files | no | no | yes 🥇 |
 | License | Apache 2.0 | BSD-3-Clause | Apache 2.0 |
 | GitHub popularity[^pop] | new | Chromium itself | 884 stars, 61 forks |
 
