@@ -141,6 +141,9 @@ type TextStyle struct {
 	OverflowWrap OverflowWrap
 	WordBreak    WordBreak
 	LooseBreak   bool // gopdfgo: line-break: loose
+	// SingleLetterGlue (gopdfgo) to jednoliterowe wyrazy, po których wiersz się nie łamie
+	// (text-wrap-style: pretty w języku, którego typografia tego wymaga; zob. singleLetterGlue)
+	SingleLetterGlue string
 
 	Hyphens             Hyphens
 	HyphenateCharacter  string
@@ -228,6 +231,9 @@ func newTextStyle(style pr.StyleAccessor, ignoreSpacing bool, fonts FontConfigur
 	out.OverflowWrap = newOverflowWrap(style.GetOverflowWrap())
 	out.WordBreak = newWordBreak(style.GetWordBreak())
 	out.LooseBreak = style.GetLineBreak() == "loose"
+	if style.GetTextWrapStyle() == "pretty" {
+		out.SingleLetterGlue = SingleLetterGlue(out.Lang)
+	}
 	if style.GetWordBreak() == "break-word" {
 		out.OverflowWrap = OAnywhere // gopdfgo: dawna wartość, CSS Text 3 § 5.2
 	}
@@ -281,10 +287,11 @@ type styleKey struct {
 	FontLanguageOverride fontLanguageOverride
 	Lang                 string
 
-	WhiteSpace   pr.Keyword
-	OverflowWrap OverflowWrap
-	WordBreak    WordBreak
-	LooseBreak   bool // gopdfgo: line-break: loose
+	WhiteSpace       pr.Keyword
+	OverflowWrap     OverflowWrap
+	WordBreak        WordBreak
+	LooseBreak       bool   // gopdfgo: line-break: loose
+	SingleLetterGlue string // gopdfgo: jak w TextStyle
 
 	Hyphens             Hyphens
 	HyphenateCharacter  string
@@ -321,6 +328,7 @@ func (ts *TextStyle) key() styleKey {
 		ts.OverflowWrap,
 		ts.WordBreak,
 		ts.LooseBreak,
+		ts.SingleLetterGlue,
 		ts.Hyphens,
 		ts.HyphenateCharacter,
 		ts.HyphenateLimitChars,
@@ -1139,4 +1147,20 @@ var lstToISO = map[fontLanguageOverride]string{
 	{'z', 'h', 's'}:      "zho",
 	{'z', 'h', 't'}:      "zho",
 	{'z', 'n', 'd'}:      "zne",
+}
+
+// SingleLetterGlue (gopdfgo) zwraca jednoliterowe wyrazy, po których przy text-wrap-style: pretty wiersz się
+// nie łamie, dla języka lang (BCP 47; liczy się podstawowy znacznik języka). CSS Text 4 § 5.2 pozwala przy
+// pretty wybierać miejsca łamania według reguł typograficznych przeglądarki, kosztem szybkości; polska, czeska
+// i słowacka typografia nie zostawia jednoliterowych spójników i przyimków na końcu wiersza (sierotki,
+// zawieszki). Domyślnie (auto) łamiemy jak UAX #14 i Chromium, po każdej spacji.
+func SingleLetterGlue(lang string) string {
+	primary, _, _ := strings.Cut(strings.ToLower(lang), "-")
+	switch primary {
+	case "pl":
+		return "aiouwzAIOUWZ"
+	case "cs", "sk":
+		return "aikosuvzAIKOSUVZ"
+	}
+	return ""
 }

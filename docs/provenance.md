@@ -3000,6 +3000,11 @@ Wspólne dla obu katalogów:
   `target-counter(…, pages)` nie oznacza już strony kotwicy jako `PagesWanted`; liczbę stron w licznikach kotwic
   i oznaczenie stron odwołań daje `UpdateTargetPages`. Wynik bez zmian, a dokument z takim odwołaniem idzie
   odkładaniem stron zamiast dwóch przebiegów.
+- 2026-11-24, `text/style.go` (`TextStyle.SingleLetterGlue`, `SingleLetterGlue`, klucz `styleKey`),
+  `text/engine_gotext.go` (`glueSingleLetterWords`, `IsSingleLetterWord`, `LineWrap`, `getNextBreakPoint` z listą
+  wyrazów), `html/layout/inline.go` (`endsWithGluedWord` na granicy pudełek), ADR 0054, CSS Text 4 § 5.2:
+  `text-wrap-style: pretty` w językach pl, cs, sk nie łamie po jednoliterowych spójnikach i przyimkach.
+  Źródło właściwości nie znało; bez `pretty` wynik bez zmian.
 - 2026-11-24, `pdflib/model/encryption aes.go` → `encryption_aes.go`: nazwa pliku bez spacji (lista plików
   w CI przez `git ls-files`); treść bez zmian.
 - 2026-11-24, `utils/urls.go` (`DefaultUrlFetcher`), `svg/css.go` (`fetchURL`, `findStylesheetsRules`,

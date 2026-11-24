@@ -153,7 +153,8 @@ B-T and B-LT need `-tsa`, the only way the command connects to the network.
   footnotes; `leader()`; `target-counter()` and `target-text()`; `orphans` and `widows`; repeated table headers.
 - Text: OpenType shaping (go-text, a Go port of HarfBuzz), font fallback, `@font-face`, font features,
   `hyphens: auto` with dictionaries for 24 languages built in, justification, `white-space`, `word-break`,
-  `overflow-wrap`.
+  `overflow-wrap`; `text-wrap: balance`, and `text-wrap: pretty`, which in Polish, Czech and Slovak
+  keeps one-letter conjunctions and prepositions ("w", "z", "i") from ending a line.
 - SVG, inline and as files: text shaped like HTML text, `textPath`, `foreignObject`, markers, masks, patterns,
   gradients, clipping, drop shadow and blur filters as vectors; an SVG file used many times is written into the
   PDF once.

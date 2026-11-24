@@ -992,8 +992,16 @@ func (fc *FontConfigurationGotext) wordBoundaries(t []rune) *[2]int {
 }
 
 // return -1 if not found
-func (fc *FontConfigurationGotext) getNextBreakPoint(text []rune) int {
-	fc.unicodeSeg.Init(breakAfterSpaces(slashesWithinWords(hyphensBeforeDigits(text)))) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords, breakAfterSpaces
+//
+// gopdfgo: glue to jednoliterowe wyrazy, po których nie łamiemy (style.SingleLetterGlue, text-wrap-style:
+// pretty); miejsca podziału muszą być te same co w LineWrap, inaczej układ wiersza tnie tekst gdzie indziej
+// niż zawijanie.
+func (fc *FontConfigurationGotext) getNextBreakPoint(text []rune, glue string) int {
+	breakText := slashesWithinWords(hyphensBeforeDigits(text))
+	if glue != "" {
+		breakText = glueSingleLetterWords(breakText, glue)
+	}
+	fc.unicodeSeg.Init(breakAfterSpaces(breakText)) // gopdfgo: zob. hyphensBeforeDigits, slashesWithinWords, breakAfterSpaces
 	iter := fc.unicodeSeg.LineIterator()
 	if iter.Next() {
 		line := iter.Line()
@@ -1628,6 +1636,39 @@ func breakAfterSpaces(text []rune) []rune {
 	return out
 }
 
+// glueSingleLetterWords (gopdfgo) zwraca tekst do wyznaczania miejsc podziału, w którym spacja po
+// jednoliterowym wyrazie z listy letters (np. „w”, „z”, „i” po polsku) jest zamieniona na spację niełamiącą
+// (U+00A0, klasa GL), więc wyraz przechodzi do następnego wiersza razem z wyrazem za nim. Wyraz jednoliterowy
+// to litera na początku tekstu albo po białym znaku lub znaku otwierającym (nawias, cudzysłów, myślnik),
+// za którą stoi spacja. Używane przy text-wrap-style: pretty (zob. SingleLetterGlue). Kształty i szerokości
+// biorą się z tekstu oryginalnego.
+func glueSingleLetterWords(text []rune, letters string) []rune {
+	out := text
+	for i := 0; i+1 < len(text); i++ {
+		if text[i+1] != ' ' || !IsSingleLetterWord(text, i, letters) {
+			continue
+		}
+		if &out[0] == &text[0] {
+			out = slices.Clone(text)
+		}
+		out[i+1] = '\u00a0'
+	}
+	return out
+}
+
+// IsSingleLetterWord (gopdfgo) mówi, czy text[i] jest jednoliterowym wyrazem z listy letters: literą na
+// początku tekstu albo po białym znaku lub znaku otwierającym (nawias, cudzysłów, myślnik).
+func IsSingleLetterWord(text []rune, i int, letters string) bool {
+	if !strings.ContainsRune(letters, text[i]) {
+		return false
+	}
+	if i == 0 {
+		return true
+	}
+	prev := text[i-1]
+	return unicode.IsSpace(prev) || unicode.In(prev, unicode.Ps, unicode.Pi, unicode.Pd)
+}
+
 // isGlueRune (gopdfgo) mówi, czy znak należy do klasy GL, WJ albo ZWJ z UAX #14 (z U+00A0); przed takim
 // znakiem breakAfterSpaces nie dodaje okazji do złamania.
 func isGlueRune(r rune) bool {
@@ -1742,6 +1783,9 @@ func (fc *FontConfigurationGotext) LineWrap(text []rune, style *TextStyle, runs 
 	breakText = joinersAfterSpaces(breakText)
 	breakText = hyphensBeforeDigits(breakText)
 	breakText = slashesWithinWords(breakText)
+	if style.SingleLetterGlue != "" && spaceCollapse {
+		breakText = glueSingleLetterWords(breakText, style.SingleLetterGlue)
+	}
 	if !style.breakSpaces() {
 		breakText = breakAfterSpaces(breakText)
 	}
@@ -2079,7 +2123,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 			if firstLine.ResumeAt != -1 && firstLine.ResumeAt != len(shortText) {
 				firstLineText := shortText[:firstLine.ResumeAt]
 				start := len(firstLineText) + 1
-				if fc.getNextBreakPoint(shortText[start:]) != -1 {
+				if fc.getNextBreakPoint(shortText[start:], style.SingleLetterGlue) != -1 {
 					text = shortText
 				}
 			}
@@ -2123,7 +2167,7 @@ func (fc *FontConfigurationGotext) splitFirstLineRaw(hyphenCache map[HyphenDictK
 	breakPoint = len(secondLineText)
 	if len(secondLineText) != 0 {
 		// Find the second line’s first break point.
-		breakPoint = fc.getNextBreakPoint(secondLineText)
+		breakPoint = fc.getNextBreakPoint(secondLineText, style.SingleLetterGlue)
 		if breakPoint == -1 {
 			breakPoint = len(secondLineText)
 		}
@@ -2176,7 +2220,7 @@ hyphenation:
 	if hyphens == HAuto && lang != "" {
 		// Get text until next line break opportunity.
 		nextText := secondLineText
-		if nextBreakPoint := fc.getNextBreakPoint(secondLineText); nextBreakPoint != -1 {
+		if nextBreakPoint := fc.getNextBreakPoint(secondLineText, style.SingleLetterGlue); nextBreakPoint != -1 {
 			nextText = nextText[:nextBreakPoint]
 		}
 
@@ -2343,7 +2387,7 @@ func (fc *FontConfigurationGotext) zeroWidthFirstWord(text []rune, style *TextSt
 	if slices.ContainsFunc(text, IsOtherSpaceSeparator) {
 		return line, nil, false
 	}
-	breakPoint := fc.getNextBreakPoint(text)
+	breakPoint := fc.getNextBreakPoint(text, style.SingleLetterGlue)
 	if breakPoint <= 0 || breakPoint > len(text) || text[breakPoint-1] != ' ' {
 		return line, nil, false
 	}

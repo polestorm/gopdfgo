@@ -84,29 +84,10 @@ with its own layout engine and an HTML converter.
 | License | Apache 2.0 | BSD-3-Clause | Apache 2.0 |
 | GitHub popularity[^pop] | new | Chromium itself | 884 stars, 61 forks |
 
-### Slower than folio: what the time buys
-
-folio is about twice as fast because it does less: it breaks lines only at spaces, hyphenates only English, has
-no page counters in the text, no footnotes and no table of contents with page numbers, and skips much of CSS.
-Chromium compatibility is not what costs gopdfgo time: switching off its pixel rounding and shrink-to-fit leaves
-the time unchanged. The time goes into what the specifications require: line breaking by the Unicode rules,
-hyphenation, the CSS table algorithm, retrying page breaks until `orphans`, `widows` and `break-*` hold, and
-further passes for page numbers. What it buys:
-
-- **The page you designed**: the same page count as Chromium on 33 of 35 documents (folio: 17), words a median
-  0.2 pt from Chromium's position (folio: 55 pt).
-- **Typography by the rules**: lines break after hyphens, slashes and punctuation where Unicode allows, words
-  are hyphenated in 24 languages, paragraphs keep their `orphans` and `widows`.
-- **Print features**: tables of contents with page numbers, "page X of Y" in the text, footnotes, all 16 margin
-  boxes.
-- **Still fast enough for a server**: a 3-page invoice in 44 ms as a separate process (27 ms inside a running
-  program with `FontCache`), ten times faster than Chromium.
-
 [^deps]: Go modules the program needs (`go version -m`). gopdfgo: go-text (shaping), benoitkugler/pdf and
     pstokenizer (PDF writing), hhrutter/lzw and three `golang.org/x` modules; all pure Go.
 [^size]: The command-line program as built by `go build` on macOS arm64 on 2026-11-24 (folio at commit
-    `29bca95`). gopdfgo includes HarfBuzz shaping, 24 hyphenation dictionaries and the PDF/A and PDF/UA writers;
-    it contains no network code. Chromium: the headless shell with its libraries on Linux; the macOS application
+    `29bca95`). Chromium: the headless shell with its libraries on Linux; the macOS application
     is 2.2 GB.
 [^bench]: Whole process, measured 2026-11-24 on one Apple M4 laptop with the same input and fonts for every
     engine; Chromium measured 2026-11-20 and 2026-11-21. Business documents: Polish e-invoices and financial
@@ -137,7 +118,7 @@ Pages printed by gopdfgo from the test corpus ([`testdata/documents`](testdata/d
 <td>An invoice: the items table runs over three pages with a repeated header; "page 1 of 3" in the margin box.</td>
 <td>A table of contents filled in with <code>target-counter()</code>, a running header from <code>running()</code>.</td>
 <td>SVG charts with gradients, transparency, a blur and repeated symbols, drawn as vectors.</td>
-<td>Multi-column text fragmented across pages.</td>
+<td>Multi-column text fragmented across pages; with <code>text-wrap: pretty</code> no line ends with a one-letter Polish word.</td>
 </tr>
 </table>
 

@@ -1429,6 +1429,12 @@ func splitInlineLevel(context *layoutContext, box_ Box, positionX, maxX, bottomS
 			firstLetter = text[0]
 			if skip == -1 {
 				lastLetter = text[len(text)-1]
+				// gopdfgo: tekst kończy się jednoliterowym wyrazem i spacją, a text-wrap-style: pretty
+				// w języku z regułą zawieszek (zob. text.SingleLetterGlue): na granicy z następnym
+				// pudełkiem nie łamiemy, jakby stała tam spacja niełamiąca
+				if endsWithGluedWord(textBox) {
+					lastLetter = '\u00a0'
+				}
 			} else {
 				lastLetter = text[skip-1]
 			}
@@ -3167,4 +3173,16 @@ func pushFloatFromLine(context *layoutContext, original, laidOut Box, resumeAt t
 	context.removeExcludedShape(box)
 	context.pushFloat(original, containingBlock)
 	return true
+}
+
+// endsWithGluedWord (gopdfgo) mówi, czy tekst pudełka kończy się jednoliterowym wyrazem i spacją, po
+// których przy text-wrap-style: pretty nie łamiemy (zob. text.SingleLetterGlue).
+func endsWithGluedWord(textBox *bo.TextBox) bool {
+	t := textBox.Text
+	n := len(t)
+	if n < 2 || t[n-1] != ' ' || textBox.Style.GetTextWrapStyle() != "pretty" {
+		return false
+	}
+	glue := text.SingleLetterGlue(textBox.Style.GetLang().S)
+	return glue != "" && text.IsSingleLetterWord(t, n-2, glue)
 }
