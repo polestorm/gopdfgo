@@ -56,22 +56,22 @@ func usagef(format string, args ...any) error { return usageError{fmt.Errorf(for
 func run(args []string, getenv func(string) string, stderr io.Writer) error {
 	flags := flag.NewFlagSet("gopdfgo-sign", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	in := flags.String("in", "", "plik PDF do podpisania")
-	out := flags.String("out", "", "plik wynikowy (podpisany PDF)")
-	p12 := flags.String("p12", "", "plik PKCS#12 (.p12, .pfx) z kluczem i certyfikatami")
-	passwordEnv := flags.String("password-env", "", "nazwa zmiennej środowiska z hasłem pliku -p12")
-	passwordFile := flags.String("password-file", "", "plik z hasłem pliku -p12 (pierwszy wiersz)")
-	keyFile := flags.String("key", "", "klucz prywatny PEM bez szyfrowania (PKCS#8, PKCS#1, SEC1)")
-	certFile := flags.String("cert", "", "certyfikat PEM klucza z -key")
-	chainFile := flags.String("chain", "", "certyfikaty pośrednie PEM (z -p12 albo -key)")
-	level := flags.String("level", "B-B", "poziom PAdES: B-B, B-T, B-LT")
-	tsa := flags.String("tsa", "", "adres serwera znaczników czasu RFC 3161 (wymagany dla B-T i B-LT; jedyne źródło połączeń sieciowych)")
-	reason := flags.String("reason", "", "powód podpisu (/Reason)")
-	location := flags.String("location", "", "miejsce podpisu (/Location)")
-	name := flags.String("name", "", "podpisujący (/Name)")
-	contact := flags.String("contact", "", "kontakt do podpisującego (/ContactInfo)")
-	field := flags.String("field", "", "nazwa istniejącego pustego pola podpisu (np. z data-pdf-signature); domyślnie nowe pole niewidoczne")
-	timeout := flags.Duration("timeout", time.Minute, "limit czasu całego podpisu (z połączeniami)")
+	in := flags.String("in", "", "PDF file to sign")
+	out := flags.String("out", "", "output file (signed PDF)")
+	p12 := flags.String("p12", "", "PKCS#12 file (.p12, .pfx) with the key and certificates")
+	passwordEnv := flags.String("password-env", "", "name of the environment variable holding the -p12 password")
+	passwordFile := flags.String("password-file", "", "file holding the -p12 password (first line)")
+	keyFile := flags.String("key", "", "unencrypted PEM private key (PKCS#8, PKCS#1, SEC1)")
+	certFile := flags.String("cert", "", "PEM certificate of the -key key")
+	chainFile := flags.String("chain", "", "PEM intermediate certificates (with -p12 or -key)")
+	level := flags.String("level", "B-B", "PAdES level: B-B, B-T, B-LT")
+	tsa := flags.String("tsa", "", "RFC 3161 timestamp server URL (required for B-T and B-LT; the only source of network connections)")
+	reason := flags.String("reason", "", "reason for signing (/Reason)")
+	location := flags.String("location", "", "place of signing (/Location)")
+	name := flags.String("name", "", "signer's name (/Name)")
+	contact := flags.String("contact", "", "signer's contact (/ContactInfo)")
+	field := flags.String("field", "", "name of an existing empty signature field (e.g. from data-pdf-signature); default: a new invisible field")
+	timeout := flags.Duration("timeout", time.Minute, "time limit for the whole signature, connections included")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return err
@@ -79,10 +79,10 @@ func run(args []string, getenv func(string) string, stderr io.Writer) error {
 		return usageError{err}
 	}
 	if flags.NArg() != 0 {
-		return usagef("nieoczekiwane argumenty: %q", flags.Args())
+		return usagef("unexpected arguments: %q", flags.Args())
 	}
 	if *in == "" || *out == "" {
-		return usagef("wymagane -in i -out")
+		return usagef("-in and -out are required")
 	}
 
 	opts := sign.Options{Reason: *reason, Location: *location, Name: *name, ContactInfo: *contact, FieldName: *field}
@@ -94,19 +94,19 @@ func run(args []string, getenv func(string) string, stderr io.Writer) error {
 	case "B-LT", "BLT":
 		opts.Level = sign.LevelBLT
 	default:
-		return usagef("nieznany poziom -level %q (dozwolone: B-B, B-T, B-LT)", *level)
+		return usagef("unknown -level %q (allowed: B-B, B-T, B-LT)", *level)
 	}
 	if opts.Level >= sign.LevelBT && *tsa == "" {
-		return usagef("poziom %s wymaga -tsa (adresu serwera znaczników czasu)", opts.Level)
+		return usagef("level %s requires -tsa (a timestamp server URL)", opts.Level)
 	}
 
 	var id *keyfile.Identity
 	switch {
 	case *p12 != "" && (*keyFile != "" || *certFile != ""):
-		return usagef("-p12 wyklucza -key i -cert")
+		return usagef("-p12 cannot be combined with -key and -cert")
 	case *p12 != "":
 		if *passwordEnv != "" && *passwordFile != "" {
-			return usagef("podaj -password-env albo -password-file, nie oba")
+			return usagef("give -password-env or -password-file, not both")
 		}
 		password, err := readPassword(*passwordEnv, *passwordFile, getenv)
 		if err != nil {
@@ -118,13 +118,13 @@ func run(args []string, getenv func(string) string, stderr io.Writer) error {
 		}
 		if id, err = keyfile.ParsePKCS12(data, password); err != nil {
 			if errors.Is(err, keyfile.ErrPassword) && *passwordEnv == "" && *passwordFile == "" {
-				return fmt.Errorf("%w (hasło podaje -password-env albo -password-file)", err)
+				return fmt.Errorf("%w (give the password with -password-env or -password-file)", err)
 			}
 			return fmt.Errorf("%s: %w", *p12, err)
 		}
 	case *keyFile != "" && *certFile != "":
 		if *passwordEnv != "" || *passwordFile != "" {
-			return usagef("hasło dotyczy tylko -p12 (zaszyfrowany klucz PEM nie jest obsługiwany)")
+			return usagef("a password applies only to -p12 (encrypted PEM keys are not supported)")
 		}
 		key, err := os.ReadFile(*keyFile)
 		if err != nil {
@@ -138,7 +138,7 @@ func run(args []string, getenv func(string) string, stderr io.Writer) error {
 			return err
 		}
 	default:
-		return usagef("wymagane -p12 albo -key z -cert")
+		return usagef("-p12, or -key with -cert, is required")
 	}
 	if *chainFile != "" {
 		data, err := os.ReadFile(*chainFile)
@@ -181,7 +181,7 @@ func readPassword(env, file string, getenv func(string) string) (string, error) 
 	case env != "":
 		value := getenv(env)
 		if value == "" {
-			return "", usagef("zmienna środowiska %s jest pusta albo nie istnieje", env)
+			return "", usagef("environment variable %s is empty or not set", env)
 		}
 		return value, nil
 	case file != "":

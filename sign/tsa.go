@@ -87,7 +87,7 @@ func doRequest(client *http.Client, req *http.Request) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) > maxResponse {
-		return nil, fmt.Errorf("sign: %s: odpowiedź dłuższa niż %d B", req.URL.Redacted(), maxResponse)
+		return nil, fmt.Errorf("sign: %s: response longer than %d B", req.URL.Redacted(), maxResponse)
 	}
 	return data, nil
 }
@@ -115,7 +115,7 @@ func requestTimestamp(ctx context.Context, tsa TimestampAuthority, signature []b
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
-		return nil, fmt.Errorf("sign: znacznik czasu: %w", err)
+		return nil, fmt.Errorf("sign: timestamp: %w", err)
 	}
 	return checkTimestampResponse(response, imprint[:], nonce, pool)
 }
@@ -185,14 +185,14 @@ func timestampError(format string, args ...any) error {
 func checkTimestampResponse(response, imprint []byte, nonce *big.Int, pool []*x509.Certificate) (*timestampResult, error) {
 	var resp timeStampResp
 	if rest, err := asn1.Unmarshal(response, &resp); err != nil || len(rest) > 0 {
-		return nil, timestampError("odpowiedź nie jest TimeStampResp w DER")
+		return nil, timestampError("response is not a DER TimeStampResp")
 	}
 	// PKIStatus (RFC 3161 § 2.4.2): 0 granted, 1 grantedWithMods
 	if resp.Status.Status != 0 && resp.Status.Status != 1 {
-		return nil, timestampError("TSA odmówił: status %d %q, failInfo %x", resp.Status.Status, resp.Status.StatusString, resp.Status.FailInfo.Bytes)
+		return nil, timestampError("TSA refused: status %d %q, failInfo %x", resp.Status.Status, resp.Status.StatusString, resp.Status.FailInfo.Bytes)
 	}
 	if len(resp.Token.FullBytes) == 0 {
-		return nil, timestampError("odpowiedź bez tokenu")
+		return nil, timestampError("response without a token")
 	}
 	token := resp.Token.FullBytes
 	sd, signer, certs, err := parseSignedToken(token, oidTSTInfo, pool)
@@ -200,17 +200,17 @@ func checkTimestampResponse(response, imprint []byte, nonce *big.Int, pool []*x5
 		return nil, err
 	}
 	if !hasExtKeyUsage(signer, x509.ExtKeyUsageTimeStamping) {
-		return nil, timestampError("certyfikat %q bez extKeyUsage timeStamping (RFC 3161 § 2.3)", signer.Subject)
+		return nil, timestampError("certificate %q without extKeyUsage timeStamping (RFC 3161 § 2.3)", signer.Subject)
 	}
 	info, err := parseTSTInfo(sd.EncapContentInfo.EContent)
 	if err != nil {
 		return nil, err
 	}
 	if !info.imprintAlgorithm.Equal(oidSHA256) || !bytes.Equal(info.imprint, imprint) {
-		return nil, timestampError("messageImprint nie jest skrótem SHA-256 wartości podpisu")
+		return nil, timestampError("messageImprint is not the SHA-256 digest of the signature value")
 	}
 	if info.nonce == nil || info.nonce.Cmp(nonce) != 0 {
-		return nil, timestampError("nonce odpowiedzi różny od nonce żądania")
+		return nil, timestampError("response nonce differs from the request nonce")
 	}
 	return &timestampResult{token: token, signer: signer, certificates: certs, genTime: info.genTime}, nil
 }
@@ -221,37 +221,37 @@ func checkTimestampResponse(response, imprint []byte, nonce *big.Int, pool []*x5
 func parseSignedToken(token []byte, contentType asn1.ObjectIdentifier, pool []*x509.Certificate) (*signedDataASN, *x509.Certificate, []*x509.Certificate, error) {
 	var ci contentInfoASN
 	if rest, err := asn1.Unmarshal(token, &ci); err != nil || len(rest) > 0 || !ci.ContentType.Equal(oidSignedData) {
-		return nil, nil, nil, timestampError("token nie jest ContentInfo z SignedData")
+		return nil, nil, nil, timestampError("token is not a ContentInfo with SignedData")
 	}
 	var sd signedDataASN
 	if _, err := asn1.Unmarshal(ci.Content.Bytes, &sd); err != nil {
 		return nil, nil, nil, timestampError("SignedData: %v", err)
 	}
 	if !sd.EncapContentInfo.EContentType.Equal(contentType) || len(sd.EncapContentInfo.EContent) == 0 {
-		return nil, nil, nil, timestampError("treść tokenu nie jest typu %v", contentType)
+		return nil, nil, nil, timestampError("token content is not of type %v", contentType)
 	}
 	if len(sd.SignerInfos) != 1 {
-		return nil, nil, nil, timestampError("token ma %d SignerInfo zamiast jednego", len(sd.SignerInfos))
+		return nil, nil, nil, timestampError("token has %d SignerInfo instead of one", len(sd.SignerInfos))
 	}
 	var certs []*x509.Certificate
 	if len(sd.Certificates.Bytes) > 0 {
 		parsed, err := x509.ParseCertificates(sd.Certificates.Bytes)
 		if err != nil {
-			return nil, nil, nil, timestampError("certyfikaty tokenu: %v", err)
+			return nil, nil, nil, timestampError("token certificates: %v", err)
 		}
 		certs = parsed
 	}
 	si := sd.SignerInfos[0]
 	signer := findSigner(si.SID, append(append([]*x509.Certificate(nil), certs...), pool...))
 	if signer == nil {
-		return nil, nil, nil, timestampError("brak certyfikatu podpisującego token (w tokenie ani w Options.ValidationData.Certificates)")
+		return nil, nil, nil, timestampError("no certificate of the token signer (neither in the token nor in Options.ValidationData.Certificates)")
 	}
 	if len(si.SignedAttrs.Bytes) == 0 {
-		return nil, nil, nil, timestampError("SignerInfo bez atrybutów podpisanych")
+		return nil, nil, nil, timestampError("SignerInfo without signed attributes")
 	}
 	hash, ok := hashFor(si.DigestAlgorithm.Algorithm)
 	if !ok {
-		return nil, nil, nil, timestampError("nieobsługiwany skrót %v", si.DigestAlgorithm.Algorithm)
+		return nil, nil, nil, timestampError("unsupported digest %v", si.DigestAlgorithm.Algorithm)
 	}
 	attrs, err := parseAttributes(si.SignedAttrs.Bytes)
 	if err != nil {
@@ -259,24 +259,24 @@ func parseSignedToken(token []byte, contentType asn1.ObjectIdentifier, pool []*x
 	}
 	var ct asn1.ObjectIdentifier
 	if _, err := asn1.Unmarshal(attrs[oidContentType.String()], &ct); err != nil || !ct.Equal(contentType) {
-		return nil, nil, nil, timestampError("atrybut content-type różny od typu treści")
+		return nil, nil, nil, timestampError("content-type attribute differs from the content type")
 	}
 	var md []byte
 	if _, err := asn1.Unmarshal(attrs[oidMessageDigest.String()], &md); err != nil {
-		return nil, nil, nil, timestampError("brak atrybutu message-digest")
+		return nil, nil, nil, timestampError("no message-digest attribute")
 	}
 	h := hash.New()
 	h.Write(sd.EncapContentInfo.EContent)
 	if !bytes.Equal(md, h.Sum(nil)) {
-		return nil, nil, nil, timestampError("message-digest różny od skrótu treści")
+		return nil, nil, nil, timestampError("message-digest differs from the content digest")
 	}
 	signed := append([]byte{0x31}, si.SignedAttrs.FullBytes[1:]...)
 	alg := x509Algorithm(si.SignatureAlgorithm.Algorithm, si.DigestAlgorithm.Algorithm, signer.PublicKey)
 	if alg == x509.UnknownSignatureAlgorithm {
-		return nil, nil, nil, timestampError("nieobsługiwany algorytm podpisu %v", si.SignatureAlgorithm.Algorithm)
+		return nil, nil, nil, timestampError("unsupported signature algorithm %v", si.SignatureAlgorithm.Algorithm)
 	}
 	if err := signer.CheckSignature(alg, signed, si.Signature); err != nil {
-		return nil, nil, nil, timestampError("podpis tokenu niepoprawny: %v", err)
+		return nil, nil, nil, timestampError("invalid token signature: %v", err)
 	}
 	return &sd, signer, certs, nil
 }
@@ -288,7 +288,7 @@ func parseAttributes(set []byte) (map[string][]byte, error) {
 		var a attributeASN
 		var err error
 		if rest, err = asn1.Unmarshal(rest, &a); err != nil {
-			return nil, timestampError("atrybuty podpisane: %v", err)
+			return nil, timestampError("signed attributes: %v", err)
 		}
 		var first asn1.RawValue
 		if _, err := asn1.Unmarshal(a.Values.Bytes, &first); err == nil {
@@ -334,7 +334,7 @@ type tstInfo struct {
 func parseTSTInfo(der []byte) (*tstInfo, error) {
 	var seq asn1.RawValue
 	if rest, err := asn1.Unmarshal(der, &seq); err != nil || len(rest) > 0 || seq.Tag != asn1.TagSequence {
-		return nil, timestampError("TSTInfo nie jest SEQUENCE")
+		return nil, timestampError("TSTInfo is not a SEQUENCE")
 	}
 	var fields []asn1.RawValue
 	for rest := seq.Bytes; len(rest) > 0; {
@@ -346,11 +346,11 @@ func parseTSTInfo(der []byte) (*tstInfo, error) {
 		fields = append(fields, v)
 	}
 	if len(fields) < 5 {
-		return nil, timestampError("TSTInfo ma %d pól", len(fields))
+		return nil, timestampError("TSTInfo has %d fields", len(fields))
 	}
 	var version int
 	if _, err := asn1.Unmarshal(fields[0].FullBytes, &version); err != nil || version != 1 {
-		return nil, timestampError("TSTInfo w wersji innej niż 1")
+		return nil, timestampError("TSTInfo version is not 1")
 	}
 	var imprint struct {
 		Algorithm pkix.AlgorithmIdentifier

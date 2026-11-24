@@ -33,7 +33,7 @@ import (
 // Wersję podnosimy przy każdej zmianie, która zmienia bajty wyniku na korpusie.
 const (
 	EngineName    = "gopdfgo/webrender"
-	EngineVersion = "0.1.0-dev"
+	EngineVersion = "0.1.0"
 )
 
 // Błędy zwracane przez Render; sprawdzać przez errors.Is.
@@ -472,7 +472,7 @@ func render(html []byte, opts Options) (result Result, err error) {
 	// pozostał poprawny składniowo, i zgłaszamy, bo fragment strony może leżeć nie tam, gdzie powinien.
 	if count := pdfmodel.NonFiniteNumbers.Load(); count > 0 {
 		result.Warnings = append(result.Warnings, Warning{Message: fmt.Sprintf(
-			"wartości nieskończone lub nieokreślone w rysunku: %d (zapisane jako 0)", count)})
+			"infinite or undefined values in a drawing: %d (written as 0)", count)})
 	}
 	scanner := bufio.NewScanner(&warnings)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)

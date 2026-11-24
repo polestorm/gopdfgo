@@ -25,7 +25,7 @@ func appendDSS(signed, contents []byte, data *validationSet, when time.Time) ([]
 	}
 	rootRef, ok := f.trailer.get("Root").(pdfRef)
 	if !ok {
-		return nil, malformed("trailer bez /Root")
+		return nil, malformed("trailer without /Root")
 	}
 	rootObj, err := f.resolve(rootRef)
 	if err != nil {
@@ -33,7 +33,7 @@ func appendDSS(signed, contents []byte, data *validationSet, when time.Time) ([]
 	}
 	root, ok := rootObj.(*pdfDict)
 	if !ok {
-		return nil, malformed("katalog nie jest słownikiem")
+		return nil, malformed("catalog is not a dictionary")
 	}
 
 	var objects []updateObject

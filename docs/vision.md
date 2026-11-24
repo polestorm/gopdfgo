@@ -69,7 +69,7 @@ a wyłączeniem do czasu poprawy (`feature-audit.md`).
 ## Dla kogo
 
 Każdy program w Go, który generuje dokumenty z własnych szablonów i nie chce wozić przeglądarki. Przyszli odbiorcy
-wewnętrzni to QMS i xml.pro (ten drugi renderuje dziś przez Chromium w `gohtmlpdf`); są przykładami użycia,
+wewnętrzni to QMS i xml.pro (ten drugi drukował dotąd przez Chromium); są przykładami użycia,
 nie źródłem wymagań.
 
 ## Czym nie jest

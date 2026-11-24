@@ -29,7 +29,7 @@ func SetUserDictionaries(dicts map[string][]byte) error {
 	for tag, data := range dicts {
 		dic, err := parseHyphDicBytes(data)
 		if err != nil {
-			return fmt.Errorf("słownik dzielenia %q: %w", tag, err)
+			return fmt.Errorf("hyphenation dictionary %q: %w", tag, err)
 		}
 		parsed[language.NewLanguage(tag)] = dic
 	}

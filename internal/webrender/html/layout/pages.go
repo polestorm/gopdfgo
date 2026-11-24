@@ -1571,7 +1571,7 @@ func (context *layoutContext) makeAllPages(rootBox bo.BlockLevelBoxITF, html *tr
 				stalledPages++
 			}
 			if stalledPages >= 3 || outOfFlowPages >= maxOutOfFlowPages {
-				logger.WarningLogger.Printf("układ nie robi postępu od strony %d; pozostała treść została pominięta", i-2)
+				logger.WarningLogger.Printf("layout makes no progress since page %d; the remaining content was skipped", i-2)
 				resumeAt, reportedFootnotes = nil, nil
 			}
 		} else {

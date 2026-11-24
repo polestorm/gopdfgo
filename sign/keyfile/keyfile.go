@@ -29,20 +29,20 @@ import (
 // Błędy pakietu.
 var (
 	// ErrPassword: złe hasło (MAC albo dopełnienie po odszyfrowaniu się nie zgadza).
-	ErrPassword = errors.New("keyfile: złe hasło albo uszkodzony plik")
+	ErrPassword = errors.New("keyfile: wrong password or damaged file")
 	// ErrUnsupportedAlgorithm: algorytm szyfrowania albo integralności spoza obsługiwanych.
-	ErrUnsupportedAlgorithm = errors.New("keyfile: nieobsługiwany algorytm")
+	ErrUnsupportedAlgorithm = errors.New("keyfile: unsupported algorithm")
 	// ErrMalformed: plik niezgodny ze strukturą PKCS#12, PKCS#8 albo PEM.
-	ErrMalformed = errors.New("keyfile: niepoprawny plik")
+	ErrMalformed = errors.New("keyfile: malformed file")
 	// ErrNoKey: brak klucza prywatnego w pliku.
-	ErrNoKey = errors.New("keyfile: brak klucza prywatnego")
+	ErrNoKey = errors.New("keyfile: no private key")
 	// ErrNoCertificate: brak certyfikatu odpowiadającego kluczowi.
-	ErrNoCertificate = errors.New("keyfile: brak certyfikatu klucza")
+	ErrNoCertificate = errors.New("keyfile: no certificate for the key")
 	// ErrAmbiguous: plik zawiera więcej niż jeden klucz prywatny.
-	ErrAmbiguous = errors.New("keyfile: więcej niż jeden klucz")
+	ErrAmbiguous = errors.New("keyfile: more than one key")
 	// ErrEncryptedPEM: klucz PEM zaszyfrowany hasłem.
-	ErrEncryptedPEM = errors.New("keyfile: zaszyfrowany klucz PEM nie jest obsługiwany " +
-		"(użyj pliku PKCS#12: openssl pkcs12 -export -inkey klucz.pem -in certyfikat.pem -out podpis.p12)")
+	ErrEncryptedPEM = errors.New("keyfile: encrypted PEM keys are not supported " +
+		"(use a PKCS#12 file: openssl pkcs12 -export -inkey key.pem -in certificate.pem -out signer.p12)")
 )
 
 // Identity to klucz i certyfikaty do podpisu.
@@ -82,11 +82,11 @@ func ParsePEMKey(data []byte) (crypto.Signer, error) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("%w: klucz %s: %v", ErrMalformed, block.Type, err)
+			return nil, fmt.Errorf("%w: key %s: %v", ErrMalformed, block.Type, err)
 		}
 		signer, ok := key.(crypto.Signer)
 		if !ok {
-			return nil, fmt.Errorf("%w: klucz %T", ErrUnsupportedAlgorithm, key)
+			return nil, fmt.Errorf("%w: key %T", ErrUnsupportedAlgorithm, key)
 		}
 		return signer, nil
 	}
@@ -106,12 +106,12 @@ func ParsePEMCertificates(data []byte) ([]*x509.Certificate, error) {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("%w: certyfikat: %v", ErrMalformed, err)
+			return nil, fmt.Errorf("%w: certificate: %v", ErrMalformed, err)
 		}
 		out = append(out, cert)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("%w: brak bloku CERTIFICATE", ErrNoCertificate)
+		return nil, fmt.Errorf("%w: no CERTIFICATE block", ErrNoCertificate)
 	}
 	return out, nil
 }
@@ -142,11 +142,11 @@ func ParsePEM(key, certs, chain []byte) (*Identity, error) {
 func assemble(key any, preferred, all []*x509.Certificate) (*Identity, error) {
 	signer, ok := key.(crypto.Signer)
 	if !ok {
-		return nil, fmt.Errorf("%w: klucz %T", ErrUnsupportedAlgorithm, key)
+		return nil, fmt.Errorf("%w: key %T", ErrUnsupportedAlgorithm, key)
 	}
 	public, ok := signer.Public().(interface{ Equal(crypto.PublicKey) bool })
 	if !ok {
-		return nil, fmt.Errorf("%w: klucz %T", ErrUnsupportedAlgorithm, key)
+		return nil, fmt.Errorf("%w: key %T", ErrUnsupportedAlgorithm, key)
 	}
 	var leaf *x509.Certificate
 	for _, list := range [][]*x509.Certificate{preferred, all} {

@@ -1,26 +1,25 @@
-# gopdfgo a Chromium w xml.pro: rozmiar, szybkość, jakość i pliki PDF
+# gopdfgo a Chromium w aplikacji [xml.pro](https://xml.pro): rozmiar, szybkość, jakość i pliki PDF
 
 Pomiar z 2026-11-20. Wersja gopdfgo: commit `4eca5e5` z 2026-11-20
 (`github.com/polestorm/gopdfgo v0.0.0-20261120100328-4eca5e52974e`, silnik `gopdfgo/webrender 0.1.0-dev`).
-Pod tą wersją xml.pro działa na dev.xml.pro od 2026-11-20 (commit xml.pro `03f7a02c`).
 Chromium:
-- na komputerze pomiarowym Google Chrome 157.0.8103.79, sterowany przez `gohtmlpdf` (chromedp, `Page.printToPDF`);
-- na serwerze dev Google Chrome 158.0.8127.36.
+- na komputerze pomiarowym Google Chrome 157.0.8103.79, sterowany przez chromedp (`Page.printToPDF`);
+- na serwerze Google Chrome 158.0.8127.36.
 
 Wszystkie liczby dotyczą tych wersji. Po zmianach w silniku trzeba je zmierzyć ponownie.
 
 ## Co porównujemy
 
-Dwie drogi druku w xml.pro, z ustawieniami takimi jak w kodzie xml.pro:
+Dwie drogi druku w aplikacji xml.pro, z jej ustawieniami:
 
 | | Chromium | gopdfgo |
 |---|---|---|
-| moduł | `gohtmlpdf` (chromedp) i przeglądarka na serwerze | `htmlpdf.Render`, czysty Go |
-| faktura KSeF (`internal/shop`) | `Settle` 200 ms | fonty Noto Sans z `@font-face` |
-| e-SF, walidacja, eksport sekcji (`internal/esfpdf`) | margines 9 mm, `Settle` domyślny 2 s, pas nagłówka z szablonu Chrome | ten sam dokument z `@page`, pas nagłówka w polach marginesu, fonty Noto Sans i Noto Sans Mono |
+| moduł | chromedp i przeglądarka na serwerze | `htmlpdf.Render`, czysty Go |
+| faktura KSeF | czekanie 200 ms przed drukiem | fonty Noto Sans z `@font-face` |
+| e-SF, walidacja, eksport sekcji | margines 9 mm, czekanie 2 s przed drukiem, pas nagłówka z szablonu Chrome | ten sam dokument z `@page`, pas nagłówka w polach marginesu, fonty Noto Sans i Noto Sans Mono |
 
 Dokumenty:
-- faktury: cztery warianty faktury KSeF z `goksefgo/ksefview`, z próbki `sprzedaz.golden.xml`: 2, 60 i 140 pozycji, kilka stawek VAT z przelewem;
+- faktury: cztery warianty strony faktury KSeF z przykładowego pliku faktury: 2, 60 i 140 pozycji, kilka stawek VAT z przelewem;
 - e-SF: pięć sprawozdań finansowych (A–E) z publicznego Repozytorium Dokumentów Finansowych KRS, od 4 do 16 stron.
 
 Pliki pomiarowe leżą poza repozytorium.
@@ -31,11 +30,11 @@ Pliki pomiarowe leżą poza repozytorium.
 |---|---|---|
 | program Go wywołujący druk, linux/amd64, `-trimpath -ldflags "-s -w"` | 7,5 MB | 25,4 MB |
 | przeglądarka na serwerze (`du -sh /opt/google/chrome`) | 460 MB, do tego biblioteki systemowe z pakietów | nie potrzeba |
-| fonty | systemowe | osadzone w binarce xml.pro: 2,1 MB (5 plików Noto, OFL) |
+| fonty | systemowe | osadzone w programie: 2,1 MB (5 plików Noto, OFL) |
 | razem na serwerze | ok. 468 MB i biblioteki | ok. 27,5 MB |
 
-Pomiar: minimalny program `main` z jednym wywołaniem `gohtmlpdf.RenderDocument` albo `htmlpdf.Render`, zbudowany Go 1.26.6;
-rozmiar przeglądarki zmierzony przez `du` na serwerze dev. gopdfgo jest około 17 razy mniejszy od samej przeglądarki.
+Pomiar: minimalny program `main` z jednym wydrukiem przez chromedp albo `htmlpdf.Render`, zbudowany Go 1.26.6;
+rozmiar przeglądarki zmierzony przez `du` na serwerze. gopdfgo jest około 17 razy mniejszy od samej przeglądarki.
 Nie potrzebuje też instalacji, aktualizacji ani pliku `HOME` z prawem zapisu dla procesu przeglądarki.
 
 ## Szybkość
@@ -43,7 +42,7 @@ Nie potrzebuje też instalacji, aktualizacji ani pliku `HOME` z prawem zapisu dl
 Komputer pomiarowy: Apple M4, 10 rdzeni, 32 GB. Czas jednego dokumentu: mediana z kolejnych renderowań w tym samym procesie.
 Chromium działa przez cały pomiar, więc jego czasy nie obejmują startu przeglądarki.
 
-| Dokument | Strony | gopdfgo | Chromium jak w xml.pro | Chromium bez czekania (`Settle` 1 ms) |
+| Dokument | Strony | gopdfgo | Chromium jak w xml.pro | Chromium bez czekania (1 ms) |
 |---|---|---|---|---|
 | faktura, 2 pozycje | 1 | 44 ms | 614 ms | 418 ms |
 | faktura, 60 pozycji | 3 | 68 ms | 598 ms | 432 ms |
@@ -55,7 +54,7 @@ Chromium działa przez cały pomiar, więc jego czasy nie obejmują startu przeg
 | e-SF D | 16 | 188 ms | 2463 ms | 459 ms |
 | e-SF E | 4 | 54 ms | 2400 ms | 417 ms |
 
-Kolumna „jak w xml.pro” obejmuje czekanie przed drukiem (`Settle`): 200 ms dla faktury i 2 s dla e-SF.
+Kolumna „jak w xml.pro” obejmuje czekanie przed drukiem: 200 ms dla faktury i 2 s dla e-SF.
 Czekanie było potrzebne, gdy wydruk e-SF ładował style i ikony z sieci. Dziś dokument jest samowystarczalny,
 więc xml.pro może je skrócić bez zmiany silnika. Sam Chromium bez czekania potrzebuje 0,42–0,46 s na dokument;
 gopdfgo jest wtedy od 2,4 do 9,5 razy szybszy. Przy ustawieniach xml.pro różnica wynosi od 6 do 44 razy.
@@ -92,7 +91,7 @@ Przy 9 px i 100 px szerokości zgadzają się co do 0,001 pt. W długich akapita
 ostatnie słowo do następnego wiersza. Wiersz tabeli rośnie wtedy o jedną linię i wszystko poniżej przesuwa się w pionie.
 Treść niczego nie traci. To zadanie dla gopdfgo: dojść, skąd biorą się te różnice szerokości przy rozmiarach ułamkowych.
 
-Różnice wynikające z braku JavaScriptu w gopdfgo, rozwiązane w `internal/esfpdf/engine.go` po stronie xml.pro:
+Różnice wynikające z braku JavaScriptu w gopdfgo, rozwiązane po stronie aplikacji:
 - Pas nagłówka na każdej stronie. Chrome rysuje go z własnego szablonu (`displayHeaderFooter`), gopdfgo z pól marginesu `@page`.
   Numer strony stoi po prawej, przed datą wydruku. Przy polu środkowym CSS Paged Media dzieli szerokość symetrycznie
   i długa nazwa podmiotu łamała się na dwa wiersze, także w Chrome z tym samym arkuszem.
@@ -118,11 +117,11 @@ Różnice wynikające z braku JavaScriptu w gopdfgo, rozwiązane w `internal/esf
 Pomiar: rozmiary plików z powyższych renderowań.
 
 Faktury z Chromium są dziś mniejsze o 17–26%. 2026-11-16 było odwrotnie (31 kB wobec 41 kB). Tamten pomiar
-podawał fonty plikami, a ten, tak jak sklep xml.pro, przez `data:` w `@font-face`. Przypuszczamy, że to jest
+podawał fonty plikami, a ten, tak jak aplikacja, przez `data:` w `@font-face`. Przypuszczamy, że to jest
 przyczyna, ale tego nie sprawdziliśmy. Przy e-SF z tymi samymi fontami pliki gopdfgo
 są 2,8–4,3 razy mniejsze. Z fontami systemowymi w Chrome, czyli tak jak w xml.pro, są mniejsze o 4–22%.
 
-gopdfgo potrafi też zapisać PDF/A-2b (`Options.Conformance`); xml.pro jeszcze z tego nie korzysta.
+gopdfgo potrafi też zapisać PDF/A-2b (`Options.Conformance`).
 
 ## Podsumowanie
 

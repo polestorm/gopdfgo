@@ -74,7 +74,7 @@ type pdfFile struct {
 	objStreams map[int][]pdfObject
 }
 
-var errMalformed = errors.New("sign: uszkodzony plik PDF")
+var errMalformed = errors.New("sign: damaged PDF file")
 
 func malformed(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", errMalformed, fmt.Sprintf(format, args...))
@@ -83,13 +83,13 @@ func malformed(format string, args ...any) error {
 // readPDF wczytuje odsyłacze i trailer pliku.
 func readPDF(data []byte) (*pdfFile, error) {
 	if !bytes.HasPrefix(data, []byte("%PDF-")) {
-		return nil, malformed("brak nagłówka %%PDF-")
+		return nil, malformed("no %%PDF- header")
 	}
 	f := &pdfFile{data: data, xref: map[int]xrefEntry{}, cache: map[int]pdfObject{}, objStreams: map[int][]pdfObject{}}
 	tail := data[max(0, len(data)-2048):]
 	i := bytes.LastIndex(tail, []byte("startxref"))
 	if i < 0 {
-		return nil, malformed("brak startxref")
+		return nil, malformed("no startxref")
 	}
 	lx := &lexer{data: tail, pos: i + len("startxref")}
 	tok, err := lx.next()
@@ -98,7 +98,7 @@ func readPDF(data []byte) (*pdfFile, error) {
 	}
 	start, err := strconv.ParseInt(tok.text, 10, 64)
 	if tok.kind != tokNumber || err != nil {
-		return nil, malformed("niepoprawne startxref")
+		return nil, malformed("invalid startxref")
 	}
 	f.startxref = start
 	seen := map[int64]bool{}
@@ -132,7 +132,7 @@ func readPDF(data []byte) (*pdfFile, error) {
 			break
 		}
 		if offset, err = strconv.ParseInt(string(prev), 10, 64); err != nil {
-			return nil, malformed("niepoprawne /Prev")
+			return nil, malformed("invalid /Prev")
 		}
 	}
 	if size, ok := f.trailer.get("Size").(pdfNumber); ok {
@@ -159,7 +159,7 @@ func (f *pdfFile) readSection(offset int64) (*pdfDict, bool, error) {
 	}
 	stream, ok := obj.(*pdfStream)
 	if !ok || stream.dict.get("Type") != pdfName("XRef") {
-		return nil, false, malformed("pod startxref nie ma odsyłaczy")
+		return nil, false, malformed("no cross-reference section at startxref")
 	}
 	return stream.dict, true, f.readXrefStream(stream)
 }
@@ -177,7 +177,7 @@ func (f *pdfFile) readXrefTable(lx *lexer) (*pdfDict, error) {
 			}
 			dict, ok := obj.(*pdfDict)
 			if !ok {
-				return nil, malformed("trailer nie jest słownikiem")
+				return nil, malformed("trailer is not a dictionary")
 			}
 			return dict, nil
 		}
@@ -188,7 +188,7 @@ func (f *pdfFile) readXrefTable(lx *lexer) (*pdfDict, error) {
 		}
 		count, err2 := strconv.Atoi(countTok.text)
 		if tok.kind != tokNumber || err1 != nil || err2 != nil || count < 0 {
-			return nil, malformed("niepoprawny podział tablicy odsyłaczy")
+			return nil, malformed("invalid cross-reference table subsection")
 		}
 		for n := first; n < first+count; n++ {
 			offTok, err := lx.next()
@@ -214,7 +214,7 @@ func (f *pdfFile) readXrefTable(lx *lexer) (*pdfDict, error) {
 			case "f":
 				f.xref[n] = xrefEntry{gen: gen, free: true}
 			default:
-				return nil, malformed("niepoprawny wpis tablicy odsyłaczy")
+				return nil, malformed("invalid cross-reference table entry")
 			}
 		}
 	}
@@ -227,13 +227,13 @@ func (f *pdfFile) readXrefStream(stream *pdfStream) error {
 	}
 	widths, ok := stream.dict.get("W").(pdfArray)
 	if !ok || len(widths) != 3 {
-		return malformed("strumień odsyłaczy bez /W")
+		return malformed("cross-reference stream without /W")
 	}
 	var w [3]int
 	for i := range w {
 		w[i] = f.intValue(widths[i])
 		if w[i] < 0 || w[i] > 8 {
-			return malformed("niepoprawne /W")
+			return malformed("invalid /W")
 		}
 	}
 	size := f.intValue(stream.dict.get("Size"))
@@ -246,7 +246,7 @@ func (f *pdfFile) readXrefStream(stream *pdfStream) error {
 	}
 	rowLen := w[0] + w[1] + w[2]
 	if rowLen == 0 {
-		return malformed("niepoprawne /W")
+		return malformed("invalid /W")
 	}
 	field := func(row []byte, from, width int, def int64) int64 {
 		if width == 0 {
@@ -262,7 +262,7 @@ func (f *pdfFile) readXrefStream(stream *pdfStream) error {
 	for i := 0; i+1 < len(index); i += 2 {
 		for n := index[i]; n < index[i]+index[i+1]; n++ {
 			if pos+rowLen > len(data) {
-				return malformed("strumień odsyłaczy za krótki")
+				return malformed("cross-reference stream too short")
 			}
 			row := data[pos : pos+rowLen]
 			pos += rowLen
@@ -307,19 +307,19 @@ func (f *pdfFile) resolve(obj pdfObject) (pdfObject, error) {
 			return nil, err
 		}
 		if entry.index >= len(objects) {
-			return nil, malformed("obiekt %d poza strumieniem obiektów", ref.num)
+			return nil, malformed("object %d outside the object stream", ref.num)
 		}
 		result = objects[entry.index]
 	} else {
 		if entry.offset <= 0 || entry.offset >= int64(len(f.data)) {
-			return nil, malformed("obiekt %d poza plikiem", ref.num)
+			return nil, malformed("object %d outside the file", ref.num)
 		}
 		num, obj, err := f.parseIndirect(&lexer{data: f.data, pos: int(entry.offset)})
 		if err != nil {
 			return nil, err
 		}
 		if num != ref.num {
-			return nil, malformed("pod przesunięciem obiektu %d jest obiekt %d", ref.num, num)
+			return nil, malformed("object %d found at the offset of object %d", ref.num, num)
 		}
 		result = obj
 	}
@@ -338,7 +338,7 @@ func (f *pdfFile) objectStream(num int) ([]pdfObject, error) {
 	}
 	stream, ok := obj.(*pdfStream)
 	if !ok {
-		return nil, malformed("obiekt %d nie jest strumieniem obiektów", num)
+		return nil, malformed("object %d is not an object stream", num)
 	}
 	data, err := f.decodeStream(stream)
 	if err != nil {
@@ -346,7 +346,7 @@ func (f *pdfFile) objectStream(num int) ([]pdfObject, error) {
 	}
 	n, first := f.intValue(stream.dict.get("N")), f.intValue(stream.dict.get("First"))
 	if n < 0 || first < 0 || first > len(data) {
-		return nil, malformed("niepoprawny strumień obiektów %d", num)
+		return nil, malformed("invalid object stream %d", num)
 	}
 	header := &lexer{data: data[:first]}
 	objects := make([]pdfObject, n)
@@ -360,7 +360,7 @@ func (f *pdfFile) objectStream(num int) ([]pdfObject, error) {
 		}
 		off, err := strconv.Atoi(offTok.text)
 		if err != nil || first+off > len(data) {
-			return nil, malformed("niepoprawny nagłówek strumienia obiektów %d", num)
+			return nil, malformed("invalid header of object stream %d", num)
 		}
 		if objects[i], err = (&lexer{data: data, pos: first + off}).object(); err != nil {
 			return nil, err
@@ -385,7 +385,7 @@ func (f *pdfFile) parseIndirect(lx *lexer) (int, pdfObject, error) {
 	}
 	num, err := strconv.Atoi(numTok.text)
 	if err != nil || objTok.text != "obj" {
-		return 0, nil, malformed("oczekiwano definicji obiektu pod przesunięciem %d", lx.pos)
+		return 0, nil, malformed("expected an object definition at offset %d", lx.pos)
 	}
 	obj, err := lx.object()
 	if err != nil {
@@ -424,7 +424,7 @@ func (f *pdfFile) parseIndirect(lx *lexer) (int, pdfObject, error) {
 		// /Length niepoprawne: koniec strumienia według słowa endstream
 		end := bytes.Index(lx.data[start:], []byte("endstream"))
 		if end < 0 {
-			return 0, nil, malformed("strumień obiektu %d bez endstream", num)
+			return 0, nil, malformed("stream of object %d without endstream", num)
 		}
 		length = end
 	}
@@ -451,7 +451,7 @@ func (f *pdfFile) decodeStream(stream *pdfStream) ([]byte, error) {
 	params, _ := f.resolve(stream.dict.get("DecodeParms"))
 	if arr, ok := filter.(pdfArray); ok {
 		if len(arr) > 1 {
-			return nil, malformed("nieobsługiwany łańcuch filtrów strumienia struktury")
+			return nil, malformed("unsupported filter chain in a structure stream")
 		}
 		filter = nil
 		if len(arr) == 1 {
@@ -466,7 +466,7 @@ func (f *pdfFile) decodeStream(stream *pdfStream) ([]byte, error) {
 		return stream.data, nil
 	case pdfName("FlateDecode"):
 	default:
-		return nil, malformed("nieobsługiwany filtr %v strumienia struktury", filter)
+		return nil, malformed("unsupported filter %v in a structure stream", filter)
 	}
 	r, err := zlib.NewReader(bytes.NewReader(stream.data))
 	if err != nil {
@@ -483,7 +483,7 @@ func (f *pdfFile) decodeStream(stream *pdfStream) ([]byte, error) {
 	predictor := f.intValue(dict.get("Predictor"))
 	if predictor < 10 {
 		if predictor > 1 {
-			return nil, malformed("nieobsługiwany predyktor %d", predictor)
+			return nil, malformed("unsupported predictor %d", predictor)
 		}
 		return data, nil
 	}
@@ -534,7 +534,7 @@ func unpredictPNG(data []byte, columns, bpp int) ([]byte, error) {
 					row[i] += upLeft
 				}
 			default:
-				return nil, malformed("niepoprawny predyktor PNG %d", kind)
+				return nil, malformed("invalid PNG predictor %d", kind)
 			}
 		}
 		out = append(out, row...)
@@ -674,7 +674,7 @@ func (lx *lexer) hexString() (token, error) {
 		case isSpace(c):
 			continue
 		default:
-			return token{}, malformed("niepoprawny ciąg szesnastkowy")
+			return token{}, malformed("invalid hexadecimal string")
 		}
 		if half {
 			out = append(out, high<<4|v)
@@ -683,7 +683,7 @@ func (lx *lexer) hexString() (token, error) {
 		}
 		half = !half
 	}
-	return token{}, malformed("niezamknięty ciąg szesnastkowy")
+	return token{}, malformed("unterminated hexadecimal string")
 }
 
 func (lx *lexer) literalString() (token, error) {
@@ -746,7 +746,7 @@ func (lx *lexer) literalString() (token, error) {
 		}
 		out = append(out, c)
 	}
-	return token{}, malformed("niezamknięty ciąg")
+	return token{}, malformed("unterminated string")
 }
 
 // object czyta jeden obiekt bezpośredni; „N G R” daje odwołanie.
@@ -787,7 +787,7 @@ func (lx *lexer) objectFrom(tok token) (pdfObject, error) {
 		case "null":
 			return pdfNull{}, nil
 		}
-		return nil, malformed("nieoczekiwane słowo %q", tok.text)
+		return nil, malformed("unexpected token %q", tok.text)
 	}
 	switch tok.text {
 	case "[":
@@ -817,7 +817,7 @@ func (lx *lexer) objectFrom(tok token) (pdfObject, error) {
 				return dict, nil
 			}
 			if t.kind != tokName {
-				return nil, malformed("klucz słownika nie jest nazwą")
+				return nil, malformed("dictionary key is not a name")
 			}
 			v, err := lx.object()
 			if err != nil {

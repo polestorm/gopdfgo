@@ -40,7 +40,7 @@ tdewolff/canvas (jeden cel rysowania, wiele wyjść).
 | `internal/displaylist` | typy operacji, serializacja do testów (tekstowa, porównywalna diffem) | od zera, mały |
 | `backend/pdf` | PDF 1.7: strony, podzbiory fontów (CFF i TrueType), `ToUnicode`, obrazy, linki, zakładki, XMP; opcja PDF/A | od zera albo tdewolff/canvas/benoitkugler/pdf/go-pdfkit |
 | `backend/svg`, `backend/png` | SVG na stronę; raster przez `x/image/vector` | mały |
-| `engine/chromium` | adapter do `gohtmlpdf` (chromedp) za tym samym interfejsem | przeniesienie z xml.pro |
+| `engine/chromium` | adapter do druku przez chromedp za tym samym interfejsem | przeniesienie z xml.pro |
 | `engine/folio`, `engine/weasy` | adaptery do obcych silników na czas benchmarku i ewentualnej adopcji | cienkie |
 
 ## Interfejs

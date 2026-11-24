@@ -61,7 +61,7 @@ func applyConformance(file *pdfmodel.Document, conformance Conformance, accessib
 	case PDFUA1:
 		ua = 1
 	default:
-		return fmt.Errorf("gopdfgo: nieznana norma dostępności %q", string(accessibility))
+		return fmt.Errorf("gopdfgo: unknown accessibility standard %q", string(accessibility))
 	}
 	part, level := 2, "B"
 	if conformance.tagged() {
@@ -97,7 +97,7 @@ func applyConformance(file *pdfmodel.Document, conformance Conformance, accessib
 		}}
 		return nil
 	default:
-		return fmt.Errorf("gopdfgo: nieznana zgodność %q", string(conformance))
+		return fmt.Errorf("gopdfgo: unknown conformance %q", string(conformance))
 	}
 }
 

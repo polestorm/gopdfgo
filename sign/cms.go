@@ -232,7 +232,7 @@ func signAttributes(ctx context.Context, digest []byte, signer crypto.Signer, al
 		if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
 			return signerResult{}, err
 		}
-		return signerResult{}, fmt.Errorf("sign: podpisujący: %w", err)
+		return signerResult{}, fmt.Errorf("sign: signer: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return signerResult{}, err
@@ -249,7 +249,7 @@ func signAttributes(ctx context.Context, digest []byte, signer crypto.Signer, al
 		}
 	}
 	if len(signature) > alg.maxSignature {
-		return signerResult{}, errors.New("sign: podpis dłuższy, niż pozwala klucz")
+		return signerResult{}, errors.New("sign: signature longer than the key allows")
 	}
 	return signerResult{attrs: attrs, signature: signature}, nil
 }

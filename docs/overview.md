@@ -17,13 +17,13 @@ They need to be measured again after engine changes.
 | | Chromium | gopdfgo |
 |---|---|---|
 | software | browser: 460 MB on a Linux server (`du -sh /opt/google/chrome`) plus system libraries from packages; 2.2 GB on macOS | 19.1 MB command-line binary, linux/amd64, `CGO_ENABLED=0 -trimpath -ldflags "-s -w"` (2026-11-22; 22.2 MB before ADR 0039 removed `text/template`) |
-| fonts | system fonts | supplied by the caller (in xml.pro: 2.1 MB, five Noto files); system fonts only in a separate build (`-tags systemfonts`, ADR 0039) |
+| fonts | system fonts | supplied by the caller (in [xml.pro](https://xml.pro): 2.1 MB, five Noto files); system fonts only in a separate build (`-tags systemfonts`, ADR 0039) |
 | installation and updates | browser package, security updates, a writable home directory for the browser process | one static binary, nothing to install on the system |
 
 ## Speed and memory
 
 Documents:
-- four variants of a Polish KSeF e-invoice rendered by `goksefgo/ksefview`: 1, 3, 1 and 7 pages;
+- four variants of a Polish KSeF e-invoice as printed by an e-invoice viewer: 1, 3, 1 and 7 pages;
 - five e-SF financial statements from the public Polish court register (KRS), labelled A–E: 6, 11, 12, 16
   and 4 pages.
 

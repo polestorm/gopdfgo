@@ -938,7 +938,7 @@ atrybut `media`), `TestModernSyntaxEquivalents` (38 par), `TestColorFunctionsCon
 
 ## Paczka: faktura z xml.pro wobec Chromium, fonty w PDF, interlinia, `monospace` (2026-11-16)
 
-Pierwszy prawdziwy dokument spoza korpusu: strona faktury KSeF z `goksefgo/ksefview`, którą xml.pro
+Pierwszy prawdziwy dokument spoza korpusu: strona faktury KSeF, którą xml.pro
 drukuje przez Chromium (i opcjonalnie przez gopdfgo). Obraz był zgodny z Chromium od razu; porównanie
 plików i ramek słów odsłoniło trzy błędy niewidoczne w pikselach.
 
@@ -1342,11 +1342,11 @@ treści przechodzi na następną stronę w całości (jak pusty blok, ADR 0004).
 
 ## Faktura KSeF z xml.pro w czterech wariantach wobec Chromium (2026-11-16)
 
-Strona faktury z `goksefgo/ksefview` (ta, którą drukuje xml.pro), z próbki `sprzedaz.golden.xml`
+Strona faktury KSeF (ta, którą drukuje xml.pro), z przykładowego pliku faktury
 i trzech wariantów wygenerowanych z niej: 60 pozycji, 140 pozycji, kilka stawek VAT z przelewem i bez
 numeru KSeF. Pozycje mają nazwy od jednego do trzech wierszy. Oba silniki dostały te same pliki fontów
 przez `@font-face`. Pliki do obejrzenia: `bench/compare/invoice/2026-11-16-variants/` (poza gitem);
-w xml.pro i goksefgo nic nie zmieniono.
+w aplikacji nic nie zmieniono.
 
 | Wariant | Strony (gopdfgo / Chromium) | Słowa ponad 3 pt przed poprawką | Po poprawce | PDF gopdfgo | PDF Chromium |
 |---|---|---|---|---|---|

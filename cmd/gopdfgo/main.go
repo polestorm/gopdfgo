@@ -27,20 +27,20 @@ import (
 )
 
 func main() {
-	in := flag.String("in", "", "plik HTML")
-	out := flag.String("out", "", "plik PDF")
-	fontDir := flag.String("fonts", "", "katalog z fontami (*.ttf, *.otf)")
-	root := flag.String("root", "", "katalog, spod którego wolno czytać zasoby (domyślnie katalog pliku wejściowego)")
+	in := flag.String("in", "", "HTML file")
+	out := flag.String("out", "", "PDF file")
+	fontDir := flag.String("fonts", "", "directory with fonts (*.ttf, *.otf)")
+	root := flag.String("root", "", "directory resources may be read from (default: the directory of the input file)")
 	timeout := flag.Duration("timeout", time.Minute, "limit czasu")
-	userCSS := flag.String("css", "", "arkusz użytkownika, np. \"@page { size: A4 }\"")
-	quiet := flag.Bool("quiet", false, "nie wypisuj ostrzeżeń")
-	continuous := flag.Bool("continuous", false, "bez podziału na strony: jedna strona rosnąca do wysokości treści")
-	hyphenDicts := flag.String("hyphenation", "", "słowniki dzielenia wyrazów spoza wbudowanych, np. \"cs=hyph-cs.pat.txt,sv=hyph-sv.pat.txt\"")
-	uncompressed := flag.Bool("uncompressed", false, "strumienie treści, fontów i ToUnicode bez kompresji (diagnostyka)")
-	pdfa := flag.String("pdfa", "", "zgodność pliku wynikowego: 2b, 3b (PDF/A-2b, PDF/A-3b), 2a, 3a (poziom A, z tagami); domyślnie zwykły PDF")
-	tagged := flag.Bool("tagged", false, "PDF z tagami: struktura logiczna z elementów HTML dla czytników ekranu (ADR 0033)")
-	pdfua := flag.String("pdfua", "", "norma dostępności: 1 (PDF/UA-1, z tagami; łączy się z -pdfa, np. -pdfa 2a -pdfua 1); domyślnie brak")
-	flag.Func("attach", "załącznik dokumentu: plik[,związek[,typ MIME]], związek: Source, Data, Alternative, Supplement, Unspecified (domyślnie); flaga może się powtarzać", func(value string) error {
+	userCSS := flag.String("css", "", "user stylesheet, e.g. \"@page { size: A4 }\"")
+	quiet := flag.Bool("quiet", false, "do not print warnings")
+	continuous := flag.Bool("continuous", false, "no pagination: one page as tall as the content")
+	hyphenDicts := flag.String("hyphenation", "", "hyphenation dictionaries besides the built-in ones, e.g. \"cs=hyph-cs.pat.txt,sv=hyph-sv.pat.txt\"")
+	uncompressed := flag.Bool("uncompressed", false, "uncompressed content, font and ToUnicode streams (for debugging)")
+	pdfa := flag.String("pdfa", "", "output conformance: 2b, 3b (PDF/A-2b, PDF/A-3b), 2a, 3a (level A, tagged); default: plain PDF")
+	tagged := flag.Bool("tagged", false, "tagged PDF: logical structure from the HTML elements, for screen readers (ADR 0033)")
+	pdfua := flag.String("pdfua", "", "accessibility standard: 1 (PDF/UA-1, tagged; combines with -pdfa, e.g. -pdfa 2a -pdfua 1); default: none")
+	flag.Func("attach", "document attachment: file[,relationship[,MIME type]], relationship: Source, Data, Alternative, Supplement, Unspecified (default); may be repeated", func(value string) error {
 		parts := strings.Split(value, ",")
 		data, err := os.ReadFile(parts[0])
 		if err != nil {
@@ -56,21 +56,21 @@ func main() {
 		attachments = append(attachments, attachment)
 		return nil
 	})
-	facturXFile := flag.String("facturx", "", "faktura Factur-X/ZUGFeRD: plik XML CII osadzany jako factur-x.xml (xrechnung.xml dla XRECHNUNG), wymusza PDF/A-3 (ADR 0034)")
-	facturXLevel := flag.String("facturx-level", "", "profil faktury: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED, XRECHNUNG; domyślnie odczytany z XML")
+	facturXFile := flag.String("facturx", "", "Factur-X/ZUGFeRD invoice: CII XML file embedded as factur-x.xml (xrechnung.xml for XRECHNUNG); implies PDF/A-3 (ADR 0034)")
+	facturXLevel := flag.String("facturx-level", "", "invoice profile: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED, XRECHNUNG; default: read from the XML")
 	marginsEscape := flag.Bool("margins-escape-height-limits", false,
-		"dolny margines dziecka wychodzi poza pudełko ograniczone przez min-height lub max-height (CSS 2.2 § 10.7 dosłownie)")
+		"a child's bottom margin escapes a box limited by min-height or max-height (CSS 2.2 § 10.7 literally)")
 	exactLengths := flag.Bool("exact-lengths", false,
-		"długości dokładnie jak w arkuszu, bez zaokrągleń (domyślnie jak w Chromium: obramowanie 0.5pt daje 1px, border-spacing 1mm daje 3px, padding 2.2px daje 2,1875px)")
+		"lengths exactly as in the stylesheet, without rounding (default as in Chromium: a 0.5pt border gives 1px, border-spacing 1mm gives 3px, padding 2.2px gives 2.1875px)")
 	maxShrinkFlag := flag.Float64("max-shrink", 0,
-		"największe pomniejszenie treści szerszej niż strona; 0 oznacza 1.5 jak w Chromium, 1 wyłącza, +Inf bez limitu")
+		"largest shrink factor for content wider than the page; 0 means 1.5 as in Chromium, 1 turns it off, +Inf means no limit")
 	monospaceSize := flag.Float64("monospace-size", 0,
-		"rozmiar pisma (px) dla font-family: monospace bez podanego font-size; 0 oznacza 13 jak w przeglądarkach, 16 wyłącza regułę")
+		"font size (px) for font-family: monospace without a font-size; 0 means 13 as in browsers, 16 turns the rule off")
 	systemFonts := flag.Bool("system-fonts", false,
-		"fonty systemowe jako zastępcze dla brakujących rodzin i znaków (tylko binarka zbudowana z -tags systemfonts, ADR 0039)")
+		"use system fonts as a fallback for missing families and characters (only in a binary built with -tags systemfonts, ADR 0039)")
 	generic := map[string][]string{}
 	for name, usage := range map[string]string{"serif": "serif", "sans-serif": "sans-serif", "monospace": "monospace"} {
-		flag.Func(name, "rodziny fontów dla rodziny generycznej "+usage+", po przecinku, np. \"Tinos\"", func(value string) error {
+		flag.Func(name, "font families for the generic family "+usage+", comma-separated, e.g. \"Tinos\"", func(value string) error {
 			for _, family := range strings.Split(value, ",") {
 				if family = strings.TrimSpace(family); family != "" {
 					generic[name] = append(generic[name], family)
@@ -90,7 +90,7 @@ func main() {
 		tag, path, ok := strings.Cut(item, "=")
 		data, err := os.ReadFile(path)
 		if !ok || err != nil {
-			fmt.Fprintln(os.Stderr, "gopdfgo: -hyphenation: oczekiwane język=plik:", item, err)
+			fmt.Fprintln(os.Stderr, "gopdfgo: -hyphenation: expected language=file:", item, err)
 			os.Exit(2)
 		}
 		if hyphenation == nil {
@@ -109,7 +109,7 @@ func main() {
 	case "3a", "3A":
 		conformance = htmlpdf.PDFA3a
 	default:
-		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b, 3b, 2a, 3a)")
+		fmt.Fprintln(os.Stderr, "gopdfgo: unknown -pdfa value (allowed: 2b, 3b, 2a, 3a)")
 		os.Exit(2)
 	}
 	switch *pdfua {
@@ -117,7 +117,7 @@ func main() {
 	case "1":
 		accessibility = htmlpdf.PDFUA1
 	default:
-		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfua (dozwolone: 1)")
+		fmt.Fprintln(os.Stderr, "gopdfgo: unknown -pdfua value (allowed: 1)")
 		os.Exit(2)
 	}
 	if *facturXFile != "" {
@@ -130,13 +130,13 @@ func main() {
 		if *facturXLevel != "" {
 			level, ok := facturXLevels[strings.NewReplacer(" ", "", "_", "", "-", "").Replace(strings.ToUpper(*facturXLevel))]
 			if !ok {
-				fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -facturx-level (dozwolone: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED, XRECHNUNG)")
+				fmt.Fprintln(os.Stderr, "gopdfgo: unknown -facturx-level value (allowed: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED, XRECHNUNG)")
 				os.Exit(2)
 			}
 			invoice.Level = level
 		}
 	} else if *facturXLevel != "" {
-		fmt.Fprintln(os.Stderr, "gopdfgo: -facturx-level wymaga -facturx")
+		fmt.Fprintln(os.Stderr, "gopdfgo: -facturx-level requires -facturx")
 		os.Exit(2)
 	}
 	systemFontsMode = *systemFonts
@@ -244,9 +244,9 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 	}
 	if !quiet {
 		for _, warning := range result.Warnings {
-			fmt.Fprintln(os.Stderr, "ostrzeżenie:", warning.Message)
+			fmt.Fprintln(os.Stderr, "warning:", warning.Message)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "%d stron, %d B, %s %s\n", result.Pages, len(result.PDF), result.EngineName, result.EngineVersion)
+	fmt.Fprintf(os.Stderr, "%d pages, %d B, %s %s\n", result.Pages, len(result.PDF), result.EngineName, result.EngineVersion)
 	return os.WriteFile(out, result.PDF, 0o644)
 }

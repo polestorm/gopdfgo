@@ -50,9 +50,9 @@ var (
 	oidSHA384             = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 2}
 	oidSHA512             = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 3}
 	maxIterations         = 10_000_000 // ochrona przed plikiem, którego odczyt trwałby godzinami
-	legacyConversionHints = "przekonwertuj plik: openssl pkcs12 -legacy -in stary.p12 -nodes -out tymczasowy.pem " +
+	legacyConversionHints = "convert the file: openssl pkcs12 -legacy -in old.p12 -nodes -out temporary.pem " +
 		"&& openssl pkcs12 -export -in tymczasowy.pem -out nowy.p12 -certpbe AES-256-CBC -keypbe AES-256-CBC -macalg SHA256 " +
-		"(tymczasowy.pem zawiera niezaszyfrowany klucz: usuń go potem)"
+		"(temporary.pem holds the unencrypted key: delete it afterwards)"
 )
 
 // Struktury ASN.1 z RFC 7292 § 4 i RFC 8018 (PBES2, PBKDF2) oraz RFC 9579 (PBMAC1).
@@ -128,13 +128,13 @@ type (
 func ParsePKCS12(data []byte, password string) (*Identity, error) {
 	var p pfx
 	if rest, err := asn1.Unmarshal(data, &p); err != nil || len(rest) != 0 {
-		return nil, fmt.Errorf("%w: PKCS#12: %v", ErrMalformed, errOr(err, "dane za strukturą PFX"))
+		return nil, fmt.Errorf("%w: PKCS#12: %v", ErrMalformed, errOr(err, "data after the PFX structure"))
 	}
 	if p.Version != 3 {
 		return nil, fmt.Errorf("%w: PKCS#12 w wersji %d", ErrMalformed, p.Version)
 	}
 	if !p.AuthSafe.ContentType.Equal(oidData) {
-		return nil, fmt.Errorf("%w: PKCS#12 z integralnością kluczem publicznym (signedData)", ErrUnsupportedAlgorithm)
+		return nil, fmt.Errorf("%w: PKCS#12 with public-key integrity (signedData)", ErrUnsupportedAlgorithm)
 	}
 	authSafe, err := explicitOctets(p.AuthSafe.Content)
 	if err != nil {
@@ -165,7 +165,7 @@ func ParsePKCS12(data []byte, password string) (*Identity, error) {
 
 	var safes []contentInfo
 	if rest, err := asn1.Unmarshal(authSafe, &safes); err != nil || len(rest) != 0 {
-		return nil, fmt.Errorf("%w: AuthenticatedSafe: %v", ErrMalformed, errOr(err, "dane za strukturą"))
+		return nil, fmt.Errorf("%w: AuthenticatedSafe: %v", ErrMalformed, errOr(err, "data after the structure"))
 	}
 	var bags []safeBag
 	for _, ci := range safes {
@@ -189,14 +189,14 @@ func ParsePKCS12(data []byte, password string) (*Identity, error) {
 				return nil, err
 			}
 			if contents, err = decrypt(ed.EncryptedContentInfo.ContentEncryptionAlgorithm, encrypted, password, passwords[0]); err != nil {
-				return nil, fmt.Errorf("certyfikaty: %w", err)
+				return nil, fmt.Errorf("certificates: %w", err)
 			}
 		default:
-			return nil, fmt.Errorf("%w: zawartość AuthenticatedSafe %v", ErrUnsupportedAlgorithm, ci.ContentType)
+			return nil, fmt.Errorf("%w: AuthenticatedSafe content %v", ErrUnsupportedAlgorithm, ci.ContentType)
 		}
 		var list []safeBag
 		if rest, err := asn1.Unmarshal(contents, &list); err != nil || len(rest) != 0 {
-			return nil, fmt.Errorf("%w: SafeContents: %v", ErrMalformed, errOr(err, "dane za strukturą"))
+			return nil, fmt.Errorf("%w: SafeContents: %v", ErrMalformed, errOr(err, "data after the structure"))
 		}
 		bags = append(bags, list...)
 	}
@@ -223,12 +223,12 @@ func ParsePKCS12(data []byte, password string) (*Identity, error) {
 					return nil, fmt.Errorf("%w: EncryptedPrivateKeyInfo: %v", ErrMalformed, err)
 				}
 				if der, err = decrypt(info.Algorithm, info.EncryptedData, password, passwords[0]); err != nil {
-					return nil, fmt.Errorf("klucz: %w", err)
+					return nil, fmt.Errorf("key: %w", err)
 				}
 			}
 			key, err := x509.ParsePKCS8PrivateKey(der)
 			if err != nil {
-				return nil, fmt.Errorf("%w: klucz PKCS#8: %v", ErrMalformed, err)
+				return nil, fmt.Errorf("%w: PKCS#8 key: %v", ErrMalformed, err)
 			}
 			keys = append(keys, keyEntry{key, id})
 		case bag.ID.Equal(oidCertBag):
@@ -241,7 +241,7 @@ func ParsePKCS12(data []byte, password string) (*Identity, error) {
 			}
 			cert, err := x509.ParseCertificate(cb.Data)
 			if err != nil {
-				return nil, fmt.Errorf("%w: certyfikat: %v", ErrMalformed, err)
+				return nil, fmt.Errorf("%w: certificate: %v", ErrMalformed, err)
 			}
 			certs = append(certs, cert)
 			certIDs[cert] = id
@@ -253,7 +253,7 @@ func ParsePKCS12(data []byte, password string) (*Identity, error) {
 		return nil, ErrNoKey
 	case 1:
 	default:
-		return nil, fmt.Errorf("%w: plik zawiera %d klucze prywatne", ErrAmbiguous, len(keys))
+		return nil, fmt.Errorf("%w: the file holds %d private keys", ErrAmbiguous, len(keys))
 	}
 	// certyfikat klucza: ten sam localKeyId, a bez niego ten sam klucz publiczny
 	var byID []*x509.Certificate
@@ -285,7 +285,7 @@ func verifyMAC(m *macData, authSafe, bmpPassword []byte, password string) (bool,
 			return false, err
 		}
 		if kdf.KeyLength <= 0 {
-			return false, fmt.Errorf("%w: PBMAC1 bez długości klucza", ErrMalformed)
+			return false, fmt.Errorf("%w: PBMAC1 without a key length", ErrMalformed)
 		}
 		if key, err = pbkdf2.Key(kdf.hash, password, kdf.Salt, kdf.Iterations, kdf.KeyLength); err != nil {
 			return false, err
@@ -357,7 +357,7 @@ func decrypt(alg pkix.AlgorithmIdentifier, data []byte, password string, bmpPass
 			return nil, fmt.Errorf("%w: szyfr PBES2 %v; %s", ErrUnsupportedAlgorithm, scheme, legacyConversionHints)
 		}
 		if kdf.KeyLength != 0 && kdf.KeyLength != size {
-			return nil, fmt.Errorf("%w: PBKDF2 z długością klucza %d", ErrMalformed, kdf.KeyLength)
+			return nil, fmt.Errorf("%w: PBKDF2 with key length %d", ErrMalformed, kdf.KeyLength)
 		}
 		if _, err := asn1.Unmarshal(params.Scheme.Parameters.FullBytes, &iv); err != nil {
 			return nil, fmt.Errorf("%w: wektor IV: %v", ErrMalformed, err)
@@ -396,13 +396,13 @@ func decrypt(alg pkix.AlgorithmIdentifier, data []byte, password string, bmpPass
 			return nil, err
 		}
 	case len(alg.Algorithm) == len(oidPBEWithSHALegacy)+1 && alg.Algorithm[:len(oidPBEWithSHALegacy)].Equal(oidPBEWithSHALegacy):
-		return nil, fmt.Errorf("%w: szyfr RC2 albo RC4 (pbeWithSHAAnd…RC2/RC4, %v), przestarzały i bez obsługi także w OpenSSL 3 bez -legacy; %s",
+		return nil, fmt.Errorf("%w: RC2 or RC4 cipher (pbeWithSHAAnd…RC2/RC4, %v), obsolete and unsupported also by OpenSSL 3 without -legacy; %s",
 			ErrUnsupportedAlgorithm, alg.Algorithm, legacyConversionHints)
 	default:
 		return nil, fmt.Errorf("%w: szyfr %v", ErrUnsupportedAlgorithm, alg.Algorithm)
 	}
 	if len(iv) != block.BlockSize() || len(data) == 0 || len(data)%block.BlockSize() != 0 {
-		return nil, fmt.Errorf("%w: długość szyfrogramu albo wektora IV", ErrMalformed)
+		return nil, fmt.Errorf("%w: ciphertext or IV length", ErrMalformed)
 	}
 	out := make([]byte, len(data))
 	cipher.NewCBCDecrypter(block, iv).CryptBlocks(out, data)
@@ -506,10 +506,10 @@ func hmacHash(oid asn1.ObjectIdentifier) func() hash.Hash {
 func explicitInner(v asn1.RawValue) (asn1.RawValue, error) {
 	var inner asn1.RawValue
 	if v.Class != asn1.ClassContextSpecific || v.Tag != 0 || !v.IsCompound {
-		return inner, fmt.Errorf("%w: oczekiwany znacznik [0]", ErrMalformed)
+		return inner, fmt.Errorf("%w: expected tag [0]", ErrMalformed)
 	}
 	if rest, err := asn1.Unmarshal(v.Bytes, &inner); err != nil || len(rest) != 0 {
-		return inner, fmt.Errorf("%w: znacznik [0]: %v", ErrMalformed, errOr(err, "więcej niż jeden element"))
+		return inner, fmt.Errorf("%w: tag [0]: %v", ErrMalformed, errOr(err, "more than one element"))
 	}
 	return inner, nil
 }

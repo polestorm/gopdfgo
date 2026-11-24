@@ -16,33 +16,33 @@ import (
 // Błędy zwracane przez SignPDF.
 var (
 	// ErrNoSigner: brak Options.Signer albo Options.Certificate.
-	ErrNoSigner = errors.New("sign: brak podpisującego albo certyfikatu")
+	ErrNoSigner = errors.New("sign: no signer or certificate")
 	// ErrUnsupportedKey: klucz certyfikatu nie jest kluczem RSA ani ECDSA.
-	ErrUnsupportedKey = errors.New("sign: nieobsługiwany rodzaj klucza")
+	ErrUnsupportedKey = errors.New("sign: unsupported key type")
 	// ErrKeyMismatch: klucz podpisującego nie odpowiada certyfikatowi albo podpis nie jest
 	// podpisem RSA PKCS#1 v1.5 / ECDSA skrótu SHA-256.
-	ErrKeyMismatch = errors.New("sign: podpis nie zgadza się z kluczem publicznym certyfikatu")
+	ErrKeyMismatch = errors.New("sign: signature does not match the certificate's public key")
 	// ErrEncrypted: plik wejściowy jest zaszyfrowany (runda 1 nie podpisuje plików zaszyfrowanych).
-	ErrEncrypted = errors.New("sign: plik zaszyfrowany nie jest obsługiwany")
+	ErrEncrypted = errors.New("sign: encrypted files are not supported")
 	// ErrNoTSA: poziom B-T albo B-LT bez Options.TSA.
-	ErrNoTSA = errors.New("sign: poziom B-T i B-LT wymaga Options.TSA")
+	ErrNoTSA = errors.New("sign: levels B-T and B-LT require Options.TSA")
 	// ErrNoHTTPClient: TSAClient albo RevocationClient bez HTTPClient.
-	ErrNoHTTPClient = errors.New("sign: brak HTTPClient (pakiet łączy się tylko przez klienta podanego jawnie)")
+	ErrNoHTTPClient = errors.New("sign: no HTTPClient (the package connects only through a client passed explicitly)")
 	// ErrTimestamp: odpowiedź TSA odmowna albo niepoprawna (status, skrót, nonce, podpis tokenu).
-	ErrTimestamp = errors.New("sign: niepoprawny znacznik czasu")
+	ErrTimestamp = errors.New("sign: invalid timestamp")
 	// ErrReserveTooSmall: token znacznika czasu nie mieści się w miejscu zarezerwowanym w /Contents.
-	ErrReserveTooSmall = errors.New("sign: podpis nie mieści się w zarezerwowanym /Contents")
+	ErrReserveTooSmall = errors.New("sign: signature does not fit in the reserved /Contents")
 	// ErrNoValidationData: poziom B-LT bez danych o ważności dla któregoś certyfikatu (ani podanych
 	// w Options.ValidationData, ani pobranych przez Options.Revocation).
-	ErrNoValidationData = errors.New("sign: brak danych o ważności")
+	ErrNoValidationData = errors.New("sign: no validation data")
 	// ErrMissingIssuer: poziom B-LT, a wśród certyfikatów nie ma wystawcy któregoś certyfikatu ścieżki.
-	ErrMissingIssuer = errors.New("sign: brak certyfikatu wystawcy")
+	ErrMissingIssuer = errors.New("sign: no issuer certificate")
 	// ErrRevoked: dane o ważności podają certyfikat jako unieważniony.
-	ErrRevoked = errors.New("sign: certyfikat unieważniony")
+	ErrRevoked = errors.New("sign: certificate revoked")
 	// ErrUnknownField: Options.FieldName nie wskazuje pola podpisu w pliku.
-	ErrUnknownField = errors.New("sign: brak pola podpisu o tej nazwie")
+	ErrUnknownField = errors.New("sign: no signature field with this name")
 	// ErrFieldNotEmpty: pole wskazane przez Options.FieldName jest już podpisane.
-	ErrFieldNotEmpty = errors.New("sign: pole podpisu już podpisane")
+	ErrFieldNotEmpty = errors.New("sign: signature field already signed")
 )
 
 // Level to poziom podpisu PAdES (ETSI EN 319 142-1 § 6).
@@ -135,14 +135,14 @@ func SignPDF(ctx context.Context, pdf []byte, opts Options) ([]byte, error) {
 		return nil, ErrNoSigner
 	}
 	if opts.Level < LevelBB || opts.Level > LevelBLT {
-		return nil, fmt.Errorf("sign: nieznany poziom %v", opts.Level)
+		return nil, fmt.Errorf("sign: unknown level %v", opts.Level)
 	}
 	if opts.Level >= LevelBT && opts.TSA == nil {
 		return nil, ErrNoTSA
 	}
 	if opts.Level == LevelBLT && opts.Revocation == nil &&
 		len(opts.ValidationData.OCSPResponses) == 0 && len(opts.ValidationData.CRLs) == 0 {
-		return nil, fmt.Errorf("%w: poziom B-LT wymaga Options.Revocation albo odpowiedzi OCSP lub list CRL w Options.ValidationData", ErrNoValidationData)
+		return nil, fmt.Errorf("%w: level B-LT requires Options.Revocation, or OCSP responses or CRLs in Options.ValidationData", ErrNoValidationData)
 	}
 	alg, err := algorithmFor(opts.Certificate.PublicKey)
 	if err != nil {
@@ -186,7 +186,7 @@ func SignPDF(ctx context.Context, pdf []byte, opts Options) ([]byte, error) {
 	rangeAt := sigStart + bytes.Index(out[sigStart:], []byte(byteRangeKey)) + len(byteRangeKey)
 	byteRange := fmt.Sprintf("0 %d %d %d", contentsAt, contentsEnd, len(out)-contentsEnd)
 	if len(byteRange) > byteRangeWidth {
-		return nil, errors.New("sign: plik za duży na zarezerwowane /ByteRange")
+		return nil, errors.New("sign: file too large for the reserved /ByteRange")
 	}
 	copy(out[rangeAt:], byteRange)
 
@@ -208,14 +208,14 @@ func SignPDF(ctx context.Context, pdf []byte, opts Options) ([]byte, error) {
 			return nil, err
 		}
 		if len(ts.token) > tokenReserve {
-			return nil, fmt.Errorf("%w: token znacznika czasu ma %d B, zarezerwowano %d B; zwiększ Options.TimestampReserve",
+			return nil, fmt.Errorf("%w: timestamp token has %d B, %d B reserved; increase Options.TimestampReserve",
 				ErrReserveTooSmall, len(ts.token), tokenReserve)
 		}
 		unsigned = unsignedAttributes(ts.token)
 	}
 	signature := buildSignedData(signed.attrs, signed.signature, alg, opts.Certificate, opts.Chain, unsigned)
 	if len(signature) > reserve {
-		return nil, fmt.Errorf("%w: podpis CMS ma %d B, zarezerwowano %d B", ErrReserveTooSmall, len(signature), reserve)
+		return nil, fmt.Errorf("%w: CMS signature has %d B, %d B reserved", ErrReserveTooSmall, len(signature), reserve)
 	}
 	hex.Encode(out[contentsAt+1:], signature)
 	if opts.Level < LevelBLT {
@@ -248,7 +248,7 @@ type update struct {
 func prepareUpdate(f *pdfFile, opts Options, when time.Time, reserve int) (*update, error) {
 	rootRef, ok := f.trailer.get("Root").(pdfRef)
 	if !ok {
-		return nil, malformed("trailer bez /Root")
+		return nil, malformed("trailer without /Root")
 	}
 	rootObj, err := f.resolve(rootRef)
 	if err != nil {
@@ -256,7 +256,7 @@ func prepareUpdate(f *pdfFile, opts Options, when time.Time, reserve int) (*upda
 	}
 	root, ok := rootObj.(*pdfDict)
 	if !ok {
-		return nil, malformed("katalog nie jest słownikiem")
+		return nil, malformed("catalog is not a dictionary")
 	}
 	pageRef, page, err := firstPage(f, root)
 	if err != nil {
@@ -435,7 +435,7 @@ func firstPage(f *pdfFile, root *pdfDict) (pdfRef, *pdfDict, error) {
 	for depth := 0; depth < 64; depth++ {
 		ref, ok := node.(pdfRef)
 		if !ok {
-			return pdfRef{}, nil, malformed("węzeł drzewa stron nie jest obiektem pośrednim")
+			return pdfRef{}, nil, malformed("page tree node is not an indirect object")
 		}
 		obj, err := f.resolve(ref)
 		if err != nil {
@@ -443,18 +443,18 @@ func firstPage(f *pdfFile, root *pdfDict) (pdfRef, *pdfDict, error) {
 		}
 		dict, ok := obj.(*pdfDict)
 		if !ok {
-			return pdfRef{}, nil, malformed("węzeł drzewa stron nie jest słownikiem")
+			return pdfRef{}, nil, malformed("page tree node is not a dictionary")
 		}
 		if dict.get("Type") == pdfName("Page") {
 			return ref, dict, nil
 		}
 		kids, _ := dict.get("Kids").(pdfArray)
 		if len(kids) == 0 {
-			return pdfRef{}, nil, malformed("dokument bez stron")
+			return pdfRef{}, nil, malformed("document has no pages")
 		}
 		node = kids[0]
 	}
-	return pdfRef{}, nil, malformed("drzewo stron za głębokie")
+	return pdfRef{}, nil, malformed("page tree too deep")
 }
 
 // pdfDate zapisuje czas w formie daty PDF (§ 7.9.4): D:RRRRMMDDGGmmSS+HH'mm'.

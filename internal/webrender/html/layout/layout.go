@@ -949,7 +949,7 @@ func warnContentBelowPage(page *bo.PageBox, root Box, pageNumber int) {
 		return nil
 	}
 	if found := find(root); found != nil {
-		logger.WarningLogger.Printf("strona %d: treść elementu <%s> leży poniżej dolnej krawędzi strony i nie jest widoczna",
+		logger.WarningLogger.Printf("page %d: content of element <%s> lies below the bottom edge of the page and is not visible",
 			pageNumber, found.Box().ElementTag())
 	}
 }

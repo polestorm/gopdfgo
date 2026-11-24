@@ -83,10 +83,10 @@ func findField(f *pdfFile, form *pdfDict, name string) (pdfRef, *pdfDict, error)
 		}
 		if named && full == name {
 			if ft != pdfName("Sig") {
-				return pdfRef{}, nil, fmt.Errorf("%w: pole %q nie jest polem podpisu", ErrUnknownField, name)
+				return pdfRef{}, nil, fmt.Errorf("%w: field %q is not a signature field", ErrUnknownField, name)
 			}
 			if v := field.get("V"); v != nil && v != (pdfNull{}) {
-				return pdfRef{}, nil, fmt.Errorf("%w: pole %q", ErrFieldNotEmpty, name)
+				return pdfRef{}, nil, fmt.Errorf("%w: field %q", ErrFieldNotEmpty, name)
 			}
 			return e.ref, field, nil
 		}

@@ -50,7 +50,7 @@ func writeObject(b *bytes.Buffer, obj pdfObject) {
 		}
 		b.WriteString(" >>")
 	default:
-		panic(fmt.Sprintf("sign: nieobsługiwany obiekt %T", obj))
+		panic(fmt.Sprintf("sign: unsupported object %T", obj))
 	}
 }
 

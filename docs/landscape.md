@@ -9,7 +9,7 @@ odniesienia: pusty `main` = 1,2 MB. Pomiar na linux/amd64 będzie zbliżony.
 
 | Silnik | HTML → PDF bez okna | Rozmiar | Uwagi |
 |---|---|---|---|
-| Chromium headless (`--headless=new`) | `Page.printToPDF` przez DevTools | ok. 400 MB z bibliotekami | to, co robi `xml.pro/gohtmlpdf` przez chromedp; pełna przeglądarka; pakiet w dystrybucjach, aktualizacje z systemem |
+| Chromium headless (`--headless=new`) | `Page.printToPDF` przez DevTools | ok. 400 MB z bibliotekami | to, co robiło xml.pro przez chromedp; pełna przeglądarka; pakiet w dystrybucjach, aktualizacje z systemem |
 | `chrome-headless-shell` | ten sam `printToPDF` | 150–200 MB | stary tryb headless wydzielony od Chrome 132 jako osobna binarka Chrome for Testing; ten sam Blink i Skia, więc identyczny PDF; bez rozszerzeń, polityk, części API; bez nowych funkcji; nie ma go w `apt`; buduje go też `chromedp/headless-shell` i Playwright |
 | Firefox (Gecko) | `firefox --headless --print-to-pdf`, WebDriver BiDi `browsingContext.print` | ok. 250 MB | brak pól marginesowych `@page`, więc „strona X z Y” nie wychodzi z CSS |
 | Safari / WebKit | brak trybu headless; PDF tylko przez API macOS; WebKitGTK przez Cairo | | wkhtmltopdf (QtWebKit) martwy od 2020 |

@@ -117,7 +117,7 @@ func (c *collector) cover(cert *x509.Certificate) error {
 		}
 		issuer := c.issuerOf(cert)
 		if issuer == nil {
-			return fmt.Errorf("%w: %q (dodaj go do Options.Chain albo Options.ValidationData.Certificates)", ErrMissingIssuer, cert.Issuer)
+			return fmt.Errorf("%w: %q (add it to Options.Chain or Options.ValidationData.Certificates)", ErrMissingIssuer, cert.Issuer)
 		}
 		if err := c.revocation(cert, issuer); err != nil {
 			return err
@@ -165,7 +165,7 @@ func (c *collector) revocation(cert, issuer *x509.Certificate) error {
 					return nil
 				}
 				if err == nil {
-					err = errors.New("odpowiedź nie dotyczy certyfikatu")
+					err = errors.New("response is not for this certificate")
 				}
 			}
 			if errors.Is(err, ErrRevoked) || c.ctx.Err() != nil {
@@ -181,7 +181,7 @@ func (c *collector) revocation(cert, issuer *x509.Certificate) error {
 					return nil
 				}
 				if err == nil {
-					err = errors.New("lista nie pochodzi od wystawcy certyfikatu")
+					err = errors.New("the list is not from the certificate's issuer")
 				}
 			}
 			if errors.Is(err, ErrRevoked) || c.ctx.Err() != nil {
@@ -194,9 +194,9 @@ func (c *collector) revocation(cert, issuer *x509.Certificate) error {
 	if len(failures) > 0 {
 		detail = " (" + strings.Join(failures, "; ") + ")"
 	} else if c.fetcher != nil {
-		detail = " (certyfikat nie podaje adresów OCSP ani CRL przez http)"
+		detail = " (the certificate gives no OCSP or CRL address over http)"
 	}
-	return fmt.Errorf("%w dla certyfikatu %q%s", ErrNoValidationData, cert.Subject, detail)
+	return fmt.Errorf("%w for certificate %q%s", ErrNoValidationData, cert.Subject, detail)
 }
 
 func httpURLs(urls []string) []string {
@@ -217,7 +217,7 @@ func (c *collector) useOCSP(der []byte, cert, issuer *x509.Certificate) (bool, e
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("sign: OCSP dla %q: %w", cert.Subject, err)
+		return false, fmt.Errorf("sign: OCSP for %q: %w", cert.Subject, err)
 	}
 	switch status {
 	case ocspRevoked:
@@ -249,7 +249,7 @@ func (c *collector) useCRL(der []byte, cert, issuer *x509.Certificate) (bool, er
 		return false, nil
 	}
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
-		return false, fmt.Errorf("sign: CRL wystawcy %q: %w", issuer.Subject, err)
+		return false, fmt.Errorf("sign: CRL of issuer %q: %w", issuer.Subject, err)
 	}
 	for _, entry := range crl.RevokedCertificateEntries {
 		if entry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
@@ -341,7 +341,7 @@ const (
 	ocspUnknown
 )
 
-var errNotForCert = errors.New("odpowiedź nie dotyczy certyfikatu")
+var errNotForCert = errors.New("response is not for this certificate")
 
 // checkOCSP sprawdza odpowiedź OCSP dla certyfikatu: status odpowiedzi successful, typ basic,
 // CertID certyfikatu, podpis wystawcy albo respondera upoważnionego przez wystawcę (extKeyUsage
@@ -350,7 +350,7 @@ var errNotForCert = errors.New("odpowiedź nie dotyczy certyfikatu")
 func checkOCSP(der []byte, cert, issuer *x509.Certificate) (ocspStatus, *x509.Certificate, error) {
 	var resp ocspResponseASN
 	if rest, err := asn1.Unmarshal(der, &resp); err != nil || len(rest) > 0 {
-		return 0, nil, errors.New("odpowiedź nie jest OCSPResponse w DER")
+		return 0, nil, errors.New("response is not a DER OCSPResponse")
 	}
 	if resp.Status != 0 {
 		return 0, nil, fmt.Errorf("status odpowiedzi %d (RFC 6960 § 4.2.1)", resp.Status)
@@ -393,12 +393,12 @@ func checkOCSP(der []byte, cert, issuer *x509.Certificate) (ocspStatus, *x509.Ce
 			break
 		}
 		if responder == nil {
-			return 0, nil, errors.New("podpis odpowiedzi nie pochodzi od wystawcy ani od upoważnionego respondera")
+			return 0, nil, errors.New("the response is signed neither by the issuer nor by an authorized responder")
 		}
 	}
 	// CertStatus (RFC 6960 § 4.2.1): good [0], revoked [1], unknown [2]
 	if single.Status.Class != asn1.ClassContextSpecific {
-		return 0, nil, errors.New("niepoprawny CertStatus")
+		return 0, nil, errors.New("invalid CertStatus")
 	}
 	switch single.Status.Tag {
 	case 0:

@@ -37,7 +37,7 @@ konkretnego odbiorcy.
 6. **PDF/A: w silniku czy w kroku końcowym?** Folio deklaruje PDF/A, port WeasyPrint nie. Propozycja: wymaganie
    Y5 jako „powinien”, realizacja w backendzie PDF jeśli silnik ma, inaczej pdfcpu dopisuje XMP i OutputIntent;
    walidacja veraPDF w CI jako narzędzie, nie zależność.
-7. **Relacja do `xml.pro/gohtmlpdf`.** Czy `gohtmlpdf` staje się adapterem `engine/chromium` w gopdfgo, a xml.pro
+7. **Relacja do druku przez Chromium w xml.pro.** Czy obecny druk przez chromedp w xml.pro staje się adapterem `engine/chromium` w gopdfgo, a xml.pro
    przechodzi na interfejs gopdfgo? Propozycja: tak, w etapie 4; xml.pro nic nie traci, zyskuje wybór silnika.
 8. **Miejsce modułu.** `github.com/polestorm/gopdfgo` obok `controls/*` (wspólne moduły kilku produktów) czy wewnątrz
    jednego z odbiorców? Propozycja: polestorm, bo silnik jest ogólnego użytku. Prawa do kodu do ustalenia.

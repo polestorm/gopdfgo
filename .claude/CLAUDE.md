@@ -30,6 +30,8 @@ Zasady:
   zasoby wyłącznie testowe (nie trafiają do binarki) mogą być też w domenie publicznej lub na CC0 (font Ahem);
 - reftesty porównujemy według ADR 0003: zgodność ścisła albo z dokładnością do krawędzi (`pass-edge`), a każda
   podawana liczba zaliczeń rozróżnia obie miary;
+- komunikaty programów (`gopdfgo -h`, `gopdfgo-sign`), ostrzeżenia w `Result.Warnings` i błędy API po angielsku
+  (decyzja użytkownika z 2026-11-24, przed publikacją); komentarze w kodzie dalej po polsku;
 - opisy commitów po angielsku (decyzja użytkownika z 2026-11-20; wcześniejsza historia zostaje po polsku do decyzji
   o upublicznieniu repozytorium); README.md, docs/overview.md, docs/usage.md i docs/comparison.md po angielsku, reszta dokumentacji po polsku;
 - commit i push po każdej zakończonej rundzie pracy, bez pytania (decyzja użytkownika z 2026-11-13); przed commitem

@@ -123,7 +123,7 @@ func TestWarningForContentBelowPage(t *testing.T) {
 	}
 	warned := func(result htmlpdf.Result) bool {
 		for _, warning := range result.Warnings {
-			if strings.Contains(warning.Message, "leży poniżej dolnej krawędzi strony") {
+			if strings.Contains(warning.Message, "lies below the bottom edge of the page") {
 				return true
 			}
 		}
@@ -152,7 +152,7 @@ func TestAbsoluteBoxBelowPageMovesToLaterPage(t *testing.T) {
 		t.Errorf("widoczne słowa: %v", visible)
 	}
 	for _, warning := range result.Warnings {
-		if strings.Contains(warning.Message, "leży poniżej dolnej krawędzi strony") {
+		if strings.Contains(warning.Message, "lies below the bottom edge of the page") {
 			t.Errorf("ostrzeżenie mimo przeniesienia pudełka: %s", warning.Message)
 		}
 	}
