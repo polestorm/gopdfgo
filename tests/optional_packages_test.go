@@ -17,7 +17,7 @@ var optionalPackages = []string{"github.com/polestorm/gopdfgo/sign"}
 
 // Rdzeń i polecenie gopdfgo nie zależą od pakietów opcjonalnych (go list -deps).
 func TestCoreDoesNotImportOptionalPackages(t *testing.T) {
-	out, err := exec.Command("go", "list", "-deps", "..", "../cmd/gopdfgo").Output()
+	out, err := exec.Command("go", "list", "-deps", "../htmlpdf", "../cmd/gopdfgo").Output()
 	if err != nil {
 		t.Fatalf("go list: %v", err)
 	}

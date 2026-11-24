@@ -2008,7 +2008,7 @@ func TestTableRowHeight1(t *testing.T) {
 	// to 80px.The middle is at 40px.
 	// gopdfgo: pusta komórka (padding 15px) nie uczestniczy w wyrównaniu do linii bazowej wiersza, jak
 	// w Chromium (ADR 0006), więc druga komórka nie dostaje górnego odstępu 5px; źródło oczekiwało 5
-	// według dosłownego brzmienia CSS 2.1 § 17.5.3 (zob. THIRD_PARTY.md)
+	// według dosłownego brzmienia CSS 2.1 § 17.5.3 (zob. docs/provenance.md)
 	tu.AssertEqual(t, paddingTops, [][]pr.Float{
 		{0, 20, 0, 0, 30, 60},
 		{15, 0},

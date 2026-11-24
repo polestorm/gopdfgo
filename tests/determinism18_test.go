@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestSharedFamilyNameDeterministic sprawdza, że przy dwóch fontach o tej samej zlokalizowanej nazwie
@@ -14,19 +14,19 @@ import (
 // poprawką fonty były rejestrowane w kolejności iteracji po mapie, więc test WPT
 // css-fonts/font-family-name-010 dawał przy kolejnych uruchomieniach różne pliki PDF.
 func TestSharedFamilyNameDeterministic(t *testing.T) {
-	var fonts []gopdfgo.Font
+	var fonts []htmlpdf.Font
 	for _, name := range []string{"csstest-familyname.ttf", "csstest-familyname-funkyA.ttf", "csstest-familyname-funkyB.ttf", "csstest-familyname-funkyC.ttf"} {
 		data, err := os.ReadFile("../testdata/fonts/csstest/" + name)
 		if err != nil {
 			t.Skip("brak fontów CSSTest")
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: name, Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: name, Data: data})
 	}
 	fonts = append(fonts, testFonts(t)...)
 	html := []byte(`<p style="font: 36px 'ＣＳＳテスト　フォント名', CSSTest Fallback">5678</p>`)
-	render := func(fonts []gopdfgo.Font) []byte {
+	render := func(fonts []htmlpdf.Font) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), html, gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), html, htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +39,7 @@ func TestSharedFamilyNameDeterministic(t *testing.T) {
 		}
 	}
 	// wygrywa font podany wcześniej: odwrócona kolejność daje inny wynik
-	reversed := append([]gopdfgo.Font{fonts[3], fonts[2], fonts[1], fonts[0]}, fonts[4:]...)
+	reversed := append([]htmlpdf.Font{fonts[3], fonts[2], fonts[1], fonts[0]}, fonts[4:]...)
 	if bytes.Equal(render(reversed), first) {
 		t.Errorf("kolejność fontów w Options.Fonts nie wpływa na wybór twarzy o wspólnej nazwie rodziny")
 	}

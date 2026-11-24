@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestLayoutUnits pilnuje zaokrągleń układu jak w Chromium (ADR 0013, pomiary Chrome 157 z 2026-11-21):
@@ -17,7 +17,7 @@ func TestLayoutUnits(t *testing.T) {
 	dir := t.TempDir()
 	render := func(source string, exact bool) [][]byte {
 		t.Helper()
-		result, err := gopdfgo.Render(t.Context(), []byte(source), gopdfgo.Options{Fonts: testFonts(t), ExactLengths: exact})
+		result, err := htmlpdf.Render(t.Context(), []byte(source), htmlpdf.Options{Fonts: testFonts(t), ExactLengths: exact})
 		if err != nil {
 			t.Fatal(err)
 		}

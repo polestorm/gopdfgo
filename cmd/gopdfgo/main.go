@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 func main() {
@@ -46,9 +46,9 @@ func main() {
 		if err != nil {
 			return err
 		}
-		attachment := gopdfgo.Attachment{Name: filepath.Base(parts[0]), Data: data}
+		attachment := htmlpdf.Attachment{Name: filepath.Base(parts[0]), Data: data}
 		if len(parts) > 1 {
-			attachment.Relationship = gopdfgo.Relationship(strings.TrimSpace(parts[1]))
+			attachment.Relationship = htmlpdf.Relationship(strings.TrimSpace(parts[1]))
 		}
 		if len(parts) > 2 {
 			attachment.MediaType = strings.TrimSpace(parts[2])
@@ -101,13 +101,13 @@ func main() {
 	switch *pdfa {
 	case "":
 	case "2b", "2B":
-		conformance = gopdfgo.PDFA2b
+		conformance = htmlpdf.PDFA2b
 	case "3b", "3B":
-		conformance = gopdfgo.PDFA3b
+		conformance = htmlpdf.PDFA3b
 	case "2a", "2A":
-		conformance = gopdfgo.PDFA2a
+		conformance = htmlpdf.PDFA2a
 	case "3a", "3A":
-		conformance = gopdfgo.PDFA3a
+		conformance = htmlpdf.PDFA3a
 	default:
 		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfa (dozwolone: 2b, 3b, 2a, 3a)")
 		os.Exit(2)
@@ -115,7 +115,7 @@ func main() {
 	switch *pdfua {
 	case "":
 	case "1":
-		accessibility = gopdfgo.PDFUA1
+		accessibility = htmlpdf.PDFUA1
 	default:
 		fmt.Fprintln(os.Stderr, "gopdfgo: nieznana wartość -pdfua (dozwolone: 1)")
 		os.Exit(2)
@@ -126,7 +126,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "gopdfgo: -facturx:", err)
 			os.Exit(2)
 		}
-		invoice = &gopdfgo.FacturX{XML: data}
+		invoice = &htmlpdf.FacturX{XML: data}
 		if *facturXLevel != "" {
 			level, ok := facturXLevels[strings.NewReplacer(" ", "", "_", "", "-", "").Replace(strings.ToUpper(*facturXLevel))]
 			if !ok {
@@ -153,21 +153,21 @@ func main() {
 // conformance to zgodność wybrana flagą -pdfa, continuousMode to flaga -continuous,
 // uncompressedMode to flaga -uncompressed.
 var (
-	conformance      gopdfgo.Conformance
-	accessibility    gopdfgo.Accessibility // flaga -pdfua
+	conformance      htmlpdf.Conformance
+	accessibility    htmlpdf.Accessibility // flaga -pdfua
 	continuousMode   bool
 	uncompressedMode bool
 	taggedMode       bool                 // flaga -tagged
 	hyphenation      map[string][]byte    // flaga -hyphenation
-	attachments      []gopdfgo.Attachment // flaga -attach
-	invoice          *gopdfgo.FacturX     // flagi -facturx i -facturx-level
+	attachments      []htmlpdf.Attachment // flaga -attach
+	invoice          *htmlpdf.FacturX     // flagi -facturx i -facturx-level
 	systemFontsMode  bool                 // flaga -system-fonts
 )
 
 // facturXLevels to wartości -facturx-level po usunięciu spacji, podkreśleń i łączników.
-var facturXLevels = map[string]gopdfgo.FacturXLevel{
-	"MINIMUM": gopdfgo.FacturXMinimum, "BASICWL": gopdfgo.FacturXBasicWL, "BASIC": gopdfgo.FacturXBasic,
-	"EN16931": gopdfgo.FacturXEN16931, "EXTENDED": gopdfgo.FacturXExtended, "XRECHNUNG": gopdfgo.FacturXXRechnung,
+var facturXLevels = map[string]htmlpdf.FacturXLevel{
+	"MINIMUM": htmlpdf.FacturXMinimum, "BASICWL": htmlpdf.FacturXBasicWL, "BASIC": htmlpdf.FacturXBasic,
+	"EN16931": htmlpdf.FacturXEN16931, "EXTENDED": htmlpdf.FacturXExtended, "XRECHNUNG": htmlpdf.FacturXXRechnung,
 }
 
 func run(in, out, fontDir, root, userCSS string, generic map[string][]string, marginsEscape, exactLengths bool, maxShrink float64, monospaceSize float64, timeout time.Duration, quiet bool) error {
@@ -187,7 +187,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 		return err
 	}
 
-	var fonts []gopdfgo.Font
+	var fonts []htmlpdf.Font
 	patterns := []string{"*.ttf", "*.otf", "*/*.ttf", "*/*.otf"}
 	if fontDir == "" {
 		patterns = nil // tylko fonty systemowe (-system-fonts)
@@ -199,7 +199,7 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 			if err != nil {
 				return err
 			}
-			fonts = append(fonts, gopdfgo.Font{Name: filepath.Base(file), Data: data})
+			fonts = append(fonts, htmlpdf.Font{Name: filepath.Base(file), Data: data})
 		}
 	}
 	// Plik families.json w katalogu fontów przypisuje rodziny fontów rodzinom generycznym CSS,
@@ -216,10 +216,10 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 		}
 	}
 
-	resolver := func(target string) (gopdfgo.Resource, error) {
+	resolver := func(target string) (htmlpdf.Resource, error) {
 		u, err := url.Parse(target)
 		if err != nil || u.Scheme != "file" {
-			return gopdfgo.DenyAll(target)
+			return htmlpdf.DenyAll(target)
 		}
 		file := filepath.Clean(u.Path)
 		if !strings.HasPrefix(file, root+string(filepath.Separator)) {
@@ -227,14 +227,14 @@ func run(in, out, fontDir, root, userCSS string, generic map[string][]string, ma
 		}
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return gopdfgo.Resource{}, err
+			return htmlpdf.Resource{}, err
 		}
-		return gopdfgo.Resource{Data: data}, nil
+		return htmlpdf.Resource{Data: data}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
+	result, err := htmlpdf.Render(ctx, html, htmlpdf.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS, GenericFamilies: generic,
 		MarginsEscapeHeightLimits: marginsEscape, MonospaceFontSize: monospaceSize, ExactLengths: exactLengths, MaxShrink: maxShrink,
 		Conformance: conformance, Continuous: continuousMode, Uncompressed: uncompressedMode, Hyphenation: hyphenation,
 		Attachments: attachments, Tagged: taggedMode, Accessibility: accessibility, FacturX: invoice,

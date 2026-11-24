@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestFontCacheSameOutput: pamięć podręczna fontów (ADR 0045) nie zmienia wyniku. Dokumenty korpusu
@@ -16,7 +16,7 @@ import (
 // same bajty co bez niej.
 func TestFontCacheSameOutput(t *testing.T) {
 	names := []string{"20-invoice", "16-typography-fonts", "03-report-svg-chart", "20-invoice"}
-	cache := gopdfgo.NewFontCache(64 << 20)
+	cache := htmlpdf.NewFontCache(64 << 20)
 	for _, name := range names {
 		path := filepath.Join("../testdata/documents", name+".html")
 		plain, err := renderFileResult(path, "../testdata", "")
@@ -24,7 +24,7 @@ func TestFontCacheSameOutput(t *testing.T) {
 			t.Fatal(err)
 		}
 		for range 2 {
-			cached, err := renderFileOptions(path, "../testdata", "", func(o *gopdfgo.Options) { o.FontCache = cache })
+			cached, err := renderFileOptions(path, "../testdata", "", func(o *htmlpdf.Options) { o.FontCache = cache })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -48,26 +48,26 @@ func TestFontCacheSharedFile(t *testing.T) {
 @font-face { font-family: B; src: url(f.ttf); }
 .a { font-family: A, serif; } .b { font-family: B; }
 </style><p class="a">ABC abc</p><p class="b">ABC abc</p>`)
-	resolver := func(target string) (gopdfgo.Resource, error) {
+	resolver := func(target string) (htmlpdf.Resource, error) {
 		if strings.HasSuffix(target, "/f.ttf") {
-			return gopdfgo.Resource{Data: data}, nil
+			return htmlpdf.Resource{Data: data}, nil
 		}
-		return gopdfgo.DenyAll(target)
+		return htmlpdf.DenyAll(target)
 	}
 	serif, err := os.ReadFile("../testdata/fonts/tinos/Tinos-Regular.ttf")
 	if err != nil {
 		t.Fatal(err)
 	}
-	fonts := []gopdfgo.Font{{Name: "noto.ttf", Data: data}, {Name: "tinos.ttf", Data: serif}}
-	opts := gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file:///doc/a.html",
+	fonts := []htmlpdf.Font{{Name: "noto.ttf", Data: data}, {Name: "tinos.ttf", Data: serif}}
+	opts := htmlpdf.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file:///doc/a.html",
 		GenericFamilies: map[string][]string{"serif": {"Tinos"}}}
-	plain, err := gopdfgo.Render(context.Background(), html, opts)
+	plain, err := htmlpdf.Render(context.Background(), html, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	opts.FontCache = gopdfgo.NewFontCache(0)
+	opts.FontCache = htmlpdf.NewFontCache(0)
 	for range 3 {
-		cached, err := gopdfgo.Render(context.Background(), html, opts)
+		cached, err := htmlpdf.Render(context.Background(), html, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,20 +80,20 @@ func TestFontCacheSharedFile(t *testing.T) {
 // TestFontCacheEviction: limit długości plików usuwa fonty najdawniej użyte, a font usunięty
 // i wczytany ponownie działa jak wcześniej.
 func TestFontCacheEviction(t *testing.T) {
-	var fonts []gopdfgo.Font
+	var fonts []htmlpdf.Font
 	for _, name := range []string{"NotoSans-Regular.ttf", "NotoSerif-Regular.ttf", "NotoSansMono-Regular.ttf"} {
 		data, err := os.ReadFile("../testdata/fonts/" + name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: name, Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: name, Data: data})
 	}
 	html := []byte(`<p>tekst</p>`)
-	cache := gopdfgo.NewFontCache(int64(len(fonts[0].Data)) + 1) // mieści jeden plik
+	cache := htmlpdf.NewFontCache(int64(len(fonts[0].Data)) + 1) // mieści jeden plik
 	var first []byte
 	for i := range 6 {
 		font := fonts[i%len(fonts)]
-		result, err := gopdfgo.Render(context.Background(), html, gopdfgo.Options{Fonts: []gopdfgo.Font{font}, FontCache: cache})
+		result, err := htmlpdf.Render(context.Background(), html, htmlpdf.Options{Fonts: []htmlpdf.Font{font}, FontCache: cache})
 		if err != nil {
 			t.Fatal(err)
 		}

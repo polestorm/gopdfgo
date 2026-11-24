@@ -40,5 +40,5 @@ Punkt 3 to poprawka błędu (podwójny odstęp nie wynika z żadnej reguły), pu
 - `rand-09`: tabela dzieli się w tym samym wierszu co w Chromium (słów przesuniętych o ponad 3 pt:
   1048 → 794); faktury, e-SF, dokumenty Markdown i biurowe bez zmian.
 - Zmiany w `html/layout/tables.go` (`groupLayout`, koniec `tableLayout`, nowe `lastRowBottom`) są opisane
-  w `THIRD_PARTY.md`.
+  w `docs/provenance.md`.
 - Testy: `TestTableRowFitsWithoutTrailingSpacing`, `TestRepeatedFooterSpacing` w `tests/rand23_test.go`.

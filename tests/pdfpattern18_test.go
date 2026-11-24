@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Gradienty i wzorce w grupach przezroczystości (opacity, filtry, maski) nie mogą zależeć od tego,
@@ -24,7 +24,7 @@ func TestPatternsInTransparencyGroups(t *testing.T) {
 	head := `<style>@page { size: 300px 150px; margin: 0 } body { margin: 0 }</style>`
 	render := func(name, body string) ([]byte, []byte) {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts, Uncompressed: true})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts, Uncompressed: true})
 		if err != nil {
 			t.Fatal(err)
 		}

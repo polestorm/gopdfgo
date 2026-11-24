@@ -1029,7 +1029,7 @@ func TestPageGroups(t *testing.T) {
 	// gopdfgo: oczekiwania tego testu zakładają, że treść o stronie domyślnej zostaje na stronie nazwanej
 	// poprzedniego rodzeństwa (strona 5: section i div razem). Po poprawce zgodnej z CSS Page 3 układ
 	// stron jest inny; test trzeba przepisać z nowymi oczekiwaniami, do tego czasu jest wyłączony.
-	t.Skip("oczekiwania sprzeczne z CSS Page 3; do przepisania (THIRD_PARTY.md)")
+	t.Skip("oczekiwania sprzeczne z CSS Page 3; do przepisania (docs/provenance.md)")
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
 	pages := renderPages(t, `
@@ -1499,7 +1499,7 @@ func TestPageStyle(t *testing.T) {
 	// (max-content), jak w WeasyPrint. CSS Page 3 § 5.3.2.2 każe rozdzielić całą dostępną szerokość,
 	// i tak liczy teraz silnik; oczekiwania trzeba przeliczyć według specyfikacji, do tego czasu test
 	// jest wyłączony, a zachowanie mierzą reftesty WPT css-page/margin-boxes.
-	t.Skip("oczekiwania sprzeczne z CSS Page 3 § 5.3.2.2; do przeliczenia (THIRD_PARTY.md)")
+	t.Skip("oczekiwania sprzeczne z CSS Page 3 § 5.3.2.2; do przeliczenia (docs/provenance.md)")
 	defer tu.CaptureLogs().AssertNoLogs(t)
 
 	for _, data := range []struct {

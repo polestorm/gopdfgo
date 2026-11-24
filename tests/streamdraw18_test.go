@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
 )
 
@@ -20,17 +20,17 @@ import (
 
 // streamPair renderuje dokument raz z rysowaniem w trakcie układu i raz bez niego; zwraca oba wyniki
 // i opis przeszkody z pierwszego renderowania ("" = rysowany w trakcie układu).
-func streamPair(t *testing.T, html []byte, opts gopdfgo.Options) (streamed, classic []byte, fallback string) {
+func streamPair(t *testing.T, html []byte, opts htmlpdf.Options) (streamed, classic []byte, fallback string) {
 	t.Helper()
 	fallback = "not reported"
 	document.OnStream = func(reason string) { fallback = reason }
 	defer func() { document.OnStream, document.StreamingDisabled = nil, false }()
-	first, err := gopdfgo.Render(context.Background(), html, opts)
+	first, err := htmlpdf.Render(context.Background(), html, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	document.OnStream, document.StreamingDisabled = nil, true
-	second, err := gopdfgo.Render(context.Background(), html, opts)
+	second, err := htmlpdf.Render(context.Background(), html, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,13 +43,13 @@ func streamPair(t *testing.T, html []byte, opts gopdfgo.Options) (streamed, clas
 	return first.PDF, second.PDF, fallback
 }
 
-func streamOptions(t *testing.T) gopdfgo.Options {
+func streamOptions(t *testing.T) htmlpdf.Options {
 	t.Helper()
 	fonts, families, err := corpusFonts()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return gopdfgo.Options{Fonts: fonts, GenericFamilies: families}
+	return htmlpdf.Options{Fonts: fonts, GenericFamilies: families}
 }
 
 func pngDataURL(t *testing.T) string {
@@ -220,22 +220,22 @@ func TestStreamDrawingFile(t *testing.T) {
 	root, _ = filepath.Abs(root)
 	opts := streamOptions(t)
 	opts.BaseURL = "file://" + absolute
-	opts.Resolver = func(target string) (gopdfgo.Resource, error) {
+	opts.Resolver = func(target string) (htmlpdf.Resource, error) {
 		path := strings.TrimPrefix(target, "file://")
 		if !strings.HasPrefix(target, "file://") || !strings.HasPrefix(filepath.Clean(path), root+string(filepath.Separator)) {
-			return gopdfgo.DenyAll(target)
+			return htmlpdf.DenyAll(target)
 		}
 		data, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
-			return gopdfgo.DenyAll(target)
+			return htmlpdf.DenyAll(target)
 		}
-		return gopdfgo.Resource{Data: data}, nil
+		return htmlpdf.Resource{Data: data}, nil
 	}
 	if os.Getenv("GOPDFGO_STREAMDRAW_COMPARE") == "" {
 		fallback := "not reported"
 		document.OnStream = func(reason string) { fallback = reason }
 		defer func() { document.OnStream = nil }()
-		result, err := gopdfgo.Render(context.Background(), html, opts)
+		result, err := htmlpdf.Render(context.Background(), html, opts)
 		if err != nil {
 			t.Fatal(err)
 		}

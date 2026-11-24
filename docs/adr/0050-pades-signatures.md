@@ -39,7 +39,7 @@ pakiet `sign` (ok. 3,2 tys. linii) z PAdES B-B, B-T, B-LT i zewnętrznym podpisu
 7. Sprawdzanie: `pdfsig` (Poppler) i `openssl cms -verify` na wyniku; veraPDF dla PDF/A po podpisaniu;
    certyfikaty i klucze testowe generowane w testach (bez plików z kluczami w repozytorium albo z kluczem
    testowym jawnie opisanym jako testowy); walidator EU DSS tylko za zgodą użytkownika.
-8. Kod folio: wolno się wzorować (Apache-2.0); przejęcie kodu wprost — z atrybucją w `THIRD_PARTY_NOTICES`
+8. Kod folio: wolno się wzorować (Apache-2.0); przejęcie kodu wprost — z atrybucją w `docs/third-party-notices.txt`
    i `NOTICE` oraz wpisem w tym ADR.
 
 ## Konsekwencje
@@ -51,7 +51,7 @@ pakiet `sign` (ok. 3,2 tys. linii) z PAdES B-B, B-T, B-LT i zewnętrznym podpisu
 ## Stan rundy 1 (2026-11-23): PAdES B-B
 
 Zrobione w pakiecie `sign` (ok. 1,6 tys. linii bez testów, wyłącznie biblioteka standardowa Go; kod
-własny, folio tylko przeczytane — bez przejętego kodu, więc bez wpisów w `THIRD_PARTY_NOTICES` i `NOTICE`).
+własny, folio tylko przeczytane — bez przejętego kodu, więc bez wpisów w `docs/third-party-notices.txt` i `NOTICE`).
 
 API: `sign.SignPDF(ctx, pdf, sign.Options{Signer, Certificate, Chain, Time, Name, Reason, Location,
 ContactInfo, FieldName})`; błędy `ErrNoSigner`, `ErrUnsupportedKey`, `ErrKeyMismatch`, `ErrEncrypted`.
@@ -124,7 +124,7 @@ widoczny, pliki zaszyfrowane, `/DocMDP` (podpis certyfikujący) i poszanowanie `
 
 Zrobione w pakiecie `sign` (ok. 1,2 tys. linii nowego kodu bez testów: `tsa.go`, `revocation.go`, `dss.go`
 i zmiany w `sign.go`, `cms.go`; wyłącznie biblioteka standardowa Go, bez nowych zależności modułu; kod
-własny, folio tylko przeczytane — bez przejętego kodu, więc bez wpisów w `THIRD_PARTY_NOTICES` i `NOTICE`).
+własny, folio tylko przeczytane — bez przejętego kodu, więc bez wpisów w `docs/third-party-notices.txt` i `NOTICE`).
 
 API (nowe pola `sign.Options` i typy):
 

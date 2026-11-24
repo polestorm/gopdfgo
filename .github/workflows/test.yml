@@ -1,0 +1,37 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        if: matrix.os == 'ubuntu-latest'
+        run: test -z "$(gofmt -l $(git ls-files '*.go' | grep -v '^testdata/'))"
+      - run: go vet ./htmlpdf/... ./sign/... ./cmd/... ./tests/...
+      - run: go build ./...
+      - name: build with system fonts
+        run: go build -tags systemfonts ./cmd/gopdfgo
+
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: brew install poppler
+      - run: go test -timeout 60m ./htmlpdf/... ./sign/... ./cmd/... ./tests/

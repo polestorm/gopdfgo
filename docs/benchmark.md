@@ -95,7 +95,7 @@ glifów.
 Wcześniejszy zapis „fonty bez podzbiorów” był błędny: fonty są osadzane jako podzbiory (34 kB w dokumencie 06),
 a `pdffonts` pokazuje `sub no` tylko dlatego, że przedrostek nazwy nie jest sześcioliterowym znacznikiem.
 
-Testy pikselowe backendu z Ghostscriptem: 403 przechodzą, 2 nie, 10 pominiętych w źródle (`../THIRD_PARTY.md`).
+Testy pikselowe backendu z Ghostscriptem: 403 przechodzą, 2 nie, 10 pominiętych w źródle (`docs/provenance.md`).
 
 ## 4. Poprawki odporności (2026-11-12)
 
@@ -123,7 +123,7 @@ niepoprawnych. Ograniczenia:
 
 ## 6. Reftesty po poprawkach (2026-11-13)
 
-`TestWPTReftests` (`reftest_test.go`) renderuje reftesty przez `gopdfgo.Render` i porównuje wynik ze stanem
+`TestWPTReftests` (`reftest_test.go`) renderuje reftesty przez `htmlpdf.Render` i porównuje wynik ze stanem
 bazowym w `testdata/wpt/baseline.tsv`; regresja kończy test błędem. Kolejne stany:
 
 | Stan | Zaliczone z 340 |
@@ -158,7 +158,7 @@ same pola marginesowe.
 
 ## 8. Do zrobienia
 
-- Przejrzeć 69 różnic bez ostrzeżeń; powtórzyć reftesty przez `gopdfgo.Render` zamiast programu w `bench/`.
+- Przejrzeć 69 różnic bez ostrzeżeń; powtórzyć reftesty przez `htmlpdf.Render` zamiast programu w `bench/`.
 - Dodać `vh`/`vw` i właściwości logiczne, powtórzyć przebieg, żeby oddzielić braki składni od błędów fragmentacji.
 - folio i Chromium na tym samym programie jako punkty odniesienia.
 
@@ -465,7 +465,7 @@ Gdzie gopdfgo traci najwięcej wobec folio (folio na tych dokumentach: 57, 58, 1
 - `20-invoice`: min-/max-content komórek ok. 30% (kształtowanie każdej reszty tekstu komórki).
 - książka: układ 59%, kompresja zlib 9%, `madvise` 15%.
 
-Wdrożone w tej rundzie (wszystko bez zmiany wyniku, opis zmian w `THIRD_PARTY.md`):
+Wdrożone w tej rundzie (wszystko bez zmiany wyniku, opis zmian w `docs/provenance.md`):
 1. **Indeks selektorów** (`css/selector/index.go`, `tree.matcherIndex`): kubełki według identyfikatora,
    klasy albo nazwy elementu z najbardziej prawego selektora złożonego; kandydaci sortowani według pozycji w
    arkuszu, więc kolejność dopasowań jest ta sama. Test `TestMatcherIndexSameAsLinear` porównuje z

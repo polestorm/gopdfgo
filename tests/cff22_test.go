@@ -10,18 +10,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Fonty o konturach CFF (OpenType .otf) jako podzbiory CIDFontType0C (ADR 0040).
 
-func cffFont(t *testing.T, path string) gopdfgo.Font {
+func cffFont(t *testing.T, path string) htmlpdf.Font {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "testdata", "fonts", "cff", path))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return gopdfgo.Font{Name: filepath.Base(path), Data: data}
+	return htmlpdf.Font{Name: filepath.Base(path), Data: data}
 }
 
 const cffDocument = `<!DOCTYPE html><html lang="pl"><style>body{font-family:"Noto Sans";font-size:14pt}
@@ -52,15 +52,15 @@ func pdffontsReport(t *testing.T, pdf []byte) string {
 func TestCFFSubsetEmbedding(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		fonts []gopdfgo.Font
+		fonts []htmlpdf.Font
 		want  []string // fragmenty nazw fontów w pdffonts
 	}{
-		{"cff", []gopdfgo.Font{cffFont(t, "noto/NotoSans-Regular.otf"), cffFont(t, "adobe/SourceSans3VF-Italic.otf")},
+		{"cff", []htmlpdf.Font{cffFont(t, "noto/NotoSans-Regular.otf"), cffFont(t, "adobe/SourceSans3VF-Italic.otf")},
 			[]string{"+NotoSans ", "+SourceSans3VF "}},
-		{"cid", []gopdfgo.Font{cffFont(t, "noto/NotoSansCID-Regular.otf")}, []string{"+NotoSans "}},
+		{"cid", []htmlpdf.Font{cffFont(t, "noto/NotoSansCID-Regular.otf")}, []string{"+NotoSans "}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := gopdfgo.Render(context.Background(), []byte(cffDocument), gopdfgo.Options{Fonts: tc.fonts})
+			result, err := htmlpdf.Render(context.Background(), []byte(cffDocument), htmlpdf.Options{Fonts: tc.fonts})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,8 +120,8 @@ func TestCFFSubsetRasters(t *testing.T) {
 	}
 	doc := []byte(`<!DOCTYPE html><style>body{font-family:"Noto Sans";font-size:24pt}</style>
 <p>Zażółć gęślą jaźń. Agfx 0123456789 ffi — Ελληνικά кириллица</p>`)
-	render := func(font gopdfgo.Font) []byte {
-		result, err := gopdfgo.Render(context.Background(), doc, gopdfgo.Options{Fonts: []gopdfgo.Font{font}})
+	render := func(font htmlpdf.Font) []byte {
+		result, err := htmlpdf.Render(context.Background(), doc, htmlpdf.Options{Fonts: []htmlpdf.Font{font}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,16 +149,16 @@ func TestCFFSubsetPDFA(t *testing.T) {
 		t.Skip("brak verapdf")
 	}
 	for _, tc := range []struct {
-		conformance gopdfgo.Conformance
+		conformance htmlpdf.Conformance
 		flavour     string
-		fonts       []gopdfgo.Font
+		fonts       []htmlpdf.Font
 	}{
-		{gopdfgo.PDFA2b, "2b", []gopdfgo.Font{cffFont(t, "noto/NotoSans-Regular.otf"), cffFont(t, "adobe/SourceSans3VF-Italic.otf")}},
-		{gopdfgo.PDFA2a, "2a", []gopdfgo.Font{cffFont(t, "noto/NotoSans-Regular.otf"), cffFont(t, "adobe/SourceSans3VF-Italic.otf")}},
-		{gopdfgo.PDFA2b, "2b", []gopdfgo.Font{cffFont(t, "noto/NotoSansCID-Regular.otf")}},
+		{htmlpdf.PDFA2b, "2b", []htmlpdf.Font{cffFont(t, "noto/NotoSans-Regular.otf"), cffFont(t, "adobe/SourceSans3VF-Italic.otf")}},
+		{htmlpdf.PDFA2a, "2a", []htmlpdf.Font{cffFont(t, "noto/NotoSans-Regular.otf"), cffFont(t, "adobe/SourceSans3VF-Italic.otf")}},
+		{htmlpdf.PDFA2b, "2b", []htmlpdf.Font{cffFont(t, "noto/NotoSansCID-Regular.otf")}},
 	} {
-		result, err := gopdfgo.Render(context.Background(), []byte(cffDocument),
-			gopdfgo.Options{Fonts: tc.fonts, Conformance: tc.conformance})
+		result, err := htmlpdf.Render(context.Background(), []byte(cffDocument),
+			htmlpdf.Options{Fonts: tc.fonts, Conformance: tc.conformance})
 		if err != nil {
 			t.Fatal(err)
 		}

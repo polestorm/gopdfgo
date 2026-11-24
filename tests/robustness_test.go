@@ -6,7 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"path/filepath"
 	"sort"
@@ -92,7 +92,7 @@ func TestWPTNoPanic(t *testing.T) {
 	var unstable []string
 	for _, name := range names {
 		first, err := renderFile(filepath.Join("../testdata/wpt", name), "../testdata/wpt", printPageCSS)
-		if errors.Is(err, gopdfgo.ErrEngine) {
+		if errors.Is(err, htmlpdf.ErrEngine) {
 			panics[panicSite(err.Error())] = append(panics[panicSite(err.Error())], name)
 			continue
 		}
@@ -146,7 +146,7 @@ func TestTextCrashesFromW3CSurvey(t *testing.T) {
 	}
 	for name, html := range documents {
 		t.Run(name, func(t *testing.T) {
-			result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+			result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 			if err != nil {
 				t.Fatalf("renderowanie nie powiodło się: %v", err)
 			}

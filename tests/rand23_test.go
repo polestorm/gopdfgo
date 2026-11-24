@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Błędy układu znalezione na losowych dokumentach z generatora (bench/realdocs/genrand, 2026-11-23;
@@ -27,7 +27,7 @@ func renderAllFonts(t *testing.T, html string) []byte {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	result, err := gopdfgo.Render(ctx, []byte(html), gopdfgo.Options{Fonts: fonts, GenericFamilies: families})
+	result, err := htmlpdf.Render(ctx, []byte(html), htmlpdf.Options{Fonts: fonts, GenericFamilies: families})
 	if err != nil {
 		t.Fatal(err)
 	}

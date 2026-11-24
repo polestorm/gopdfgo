@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // inkColumns zwraca skrajne kolumny pikseli z farbą (ciemniejszych niż 128) w obrazie PPM, -1 bez farby.
@@ -40,8 +40,8 @@ func TestSVGTextShaping(t *testing.T) {
 	dir := t.TempDir()
 	render := func(body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body),
-			gopdfgo.Options{Fonts: testFonts(t), Resolver: gopdfgo.DenyAll})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body),
+			htmlpdf.Options{Fonts: testFonts(t), Resolver: htmlpdf.DenyAll})
 		if err != nil {
 			t.Fatal(err)
 		}

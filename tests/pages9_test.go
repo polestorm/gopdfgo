@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"strings"
 	"testing"
@@ -16,12 +16,12 @@ func TestPageModelPrint(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	head := `<style>:root { print-color-adjust: exact } body { margin: 0; font: 10px/1 Ahem } .a { position: absolute }</style>`
 	dir := t.TempDir()
 	render := func(name, html, userCSS string) [][]byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+html), gopdfgo.Options{Fonts: fonts, UserCSS: userCSS})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+html), htmlpdf.Options{Fonts: fonts, UserCSS: userCSS})
 		if err != nil {
 			t.Fatal(err)
 		}

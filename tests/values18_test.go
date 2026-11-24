@@ -3,7 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"strings"
 	"testing"
 )
@@ -38,11 +38,11 @@ func TestSteppedValueFunctions(t *testing.T) {
 	fonts := testFonts(t)
 	for _, c := range steppedCases {
 		t.Run(c.name, func(t *testing.T) {
-			withFunction, err := gopdfgo.Render(context.Background(), calcDocument(c.withFunction), gopdfgo.Options{Fonts: fonts})
+			withFunction, err := htmlpdf.Render(context.Background(), calcDocument(c.withFunction), htmlpdf.Options{Fonts: fonts})
 			if err != nil {
 				t.Fatal(err)
 			}
-			plain, err := gopdfgo.Render(context.Background(), calcDocument(c.plain), gopdfgo.Options{Fonts: fonts})
+			plain, err := htmlpdf.Render(context.Background(), calcDocument(c.plain), htmlpdf.Options{Fonts: fonts})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -70,7 +70,7 @@ func TestSteppedValueFunctionsRejectInvalid(t *testing.T) {
 		"width: mod(10px, 5%, 1px)",     // trzy argumenty z procentem
 		"width: mod(10%, 2)",            // procent i liczba
 	} {
-		result, err := gopdfgo.Render(context.Background(), calcDocument(declaration), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), calcDocument(declaration), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

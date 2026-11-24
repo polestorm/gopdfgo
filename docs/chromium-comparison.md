@@ -15,7 +15,7 @@ Dwie drogi druku w xml.pro, z ustawieniami takimi jak w kodzie xml.pro:
 
 | | Chromium | gopdfgo |
 |---|---|---|
-| moduł | `gohtmlpdf` (chromedp) i przeglądarka na serwerze | `gopdfgo.Render`, czysty Go |
+| moduł | `gohtmlpdf` (chromedp) i przeglądarka na serwerze | `htmlpdf.Render`, czysty Go |
 | faktura KSeF (`internal/shop`) | `Settle` 200 ms | fonty Noto Sans z `@font-face` |
 | e-SF, walidacja, eksport sekcji (`internal/esfpdf`) | margines 9 mm, `Settle` domyślny 2 s, pas nagłówka z szablonu Chrome | ten sam dokument z `@page`, pas nagłówka w polach marginesu, fonty Noto Sans i Noto Sans Mono |
 
@@ -34,7 +34,7 @@ Pliki pomiarowe leżą poza repozytorium.
 | fonty | systemowe | osadzone w binarce xml.pro: 2,1 MB (5 plików Noto, OFL) |
 | razem na serwerze | ok. 468 MB i biblioteki | ok. 27,5 MB |
 
-Pomiar: minimalny program `main` z jednym wywołaniem `gohtmlpdf.RenderDocument` albo `gopdfgo.Render`, zbudowany Go 1.26.6;
+Pomiar: minimalny program `main` z jednym wywołaniem `gohtmlpdf.RenderDocument` albo `htmlpdf.Render`, zbudowany Go 1.26.6;
 rozmiar przeglądarki zmierzony przez `du` na serwerze dev. gopdfgo jest około 17 razy mniejszy od samej przeglądarki.
 Nie potrzebuje też instalacji, aktualizacji ani pliku `HOME` z prawem zapisu dla procesu przeglądarki.
 

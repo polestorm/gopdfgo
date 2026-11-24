@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,25 +29,25 @@ const attachmentDocument = `<!DOCTYPE html><html lang="pl"><head><meta charset="
 <body><p>Faktura FV/1/2026. <a rel="attachment" href="https://example.test/zalaczniki/notatka.txt">Notatka</a></p></body></html>`
 
 // attachmentResolver dostarcza z pamięci pliki wskazane w attachmentDocument i liczy pobrania.
-func attachmentResolver(fetched map[string]int) gopdfgo.Resolver {
+func attachmentResolver(fetched map[string]int) htmlpdf.Resolver {
 	files := map[string]string{
 		"https://example.test/zalaczniki/umowa.txt":   "Treść umowy.\n",
 		"https://example.test/zalaczniki/notatka.txt": "Treść notatki.\n",
 	}
-	return func(url string) (gopdfgo.Resource, error) {
+	return func(url string) (htmlpdf.Resource, error) {
 		fetched[url]++
 		if data, ok := files[url]; ok {
-			return gopdfgo.Resource{Data: []byte(data), MediaType: "text/plain"}, nil
+			return htmlpdf.Resource{Data: []byte(data), MediaType: "text/plain"}, nil
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 }
 
-func attachmentOptions(t *testing.T, conformance gopdfgo.Conformance, fetched map[string]int) gopdfgo.Options {
-	return gopdfgo.Options{Fonts: testFonts(t), Conformance: conformance, Resolver: attachmentResolver(fetched),
-		Attachments: []gopdfgo.Attachment{
+func attachmentOptions(t *testing.T, conformance htmlpdf.Conformance, fetched map[string]int) htmlpdf.Options {
+	return htmlpdf.Options{Fonts: testFonts(t), Conformance: conformance, Resolver: attachmentResolver(fetched),
+		Attachments: []htmlpdf.Attachment{
 			{Name: "factur-x.xml", Data: []byte(invoiceXML), MediaType: "text/xml; charset=utf-8",
-				Description: "Faktura w postaci XML", Relationship: gopdfgo.RelationshipAlternative,
+				Description: "Faktura w postaci XML", Relationship: htmlpdf.RelationshipAlternative,
 				ModTime: time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)},
 			{Name: "dane.txt", Data: []byte("dane źródłowe\n")}, // bez typu i związku: wartości domyślne
 		}}
@@ -55,11 +55,11 @@ func attachmentOptions(t *testing.T, conformance gopdfgo.Conformance, fetched ma
 
 func TestAttachmentsPDFA3b(t *testing.T) {
 	fetched := map[string]int{}
-	first, err := gopdfgo.Render(context.Background(), []byte(attachmentDocument), attachmentOptions(t, gopdfgo.PDFA3b, fetched))
+	first, err := htmlpdf.Render(context.Background(), []byte(attachmentDocument), attachmentOptions(t, htmlpdf.PDFA3b, fetched))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := gopdfgo.Render(context.Background(), []byte(attachmentDocument), attachmentOptions(t, gopdfgo.PDFA3b, fetched))
+	second, err := htmlpdf.Render(context.Background(), []byte(attachmentDocument), attachmentOptions(t, htmlpdf.PDFA3b, fetched))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestAttachmentsPDFA3b(t *testing.T) {
 	}
 
 	// zwykły PDF: te same pliki, ale bez /AF i bez metadanych PDF/A
-	plain, err := gopdfgo.Render(context.Background(), []byte(attachmentDocument), attachmentOptions(t, gopdfgo.ConformanceNone, fetched))
+	plain, err := htmlpdf.Render(context.Background(), []byte(attachmentDocument), attachmentOptions(t, htmlpdf.ConformanceNone, fetched))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestAttachmentsPDFA3b(t *testing.T) {
 }
 
 func TestMissingAttachmentIsSkipped(t *testing.T) {
-	result, err := gopdfgo.Render(context.Background(), []byte(attachmentDocument), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA3b})
+	result, err := htmlpdf.Render(context.Background(), []byte(attachmentDocument), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA3b})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,8 +128,8 @@ func TestMissingAttachmentIsSkipped(t *testing.T) {
 }
 
 func TestAttachmentWithoutModTimeHasNoModDate(t *testing.T) {
-	result, err := gopdfgo.Render(context.Background(), []byte("<p>x</p>"), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA3b,
-		Attachments: []gopdfgo.Attachment{{Name: "a.xml", Data: []byte(invoiceXML), MediaType: "text/xml", Relationship: gopdfgo.RelationshipData}}})
+	result, err := htmlpdf.Render(context.Background(), []byte("<p>x</p>"), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA3b,
+		Attachments: []htmlpdf.Attachment{{Name: "a.xml", Data: []byte(invoiceXML), MediaType: "text/xml", Relationship: htmlpdf.RelationshipData}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,48 +143,48 @@ func TestAttachmentWithoutModTimeHasNoModDate(t *testing.T) {
 
 func TestPDFA2bRejectsNonPDFAAttachments(t *testing.T) {
 	// załącznik z Options.Attachments
-	_, err := gopdfgo.Render(context.Background(), []byte("<p>x</p>"), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA2b,
-		Attachments: []gopdfgo.Attachment{{Name: "factur-x.xml", Data: []byte(invoiceXML), MediaType: "text/xml"}}})
-	if !errors.Is(err, gopdfgo.ErrAttachmentNotPDFA) {
+	_, err := htmlpdf.Render(context.Background(), []byte("<p>x</p>"), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA2b,
+		Attachments: []htmlpdf.Attachment{{Name: "factur-x.xml", Data: []byte(invoiceXML), MediaType: "text/xml"}}})
+	if !errors.Is(err, htmlpdf.ErrAttachmentNotPDFA) {
 		t.Errorf("PDF/A-2b z załącznikiem XML: błąd %v, oczekiwany ErrAttachmentNotPDFA", err)
 	}
 	// załącznik wskazany w HTML
-	_, err = gopdfgo.Render(context.Background(), []byte(attachmentDocument), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA2b,
+	_, err = htmlpdf.Render(context.Background(), []byte(attachmentDocument), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA2b,
 		Resolver: attachmentResolver(map[string]int{})})
-	if !errors.Is(err, gopdfgo.ErrAttachmentNotPDFA) {
+	if !errors.Is(err, htmlpdf.ErrAttachmentNotPDFA) {
 		t.Errorf("PDF/A-2b z <link rel=attachment>: błąd %v, oczekiwany ErrAttachmentNotPDFA", err)
 	}
 	// plik PDF/A-2b jako załącznik jest dozwolony
-	inner, err := gopdfgo.Render(context.Background(), []byte("<p>wewnętrzny</p>"), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA2b})
+	inner, err := htmlpdf.Render(context.Background(), []byte("<p>wewnętrzny</p>"), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA2b})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer, err := gopdfgo.Render(context.Background(), []byte("<p>zewnętrzny</p>"), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA2b,
-		Attachments: []gopdfgo.Attachment{{Name: "wewnetrzny.pdf", Data: inner.PDF, MediaType: "application/pdf", Relationship: gopdfgo.RelationshipSource}}})
+	outer, err := htmlpdf.Render(context.Background(), []byte("<p>zewnętrzny</p>"), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA2b,
+		Attachments: []htmlpdf.Attachment{{Name: "wewnetrzny.pdf", Data: inner.PDF, MediaType: "application/pdf", Relationship: htmlpdf.RelationshipSource}}})
 	if err != nil {
 		t.Fatalf("PDF/A-2b z załącznikiem PDF/A-2b: %v", err)
 	}
 	// zwykły PDF (bez deklaracji PDF/A) nie wystarcza
-	plain, err := gopdfgo.Render(context.Background(), []byte("<p>zwykły</p>"), gopdfgo.Options{Fonts: testFonts(t)})
+	plain, err := htmlpdf.Render(context.Background(), []byte("<p>zwykły</p>"), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = gopdfgo.Render(context.Background(), []byte("<p>x</p>"), gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA2b,
-		Attachments: []gopdfgo.Attachment{{Name: "zwykly.pdf", Data: plain.PDF, MediaType: "application/pdf"}}})
-	if !errors.Is(err, gopdfgo.ErrAttachmentNotPDFA) {
+	_, err = htmlpdf.Render(context.Background(), []byte("<p>x</p>"), htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA2b,
+		Attachments: []htmlpdf.Attachment{{Name: "zwykly.pdf", Data: plain.PDF, MediaType: "application/pdf"}}})
+	if !errors.Is(err, htmlpdf.ErrAttachmentNotPDFA) {
 		t.Errorf("PDF/A-2b z załącznikiem zwykły PDF: błąd %v, oczekiwany ErrAttachmentNotPDFA", err)
 	}
 	verapdf(t, outer.PDF, "2b")
 }
 
 func TestInvalidAttachments(t *testing.T) {
-	for name, list := range map[string][]gopdfgo.Attachment{
+	for name, list := range map[string][]htmlpdf.Attachment{
 		"bez nazwy":        {{Data: []byte("x")}},
 		"nazwa powtórzona": {{Name: "a.txt", Data: []byte("x")}, {Name: "a.txt", Data: []byte("y")}},
 		"nieznany związek": {{Name: "a.txt", Data: []byte("x"), Relationship: "Parent"}},
 	} {
-		_, err := gopdfgo.Render(context.Background(), []byte("<p>x</p>"), gopdfgo.Options{Fonts: testFonts(t), Attachments: list})
-		if !errors.Is(err, gopdfgo.ErrInvalidAttachment) {
+		_, err := htmlpdf.Render(context.Background(), []byte("<p>x</p>"), htmlpdf.Options{Fonts: testFonts(t), Attachments: list})
+		if !errors.Is(err, htmlpdf.ErrInvalidAttachment) {
 			t.Errorf("%s: błąd %v, oczekiwany ErrInvalidAttachment", name, err)
 		}
 	}

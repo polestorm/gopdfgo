@@ -35,5 +35,5 @@ w podglądzie przeglądarki oraz część testów WPT.
 - Nazwy rodzin nie są sprawdzane: literówka w nazwie daje po cichu zachowanie domyślne. Zgłaszanie
   ostrzeżenia o nieznanej rodzinie jest możliwym rozszerzeniem.
 
-Kod: `render.go` (`Options.GenericFamilies`), `internal/webrender/text/engine_gotext.go`
+Kod: `htmlpdf/render.go` (`Options.GenericFamilies`), `internal/webrender/text/engine_gotext.go`
 (`FontConfigurationGotext.GenericFamilies`, `newQuery`), `cmd/gopdfgo/main.go`, test `TestGenericFamilies`.

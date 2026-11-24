@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -15,7 +15,7 @@ func TestFontFeatureValues(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Source Sans 3")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "SourceSans3-Regular.ttf", Data: data}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "SourceSans3-Regular.ttf", Data: data}}, testFonts(t)...)
 	const text = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 &?!@#"
 	head := `<style>@page { size: 900px 60px; margin: 0 } body { margin: 0 }
 		div { font: 20px/30px "Source Sans 3"; color: black }</style>`
@@ -23,7 +23,7 @@ func TestFontFeatureValues(t *testing.T) {
 	page := func(name, css, style string) []byte {
 		t.Helper()
 		html := head + "<style>" + css + "</style><div style=\"" + style + "\">" + text + "</div>"
-		result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

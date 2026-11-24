@@ -30,7 +30,7 @@ macierz przekształcenia na stronę; tekst zostaje tekstem, grafika wektorowa.
    w Chromium, 1 wyłącza pomniejszanie, `math.Inf(1)` pomniejsza bez limitu (pełna gwarancja, że treść
    zmieści się na szerokość, kosztem małego pisma).
 4. Silnik wywołany bezpośrednio (testy przejętego kodu) nie pomniejsza: `tree.Behavior.MaxShrink`
-   równe zero wyłącza funkcję; wartość domyślną 1,5 ustawia `gopdfgo.Render`.
+   równe zero wyłącza funkcję; wartość domyślną 1,5 ustawia `htmlpdf.Render`.
 
 ## Skutki
 

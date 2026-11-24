@@ -30,4 +30,4 @@ Sondaż ekranowy w trybie domyślnym zalicza cztery nowsze testy i nie zalicza `
 z włączonym parametrem odwrotnie.
 
 Kod: `internal/webrender/html/layout/block.go` (warunek przy ograniczaniu wysokości w `blockContainerLayout`),
-`render.go`, test `TestMarginsEscapeHeightLimits`.
+`htmlpdf/render.go`, test `TestMarginsEscapeHeightLimits`.

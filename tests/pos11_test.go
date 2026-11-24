@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"testing"
 )
 
@@ -15,7 +15,7 @@ func TestPositionedPrint11(t *testing.T) {
 	dir := t.TempDir()
 	pages := func(name, body string) [][]byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -519,7 +519,7 @@ substitution, the missing blur shadow, and anti-aliasing.
 ## Licence
 
 Apache License 2.0, Copyright 2026 Michał Głębowski (`LICENSE`, `NOTICE`). Code and data by other authors,
-with their licences, are listed in `THIRD_PARTY_NOTICES`. Include that file when you distribute software
+with their licences, are listed in `docs/third-party-notices.txt`. Include that file when you distribute software
 built with gopdfgo (ADR 0025).
 
 ## How it was measured

@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -19,10 +19,10 @@ func TestMulticolMisc(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

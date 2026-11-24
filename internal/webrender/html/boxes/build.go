@@ -975,11 +975,18 @@ func ContentToBoxes(style pr.ElementStyle, parentBox Box, quoteDepth []int, coun
 			style, parentBox, origQuoteDepth, localCounters,
 			resolver, targetCollector, cs, nil, nil)...)
 
-		parentChildren := parentBox.Box().Children
+		// gopdfgo: pudełko liniowe zamienione przez blockify w blok (element flex lub grid) nie jest układane;
+		// treść trafia do bloku, który je zastąpił. Bez tego target-counter() w ::after elementu flex
+		// (np. numer strony w spisie treści z display: flex) zostawał na wartości z pierwszego obiegu (0).
+		target := parentBox
+		for target.Box().blockifiedAs != nil {
+			target = target.Box().blockifiedAs
+		}
+		parentChildren := target.Box().Children
 		if len(parentChildren) == 1 && LineT.IsInstance(parentChildren[0]) {
 			parentChildren[0].Box().Children = localChildren
 		} else {
-			parentBox.Box().Children = localChildren
+			target.Box().Children = localChildren
 		}
 	}
 
@@ -1707,6 +1714,13 @@ func blockify(box Box, isLayoutFlex bool) Box {
 		return box
 	}
 	anonymous.Box().Style = box.Box().Style
+	if InlineBlockT.IsInstance(box) || InlineT.IsInstance(box) {
+		// gopdfgo: dzieci przeszły do nowego bloku; odwołania do liczników stron (target-counter w treści
+		// pseudoelementu) muszą trafić do niego: wspólne missingLink wskazuje wpis w TargetCollector,
+		// a blockifiedAs mówi parseAgain, gdzie wpisać nową treść.
+		anonymous.Box().missingLink = box.Box().missingLink
+		box.Box().blockifiedAs = anonymous
+	}
 	if isLayoutFlex {
 		anonymous.Box().IsFlexItem = true
 	} else {

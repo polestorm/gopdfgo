@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"image"
 	"image/color"
 	"image/png"
@@ -22,11 +22,11 @@ import (
 // Testy błędów znalezionych sondażem reftestów W3C (docs/feature-audit.md): każdy z nich był kiedyś
 // paniką, zawieszeniem albo zgubioną treścią.
 
-func renderString(t *testing.T, html string) gopdfgo.Result {
+func renderString(t *testing.T, html string) htmlpdf.Result {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	result, err := gopdfgo.Render(ctx, []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+	result, err := htmlpdf.Render(ctx, []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,11 +273,11 @@ func TestInterlacedPNG(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	result, err := gopdfgo.Render(ctx, []byte(`<img src="cat.png">`), gopdfgo.Options{
+	result, err := htmlpdf.Render(ctx, []byte(`<img src="cat.png">`), htmlpdf.Options{
 		Fonts:   testFonts(t),
 		BaseURL: "file:///doc/index.html",
-		Resolver: func(string) (gopdfgo.Resource, error) {
-			return gopdfgo.Resource{Data: data, MediaType: "image/png"}, nil
+		Resolver: func(string) (htmlpdf.Resource, error) {
+			return htmlpdf.Resource{Data: data, MediaType: "image/png"}, nil
 		},
 	})
 	if err != nil {
@@ -367,15 +367,15 @@ func TestTallImageIsSliced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	render := func(html string) gopdfgo.Result {
+	render := func(html string) htmlpdf.Result {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		result, err := gopdfgo.Render(ctx, []byte("<style>@page { size: 200px 200px; margin: 20px } body { margin: 0; font-size: 14px } "+
-			"p { margin: 0 } img { display: block; width: 100px }</style>"+html), gopdfgo.Options{
+		result, err := htmlpdf.Render(ctx, []byte("<style>@page { size: 200px 200px; margin: 20px } body { margin: 0; font-size: 14px } "+
+			"p { margin: 0 } img { display: block; width: 100px }</style>"+html), htmlpdf.Options{
 			Fonts:   testFonts(t),
 			BaseURL: "file:///doc/index.html",
-			Resolver: func(string) (gopdfgo.Resource, error) {
-				return gopdfgo.Resource{Data: data, MediaType: "image/png"}, nil
+			Resolver: func(string) (htmlpdf.Resource, error) {
+				return htmlpdf.Resource{Data: data, MediaType: "image/png"}, nil
 			},
 		})
 		if err != nil {
@@ -780,7 +780,7 @@ func TestInfiniteHeightDoesNotLoop(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{Fonts: testFonts(t)})
+	result, err := htmlpdf.Render(ctx, html, htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -829,19 +829,19 @@ func TestSharedCascadeKeepsOwnDeclarations(t *testing.T) {
 	withAttribute := rules + `<p class="wide">pierwszy</p><p class="wide" style="margin-left: 50px; color: green">drugi</p><p class="wide">trzeci</p>`
 	withRule := rules + `<style>p.wide.own { margin-left: 50px; color: green }</style>` +
 		`<p class="wide">pierwszy</p><p class="wide own">drugi</p><p class="wide">trzeci</p>`
-	options := gopdfgo.Options{Fonts: testFonts(t)}
-	first, err := gopdfgo.Render(t.Context(), []byte(withAttribute), options)
+	options := htmlpdf.Options{Fonts: testFonts(t)}
+	first, err := htmlpdf.Render(t.Context(), []byte(withAttribute), options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := gopdfgo.Render(t.Context(), []byte(withRule), options)
+	second, err := htmlpdf.Render(t.Context(), []byte(withRule), options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(first.PDF, second.PDF) {
 		t.Error("atrybut style i równoważna reguła dały różne dokumenty")
 	}
-	plain, err := gopdfgo.Render(t.Context(), []byte(rules+`<p class="wide">pierwszy</p><p class="wide">drugi</p><p class="wide">trzeci</p>`), options)
+	plain, err := htmlpdf.Render(t.Context(), []byte(rules+`<p class="wide">pierwszy</p><p class="wide">drugi</p><p class="wide">trzeci</p>`), options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -867,7 +867,7 @@ func TestSharedComputedValuesStayPerElement(t *testing.T) {
 </ul>
 <section style="color: red"><p><span>czerwony</span></p></section>
 <section><p><span>czarny</span></p></section>`
-	result, err := gopdfgo.Render(t.Context(), []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+	result, err := htmlpdf.Render(t.Context(), []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -879,11 +879,11 @@ func TestSharedComputedValuesStayPerElement(t *testing.T) {
 	}
 	// Ten sam dokument bez czerwieni musi się różnić: kolor odziedziczony po
 	// pierwszej sekcji nie może ani zniknąć, ani objąć drugiej.
-	bothRed, err := gopdfgo.Render(t.Context(), []byte(strings.Replace(html, `<section><p>`, `<section style="color: red"><p>`, 1)), gopdfgo.Options{Fonts: testFonts(t)})
+	bothRed, err := htmlpdf.Render(t.Context(), []byte(strings.Replace(html, `<section><p>`, `<section style="color: red"><p>`, 1)), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	noneRed, err := gopdfgo.Render(t.Context(), []byte(strings.Replace(html, ` style="color: red"`, ``, 1)), gopdfgo.Options{Fonts: testFonts(t)})
+	noneRed, err := htmlpdf.Render(t.Context(), []byte(strings.Replace(html, ` style="color: red"`, ``, 1)), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -905,13 +905,13 @@ func TestCSSSyntaxErrorHandling(t *testing.T) {
 		{"identyfikator od cyfry", `#6a, div { color: red }`, ``},
 		{"nazwa funkcji url wielkimi literami", `div { background: UrL("missing.png") green }`, `div { background: url("missing.png") green }`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -932,13 +932,13 @@ func TestSelectorMatchingFixes(t *testing.T) {
 		{"język bez rozróżniania wielkości liter", `span:lang(pl) { color: green }`, `span { color: green }`},
 		{"język dziedziczony", `em:lang(de) { color: green }`, `em { color: green }`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -951,10 +951,10 @@ func TestSelectorMatchingFixes(t *testing.T) {
 // Atrybut style wygrywa z selektorem identyfikatora, a przegrywa tylko
 // z deklaracją !important (CSS 2.1 § 6.4.1 i § 6.4.3).
 func TestStyleAttributeBeatsIDSelector(t *testing.T) {
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	render := func(html string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(t.Context(), []byte(html), options)
+		result, err := htmlpdf.Render(t.Context(), []byte(html), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -973,16 +973,16 @@ func TestStyleAttributeBeatsIDSelector(t *testing.T) {
 // jak pozostałe postaci.
 func TestImportWithQuotedURL(t *testing.T) {
 	sheet := []byte(`div { color: green }`)
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		if strings.HasSuffix(url, "sheet.css") {
-			return gopdfgo.Resource{Data: sheet, MediaType: "text/css"}, nil
+			return htmlpdf.Resource{Data: sheet, MediaType: "text/css"}, nil
 		}
-		return gopdfgo.Resource{}, errors.New("nieznany zasób " + url)
+		return htmlpdf.Resource{}, errors.New("nieznany zasób " + url)
 	}
 	var documents [][]byte
 	for _, rule := range []string{`@import url("sheet.css");`, `@import url(sheet.css);`, `@import "sheet.css";`} {
-		result, err := gopdfgo.Render(t.Context(), []byte(`<style>`+rule+`</style><div>tekst</div>`),
-			gopdfgo.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "https://example.test/doc.html"})
+		result, err := htmlpdf.Render(t.Context(), []byte(`<style>`+rule+`</style><div>tekst</div>`),
+			htmlpdf.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "https://example.test/doc.html"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -991,7 +991,7 @@ func TestImportWithQuotedURL(t *testing.T) {
 		}
 		documents = append(documents, result.PDF)
 	}
-	plain, err := gopdfgo.Render(t.Context(), []byte(`<style></style><div>tekst</div>`), gopdfgo.Options{Fonts: testFonts(t)})
+	plain, err := htmlpdf.Render(t.Context(), []byte(`<style></style><div>tekst</div>`), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1014,13 +1014,13 @@ func TestTableMinMaxSizes(t *testing.T) {
 		{"max-height przy podanej wysokości", `width: 100px; height: 300px; max-height: 80px`, `width: 100px; height: 80px`},
 		{"min-height przy wysokości automatycznej", `width: 100px; min-height: 90px`, `width: 100px; height: 90px`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(`<table style="`+c.got+`">`+cell), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(`<table style="`+c.got+`">`+cell), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(`<table style="`+c.want+`">`+cell), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(`<table style="`+c.want+`">`+cell), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1035,11 +1035,11 @@ func TestTableMinMaxSizes(t *testing.T) {
 func TestCollapsedTableRow(t *testing.T) {
 	html := `<style>@page { size: 400px 300px; margin: 20px } td { padding: 0; height: 40px }</style>
 <table style="border-spacing: 0"><tr style="visibility: collapse"><td>ukryty-szeroki-wiersz</td></tr><tr><td>widoczny</td></tr></table><p>akapit</p>`
-	result, err := gopdfgo.Render(t.Context(), []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+	result, err := htmlpdf.Render(t.Context(), []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	reference, err := gopdfgo.Render(t.Context(), []byte(strings.Replace(html, `<tr style="visibility: collapse"><td>ukryty-szeroki-wiersz</td></tr>`, ``, 1)), gopdfgo.Options{Fonts: testFonts(t)})
+	reference, err := htmlpdf.Render(t.Context(), []byte(strings.Replace(html, `<tr style="visibility: collapse"><td>ukryty-szeroki-wiersz</td></tr>`, ``, 1)), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1076,21 +1076,21 @@ func TestOverflowClipsOnlyContainedAbsoluteBoxes(t *testing.T) {
 	page := `<style>@page { size: 400px 300px; margin: 20px } body { margin: 0 }
 .clip { width: 100px; height: 40px; overflow: hidden; margin-top: 150px }
 .out { position: absolute; top: 10px; left: 200px }</style>`
-	options := gopdfgo.Options{Fonts: testFonts(t)}
-	escaped, err := gopdfgo.Render(t.Context(), []byte(page+`<div class="clip"><div class="out">ucieka</div></div>`), options)
+	options := htmlpdf.Options{Fonts: testFonts(t)}
+	escaped, err := htmlpdf.Render(t.Context(), []byte(page+`<div class="clip"><div class="out">ucieka</div></div>`), options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !visibleWords(t, escaped.PDF, 225)["ucieka"] {
 		t.Error("pudełko pozycjonowane względem strony zostało przycięte przez przodka z overflow")
 	}
-	contained, err := gopdfgo.Render(t.Context(), []byte(page+`<div class="clip" style="position: relative"><div class="out">zostaje</div></div>`), options)
+	contained, err := htmlpdf.Render(t.Context(), []byte(page+`<div class="clip" style="position: relative"><div class="out">zostaje</div></div>`), options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Tekst przycięty pozostaje w PDF (przycięcie to ścieżka, nie usunięcie),
 	// więc zamiast szukać słowa porównujemy z tym samym dokumentem bez przycinania.
-	visible, err := gopdfgo.Render(t.Context(), []byte(page+`<div class="clip" style="position: relative; overflow: visible"><div class="out">zostaje</div></div>`), options)
+	visible, err := htmlpdf.Render(t.Context(), []byte(page+`<div class="clip" style="position: relative; overflow: visible"><div class="out">zostaje</div></div>`), options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1109,13 +1109,13 @@ func TestAbsoluteAutoMargins(t *testing.T) {
 		{"max-height przed wyśrodkowaniem", `top: 20px; bottom: 20px; height: 120px; max-height: 40px; margin: auto 0`, `top: 80px; height: 40px`},
 		{"margines górny automatyczny przy dolnym podanym", `top: 10px; bottom: 10px; height: 50px; margin-top: auto; margin-bottom: 30px`, `top: 110px; height: 50px`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(frame+c.got+`"></div></div>`), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(frame+c.got+`"></div></div>`), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(frame+c.want+`"></div></div>`), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(frame+c.want+`"></div></div>`), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1137,13 +1137,13 @@ func TestFlexPercentagesInIndefiniteColumn(t *testing.T) {
 		{"procentowe flex-basis", `<div style="flex: 1 0 100%; border: 1px solid blue">tekst</div>`,
 			`<div style="flex: 1 0 content; border: 1px solid blue">tekst</div>`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(open+c.got+`</div>`), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(open+c.got+`</div>`), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(open+c.want+`</div>`), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(open+c.want+`</div>`), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1171,13 +1171,13 @@ func TestFlexDefiniteSizesAndFallbackAlignment(t *testing.T) {
 		{"right w kolumnie", row + `<div class="f" style="height: 100px; flex-direction: column; justify-content: right"><div class="i"></div></div>`,
 			row + `<div class="f" style="height: 100px; flex-direction: column; justify-content: start"><div class="i"></div></div>`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(c.got), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(c.got), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(c.want), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(c.want), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1237,13 +1237,13 @@ func TestCascadeLayers(t *testing.T) {
 		{"warstwa bez nazwy", `@layer { #a { color: red } } div { color: green }`, `div { color: green }`},
 		{"warstwa wewnątrz @media", `@media print { @layer one { div { color: green } } }`, `div { color: green }`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.got+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.want+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1334,13 +1334,13 @@ func TestReversedCounters(t *testing.T) {
 		{"lista zagnieżdżona ma własny licznik", list(`<ol reversed>`, `<li>a<ol><li>x</li><li>y</li></ol></li><li>b</li>`),
 			`<ol><li value="2">a<ol><li>x</li><li>y</li></ol></li><li value="1">b</li></ol>`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		got, err := gopdfgo.Render(t.Context(), []byte(c.got), options)
+		got, err := htmlpdf.Render(t.Context(), []byte(c.got), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := gopdfgo.Render(t.Context(), []byte(c.want), options)
+		want, err := htmlpdf.Render(t.Context(), []byte(c.want), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1686,12 +1686,12 @@ func TestMarginsEscapeHeightLimits(t *testing.T) {
 	}
 	for escape, want := range expected {
 		dir := t.TempDir()
-		options := gopdfgo.Options{Fonts: testFonts(t), MarginsEscapeHeightLimits: escape}
-		got, err := gopdfgo.Render(t.Context(), []byte(style+tested), options)
+		options := htmlpdf.Options{Fonts: testFonts(t), MarginsEscapeHeightLimits: escape}
+		got, err := htmlpdf.Render(t.Context(), []byte(style+tested), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		reference, err := gopdfgo.Render(t.Context(), []byte(style+want), options)
+		reference, err := htmlpdf.Render(t.Context(), []byte(style+want), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1783,13 +1783,13 @@ func TestModernSyntaxEquivalents(t *testing.T) {
 		{"zagnieżdżanie bez &", `.a { p { color: green } }`, `.a p { color: green }`},
 		{"zagnieżdżanie z & na końcu", `p { .a & { color: green } }`, `.a p { color: green }`},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	for _, c := range cases {
-		modern, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.modern+`</style>`+body), options)
+		modern, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.modern+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		plain, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.plain+`</style>`+body), options)
+		plain, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.plain+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1962,12 +1962,12 @@ func TestMonospaceFontSize(t *testing.T) {
 		{"reguła wyłączona", `<p>a <code>kod</code> b</p>`, `<p>a <span style="font:16px monospace">kod</span> b</p>`, 16},
 	}
 	for _, c := range cases {
-		options := gopdfgo.Options{Fonts: testFonts(t), MonospaceFontSize: c.size}
-		tested, err := gopdfgo.Render(t.Context(), []byte(c.tested), options)
+		options := htmlpdf.Options{Fonts: testFonts(t), MonospaceFontSize: c.size}
+		tested, err := htmlpdf.Render(t.Context(), []byte(c.tested), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := gopdfgo.Render(t.Context(), []byte(c.expected), options)
+		expected, err := htmlpdf.Render(t.Context(), []byte(c.expected), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2019,12 +2019,12 @@ func TestBorderWidthSnap(t *testing.T) {
 		{"wyłączone: 0.75pt to 1px", "border:0.75pt solid", "border:1px solid", true, true},
 	}
 	for _, c := range cases {
-		options := gopdfgo.Options{Fonts: testFonts(t), ExactLengths: c.exact}
-		tested, err := gopdfgo.Render(t.Context(), page(c.tested), options)
+		options := htmlpdf.Options{Fonts: testFonts(t), ExactLengths: c.exact}
+		tested, err := htmlpdf.Render(t.Context(), page(c.tested), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := gopdfgo.Render(t.Context(), page(c.expected), options)
+		expected, err := htmlpdf.Render(t.Context(), page(c.expected), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2042,9 +2042,9 @@ func TestMarginTruncatedAtPageTop(t *testing.T) {
 <div style="height:150px">a</div>
 <div style="display:` + display + `;height:100px;break-inside:avoid;margin-top:` + margin + `;break-before:` + breakBefore + `">b</div>`)
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	render := func(source []byte) []byte {
-		result, err := gopdfgo.Render(t.Context(), source, options)
+		result, err := htmlpdf.Render(t.Context(), source, options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2065,7 +2065,7 @@ func TestMarginTruncatedAtPageTop(t *testing.T) {
 // stronie zaczyna się od góry strony, bez odstępu.
 func TestGridImplicitRowsAndGap(t *testing.T) {
 	render := func(source string) []byte {
-		result, err := gopdfgo.Render(t.Context(), []byte(source), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(t.Context(), []byte(source), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2119,11 +2119,11 @@ func TestGridPlacementStretchGapAndIntrinsicWidth(t *testing.T) {
 			`<div style="display:inline-grid;border:2px solid;gap:16px;grid-template-columns:40px 40px;grid-template-rows:40px 40px;width:80px;height:80px">` + cell + cell + cell + cell + `</div>`},
 	}
 	for _, c := range cases {
-		tested, err := gopdfgo.Render(t.Context(), []byte(c.tested), gopdfgo.Options{Fonts: testFonts(t)})
+		tested, err := htmlpdf.Render(t.Context(), []byte(c.tested), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := gopdfgo.Render(t.Context(), []byte(c.expected), gopdfgo.Options{Fonts: testFonts(t)})
+		expected, err := htmlpdf.Render(t.Context(), []byte(c.expected), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2152,11 +2152,11 @@ func TestGridSpanAndReplacedItems(t *testing.T) {
 			`<style>@page { margin: 0; width: 300px; height: 200px } body { margin: 0 }</style><div style="height:200px;background:green"></div>`},
 	}
 	for _, c := range cases {
-		tested, err := gopdfgo.Render(t.Context(), []byte(c.tested), gopdfgo.Options{Fonts: testFonts(t)})
+		tested, err := htmlpdf.Render(t.Context(), []byte(c.tested), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := gopdfgo.Render(t.Context(), []byte(c.expected), gopdfgo.Options{Fonts: testFonts(t)})
+		expected, err := htmlpdf.Render(t.Context(), []byte(c.expected), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2196,11 +2196,11 @@ func TestFirstLineFloatWidthAndGridDescendants(t *testing.T) {
 			`<div style="position:relative;display:grid;grid:40px/10px 33px;width:43px"><div><div style="position:absolute;left:10px;width:33px;height:10px;background:green"></div></div></div>`},
 	}
 	for _, c := range cases {
-		tested, err := gopdfgo.Render(t.Context(), []byte(c.tested), gopdfgo.Options{Fonts: testFonts(t)})
+		tested, err := htmlpdf.Render(t.Context(), []byte(c.tested), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := gopdfgo.Render(t.Context(), []byte(c.expected), gopdfgo.Options{Fonts: testFonts(t)})
+		expected, err := htmlpdf.Render(t.Context(), []byte(c.expected), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2234,11 +2234,11 @@ func TestFlexRowPushAndFixedHeightFragments(t *testing.T) {
 			2},
 	}
 	for _, c := range cases {
-		tested, err := gopdfgo.Render(t.Context(), []byte(c.tested), gopdfgo.Options{Fonts: testFonts(t)})
+		tested, err := htmlpdf.Render(t.Context(), []byte(c.tested), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := gopdfgo.Render(t.Context(), []byte(c.expected), gopdfgo.Options{Fonts: testFonts(t)})
+		expected, err := htmlpdf.Render(t.Context(), []byte(c.expected), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2258,7 +2258,7 @@ func TestBorderSpacingTruncation(t *testing.T) {
 		return []byte(`<table style="border-spacing:` + spacing + `"><tr><td style="background:green;padding:0;width:20px;height:20px"></td><td style="background:green;padding:0;width:20px;height:20px"></td></tr></table>`)
 	}
 	render := func(source []byte, exact bool) []byte {
-		result, err := gopdfgo.Render(t.Context(), source, gopdfgo.Options{Fonts: testFonts(t), ExactLengths: exact})
+		result, err := htmlpdf.Render(t.Context(), source, htmlpdf.Options{Fonts: testFonts(t), ExactLengths: exact})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2284,8 +2284,8 @@ func TestShrinkContentWiderThanPage(t *testing.T) {
 		return page + `<div style="width:` + width + `;height:60px;background:green"></div>` +
 			`<div style="height:150px;background:silver"></div><div style="height:150px;background:gray"></div>`
 	}
-	render := func(source string, shrink float64) gopdfgo.Result {
-		result, err := gopdfgo.Render(t.Context(), []byte(source), gopdfgo.Options{Fonts: testFonts(t), MaxShrink: shrink})
+	render := func(source string, shrink float64) htmlpdf.Result {
+		result, err := htmlpdf.Render(t.Context(), []byte(source), htmlpdf.Options{Fonts: testFonts(t), MaxShrink: shrink})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2554,7 +2554,7 @@ func TestContinuousMode(t *testing.T) {
 	if paged.Pages < 3 {
 		t.Fatalf("dokument z podziałami ma %d stron, oczekiwane co najmniej 3", paged.Pages)
 	}
-	result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t), Continuous: true})
+	result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t), Continuous: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2584,8 +2584,8 @@ func TestContinuousMode(t *testing.T) {
 		`<div style="columns:2;column-fill:auto;width:100px"><div style="height:30px"></div><div style="height:30px"></div></div>`,
 		`<div style="columns:2;width:100px;height:0"><div style="height:60px"></div></div>`,
 	} {
-		columns, err := gopdfgo.Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }</style>`+body),
-			gopdfgo.Options{Fonts: testFonts(t), Continuous: true})
+		columns, err := htmlpdf.Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 } body { margin: 0 }</style>`+body),
+			htmlpdf.Options{Fonts: testFonts(t), Continuous: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2598,8 +2598,8 @@ func TestContinuousMode(t *testing.T) {
 	}
 
 	// treść krótsza niż strona z arkusza: strona nie maleje
-	short, err := gopdfgo.Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 }</style><p>x</p>`),
-		gopdfgo.Options{Fonts: testFonts(t), Continuous: true})
+	short, err := htmlpdf.Render(context.Background(), []byte(`<style>@page { size: 200px 100px; margin: 0 }</style><p>x</p>`),
+		htmlpdf.Options{Fonts: testFonts(t), Continuous: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2617,13 +2617,13 @@ func TestLineBreakingRules(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } div { font: 20px/20px Ahem; color: green }
 		.r { position: absolute; z-index: -1; color: red }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2659,13 +2659,13 @@ func TestHangingSpacesAndTabStops(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } div { font: 20px/20px Ahem; color: green }
 		.pre { white-space: pre } .blue { background: blue }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2732,7 +2732,7 @@ func TestFlexIntrinsicWidthAutoMarginsAndShrink(t *testing.T) {
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2874,7 +2874,7 @@ func TestGridItemSizingBaselineRowsAndMinHeight(t *testing.T) {
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2956,7 +2956,7 @@ func TestBorderImageSlicesDoNotBleed(t *testing.T) {
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2986,7 +2986,7 @@ func TestRootPositioningTableOverflowAndInlineBlockBaseline(t *testing.T) {
 	dir := t.TempDir()
 	render := func(name, html string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}

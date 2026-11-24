@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestTransforms3DAndRelativeColors sprawdza spłaszczanie funkcji 3D (CSS Transforms 2 § 6, § 12),
@@ -17,7 +17,7 @@ func TestTransforms3DAndRelativeColors(t *testing.T) {
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}

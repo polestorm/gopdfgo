@@ -3,7 +3,7 @@ package tests
 import (
 	"context"
 	"fmt"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -29,10 +29,10 @@ func largeTableDocument(rows int) []byte {
 // (ok. 32 tys. elementów). Wyniki z datą zapisujemy w docs/feature-audit.md.
 func BenchmarkLargeTable(b *testing.B) {
 	document := largeTableDocument(4000)
-	options := gopdfgo.Options{Fonts: testFonts(b)}
+	options := htmlpdf.Options{Fonts: testFonts(b)}
 	b.ReportAllocs()
 	for b.Loop() {
-		result, err := gopdfgo.Render(context.Background(), document, options)
+		result, err := htmlpdf.Render(context.Background(), document, options)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -65,7 +65,7 @@ func BenchmarkCorpus(b *testing.B) {
 // zaobserwowany w trakcie (odśmiecanie wymuszane co 25 ms, więc czas przebiegu
 // nie jest miarodajny).
 func peakLiveHeap(t testing.TB, document []byte) (pages int, peak uint64) {
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	var stats runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&stats)
@@ -89,7 +89,7 @@ func peakLiveHeap(t testing.TB, document []byte) (pages int, peak uint64) {
 			}
 		}
 	}()
-	result, err := gopdfgo.Render(context.Background(), document, options)
+	result, err := htmlpdf.Render(context.Background(), document, options)
 	close(stop)
 	highest := <-done
 	if err != nil {

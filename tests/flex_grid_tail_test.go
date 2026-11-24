@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ func TestFlexGridTail(t *testing.T) {
 	fonts := testFonts(t)
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

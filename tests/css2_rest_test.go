@@ -3,7 +3,7 @@ package tests
 import (
 	"context"
 	"encoding/base64"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,7 +17,7 @@ func TestCSS2Rest(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0; font: 10px/1 Ahem }
 		.a { position: absolute }</style>`
 	const css = "body { color: green }"
@@ -30,16 +30,16 @@ func TestCSS2Rest(t *testing.T) {
 			return out
 		}(),
 	}
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		if data, ok := sheets[url]; ok {
-			return gopdfgo.Resource{Data: data, MediaType: "text/css"}, nil
+			return htmlpdf.Resource{Data: data, MediaType: "text/css"}, nil
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file:///t/"})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file:///t/"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,13 +90,13 @@ func TestCSS2Rest(t *testing.T) {
 // rodziny kończy się na rodzinie generycznej serif (jak w Chromium), a rodzina dostępna przez
 // podstawienie zgodne metrycznie (Arial → Arimo) zostaje przy swoim foncie.
 func TestUnknownFamilyFallsBackToSerif(t *testing.T) {
-	var fonts []gopdfgo.Font
+	var fonts []htmlpdf.Font
 	for _, name := range []string{"NotoSans-Regular.ttf", "NotoSerif-Regular.ttf", "tinos/Tinos-Regular.ttf", "arimo/Arimo-Regular.ttf"} {
 		data, err := os.ReadFile(filepath.Join("../testdata/fonts", name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: filepath.Base(name), Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: filepath.Base(name), Data: data})
 	}
 	generic := map[string][]string{"serif": {"Tinos"}, "sans-serif": {"Arimo"}}
 	dir := t.TempDir()
@@ -104,7 +104,7 @@ func TestUnknownFamilyFallsBackToSerif(t *testing.T) {
 		t.Helper()
 		html := `<style>@page { size: 300px 100px; margin: 0 } body { margin: 0; font-size: 20px }</style><p style="font-family: ` +
 			family + `">Zażółć gęślą jaźń</p>`
-		result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: fonts, GenericFamilies: generic})
+		result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: fonts, GenericFamilies: generic})
 		if err != nil {
 			t.Fatal(err)
 		}

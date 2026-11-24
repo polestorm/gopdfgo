@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -17,11 +17,11 @@ func TestTabFloat12(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	dir := t.TempDir()
 	render := func(name, css, body string) [][]byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(`<!DOCTYPE html><style>`+css+`</style>`+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(`<!DOCTYPE html><style>`+css+`</style>`+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

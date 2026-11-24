@@ -5,7 +5,7 @@ Stan na 2026-11-13. Zastępuje wersję z 2026-11-12, która wyprowadzała projek
 ## Czym jest
 
 Silnik ogólnego użytku w czystym Go, który ze **statycznego HTML + CSS + SVG** tworzy dokument stronicowany
-i zapisuje go jako PDF. Jest biblioteką (`gopdfgo.Render`), którą program w Go dołącza do własnej binarki zamiast
+i zapisuje go jako PDF. Jest biblioteką (`htmlpdf.Render`), którą program w Go dołącza do własnej binarki zamiast
 uruchamiać przeglądarkę.
 
 Silnik jest **dokumentowy**, nie przeglądarkowy: implementuje CSS 2.1, wybrane moduły CSS 3 (flex, zmienne, `calc`,
@@ -19,7 +19,7 @@ sieci. Wzorcami tej klasy są WeasyPrint i Prince.
    stan na 2026-11-12 to ok. 27 MB przed optymalizacją (ADR 0002).
 2. **Pełna kontrola nad kodem źródłowym.** Cały kod układu i zapisu PDF leży w repozytorium i jest nasz do
    czytania, poprawiania, upraszczania i przepisywania. Kod przejęty z innych projektów traktujemy tak samo
-   (`../THIRD_PARTY.md`); zależności zewnętrzne ograniczamy do małych, stabilnych bibliotek.
+   (`docs/provenance.md`); zależności zewnętrzne ograniczamy do małych, stabilnych bibliotek.
 3. **Determinizm renderowania.** Te same bajty wejścia, te same fonty i ta sama wersja silnika dają te same bajty
    PDF, na każdej maszynie i przy każdym uruchomieniu. Znaczniki czasu i identyfikatory ustawia wywołujący.
 4. **Pokrycie w wybranych ramach, nie konkurencja z Chromium.** Silnik ma dobrze drukować do PDF typowe dokumenty:

@@ -13,16 +13,16 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Options.SystemFonts w wariancie domyślnym kończy Render jawnym błędem, także bez Options.Fonts.
 func TestSystemFontsNotBuilt(t *testing.T) {
-	for _, opts := range []gopdfgo.Options{
+	for _, opts := range []htmlpdf.Options{
 		{Fonts: testFonts(t), SystemFonts: true},
 		{SystemFonts: true},
 	} {
-		if _, err := gopdfgo.Render(t.Context(), []byte("<p>tekst</p>"), opts); !errors.Is(err, gopdfgo.ErrSystemFontsNotBuilt) {
+		if _, err := htmlpdf.Render(t.Context(), []byte("<p>tekst</p>"), opts); !errors.Is(err, htmlpdf.ErrSystemFontsNotBuilt) {
 			t.Errorf("błąd: %v, oczekiwany ErrSystemFontsNotBuilt", err)
 		}
 	}

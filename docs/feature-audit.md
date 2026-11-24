@@ -21,7 +21,7 @@ Sekcje wg `size -m`:
 Wniosek: **usuwanie funkcji CSS prawie nie zmniejsza binarki**. Układ grid to dziesiątki kilobajtów. Rozmiar
 siedzi w danych i w zależnościach: słowniki dzielenia wyrazów (ok. jednej czwartej binarki), tablice kodowań
 znaków CJK z `golang.org/x/text` i stos sieciowy (`net/http`, `crypto/tls`) wciągany przez domyślne pobieranie
-zasobów, którego `gopdfgo.Render` nie używa. Te trzy pozycje warto zmierzyć osobno i uczynić wybieralnymi.
+zasobów, którego `htmlpdf.Render` nie używa. Te trzy pozycje warto zmierzyć osobno i uczynić wybieralnymi.
 
 ## 2. Sondaż reftestów ekranowych WPT
 
@@ -142,7 +142,7 @@ pozycjonowanie 39 (405 z 513), obramowania 36 (461 z 504), `css1` 18, treść ge
 Runda z 2026-11-14 (liczniki według CSS Lists 3, atrybuty `ol start`, `ol reversed`, `li value`, znacznik BOM
 w HTML): 6325 z 9135 (5959 ściśle, 366 krawędziowo), wcześniej 6231. Zyskane 99 testów: interfejs CSS 2 (27)
 i składnia CSS 2 (25) głównie dzięki BOM, flexbox 21, listy 18, fonty 6. Stracone 5: dwa testy wymagające
-zasięgu liczników z CSS 2.1 (sprzeczne z nowszymi testami, zob. `THIRD_PARTY.md`) i trzy z funkcją CSS
+zasięgu liczników z CSS 2.1 (sprzeczne z nowszymi testami, zob. `docs/provenance.md`) i trzy z funkcją CSS
 `reversed()` w `counter-reset`, które przechodziły tylko dlatego, że wzorzec z `ol reversed` był renderowany
 tak samo błędnie. Funkcja `reversed()` w `counter-reset` nie jest obsługiwana (ok. 30 testów).
 
@@ -403,7 +403,7 @@ Straty nie są regresjami układu, tylko testami, które wcześniej przechodził
   jak i we wzorcu, więc obrazy były równe. Teraz reguła działa i widać rzeczywiste różnice (`-001` naprawiony,
   w `-003` i `-004` zostaje szerokość minimalna przy ujemnym wcięciu i znaku U+200B).
 
-Najważniejsze poprawki z punktu widzenia zwykłych dokumentów (szczegóły w `THIRD_PARTY.md`):
+Najważniejsze poprawki z punktu widzenia zwykłych dokumentów (szczegóły w `docs/provenance.md`):
 
 - błędna wartość koloru czyniła tekst niewidocznym zamiast unieważniać deklarację;
 - `style="…"` przegrywało z regułą `#id { … }`;
@@ -563,11 +563,11 @@ spadła o 27.
 
 Pięć strat: cztery testy `CSS2/css1` z fontem Ahem, w których krawędź znaku leży dokładnie na granicy piksela
 i przesunięcie początku tekstu o ułamek jednostki zmienia wygładzanie (wcześniej zaliczane krawędziowo), oraz
-`content-056` (21 różnych pikseli przy progu 20). Sprawdzone warianty i ich wyniki są w `THIRD_PARTY.md`.
+`content-056` (21 różnych pikseli przy progu 20). Sprawdzone warianty i ich wyniki są w `docs/provenance.md`.
 
 W korpusie 21 dokumentów zmiana nie przesunęła żadnego słowa względem Chromium ani nie zmieniła liczby stron;
 zmienia się wygładzanie krawędzi znaków na każdej stronie. Przy okazji naprawiono kolumnę procentową tabeli
-przy komórce z `colspan` (osobny wpis w `THIRD_PARTY.md`).
+przy komórce z `colspan` (osobny wpis w `docs/provenance.md`).
 
 ## Druga runda podstaw CSS 2: marginesy, pudełka liniowe, `th`, listy (2026-11-15)
 
@@ -859,7 +859,7 @@ jeden pełny sondaż na końcu.
 | selektory | `:where()` | Selectors 4 § 4.4 |
 | reguły | `@supports` z `selector()`, `not`, `and`, `or` | CSS Conditional 3 § 6 |
 | skróty | `inset`, `place-items`, `place-content`, `place-self`, `overflow-x`/`-y`, logiczne promienie narożników | CSS Logical 1, CSS Align 3, CSS Overflow 3 |
-| wartości zastępcze | `position: sticky`, `float: inline-start`, `word-break: keep-all`, `white-space: break-spaces` | zob. `THIRD_PARTY.md` |
+| wartości zastępcze | `position: sticky`, `float: inline-start`, `word-break: keep-all`, `white-space: break-spaces` | zob. `docs/provenance.md` |
 
 Ograniczenia, o których trzeba wiedzieć:
 
@@ -1195,7 +1195,7 @@ Liczba stron zgadza się z Chromium w 20 z 21 dokumentów korpusu (wyjątek: `06
 Zmiana metody sondażu: od tej paczki sondaż ekranowy uruchamiamy z `-max-shrink 1`, bo testy W3C
 zakładają ekran, na którym przeglądarka niczego nie pomniejsza. Wynik przy tym ustawieniu (pełny sondaż
 9110 reftestów WPT, reguła ADR 0003): **7112**, ściśle 6724, krawędziowo 388, bez zmian względem
-poprzedniej paczki. Reftesty druku (pomniejszanie włączone, jak w `gopdfgo.Render`): **242 z 340**,
+poprzedniej paczki. Reftesty druku (pomniejszanie włączone, jak w `htmlpdf.Render`): **242 z 340**,
 bez zmian.
 
 ## Runda na dokumentach: cały korpus wobec wydruku Chromium (2026-11-16)
@@ -1273,7 +1273,7 @@ po zmianie rozmiarów pól). Reftesty druku: **242 z 340**, bez zmian.
 Punkt wyjścia: 253 niezaliczone testy `css-multicol` i największa różnica w korpusie (`21-mixed-report`,
 193 słowa ponad 3 pt od wydruku Chromium).
 
-Co zrobione (szczegóły w `THIRD_PARTY.md`):
+Co zrobione (szczegóły w `docs/provenance.md`):
 
 - element z `column-span: all` rozpina kolumny także w głębi drzewa; przodek jest dzielony na fragmenty;
 - blok o podanej wysokości jest dzielony na dole kolumny (ADR 0015), więc równoważenie działa dla treści
@@ -1319,7 +1319,7 @@ nagłówki rozpięte, karty z `break-inside: avoid`, bloki o stałej wysokości,
 z wydrukiem Chromium: ta sama liczba stron, 98 słów ponad 3 pt w pionie i 26 na innej stronie. Po
 poprawkach: żadnego słowa ponad 3 pt w żadnej osi.
 
-Co różniło (szczegóły w `THIRD_PARTY.md`):
+Co różniło (szczegóły w `docs/provenance.md`):
 
 - blok bez obramowania przecinany na dole kolumny liczył miejsce przed zwinięciem marginesu poprzednika,
   więc po przesunięciu wystawał i był przenoszony w całości; kolumny na końcu strony zostawały niedopełnione;
@@ -1837,7 +1837,7 @@ Korpus (22 dokumenty, binarka z 5ef9e30 wobec scalonej): bez zmian w żadnym dok
 
 Do ewentualnej decyzji: `place-self: safe end` w skrócie jest gubiony (`css/validation/logical.go` nie dzieli
 wartości wielowyrazowych); długie formy działają. Test `matrix/TestTranslate` (losowe macierze) nie przechodzi
-czasem, jak opisano w `THIRD_PARTY.md`.
+czasem, jak opisano w `docs/provenance.md`.
 
 ## Szósta paczka równoległa: listy, tekst, ogony obszarów (2026-11-18)
 
@@ -2020,7 +2020,7 @@ dokumenty próbne w scratchpadzie sesji, opis pomiaru w ADR 0019):
   ADR 0019 zastępuje ADR 0012: obszar domyślnego arkusza (A4 albo `size` z arkusza użytkownika).
 
 Reftesty druku 279 → 282 z 340; sondaż ekranowy bez zmian (9498, 0 strat); korpus bez zmian. Poprawionych
-8 przejętych testów (lista w `THIRD_PARTY.md`). `TestTranslate` (macierze) naprawiony: dokładne porównanie
+8 przejętych testów (lista w `docs/provenance.md`). `TestTranslate` (macierze) naprawiony: dokładne porównanie
 `float32` zastąpione tolerancją.
 
 ## Otwarte: pudełko `absolute` względem bloku początkowego w druku (pomiar 2026-11-18)
@@ -2543,7 +2543,7 @@ Sprawdzone dokumenty (`tests/footnotes23_test.go`): spis treści `target-counter
 krótkie, długie (dwa nie mieszczą się razem na stronie A6) i po trzy długie w jednym wierszu; dokument krótki
 (stara droga) i ponad 32 stron (droga dwuprzebiegowa, ADR 0036). Przed poprawką: krótki dokument kończył się
 paniką (liczba stron rosła z obiegu na obieg), a w układzie po kolei ginęło 7 z 22 przypisów i dwa stały nie po
-kolei. Naprawione (ADR 0036, dopisek drugi; `THIRD_PARTY.md`): przypisy przeniesione na następną stronę należą
+kolei. Naprawione (ADR 0036, dopisek drugi; `docs/provenance.md`): przypisy przeniesione na następną stronę należą
 do stanu strony w obiegach paginacji; nie giną dalsze przypisy wiersza ani dalsze przypisy przeniesione razem;
 przypis przeniesiony dla zmieszczenia wiersza zachowuje kolejność; przeniesione przypisy nie wychodzą nad
 stronę. Teraz każdy przypis jest dokładnie raz, w kolejności, nie przed stroną wywołania, obie drogi dają te

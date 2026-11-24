@@ -368,7 +368,7 @@ Wspólne dla obu katalogów:
   nadana elementowi przez rozciąganie w takim kontenerze nie jest podstawą procentów jego potomków. Źródło
   liczyło procent z nieskończoności i zapisywało w PDF `NaN` albo `Inf` (test `flex-basis-011` przechodził tylko
   dlatego, że tak samo zepsuty był wzorzec);
-- `pdflib/model/writeutils.go` (`FmtFloat`, `NonFiniteNumbers`), `render.go`: wartości `NaN` i nieskończone są
+- `pdflib/model/writeutils.go` (`FmtFloat`, `NonFiniteNumbers`), `htmlpdf/render.go`: wartości `NaN` i nieskończone są
   zapisywane jako 0 i zliczane, a `Render` zgłasza je ostrzeżeniem; źródło zapisywało napisy `NaN` i `+Inf`,
   które psują składnię strumienia strony. Licznik jest zmienną globalną, tak jak rejestrator ostrzeżeń
   (pytanie 15 w `docs/adr/open-questions.md`). Skan 9135 testów sondażu po poprawkach flex: 0 takich dokumentów;
@@ -1091,8 +1091,8 @@ Wspólne dla obu katalogów:
 - PDF z tagami, runda 2 (PDF/UA-1), 2026-11-21 (ADR 0033; pliki własne `backend/tagged.go`,
   `html/document/tags.go`, `goweasyprint/pdf/tagged.go`, test `tests/pdfua18_test.go`; zmiany w przejętym
   kodzie: `html/document/draw_text.go` `drawText` (`markText`), `html/document/document.go`
-  `addHyperlinks` (opis adnotacji); w API `pdfa.go` `Accessibility`, `PDFUA1`, `applyConformance`,
-  `xmpPacket`, `render.go` `Options.Accessibility`, CLI `-pdfua`):
+  `addHyperlinks` (opis adnotacji); w API `htmlpdf/pdfa.go` `Accessibility`, `PDFUA1`, `applyConformance`,
+  `xmpPacket`, `htmlpdf/render.go` `Options.Accessibility`, CLI `-pdfua`):
   - `LI` z `Lbl` (tekst `::marker`) i `LBody`, `ListNumbering` na `L`; `TH` z `Scope`, komórki z `RowSpan`
     i `ColSpan` według siatki tabeli HTML, puste komórki, wiersze i sekcje zachowane, `TBody` przy `THead`;
     `figure` jako `Div` (wcześniej `Figure` bez `Alt`), `Alt` obrazu z `figcaption`, gdy HTML pozwala
@@ -1264,7 +1264,7 @@ Wspólne dla obu katalogów:
     tablice wymagane co `font.NewFont`) i pełne parsowanie na żądanie (`Parse`); nowe `Supported` (pamięć
     wyniku sprawdzenia konturów przy zapisie PDF);
   - `text/lazy_fonts.go` (nowy, własny): `AddFontFile` (fonty z `Options.Fonts`, wcześniej `addCachedFont` w
-    `fontcache.go` z pełnym parsowaniem), twarze z fontem pustym (`addLazyFace`) wypełniane przez `loadFace`
+    `htmlpdf/fontcache.go` z pełnym parsowaniem), twarze z fontem pustym (`addLazyFace`) wypełniane przez `loadFace`
     przy pierwszym wyborze twarzy (`lazyLayer`, `lazySystemLayer`); `LazyFontsDisabled`, `OnFontParsed`;
   - `text/engine_gotext.go` `loadOneFont`: rejestracja reguły `@font-face` ze streszczenia (grubość z opisu
     streszczenia zamiast `Font.Describe()`), pola `ownCache`, `lazy`; `text/system_fonts.go` `faces`: warstwa
@@ -1337,7 +1337,7 @@ Wspólne dla obu katalogów:
 - dokumenty z ponowną paginacją układane w dwóch przebiegach, 2026-11-21 (praca pomocnika; ADR 0036;
   `html/layout/layout.go` `layoutDocument`, `paginate`, `finishPages`, pola `verifying`, `drift`,
   `pagesTargeted`; `html/layout/pages.go` `makePage`, `remakePage`; `html/layout/stream.go`,
-  `html/document/stream.go`, `render.go`; test `tests/twopass21_test.go`):
+  `html/document/stream.go`, `htmlpdf/render.go`; test `tests/twopass21_test.go`):
   - obiegi paginacji z `layoutDocument` są wydzielone do `layoutContext.paginate`, a obróbka stron po
     paginacji do `finishPages`; `layoutDocument` woła obie, kolejność kroków bez zmian;
   - dokument, który przy rysowaniu w trakcie układu (ADR 0027) wymaga ponownej paginacji (`target-counter`,
@@ -1358,7 +1358,7 @@ Wspólne dla obu katalogów:
   `html/layout/layout.go` `layoutDocument`, `html/layout/pages.go` `makeAllPages`, `html/document/stream.go`,
   `html/document/draw.go` `drawStackingContext`, `backend/document.go` `ResumablePage`,
   `goweasyprint/pdf/page.go`, `pdflib/contentstream/appearance.go` `Mark`, `ResumeAt`, `Flush`,
-  `pdflib/contentstream/commands.go` `writeOperationsAt`, `render.go`):
+  `pdflib/contentstream/commands.go` `writeOperationsAt`, `htmlpdf/render.go`):
   - źródło układało wszystkie strony przed narysowaniem pierwszej; obróbka stron po paginacji jest teraz
     wydzielona z `layoutDocument` do `pageFinisher` (te same kroki w tej samej kolejności), a
     `layout.LayoutStreaming` wykonuje ją dla każdej strony zaraz po jej ułożeniu, oddaje stronę do
@@ -1381,10 +1381,10 @@ Wspólne dla obu katalogów:
     `pageDone` zapamiętuje ścieżkę (`startChain`, `layoutContext.startChains`) przed zwolnieniem
     (css-gcpm/using-strings-003: nagłówek strony 2 „Section One” zamiast „Section Two”; błąd wykryło
     porównanie bajtowe całego korpusu W3C, 2026-11-21);
-- zwalnianie narysowanych stron, 2026-11-20 (`html/document/document.go` `ReleaseDrawnPages`, `render.go`):
+- zwalnianie narysowanych stron, 2026-11-20 (`html/document/document.go` `ReleaseDrawnPages`, `htmlpdf/render.go`):
   - źródło trzymało drzewa pudełek wszystkich stron do końca zapisu PDF, choć po narysowaniu strony nic ich
     nie czyta (odnośniki, kotwice i zakładki są zbierane wcześniej); teraz `Write` zwalnia stronę zaraz po
-    narysowaniu, gdy `ReleaseDrawnPages` jest ustawione (ustawia je `render.go`; przejęty test rysuje ten sam
+    narysowaniu, gdy `ReleaseDrawnPages` jest ustawione (ustawia je `htmlpdf/render.go`; przejęty test rysuje ten sam
     dokument dwa razy, więc to opcja);
   - wynik bajt w bajt taki sam (książka, jej czterokrotność, 45 plików korpusu); szczyt pamięci: książka
     0,84–0,87 → 0,75 GB, książka ×4 (1021 stron) 1,83 → 1,34–1,36 GB;
@@ -1701,7 +1701,7 @@ Wspólne dla obu katalogów:
   inne języki);
 - mniejsze pliki PDF, 2026-11-20 (ADR 0023):
   - `pdflib/model/streams.go`, `pdflib/contentstream/images.go`: stopień kompresji zlib ustawiany przez
-    `SetCompressionLevel` (źródło: zawsze `BestSpeed`); `gopdfgo.Render` ustawia 6, a przy
+    `SetCompressionLevel` (źródło: zawsze `BestSpeed`); `htmlpdf.Render` ustawia 6, a przy
     `Options.Uncompressed` zero, wtedy `NewCompressedStream` zostawia strumień bez filtra;
   - `goweasyprint/pdf/text_font_subset.go`:
     - podzbiór fontu w krótkim formacie `loca`, gdy się mieści (`toShortLoca`, glify wyrównane do parzystych
@@ -1800,7 +1800,7 @@ Wspólne dla obu katalogów:
     jej własne max-width (`tableMaxContentWidth`) nadal bez `box-sizing` (do sprawdzenia z `tables.go`);
 - jednostki okna w `@page` i szerokość wewnętrzna przy `box-sizing`, 2026-11-19 (praca pomocnika):
   - `html/tree/media_query.go` (`SetDefaultPageBox`), `html/tree/computed_values.go`, `html/tree/style.go`
-    (`StyleFor.PageBox`), `html/layout/layout.go` (`PageArea` zwraca też rozmiar arkusza), `render.go`: jednostki
+    (`StyleFor.PageBox`), `html/layout/layout.go` (`PageArea` zwraca też rozmiar arkusza), `htmlpdf/render.go`: jednostki
     vw, vh, vmin i vmax w kontekście `@page` i pól marginesów odnoszą się do arkusza domyślnego (A4 w pionie albo
     `size` z arkusza użytkownika), a nie do strony, którą same wyznaczają (Chromium issue 380860850, CSSWG #5437,
     testy WPT css-page/page-size-015..017 i margin-boxes/dimensions-015, oznaczone jako tentative). W źródle
@@ -1942,7 +1942,7 @@ Wspólne dla obu katalogów:
   strona z nagłówkiem i stopką), w `goweasyprint/pdf` `TestTables_9`, `_10`, `_15`, `_22`, `TestImageRepeatInline`,
   `TestImageRepeatBlock` (nagłówek zajmujący połowę strony 8–18 px nie jest powtarzany);
 - `@media` w druku, 2026-11-18 (ADR 0019, CSS Page 3 § 7.1; zastępuje ADR 0012; praca pomocnika):
-  `html/tree/media_query.go`, `style.go`, `render.go`, `html/layout/layout.go`: cechy `width`, `height`,
+  `html/tree/media_query.go`, `style.go`, `htmlpdf/render.go`, `html/layout/layout.go`: cechy `width`, `height`,
   `aspect-ratio` i `orientation` oceniane względem obszaru strony arkusza domyślnego (A4 w pionie albo rozmiar
   z `@page` arkusza użytkownika, pomniejszony o marginesy `@page` arkusza przeglądarki i użytkownika); `@page`
   autora nie ma wpływu. Arkusze autora czytane raz; usunięte `MediaPageArea`, `preparedContext`,
@@ -2804,7 +2804,7 @@ Wspólne dla obu katalogów:
 - wydajność, 2026-11-16 (pomiar w `docs/benchmark.md` § 9):
   - `text/engine_gotext.go` (`loadOneFont`, `ReuseLoadedFaces`): reguła `@font-face` przetwarzana drugi
     raz w tej samej konfiguracji fontów nie pobiera i nie parsuje fontu ponownie; włączone tylko
-    w `gopdfgo.Render`, bo testy przejęte dzielą jedną konfigurację między dokumenty i zależą od
+    w `htmlpdf.Render`, bo testy przejęte dzielą jedną konfigurację między dokumenty i zależą od
     kolejności dodawania twarzy;
   - `html/layout/layout.go` (`MediaPageArea`, `preparedContext`), `html/tree/tree.go` (`HTML.LayoutCache`):
     kontekst układu z policzonymi stylami zbudowany w przedbiegu dla `@media` (ADR 0012) jest używany
@@ -3000,6 +3000,13 @@ Wspólne dla obu katalogów:
   `target-counter(…, pages)` nie oznacza już strony kotwicy jako `PagesWanted`; liczbę stron w licznikach kotwic
   i oznaczenie stron odwołań daje `UpdateTargetPages`. Wynik bez zmian, a dokument z takim odwołaniem idzie
   odkładaniem stron zamiast dwóch przebiegów.
+- 2026-11-24, `html/boxes/build.go` (`blockify`, `ContentToBoxes` → `parseAgain`), `html/boxes/boxes.go`
+  (`BoxFields.blockifiedAs`), CSS Display 3 § 2.7, CSS GCPM 3 `target-counter()` (test
+  `tests/tocflex24_test.go`): pudełko liniowe albo liniowo-blokowe zamienione w element flex lub grid przekazuje
+  nowemu blokowi `missingLink`, a `parseAgain` wpisuje odświeżoną treść do tego bloku. Od zmiany z 2026-11-15
+  (blok zamiast opakowania pudełka liniowego) numery stron z `target-counter()` w `::after` elementu flex lub
+  grid trafiały do zastąpionego pudełka i spis treści z `display: flex` pokazywał „0”. Wynik W3C bajt w bajt ten
+  sam (46 756 renderowań); w korpusie zmienia się tylko dokument 18 (numery 2–6 jak w Chromium).
 - `html/document/document.go` (`gatherAnchors` z nowym parametrem `fields`, `Page.signatureFields`,
   `Write`), `html/document/stream.go` (`Area`, `Margins`, `finish`), nowe pliki własne
   `html/document/signature_fields.go` i `backend/signature.go` (`backend.SignatureFieldPage`), 2026-11-23,
@@ -3056,7 +3063,7 @@ zależnością modułu):
   § 6.3.2–6.3.3, ISO 14289-1 § 7.18.4: pole `/FT /Sig` bez `/V` połączone z widżetem `/F 4` i pustą formą
   `/AP /N`; `/AcroForm` bez `/SigFlags`. Model `pdflib` (pola formularza, scalanie pola z widżetem) bez zmian.
 
-## Ustawienia silnika w `render.go`
+## Ustawienia silnika w `htmlpdf/render.go`
 
 - atrybuty prezentacyjne HTML (`width` i `height` na `img`, `bgcolor`, `align`, `border` i inne) są stosowane:
   `document.Render` jest wołane z `presentationalHints = true`. W WeasyPrint i w porcie to opcja domyślnie
@@ -3064,7 +3071,7 @@ zależnością modułu):
 
 ## Zależności modułu
 
-Z `go.mod`, licencje z plików `LICENSE` w pamięci modułów (sprawdzone 2026-11-20); pełne teksty w `THIRD_PARTY_NOTICES` (ADR 0025):
+Z `go.mod`, licencje z plików `LICENSE` w pamięci modułów (sprawdzone 2026-11-20); pełne teksty w `docs/third-party-notices.txt` (ADR 0025):
 
 | Moduł | Licencja | Użycie |
 |---|---|---|
@@ -3091,7 +3098,7 @@ testy własne (od 2026-11-20 w katalogu `tests/`) przechodzą wszystkie.
   prawdopodobnie przez nowszy `golang.org/x/net` (0.62 wobec 0.42 w źródle).
 - `internal/webrender/matrix`: `TestTranslate` używał losowych macierzy z dokładnym porównaniem i prawie zawsze padał; od 2026-11-18 porównuje z tolerancją i przechodzi.
 - testy własne (od 2026-11-20 w katalogu `tests/`; `corpus_test.go`, `robustness_test.go`, `render_test.go`), wszystkie przez
-  `gopdfgo.Render`: 18 dokumentów renderuje się, liczby stron zgodne (2 różnice opisane w teście), tekst daje się
+  `htmlpdf.Render`: 18 dokumentów renderuje się, liczby stron zgodne (2 różnice opisane w teście), tekst daje się
   wyodrębnić, dwa przebiegi dają identyczne bajty; 726 plików WPT (testy druku i wzorce) renderuje się bez paniki
   i deterministycznie; 400 poziomów zagnieżdżenia poniżej 2 s.
 

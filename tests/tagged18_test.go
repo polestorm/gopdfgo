@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
 )
 
@@ -195,14 +195,14 @@ func markingStats(t *testing.T, content string) (mcids, artifacts, paginationTex
 	return
 }
 
-func renderTagged(t *testing.T, html string, adjust func(*gopdfgo.Options)) gopdfgo.Result {
+func renderTagged(t *testing.T, html string, adjust func(*htmlpdf.Options)) htmlpdf.Result {
 	t.Helper()
 	opts := streamOptions(t)
 	opts.Tagged, opts.Uncompressed = true, true
 	if adjust != nil {
 		adjust(&opts)
 	}
-	result, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+	result, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestTaggedStructure(t *testing.T) {
 	}
 	// plik skompresowany (strumienie obiektów) czyta pdfinfo z tym samym drzewem
 	if path, err := exec.LookPath("pdfinfo"); err == nil {
-		compressed := renderTagged(t, html, func(o *gopdfgo.Options) { o.Uncompressed = false })
+		compressed := renderTagged(t, html, func(o *htmlpdf.Options) { o.Uncompressed = false })
 		file := filepath.Join(t.TempDir(), "tagged.pdf")
 		if err := os.WriteFile(file, compressed.PDF, 0o644); err != nil {
 			t.Fatal(err)
@@ -308,7 +308,7 @@ func TestTaggedWarnings(t *testing.T) {
 	if got := structureDump(t, result.PDF); got != "Document(Figure(#))" {
 		t.Errorf("drzewo struktury %s", got)
 	}
-	plain, err := gopdfgo.Render(context.Background(), []byte(html), streamOptions(t))
+	plain, err := htmlpdf.Render(context.Background(), []byte(html), streamOptions(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +367,7 @@ func TestTaggedDrawingPathsAndDeterminism(t *testing.T) {
 			if c.want == "" && fallback != "" {
 				t.Errorf("dokument nie był rysowany w trakcie układu: %s", fallback)
 			}
-			again, err := gopdfgo.Render(context.Background(), html, o)
+			again, err := htmlpdf.Render(context.Background(), html, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -379,7 +379,7 @@ func TestTaggedDrawingPathsAndDeterminism(t *testing.T) {
 				t.Error("plik z tagami bez strumieni obiektów i strumienia odsyłaczy")
 			}
 			o.Tagged = false
-			plain, err := gopdfgo.Render(context.Background(), html, o)
+			plain, err := htmlpdf.Render(context.Background(), html, o)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -398,7 +398,7 @@ func TestTaggedCorpus(t *testing.T) {
 	if len(files) == 0 {
 		t.Skip("brak korpusu")
 	}
-	tagged := func(o *gopdfgo.Options) { o.Tagged, o.Uncompressed = true, true }
+	tagged := func(o *htmlpdf.Options) { o.Tagged, o.Uncompressed = true, true }
 	for _, file := range files {
 		streamed, err := renderFileOptions(file, "../testdata", "", tagged)
 		if err != nil {
@@ -423,12 +423,12 @@ func TestTaggedCorpus(t *testing.T) {
 func TestTaggedPDFA2a(t *testing.T) {
 	html := taggedPage + `<h1>Tytul</h1><p>Akapit z <a href="https://example.com/">odnosnikiem</a>.</p></body></html>`
 	for _, c := range []struct {
-		conformance gopdfgo.Conformance
+		conformance htmlpdf.Conformance
 		flag, part  string
-	}{{gopdfgo.PDFA2a, "2a", "2"}, {gopdfgo.PDFA3a, "3a", "3"}} {
+	}{{htmlpdf.PDFA2a, "2a", "2"}, {htmlpdf.PDFA3a, "3a", "3"}} {
 		opts := streamOptions(t)
 		opts.Conformance, opts.Uncompressed = c.conformance, true
-		readable, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+		readable, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -439,7 +439,7 @@ func TestTaggedPDFA2a(t *testing.T) {
 			}
 		}
 		opts.Uncompressed = false
-		result, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+		result, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 		if err != nil {
 			t.Fatal(err)
 		}

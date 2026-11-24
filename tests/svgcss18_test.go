@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // chartPage to wykres słupkowy w stylu D3: klasy na <g>, <rect>, <text> i ścieżce osi, wygląd
@@ -63,7 +63,7 @@ func TestInlineSVGDocumentCascade(t *testing.T) {
 	dir := t.TempDir()
 	render := func(name, doc, user string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(doc), gopdfgo.Options{Fonts: testFonts(t), UserCSS: user})
+		result, err := htmlpdf.Render(context.Background(), []byte(doc), htmlpdf.Options{Fonts: testFonts(t), UserCSS: user})
 		if err != nil {
 			t.Fatal(err)
 		}

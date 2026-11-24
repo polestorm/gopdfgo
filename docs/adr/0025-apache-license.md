@@ -16,7 +16,7 @@ w interfejsie produktu.
 2. `NOTICE` z „gopdfgo, Copyright 2026 Michał Głębowski”. Apache-2.0 § 4(d) każe każdemu, kto
    rozpowszechnia program z gopdfgo, dołączyć treść `NOTICE` do informacji o licencjach. To najmocniejsza
    atrybucja dostępna w licencjach liberalnych. Apache-2.0 zawiera też udzielenie licencji patentowej.
-3. `THIRD_PARTY_NOTICES` zbiera pełne teksty licencji składników wbudowanych w binarkę:
+3. `docs/third-party-notices.txt` zbiera pełne teksty licencji składników wbudowanych w binarkę:
    - webrender i go-weasyprint (BSD-3-Clause; to porty WeasyPrint, Kozea, BSD-3-Clause);
    - benoitkugler/pdf i pstokenizer (MIT);
    - go-text/typesetting (BSD-3-Clause, wybrane z „Unlicense OR BSD-3-Clause”);
@@ -27,8 +27,8 @@ w interfejsie produktu.
    mają je dołączać razem z `LICENSE` i `NOTICE`.
 4. Wszystkie licencje składników (MIT, BSD-3-Clause, Unlicense, FSF all-permissive) są zgodne z Apache-2.0.
    Nazwisk autorów składników nie używamy do promocji (BSD-3-Clause, pkt 3). Wzmianka o pochodzeniu jest
-   w `THIRD_PARTY_NOTICES` i README.
-5. `THIRD_PARTY.md` zostaje rejestrem zmian w przejętym kodzie; `testdata/THIRD_PARTY.md` rejestrem danych
+   w `docs/third-party-notices.txt` i README.
+5. `docs/provenance.md` zostaje rejestrem zmian w przejętym kodzie; `testdata/THIRD_PARTY.md` rejestrem danych
    testowych, które nie trafiają do binarki.
 
 ## Do zrobienia przed upublicznieniem

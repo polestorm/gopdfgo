@@ -22,7 +22,7 @@ Warunek: wynik ma być bajt w bajt taki sam jak dotąd.
 
 ## Decyzja
 
-1. `gopdfgo.Render` rysuje każdą stronę zaraz po tym, jak jej obszar jest ostateczny, a potem zwalnia jej
+1. `htmlpdf.Render` rysuje każdą stronę zaraz po tym, jak jej obszar jest ostateczny, a potem zwalnia jej
    drzewo pudełek (`layout.LayoutStreaming`, `document.Stream`). Obróbka strony po paginacji jest wydzielona
    z `layoutDocument` do `pageFinisher` (`html/layout/stream.go`). Obie drogi wykonują te same kroki w tej
    samej kolejności dla każdej strony.

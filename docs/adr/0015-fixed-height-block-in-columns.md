@@ -36,4 +36,4 @@ test `TestColumnsSpannersSlicingAndContain`.
 - Zachowanie różni się od podziału między strony z ADR 0004; tam domyślne pozostaje przenoszenie.
 - Nie ma parametru wyłączającego dzielenie w kolumnach; do dodania, jeśli okaże się potrzebny.
 - Dwa przejęte testy (`TestColumnsRegression1`, `TestColumnsRegression2`) oczekiwały przenoszenia bloków
-  w całości; zostały przepisane (zob. `THIRD_PARTY.md`).
+  w całości; zostały przepisane (zob. `docs/provenance.md`).

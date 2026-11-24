@@ -1,4 +1,4 @@
-package gopdfgo
+package htmlpdf
 
 import (
 	"github.com/polestorm/gopdfgo/internal/webrender/text"

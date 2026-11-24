@@ -211,7 +211,7 @@ przypisy wiersza, w którym pierwszy przeszedł na następną stronę, ginęły 
 następne albo układ kończył się paniką (wycinek złej listy); przypis przeniesiony, żeby zmieścił się wiersz,
 stawał za późniejszymi (kolejność 27, 25, 28). Do tego kilka długich przypisów przeniesionych razem wychodziło
 nad górną krawędź strony (obszar bez `max-height` nie zgłaszał przepełnienia); teraz przechodzą dalej.
-Szczegóły w `THIRD_PARTY.md`.
+Szczegóły w `docs/provenance.md`.
 
 Test `tests/footnotes23_test.go`: dokument krótki (stara droga i droga dwuprzebiegowa z progiem 0) i ponad
 32 stron (droga dwuprzebiegowa bez przeszkody) z krótkimi przypisami, długimi i po trzy długie w wierszu;

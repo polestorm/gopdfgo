@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -12,13 +12,13 @@ import (
 func TestBackgroundsMisc(t *testing.T) {
 	fonts := testFonts(t)
 	if ahem, err := os.ReadFile("../testdata/wpt/fonts/Ahem.ttf"); err == nil {
-		fonts = append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
+		fonts = append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
 	}
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } .a { position: absolute }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

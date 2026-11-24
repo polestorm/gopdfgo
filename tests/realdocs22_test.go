@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Rozbieżności z Chromium znalezione na dokumentacji Markdown i diagramach mermaid (bench/realdocs,
@@ -121,10 +121,10 @@ func TestUnbreakableTailDoesNotOverflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fonts := append(testFonts(t), gopdfgo.Font{Name: "NotoSansMono-Regular.ttf", Data: mono})
+	fonts := append(testFonts(t), htmlpdf.Font{Name: "NotoSansMono-Regular.ttf", Data: mono})
 	render := func(body string) []byte {
-		result, err := gopdfgo.Render(context.Background(), []byte(`<!DOCTYPE html><style>body { font: 10px "Noto Sans Mono" }
-			code { font: inherit }</style>`+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(`<!DOCTYPE html><style>body { font: 10px "Noto Sans Mono" }
+			code { font: inherit }</style>`+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

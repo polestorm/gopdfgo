@@ -33,7 +33,7 @@ decyzja użytkownika z 2026-11-22).
 - Indeks dolny schodzi o połowę mniej niż wcześniej; wiersz z indeksem jest o ok. 1 px niższy niż
   w Chromium (wcześniej o 1–2 px wyższy). Tabela parametrów z Worda: 2 strony jak w Chromium, wiersze
   z indeksami po 0,75 pt niższe, więc na kolejnych stronach treść zaczyna się nieco wcześniej.
-- Wcześniejsze przesunięcie zostaje opisane w `THIRD_PARTY.md` (zmiana w `html/tree/computed_values.go`).
+- Wcześniejsze przesunięcie zostaje opisane w `docs/provenance.md` (zmiana w `html/tree/computed_values.go`).
 - Gdyby kiedyś powstał tryb zgodności z Chromium (pytanie 28 w `docs/adr/open-questions.md`), „+1 px”
   może być jego częścią.
 - Test: `TestSubSuperDefaultOffsets` w `tests/office22_test.go`.

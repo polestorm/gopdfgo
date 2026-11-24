@@ -2,7 +2,7 @@ package tests
 
 import (
 	"bytes"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"regexp"
 	"strconv"
 	"testing"
@@ -50,12 +50,12 @@ func TestMediaQueriesWithFeatures(t *testing.T) {
 		{"screen, (max-width: 100px)", false},
 		{"(frobnicate), print", true},
 	}
-	options := gopdfgo.Options{Fonts: testFonts(t), UserCSS: `@page { margin: 0 }`}
-	plain, err := gopdfgo.Render(t.Context(), []byte(body), options)
+	options := htmlpdf.Options{Fonts: testFonts(t), UserCSS: `@page { margin: 0 }`}
+	plain, err := htmlpdf.Render(t.Context(), []byte(body), options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	green, err := gopdfgo.Render(t.Context(), []byte(`<style>p { color: green }</style>`+body), options)
+	green, err := htmlpdf.Render(t.Context(), []byte(`<style>p { color: green }</style>`+body), options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,14 +64,14 @@ func TestMediaQueriesWithFeatures(t *testing.T) {
 		if c.holds {
 			want = green.PDF
 		}
-		rule, err := gopdfgo.Render(t.Context(), []byte(`<style>@media `+c.query+` { p { color: green } }</style>`+body), options)
+		rule, err := htmlpdf.Render(t.Context(), []byte(`<style>@media `+c.query+` { p { color: green } }</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(rule.PDF, want) {
 			t.Errorf("@media %s: oczekiwano %v", c.query, c.holds)
 		}
-		attribute, err := gopdfgo.Render(t.Context(), []byte(`<style media="`+c.query+`">p { color: green }</style>`+body), options)
+		attribute, err := htmlpdf.Render(t.Context(), []byte(`<style media="`+c.query+`">p { color: green }</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,12 +105,12 @@ func TestMediaQueriesUseDefaultSheet(t *testing.T) {
 		{"wysokość od użytkownika", ``, `@page { size: 80mm 200mm; margin: 5mm }`, "(min-height: 800px)", false},
 	}
 	for _, c := range cases {
-		options := gopdfgo.Options{Fonts: testFonts(t), UserCSS: c.user}
-		plain, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.page+`</style>`+body), options)
+		options := htmlpdf.Options{Fonts: testFonts(t), UserCSS: c.user}
+		plain, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.page+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		green, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.page+` p { color: green }</style>`+body), options)
+		green, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.page+` p { color: green }</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestMediaQueriesUseDefaultSheet(t *testing.T) {
 			`@media ` + c.query + ` { p { color: green } } ` + c.page,
 			c.page + ` @media ` + c.query + ` { p { color: green } }`,
 		} {
-			rule, err := gopdfgo.Render(t.Context(), []byte(`<style>`+order+`</style>`+body), options)
+			rule, err := htmlpdf.Render(t.Context(), []byte(`<style>`+order+`</style>`+body), options)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -132,7 +132,7 @@ func TestMediaQueriesUseDefaultSheet(t *testing.T) {
 		}
 		// @page w dokumencie, @media w arkuszu użytkownika
 		options.UserCSS = c.user + ` @media ` + c.query + ` { p { color: green } }`
-		user, err := gopdfgo.Render(t.Context(), []byte(`<style>`+c.page+`</style>`+body), options)
+		user, err := htmlpdf.Render(t.Context(), []byte(`<style>`+c.page+`</style>`+body), options)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,10 +145,10 @@ func TestMediaQueriesUseDefaultSheet(t *testing.T) {
 // TestPageSizeIgnoredInSizeMedia: size w @page wewnątrz @media zależnego od rozmiaru medium (także przez
 // atrybut media i @import) jest pomijane, pozostałe deklaracje @page działają (CSS Page 3 § 7.1).
 func TestPageSizeIgnoredInSizeMedia(t *testing.T) {
-	options := gopdfgo.Options{Fonts: testFonts(t)}
+	options := htmlpdf.Options{Fonts: testFonts(t)}
 	pageSize := func(html string) [2]float64 {
 		t.Helper()
-		result, err := gopdfgo.Render(t.Context(), []byte(html+`<p>tekst</p>`), options)
+		result, err := htmlpdf.Render(t.Context(), []byte(html+`<p>tekst</p>`), options)
 		if err != nil {
 			t.Fatal(err)
 		}

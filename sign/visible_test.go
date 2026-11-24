@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Podpis w polu wskazanym w HTML atrybutem data-pdf-signature (ADR 0051): SignPDF z Options.FieldName
@@ -26,9 +26,9 @@ const visibleHTML = `<!DOCTYPE html><html lang="pl"><head><title>Umowa</title>
 func visibleDocuments(t *testing.T) map[string][]byte {
 	t.Helper()
 	return map[string][]byte{
-		"plain":  render(t, visibleHTML, gopdfgo.Options{}),
-		"pdfa2b": render(t, visibleHTML, gopdfgo.Options{Conformance: gopdfgo.PDFA2b}),
-		"pdfua":  render(t, visibleHTML, gopdfgo.Options{Conformance: gopdfgo.PDFA2a, Accessibility: gopdfgo.PDFUA1}),
+		"plain":  render(t, visibleHTML, htmlpdf.Options{}),
+		"pdfa2b": render(t, visibleHTML, htmlpdf.Options{Conformance: htmlpdf.PDFA2b}),
+		"pdfua":  render(t, visibleHTML, htmlpdf.Options{Conformance: htmlpdf.PDFA2a, Accessibility: htmlpdf.PDFUA1}),
 	}
 }
 

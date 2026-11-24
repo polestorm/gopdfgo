@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -15,13 +15,13 @@ func TestCorpus11(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0; font: 20px/1 Ahem }
 		.g { background: green } .a { position: absolute }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,8 +71,8 @@ func TestCorpus11(t *testing.T) {
 	// się dalej: strony 100 px, 100 px i 25 px (wcześniej dwie strony, a ostatnie 25 px ginęło)
 	pages := func(name, body string) [][]byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(`<style>@page { size: 100px 100px; margin: 0 } body { margin: 0 }
-			div { background: green } .b { background: blue } .r { background: red } .p { break-after: page }</style>`+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(`<style>@page { size: 100px 100px; margin: 0 } body { margin: 0 }
+			div { background: green } .b { background: blue } .r { background: red } .p { break-after: page }</style>`+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

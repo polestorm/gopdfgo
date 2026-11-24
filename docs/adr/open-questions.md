@@ -26,7 +26,7 @@ konkretnego odbiorcy.
    wymaga oznaczenia zmienionych plików i przeniesienia pliku `NOTICE`, jeśli istnieje, oraz nie daje prawa do nazwy
    (nie nazywamy niczego „Folio”). BSD-3 zabrania użycia nazwisk autorów do promocji. Obie licencje dają jawną
    zgodę na użycie komercyjne; Apache-2.0 także licencję patentową. Pliki przejęte z różnych źródeł trzymamy
-   w osobnych pakietach z własnym `LICENSE`, a rejestr pochodzenia w `THIRD_PARTY.md`. Wykluczone pozostaje LGPL.
+   w osobnych pakietach z własnym `LICENSE`, a rejestr pochodzenia w `docs/provenance.md`. Wykluczone pozostaje LGPL.
 4. ~~**Wzorzec zgodności: Chromium czy specyfikacja?**~~ Rozstrzygnięte 2026-11-13 przez użytkownika: specyfikacja
    (`../vision.md`, „Wzorzec zgodności”); dotyczy też rozbieżności z WeasyPrint. Zapis rozważań: Przy sporze między tym, co robi Chrome, a tym, co mówi CSS,
    co wygrywa? Propozycja: podział stron i liczniki wg specyfikacji Paged Media (Chrome ma tu luki), reszta wg Chrome,
@@ -55,7 +55,7 @@ konkretnego odbiorcy.
     wszystkiego poza `testdata/`), po przejrzeniu `go.mod` każdego silnika. go-webengine tylko z tagami
     `webengine_nojs webengine_nonet` albo wcale.
 14. ~~**Determinizm zapisu PDF.**~~ Rozstrzygnięte 2026-11-12: wariant (b), kopia pięciu pakietów w `internal/pdflib`
-    z sortowaniem kluczy (`../../THIRD_PARTY.md`); zgłoszenie upstream do zrobienia. Zapis rozważań: `benoitkugler/pdf` (MIT, ok. 110 tys. linii) zapisuje słowniki zasobów, iterując
+    z sortowaniem kluczy (`docs/provenance.md`); zgłoszenie upstream do zrobienia. Zapis rozważań: `benoitkugler/pdf` (MIT, ok. 110 tys. linii) zapisuje słowniki zasobów, iterując
     po mapach. Warianty: (a) poprawka upstream i czekanie, (b) własna kopia pakietów `model` i `contentstream`
     z sortowaniem kluczy, (c) backend na pakietach folio, które mają determinizm w założeniach. Propozycja: (b)
     teraz jako mała łatka plus zgłoszenie upstream, (c) rozważyć przy PDF/A.
@@ -138,7 +138,7 @@ Odłożone 2026-11-16 (decyzja użytkownika: zapisać na przyszłość). Pomiar 
 parsowanie fontów z `Options.Fonts` powtarza się przy każdym wywołaniu `Render` i dla sześciu fontów Noto
 trwa ok. 10 ms z ok. 32 ms małego dokumentu; sparsowany font zajmuje ok. 1,1–1,5 MB (plik 380–470 kB).
 
-Propozycja: `gopdfgo.PrepareFonts(fonts)` zwraca zestaw tylko do odczytu, przekazywany w `Options.FontSet`;
+Propozycja: `htmlpdf.PrepareFonts(fonts)` zwraca zestaw tylko do odczytu, przekazywany w `Options.FontSet`;
 `Options.Fonts` zostaje. Zestaw trzyma program wywołujący (bez bufora i czasu retencji po stronie silnika,
 binarka się nie zmienia), fonty z `@font-face` dokumentu nie są nim objęte. Odrzucona alternatywa:
 wewnętrzna pamięć podręczna według skrótu treści (stan wspólny między wywołaniami).

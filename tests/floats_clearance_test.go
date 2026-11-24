@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"testing"
 )
 
@@ -16,7 +16,7 @@ func TestFloatsAndClearance(t *testing.T) {
 	dir := t.TempDir()
 	render := func(name, html string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}

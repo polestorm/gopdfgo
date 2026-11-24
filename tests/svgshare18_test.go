@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/webrender/images"
 )
 
@@ -29,11 +29,11 @@ func herbDataURL(t *testing.T) string {
 }
 
 // renderSharing renderuje dokument ze współdzieleniem obrazów SVG albo bez niego.
-func renderSharing(t *testing.T, html string, sharing bool, uncompressed bool) gopdfgo.Result {
+func renderSharing(t *testing.T, html string, sharing bool, uncompressed bool) htmlpdf.Result {
 	t.Helper()
 	images.SVGSharingDisabled = !sharing
 	defer func() { images.SVGSharingDisabled = false }()
-	result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t), Uncompressed: uncompressed})
+	result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t), Uncompressed: uncompressed})
 	if err != nil {
 		t.Fatal(err)
 	}

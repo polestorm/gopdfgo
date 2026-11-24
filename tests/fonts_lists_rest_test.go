@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -13,31 +13,31 @@ import (
 // Alignment 3 § 5.4). Każdy przypadek porównuje stronę z wzorcem ułożonym bez badanej funkcji.
 
 // csstestFonts wczytuje fonty testowe CSSTest z WPT (ADR 0018) i Ahem.
-func csstestFonts(t *testing.T) []gopdfgo.Font {
+func csstestFonts(t *testing.T) []htmlpdf.Font {
 	t.Helper()
-	var fonts []gopdfgo.Font
+	var fonts []htmlpdf.Font
 	for _, name := range []string{"csstest/csstest-familyname.ttf", "csstest/csstest-fallback.ttf", "csstest/csstest-verify.ttf"} {
 		data, err := os.ReadFile("../testdata/fonts/" + name)
 		if err != nil {
 			t.Skip("brak fontów CSSTest")
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: name, Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: name, Data: data})
 	}
 	ahem, err := os.ReadFile("../testdata/wpt/fonts/Ahem.ttf")
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	return append(fonts, gopdfgo.Font{Name: "Ahem.ttf", Data: ahem})
+	return append(fonts, htmlpdf.Font{Name: "Ahem.ttf", Data: ahem})
 }
 
 // fontsPage zwraca funkcję renderującą stronę 300 × 200 px podanymi fontami.
-func fontsPage(t *testing.T, fonts []gopdfgo.Font) func(name, body string) []byte {
+func fontsPage(t *testing.T, fonts []htmlpdf.Font) func(name, body string) []byte {
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0; font: 36px/1 "CSSTest Fallback" }
 		div.a { font: 20px/20px Ahem; color: green }</style>`
 	dir := t.TempDir()
 	return func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

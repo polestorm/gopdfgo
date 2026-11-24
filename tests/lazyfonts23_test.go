@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 )
 
@@ -27,7 +27,7 @@ func TestLazyFontsSameOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { text.LazyFontsDisabled, text.OnFontParsed = false, nil }()
-	cache := gopdfgo.NewFontCache(0)
+	cache := htmlpdf.NewFontCache(0)
 	for _, path := range documents {
 		name := strings.TrimSuffix(filepath.Base(path), ".html")
 		text.LazyFontsDisabled = true
@@ -49,7 +49,7 @@ func TestLazyFontsSameOutput(t *testing.T) {
 		if len(parsed) == 0 || 4*len(parsed) > len(fonts) {
 			t.Errorf("%s: sparsowano %d plików fontów z %d", name, len(parsed), len(fonts))
 		}
-		cached, err := renderFileOptions(path, "../testdata", "", func(o *gopdfgo.Options) { o.FontCache = cache })
+		cached, err := renderFileOptions(path, "../testdata", "", func(o *htmlpdf.Options) { o.FontCache = cache })
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,11 +69,11 @@ func TestLazyFontsErrors(t *testing.T) {
 	// znacznik tablicy cmap w katalogu tablic zamieniony na nieznany: font bez cmap
 	noCmap := bytes.Replace(bytes.Clone(data), []byte("cmap"), []byte("xmap"), 1)
 	defer func() { text.LazyFontsDisabled = false }()
-	for _, font := range []gopdfgo.Font{{Name: "bad.ttf", Data: []byte("not a font file")}, {Name: "nocmap.ttf", Data: noCmap}} {
+	for _, font := range []htmlpdf.Font{{Name: "bad.ttf", Data: []byte("not a font file")}, {Name: "nocmap.ttf", Data: noCmap}} {
 		var messages [2]string
 		for i, disabled := range []bool{true, false} {
 			text.LazyFontsDisabled = disabled
-			_, err := gopdfgo.Render(context.Background(), []byte("<p>tekst</p>"), gopdfgo.Options{Fonts: []gopdfgo.Font{font}})
+			_, err := htmlpdf.Render(context.Background(), []byte("<p>tekst</p>"), htmlpdf.Options{Fonts: []htmlpdf.Font{font}})
 			if err == nil {
 				t.Fatalf("%s: brak błędu", font.Name)
 			}

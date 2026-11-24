@@ -1,4 +1,4 @@
-package gopdfgo
+package htmlpdf
 
 import (
 	"bytes"

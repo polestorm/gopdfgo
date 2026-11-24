@@ -21,7 +21,7 @@ wskaźniku `*font.Font`.
 
 ## Decyzja
 
-1. Nowy typ `gopdfgo.FontCache` (`NewFontCache(maxBytes)`) i pole `Options.FontCache`. Pamięć podręczna
+1. Nowy typ `htmlpdf.FontCache` (`NewFontCache(maxBytes)`) i pole `Options.FontCache`. Pamięć podręczna
    przechowuje sparsowane fonty według treści pliku (skrót `maphash` i porównanie bajtów z kopią treści),
    więc trafiają w nią fonty z `Options.Fonts` i z reguł `@font-face` pobrane przez `Resolver`, niezależnie
    od nazw i adresów. Limit dotyczy łącznej długości plików; po przekroczeniu usuwane są fonty najdawniej
@@ -50,4 +50,4 @@ wskaźniku `*font.Font`.
   wymagałoby zmian w go-text (zależność zewnętrzna, nie fork) albo własnego indeksu fontów; nie teraz. Dopisek
   2026-11-23: wdrożone bez zmian w go-text, ADR 0047.
 - Zmiana w przejętym kodzie (`internal/webrender/text`): plik `font_cache.go`, pole
-  `FontConfigurationGotext.Cache`, `loadOneFont` parsuje przez pamięć podręczną; opis w `THIRD_PARTY.md`.
+  `FontConfigurationGotext.Cache`, `loadOneFont` parsuje przez pamięć podręczną; opis w `docs/provenance.md`.

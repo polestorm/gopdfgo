@@ -25,8 +25,8 @@ Go zachowuje wszystkie metody eksportowane typów używanych przez interfejsy.
 ## Decyzja
 
 1. **Znacznik kompilacji.** Kod fontów systemowych jest w pakiecie `internal/systemfonts` (wszystkie pliki
-   z `//go:build systemfonts`) i w `systemfonts_on.go`; wariant domyślny ma plik zastępczy
-   `systemfonts_off.go` (`//go:build !systemfonts`). Budowanie: `go build -tags systemfonts ./cmd/gopdfgo`.
+   z `//go:build systemfonts`) i w `htmlpdf/systemfonts_on.go`; wariant domyślny ma plik zastępczy
+   `htmlpdf/systemfonts_off.go` (`//go:build !systemfonts`). Budowanie: `go build -tags systemfonts ./cmd/gopdfgo`.
    W przejętym kodzie zostaje tylko punkt zaczepienia bez skanowania: interfejs `text.SystemFonts` i warstwa
    fontmapy w `text/system_fonts.go`, nieczynne przy pustym polu `FontConfigurationGotext.System`.
 2. **`text/template` usunięty** z `formatSVG` (zastępowanie pól `{{ .Pole }}` wartościami z `fmt.Sprint`,
@@ -123,7 +123,7 @@ Go zachowuje wszystkie metody eksportowane typów używanych przez interfejsy.
   wywołującego.
 
 Kod: `internal/systemfonts/` (`index.go`: przeglądanie i indeks, `session.go`: wybór i wczytywanie, ostrzeżenia,
-`match.go`: CSS Fonts 4 § 5.2), `systemfonts_on.go`, `systemfonts_off.go`, `render.go` (`Options.SystemFonts`,
+`match.go`: CSS Fonts 4 § 5.2), `htmlpdf/systemfonts_on.go`, `htmlpdf/systemfonts_off.go`, `htmlpdf/render.go` (`Options.SystemFonts`,
 `ErrSystemFontsNotBuilt`), `internal/webrender/text/system_fonts.go`, `text/engine_gotext.go`,
 `text/family_names.go`, `html/document/draw.go` (`formatSVG`), `cmd/gopdfgo/main.go` (`-system-fonts`); testy
 `tests/systemfonts_test.go`, `tests/systemfonts_default_test.go`, `internal/systemfonts/match_test.go`.

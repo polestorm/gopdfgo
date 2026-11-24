@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestSVGStrokeTransformUse sprawdza trzy cechy SVG 2: vector-effect: non-scaling-stroke (§ 13.2;
@@ -21,19 +21,19 @@ func TestSVGStrokeTransformUse(t *testing.T) {
 			<symbol id="loop"><use href="nested.svg#loop"/><rect width="100" height="100" fill="green"/></symbol></svg>`,
 		"doc.html": `<html><svg xmlns="http://www.w3.org/2000/svg"><symbol id="g"><rect width="100" height="100" fill="green"/></symbol></svg></html>`,
 	}
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		for name, data := range files {
 			if strings.HasSuffix(url, "/"+name) {
-				return gopdfgo.Resource{Data: []byte(data)}, nil
+				return htmlpdf.Resource{Data: []byte(data)}, nil
 			}
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body),
-			gopdfgo.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body),
+			htmlpdf.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
 		if err != nil {
 			t.Fatal(err)
 		}

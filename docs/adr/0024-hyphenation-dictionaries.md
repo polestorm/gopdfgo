@@ -32,7 +32,7 @@ Słowniki LibreOffice to przeróbki wzorców z TeX-a. Oryginały prowadzi projek
 1. W binarce są tylko wzorce hyph-utf8 na licencjach MIT, BSD, Unlicense i FSF all-permissive (24 języki,
    1,3 MB). Generator `internal/webrender/text/hyphen/gen` buduje je z plików `.pat.txt` i `.hyp.txt`.
    Wyjątki zapisuje jako wzorce całych słów. Każdy plik `.dic` zaczyna się nagłówkiem źródła z autorami
-   i pełnym tekstem licencji. Wykaz jest w `dictionaries/NOTICES.txt` i w `THIRD_PARTY_NOTICES`.
+   i pełnym tekstem licencji. Wykaz jest w `dictionaries/NOTICES.txt` i w `docs/third-party-notices.txt`.
 2. Języki na LPPL, MPL, GPL, LGPL albo bez licencji nie są wbudowane. Węgierski ma MPL do wyboru, ale MPL
    każe każdemu, kto rozpowszechnia binarkę, wskazywać źródło pliku. Takiego obowiązku nie przerzucamy na
    użytkowników gopdfgo. LPPL nie ma na liście dopuszczonych licencji projektu, a zamiana wzorców na inny

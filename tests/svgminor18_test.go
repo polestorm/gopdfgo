@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestSVGMinorFeatures sprawdza mniejsze cechy SVG 2: rx/ry = auto (§ 10.2, § 10.4), currentColor
@@ -21,11 +21,11 @@ func TestSVGMinorFeatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fonts = append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
+	fonts = append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body),
-			gopdfgo.Options{Fonts: fonts, Resolver: gopdfgo.DenyAll})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body),
+			htmlpdf.Options{Fonts: fonts, Resolver: htmlpdf.DenyAll})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestSVGTransformOrigin sprawdza transform-origin i transform-box elementów wewnątrz SVG (CSS
@@ -18,8 +18,8 @@ func TestSVGTransformOrigin(t *testing.T) {
 	fonts := testFonts(t)
 	page := func(name, style, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+style+"</style>"+body),
-			gopdfgo.Options{Fonts: fonts, Resolver: gopdfgo.DenyAll})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+style+"</style>"+body),
+			htmlpdf.Options{Fonts: fonts, Resolver: htmlpdf.DenyAll})
 		if err != nil {
 			t.Fatal(err)
 		}

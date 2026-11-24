@@ -3,7 +3,7 @@ package tests
 import (
 	"bytes"
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os/exec"
 	"strings"
 	"testing"
@@ -14,7 +14,7 @@ func hyphenatedLines(t *testing.T, lang, word string, dicts map[string][]byte) [
 	t.Helper()
 	html := `<style>@page{margin:0;size:400px 400px}body{margin:0;font-size:16px}p{width:60px;hyphens:auto}</style>` +
 		`<p lang="` + lang + `">` + word + `</p>`
-	result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t), Hyphenation: dicts})
+	result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t), Hyphenation: dicts})
 	if err != nil {
 		t.Fatal(err)
 	}

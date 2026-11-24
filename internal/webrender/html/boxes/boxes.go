@@ -296,6 +296,9 @@ type BoxFields struct {
 
 	missingLink         tree.Box
 	cachedCounterValues tree.CounterValues
+	// gopdfgo: pudełko blokowe, które zastąpiło to pudełko liniowe jako element flex lub grid (blockify);
+	// parseAgain wpisuje tam treść z liczników stron, bo to ono jest układane.
+	blockifiedAs Box
 
 	Footnote Box
 

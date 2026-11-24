@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/webrender/text"
 )
 
@@ -21,7 +21,7 @@ func TestZeroWidthShortcutSameAsFullShaping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: name, Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: name, Data: data})
 	}
 	cells := []string{
 		`a T a T aT Ta. To Ty Va Wo, „Tak” — T. a`,
@@ -80,7 +80,7 @@ func TestZeroWidthShortcutSameAsFullShaping(t *testing.T) {
 		t.Helper()
 		text.ZeroWidthShortcut = shortcut
 		defer func() { text.ZeroWidthShortcut = true }()
-		result, err := gopdfgo.Render(t.Context(), data, gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(t.Context(), data, htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}

@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/sign"
 	"github.com/polestorm/gopdfgo/sign/keyfile"
 )
@@ -47,8 +47,8 @@ func newFixture(t *testing.T) *fixture {
 	}
 	html := `<!DOCTYPE html><html lang="pl"><head><title>Umowa</title></head><body><h1>Umowa</h1>
 <div data-pdf-signature="Podpis1" style="width: 6cm; height: 2cm; border: 1px solid">Podpis</div></body></html>`
-	result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{
-		Fonts: []gopdfgo.Font{{Name: "NotoSans-Regular.ttf", Data: font}}, Conformance: gopdfgo.PDFA2b})
+	result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{
+		Fonts: []htmlpdf.Font{{Name: "NotoSans-Regular.ttf", Data: font}}, Conformance: htmlpdf.PDFA2b})
 	if err != nil {
 		t.Fatal(err)
 	}

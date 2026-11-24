@@ -2,7 +2,7 @@ package tests
 
 import (
 	"fmt"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -108,12 +108,12 @@ func TestWarningForContentBelowPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	render := func(html string) gopdfgo.Result {
-		result, err := gopdfgo.Render(t.Context(), []byte("<style>@page { size: 300px 200px; margin: 20px } body { margin: 0 }</style>"+html), gopdfgo.Options{
+	render := func(html string) htmlpdf.Result {
+		result, err := htmlpdf.Render(t.Context(), []byte("<style>@page { size: 300px 200px; margin: 20px } body { margin: 0 }</style>"+html), htmlpdf.Options{
 			Fonts:   testFonts(t),
 			BaseURL: "file:///doc/index.html",
-			Resolver: func(string) (gopdfgo.Resource, error) {
-				return gopdfgo.Resource{Data: data, MediaType: "image/png"}, nil
+			Resolver: func(string) (htmlpdf.Resource, error) {
+				return htmlpdf.Resource{Data: data, MediaType: "image/png"}, nil
 			},
 		})
 		if err != nil {
@@ -121,7 +121,7 @@ func TestWarningForContentBelowPage(t *testing.T) {
 		}
 		return result
 	}
-	warned := func(result gopdfgo.Result) bool {
+	warned := func(result htmlpdf.Result) bool {
 		for _, warning := range result.Warnings {
 			if strings.Contains(warning.Message, "leży poniżej dolnej krawędzi strony") {
 				return true

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestSVGFilterShadows sprawdza wektorowe filtry SVG (Filter Effects 1): cień z grafu prymitywów
@@ -22,8 +22,8 @@ func TestSVGFilterShadows(t *testing.T) {
 	fonts := testFonts(t)
 	render := func(body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body),
-			gopdfgo.Options{Fonts: fonts, Resolver: gopdfgo.DenyAll})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body),
+			htmlpdf.Options{Fonts: fonts, Resolver: htmlpdf.DenyAll})
 		if err != nil {
 			t.Fatal(err)
 		}

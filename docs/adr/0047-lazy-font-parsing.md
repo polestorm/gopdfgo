@@ -62,4 +62,4 @@ Rozważone drogi:
   z `fc.fm` z pominięciem `faces()`, musi wywołać `loadFace`.
 - Zmiany w przejętym kodzie (`internal/webrender/text`: `font_cache.go`, nowy `lazy_fonts.go`,
   `engine_gotext.go` `loadOneFont`, `system_fonts.go` `faces`; `internal/goweasyprint/pdf`: `AddFont`,
-  `Output.SetFontSupportCache`) opisane w `THIRD_PARTY.md`.
+  `Output.SetFontSupportCache`) opisane w `docs/provenance.md`.

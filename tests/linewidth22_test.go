@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Dokładna szerokość wiersza jak w Chromium (ADR 0044; pomiary Chrome 157 z 2026-11-22): szerokość
@@ -19,12 +19,12 @@ func TestPreciseLineWidth(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: name, Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: name, Data: data})
 	}
 	tops := func(source string, exact bool) map[string]float64 {
 		t.Helper()
-		result, err := gopdfgo.Render(t.Context(), []byte(`<!DOCTYPE html><meta charset="utf-8">`+source),
-			gopdfgo.Options{Fonts: fonts, ExactLengths: exact})
+		result, err := htmlpdf.Render(t.Context(), []byte(`<!DOCTYPE html><meta charset="utf-8">`+source),
+			htmlpdf.Options{Fonts: fonts, ExactLengths: exact})
 		if err != nil {
 			t.Fatal(err)
 		}

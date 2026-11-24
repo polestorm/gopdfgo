@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -79,12 +79,12 @@ func TestWhiteSpaceRounding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fonts := append([]gopdfgo.Font{{Name: "NotoSansMono-Regular.ttf", Data: mono}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "NotoSansMono-Regular.ttf", Data: mono}}, testFonts(t)...)
 	const head = `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -21,7 +21,7 @@ Poprawność renderowania forka nie została jeszcze sprawdzona.
 
 1. Układ (`css`, `html/tree`, `html/boxes`, `html/layout`, `svg`, `text`) pochodzi z forka webrender bez silnika
    Pango. Fork przejmujemy do własnego modułu z zachowaniem nagłówków i pliku licencji BSD-3; zmiany względem
-   upstream opisujemy w `THIRD_PARTY.md`, poprawki ogólne zgłaszamy upstream.
+   upstream opisujemy w `docs/provenance.md`, poprawki ogólne zgłaszamy upstream.
 2. Szwem jest interfejs `webrender/backend` (`Document`, `Page`, `Canvas`). Nasza lista wyświetlania (ADR 0001)
    implementuje go jako rejestrator; backendy czytają listę.
 3. Z folio przejmujemy to, czego webrender nie ma, w tej kolejności sprawdzania:

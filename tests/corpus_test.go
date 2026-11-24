@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"net/url"
 	"os"
 	"os/exec"
@@ -55,20 +55,20 @@ func renderFile(path, resourceRoot, userCSS string) ([]byte, error) {
 	return result.PDF, err
 }
 
-func renderFileResult(path, resourceRoot, userCSS string) (gopdfgo.Result, error) {
+func renderFileResult(path, resourceRoot, userCSS string) (htmlpdf.Result, error) {
 	return renderFileOptions(path, resourceRoot, userCSS, nil)
 }
 
 // renderFileOptions działa jak renderFileResult, a adjust (gdy nie nil) zmienia opcje przed renderowaniem.
-func renderFileOptions(path, resourceRoot, userCSS string, adjust func(*gopdfgo.Options)) (gopdfgo.Result, error) {
+func renderFileOptions(path, resourceRoot, userCSS string, adjust func(*htmlpdf.Options)) (htmlpdf.Result, error) {
 	root, err := filepath.Abs(resourceRoot)
 	if err != nil {
-		return gopdfgo.Result{}, err
+		return htmlpdf.Result{}, err
 	}
-	resolver := func(target string) (gopdfgo.Resource, error) {
+	resolver := func(target string) (htmlpdf.Resource, error) {
 		u, err := url.Parse(target)
 		if err != nil || u.Scheme != "file" {
-			return gopdfgo.DenyAll(target)
+			return htmlpdf.DenyAll(target)
 		}
 		file := filepath.Clean(u.Path)
 		if !strings.HasPrefix(file, root+string(filepath.Separator)) {
@@ -76,35 +76,35 @@ func renderFileOptions(path, resourceRoot, userCSS string, adjust func(*gopdfgo.
 		}
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return gopdfgo.DenyAll(target)
+			return htmlpdf.DenyAll(target)
 		}
-		return gopdfgo.Resource{Data: data}, nil
+		return htmlpdf.Resource{Data: data}, nil
 	}
 
 	fonts, families, err := corpusFonts()
 	if err != nil {
-		return gopdfgo.Result{}, err
+		return htmlpdf.Result{}, err
 	}
 
 	html, err := os.ReadFile(path)
 	if err != nil {
-		return gopdfgo.Result{}, err
+		return htmlpdf.Result{}, err
 	}
 	absolute, _ := filepath.Abs(path)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	opts := gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS,
+	opts := htmlpdf.Options{Fonts: fonts, Resolver: resolver, BaseURL: "file://" + absolute, UserCSS: userCSS,
 		GenericFamilies: families}
 	if adjust != nil {
 		adjust(&opts)
 	}
-	return gopdfgo.Render(ctx, html, opts)
+	return htmlpdf.Render(ctx, html, opts)
 }
 
 // corpusFonts wczytuje wszystkie fonty z testdata/fonts i jego podkatalogów oraz przypisanie fontów
 // do rodzin generycznych z testdata/fonts/families.json (ADR 0005). Nazwy rodzin są tylko w tym pliku.
-func corpusFonts() ([]gopdfgo.Font, map[string][]string, error) {
-	var fonts []gopdfgo.Font
+func corpusFonts() ([]htmlpdf.Font, map[string][]string, error) {
+	var fonts []htmlpdf.Font
 	for _, pattern := range []string{"*.ttf", "*/*.ttf"} {
 		files, _ := filepath.Glob(filepath.Join("..", "testdata", "fonts", pattern))
 		for _, file := range files {
@@ -112,7 +112,7 @@ func corpusFonts() ([]gopdfgo.Font, map[string][]string, error) {
 			if err != nil {
 				return nil, nil, err
 			}
-			fonts = append(fonts, gopdfgo.Font{Name: filepath.Base(file), Data: data})
+			fonts = append(fonts, htmlpdf.Font{Name: filepath.Base(file), Data: data})
 		}
 	}
 	data, err := os.ReadFile(filepath.Join("..", "testdata", "fonts", "families.json"))

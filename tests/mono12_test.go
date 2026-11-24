@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"testing"
 )
@@ -15,12 +15,12 @@ func TestMonolithicPrint12(t *testing.T) {
 		.y { background: yellow } .b { background: blue } .g { background: green }</style>`
 	fonts := testFonts(t)
 	if ahem, err := os.ReadFile("../testdata/wpt/fonts/Ahem.ttf"); err == nil {
-		fonts = append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
+		fonts = append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, fonts...)
 	}
 	dir := t.TempDir()
 	pages := func(name, body string) [][]byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,239 +1,152 @@
 # gopdfgo
 
-HTML + CSS + SVG to PDF in pure Go: no browser, no JavaScript, no cgo. gopdfgo is a document engine for
-the documents businesses print: invoices, reports, financial statements, tables that run over many pages.
-It is not meant to print arbitrary web pages. It supports CSS Paged Media: page size and margins, margin
-boxes with running headers and footers, page counters, named pages, page breaks with `orphans` and
-`widows`, repeated table headers.
+Prints HTML + CSS + SVG documents to PDF in pure Go: no browser, no JavaScript, no cgo. Made for the documents
+businesses print (invoices, reports, financial statements, long tables, books) with CSS Paged Media: page
+margins and headers, tables of contents with page numbers, footnotes, PDF/A, PDF/UA and Factur-X. The same
+input always gives the same PDF, byte for byte.
 
-Status on 2026-11-22:
-- W3C screen reftests across 11 CSS areas: 9484 of 10962 pass (9499 before ADR 0044, see open question 29);
-- W3C print reftests: 310 of 340 pass (308 exact, 2 within anti-aliasing edges);
-- W3C SVG reftests: 194 of the 235 that can run without scripts pass;
-- own corpus of 22 documents: same page count as Chromium; PDF/A-2b, PDF/A-2a and PDF/UA-1 valid in
-  veraPDF for all 22;
-- real documents (4 KSeF invoices, 5 e-SF financial statements): same pages and page breaks as Chromium,
-  every word within 0.81 pt of its position in Chromium; 12 Markdown documents and 10 diagram pages: same
-  page counts as Chromium, remaining differences explained in `docs/overview.md`;
-- Factur-X output accepted by veraPDF and the Mustang validator.
+```go
+import "github.com/polestorm/gopdfgo/htmlpdf"
 
-Comparison with Chromium, the list of what is not supported, and requirements:
+result, err := htmlpdf.Render(ctx, html, htmlpdf.Options{Fonts: fonts})
+// result.PDF
+```
+
+## Why gopdfgo
+
+Compared with headless Chromium and with [folio](https://github.com/carlos7ags/folio), another HTML to PDF
+engine in Go (details in [Comparison](#comparison)):
+
+- **Prints like a browser**: the same page count as Chromium on 33 of 35 test documents, words a median 0.2 pt
+  from where Chromium puts them.
+- **Does what browsers don't do for print**: tables of contents with page numbers (`target-counter()`), "page X
+  of Y" in the text, footnotes, all 16 margin boxes, running headers, hyphenation for 24 languages built in.
+- **Archival and accessible output**: PDF/A-2 and PDF/A-3 (levels b and a), PDF/UA-1 and Factur-X e-invoices,
+  checked with veraPDF and Mustang; PAdES signatures in an optional package.
+- **One small program**: a single Go binary of 25 MB instead of a 460 MB browser, 2–9 times faster than
+  Chromium on business documents and with a tenth of its memory. Fonts and files come only from the caller;
+  nothing is read from the disk or the network unless you allow it.
+- **Standards first**: the layout follows the W3C specifications and is tested on their test suites: 9484 of
+  10962 CSS reftests, 310 of 340 print reftests, 194 of 235 SVG reftests.
+
+Where it is weaker: folio is about 2.8 times faster and uses less memory, and neither gopdfgo nor folio runs
+JavaScript. gopdfgo has no right-to-left or vertical text yet.
+
+## Contents
+
+- [Why gopdfgo](#why-gopdfgo) · [Comparison](#comparison) · [Examples](#examples) · [Status](#status) ·
+  [Documentation](#documentation) · [How the comparison was measured](#how-the-comparison-was-measured) ·
+  [License](#license)
+- [Usage](docs/usage.md): fonts, resources, PDF/A and PDF/UA, Factur-X, signatures, command line, what is
+  and is not supported
+
+## Comparison
+
+Compared with headless Chromium, the usual way to print HTML from a server, and with folio, a younger Go library
+with its own layout engine and an HTML converter.
+
+| | gopdfgo | Chromium 157 | folio |
+|---|:---:|:---:|:---:|
+| Approach | WeasyPrint's layout model ported to Go, extended | a web browser printing a page | own layout engine in Go |
+| Dependencies[^deps] | 7 Go modules | a browser process and system libraries | 3 Go modules 🥇 |
+| Program size[^size] | 25 MB | about 460 MB on Linux | 12 MB 🥇 |
+| Invoice, 3 pages[^bench] | 62 ms | 430 ms | 22 ms 🥇 |
+| Book, 255 pages | 1.1 s | 2.1–2.6 s | 0.48 s 🥇 |
+| Book with a table of contents | 1.4 s 🥇 | no page numbers | not supported |
+| Memory, business documents | 48–117 MB | about 950 MB | 22–80 MB 🥇 |
+| Memory, book | 0.42 GB | 1.7 GB | 0.29 GB 🥇 |
+| PDF size, invoice[^pdf] | 25–51 kB 🥇 | 27–53 kB | 26–56 kB |
+| PDF size, book | 26.3 MB 🥇 | 27.6 MB | 26.7 MB |
+| Same page count as Chromium[^fidelity] | 33 of 35 🥇 | reference | 17 of 35 |
+| Words on the same page as in Chromium | 92% 🥇 | reference | 35% |
+| Median offset of words from Chromium | 0.2 pt 🥇 | reference | 55 pt |
+| Deterministic output | yes, tested on 46 756 renders 🥇 | no (dates, identifiers) | yes, by design |
+| Unsupported CSS | reported as warnings 🥇 | developer console | ignored silently |
+| JavaScript | no | yes 🥇 | no |
+| Flexbox, grid, multi-column | yes (no `subgrid`) | yes 🥇 | partly |
+| `@page` margin boxes | 16 of 16 🥇 | 16 of 16 🥇 | 6 of 16 |
+| Running headers (`string-set`, `running()`) | both 🥇 | neither | `string-set` |
+| Table of contents with page numbers | yes 🥇 | no | no |
+| "Page X of Y" in the text | yes 🥇 | margin boxes only | no |
+| Footnotes (`float: footnote`) | yes 🥇 | no | no |
+| Hyphenation | 24 languages built in 🥇 | system dictionaries | English |
+| SVG | yes | yes 🥇 | basic shapes |
+| Right-to-left and vertical text | no | yes 🥇 | right-to-left |
+| PDF/A | 2b, 2a, 3b, 3a 🥇 | no | yes |
+| Tagged PDF, PDF/UA | PDF/UA-1, checked with veraPDF 🥇 | tagged | tagged |
+| Factur-X / ZUGFeRD | yes, checked with Mustang 🥇 | no | yes |
+| PAdES signatures | B-B, B-T, B-LT; fields placed in HTML (optional package) | no | B-B to B-LTA 🥇 |
+| Forms, barcodes, editing PDF files | no | no | yes 🥇 |
+| License | Apache 2.0 | BSD-3-Clause | Apache 2.0 |
+| GitHub popularity[^pop] | new | Chromium itself | 884 stars, 61 forks |
+
+[^deps]: Go modules the program needs (`go version -m`). gopdfgo: go-text (shaping), benoitkugler/pdf and
+    pstokenizer (PDF writing), hhrutter/lzw and three `golang.org/x` modules; all pure Go.
+[^size]: The command-line program as built by `go build` on macOS arm64 on 2026-11-24 (folio at commit
+    `29bca95`); gopdfgo includes 24 hyphenation dictionaries. Chromium: the headless shell with its libraries on
+    Linux; the macOS application is 2.2 GB.
+[^bench]: Whole process. Business documents: Polish e-invoices and financial statements of 1–16 pages.
+    Measured 2026-11-20 to 2026-11-24 on one Apple M4 laptop with the same input and fonts
+    for every engine; details and per-document numbers in [`docs/comparison.md`](docs/comparison.md). folio is about
+    2.8 times faster than gopdfgo on typical documents (median of 36), from 1.0 to 5.4 times. Chromium's time
+    includes starting the browser; inside a running program through DevTools it still needs 0.42–0.46 s per
+    document, gopdfgo 49 ms (36 ms with a shared font cache).
+[^pdf]: Untagged PDF, fonts embedded as subsets.
+[^fidelity]: 35 documents printed by all three: the test corpus, financial statements, office documents
+    converted to HTML, Markdown and diagram pages, generated random documents; positions of words compared with Chromium's PDF. Chromium is the reference because
+    documents are usually designed in a browser; where it departs from the specification, gopdfgo follows the
+    specification.
+[^pop]: Stars and forks on 2026-11-24.
+
+## Examples
+
+Pages printed by gopdfgo from the test corpus ([`testdata/documents`](testdata/documents)):
+
+<table>
+<tr>
+<td width="25%"><img src="docs/gallery/invoice.png" alt="An invoice with a table that continues on the next pages"></td>
+<td width="25%"><img src="docs/gallery/table-of-contents.png" alt="A table of contents with page numbers, a running header and a page number"></td>
+<td width="25%"><img src="docs/gallery/svg-charts.png" alt="A report with SVG bar and line charts"></td>
+<td width="25%"><img src="docs/gallery/columns.png" alt="Two columns continued across pages"></td>
+</tr>
+<tr>
+<td>An invoice: the items table runs over three pages with a repeated header; "page 1 of 3" in the margin box.</td>
+<td>A table of contents filled in with <code>target-counter()</code>, a running header from <code>running()</code>.</td>
+<td>SVG charts with gradients, transparency, a blur and repeated symbols, drawn as vectors.</td>
+<td>Multi-column text fragmented across pages.</td>
+</tr>
+</table>
+
+## Status
+
+Early, but complete for its purpose: it prints the business documents it was built for, page for page like
+Chromium, and passes the W3C tests listed above. Before 1.0 the API may still change. What is supported and what
+is not: [`docs/usage.md`](docs/usage.md#what-is-supported); remaining differences from Chromium and their reasons:
 [`docs/overview.md`](docs/overview.md).
-
-## What it does
-
-- HTML5 parsing and the CSS cascade: selectors level 4 including `:is()`, `:where()`, `:not()`; custom
-  properties; `calc()`, `min()`, `max()`, `clamp()`, `round()`, `mod()`, `rem()`; colour functions;
-  `transform` with 2D and 3D functions (flattened to the page, as browsers do without perspective),
-  `backface-visibility`, the individual `translate`, `rotate`, `scale` properties; `filter` (colour
-  functions exact, `drop-shadow()` and `blur()` as vector approximations); relative colours
-  (`rgb(from …)` …), `color()` with predefined colour spaces, `color-mix()` in every space.
-- Layout:
-  - block, inline, floats and positioning;
-  - tables, including spanning cells split across pages;
-  - flexbox, grid and multi-column, fragmented across pages;
-  - lists and counters, generated content.
-- Paged media: `@page` with sizes, margins and margin boxes, `counter(page)` and `counter(pages)`,
-  running elements, named pages, footnotes, `leader()`, `target-counter()`.
-- Text: OpenType shaping (go-text/HarfBuzz port), font fallback, `@font-face`, font features,
-  `hyphens: auto`, `text-transform`, justification, `white-space`, `word-break`, `overflow-wrap`.
-- SVG, inline and as files (details in `docs/overview.md`):
-  - parsed as XML; inline SVG styled by the page's whole cascade; text shaped like HTML text, with
-    `textPath` and `text-shadow`;
-  - `foreignObject`, `switch`, external `<use>`, markers, masks, patterns, gradients (also inherited
-    through `href`, as Inkscape and Illustrator write them), `non-scaling-stroke`;
-  - drop shadow and blur filters drawn as vectors, without rasterization;
-  - `<a href>` inside inline SVG becomes a clickable PDF link;
-  - URL fragments select part of an image: `#xywh=`, `#svgView(…)`, `<view>`;
-  - an SVG file used many times (a logo in every page header) is written into the PDF once;
-  - an SVG file used as an image is static and loads no external resources.
-- PNG, JPEG and GIF images; documents embedded with `iframe` (`srcdoc` or `src`), `object` and `embed`
-  are printed at the size of the element.
-- PDF output:
-  - font subsets, TrueType and CFF (`.otf`, including CFF2 variable fonts at their default instance; ADR 0040);
-  - internal and external links, bookmarks from headings;
-  - PDF/A-2b and PDF/A-3b on request (`Options.Conformance`);
-  - tagged PDF on request (`Options.Tagged`, `-tagged`; ADR 0033): a structure tree from the HTML elements
-    in document order (headings, paragraphs, lists, tables, links, images with alternative text), page
-    content marked as belonging to elements, backgrounds, borders and margin boxes marked as artifacts;
-    PDF/A-2a and PDF/A-3a (`Options.Conformance`, `-pdfa 2a`) turn it on and pass veraPDF on all 22
-    documents of the corpus;
-  - PDF/UA-1 on request (`Options.Accessibility = PDFUA1`, `-pdfua 1`, combinable with `-pdfa 2a`): tags
-    with list labels and bodies, table header scopes and spans, link descriptions, `pdfuaid` in XMP.
-    veraPDF accepts 22 of 22 corpus documents; defects of a source document (a skipped heading level,
-    an image without alternative text) are reported as warnings;
-  - file attachments (`Options.Attachments`, `<link rel="attachment">`), with MIME type and
-    `AFRelationship`, e.g. the XML of an e-invoice inside a PDF/A-3 file;
-  - Factur-X 1.0 / ZUGFeRD 2.x hybrid invoices (`Options.FacturX`, `-facturx invoice.xml`; ADR 0034): the
-    CII invoice XML embedded as `factur-x.xml` (`xrechnung.xml` for XRECHNUNG) with the relationship the
-    specification gives for the profile, the `fx` XMP properties with their PDF/A extension schema, PDF/A-3b
-    (PDF/A-3a with tags, also with PDF/UA-1); veraPDF accepts the result, and the Mustang validator 2.26.0
-    accepts both the PDF and the invoice XML (MINIMUM profile, measured 2026-11-21).
-- Digital signatures in the optional package `sign` (ADR 0049, 0050): `sign.SignPDF` adds a PAdES
-  signature (CMS, SHA-256, RSA or ECDSA, `signing-certificate-v2`) to any unencrypted PDF as an
-  incremental update, so earlier signatures stay valid and PDF/A and PDF/UA conformance is kept (checked
-  with `pdfsig`, `openssl cms`, `openssl ts` and veraPDF; the EU DSS validator recognises the test signatures
-  as PAdES-BASELINE-B, -T and -LT, and its only objection is the untrusted test certificate). Levels: B-B (default, no network), B-T (RFC 3161
-  timestamp of the signature value) and B-LT (certificates, OCSP responses and CRLs in a DSS dictionary
-  added as a second incremental update). Network access happens only through a TSA client and a revocation
-  client passed explicitly in `sign.Options`; validation data can also be passed in directly for offline
-  signing. The key is a Go `crypto.Signer` (or `sign.ContextSigner`, which can be cancelled), so an HSM,
-  a smart card or a remote signing service can sign too. Programs that do not import `sign`, including
-  `cmd/gopdfgo`, do not contain its code. A separate command, `cmd/gopdfgo-sign` (ADR 0051), signs a
-  finished PDF with a key read from a PKCS#12 file (password from an environment variable or a file, never
-  from the command line) or from unencrypted PEM files, via the optional package `sign/keyfile`.
-- Signature fields placed in HTML (ADR 0051): an element with `data-pdf-signature="Name"` gets an empty
-  signature field over its border box (first page, first fragment), with an empty appearance stream, the
-  `Print` flag and, in tagged PDF, a `Form` structure element; veraPDF accepts it in PDF/A-2b, PDF/A-2a and
-  PDF/UA-1 before and after signing. `sign.Options.FieldName` (or `gopdfgo-sign -field`) fills that field;
-  any other signing program can fill it too. Without the attribute the output is unchanged.
-- Output is deterministic: the same input gives the same bytes.
-
-Where the specifications leave a choice, gopdfgo prints like Chromium, so documents designed in a browser
-keep their layout. One switch, `Options.ExactLengths`, turns off Chromium's pixel rounding for output that
-follows the stylesheet exactly. Every such decision has an ADR in `docs/adr/`.
-
-## Compared with Chromium
-
-Business documents, measured 2026-11-20 on KSeF invoices and e-SF financial statements, with the same
-fonts in both engines and the same page counts:
-
-| | Chromium 157 | gopdfgo |
-|---|---|---|
-| software size | about 460 MB browser plus system libraries | 19 MB static binary (linux/amd64) |
-| time per document (whole process) | 0.41–0.55 s | 0.03–0.19 s (2026-11-23) |
-| memory | about 950 MB (two browser instances) | 48–117 MB |
-| PDF size, invoices (untagged PDF) | 26.8–52.9 kB | 24.9–51.0 kB |
-
-Large documents, measured 2026-11-21: the illustrated *Pride and Prejudice* (256 pages, 27 MB of images),
-the same book four times over (1021 pages), and both with a table of contents of `target-counter()` links
-and "page X of Y" in the page content. Three runs, whole process, same font; memory is the peak of all
-Chromium processes.
-
-| | Chromium 157: time | gopdfgo: time | Chromium 157: memory | gopdfgo: memory |
-|---|---|---|---|---|
-| book, 256 pages | 2.10–2.56 s | 1.17–1.22 s | 1.67–1.73 GB | 0.42–0.44 GB |
-| book with table of contents | 2.09–2.12 s ¹ | 1.38–1.47 s ² | 1.42–1.45 GB | 0.43–0.45 GB |
-| book ×4, 1021 pages | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
-| book ×4 with table of contents | 4.55–4.68 s ¹ | 5.18–5.38 s ² | 2.11–2.14 GB | 0.77–0.82 GB |
-
-¹ Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
-contents has no page numbers and "page X of Y" reads "0 of 0". gopdfgo fills them in with further
-pagination passes over the pages that change (ADR 0036). Details: `docs/overview.md`.
-
-² Measured 2026-11-23 at commit `5b5fbe8`, after pages that the table of contents can change are deferred
-instead of laying out the whole book twice (ADR 0036, third addendum); load average about 5. Before:
-2.23–2.31 s and 8.6–8.8 s.
-
-## Usage
-
-```go
-regular, _ := os.ReadFile("NotoSans-Regular.ttf")
-bold, _ := os.ReadFile("NotoSans-Bold.ttf")
-result, err := gopdfgo.Render(ctx, html, gopdfgo.Options{
-	Fonts: []gopdfgo.Font{
-		{Name: "NotoSans-Regular.ttf", Data: regular},
-		{Name: "NotoSans-Bold.ttf", Data: bold},
-	},
-	GenericFamilies: map[string][]string{"sans-serif": {"Noto Sans"}},
-})
-// result.PDF, result.Pages, result.Warnings
-```
-
-Fonts and external resources come only from the caller:
-- `Options.Fonts` lists the fonts; the default build has no system font lookup;
-- `Options.Resolver` loads stylesheets, images and other external resources; by default nothing is read
-  from the network or the disk.
-
-A program that renders many documents with the same fonts can keep the parsed fonts between calls
-(ADR 0045): create one `gopdfgo.NewFontCache(256 << 20)` and pass it in `Options.FontCache`. Fonts from
-`Options.Fonts` and from `@font-face` rules are then parsed once, on first use; the output is byte for byte
-the same. A small invoice renders about a third faster in-process with a warm cache.
-
-System fonts are a build option (ADR 0039). A binary built with `go build -tags systemfonts ./cmd/gopdfgo`
-accepts `Options.SystemFonts` (`-system-fonts` on the command line): installed fonts then fill in font
-families and characters that the caller's fonts lack, while the caller's fonts and `GenericFamilies` keep
-priority. Each system font used produces a warning with its family and file, so the file can be added to
-`Options.Fonts` to freeze the output; fonts whose licence forbids embedding (OS/2 `fsType`) are skipped. The
-output then depends on the fonts installed on the machine and is not reproducible across machines. The
-default build contains no code that scans system font directories, and `Options.SystemFonts` there returns
-`ErrSystemFontsNotBuilt`; `go version -m <binary>` shows `-tags=systemfonts` for the other variant.
-
-Signing the result (optional package `github.com/polestorm/gopdfgo/sign`; PAdES B-B by default):
-
-```go
-signed, err := sign.SignPDF(ctx, result.PDF, sign.Options{
-	Signer:      key,  // crypto.Signer: *rsa.PrivateKey, *ecdsa.PrivateKey, an HSM…
-	Certificate: cert, // *x509.Certificate of the key
-	Chain:       intermediates, // up to the root, needed for B-LT
-	Reason:      "Approved",
-	// optional: timestamp and validation data (PAdES B-LT)
-	Level:      sign.LevelBLT,
-	TSA:        sign.TSAClient{URL: tsaURL, HTTPClient: httpClient},
-	Revocation: sign.RevocationClient{HTTPClient: httpClient}, // OCSP and CRL addresses from the certificates
-})
-```
-
-Command line:
-
-```
-go run ./cmd/gopdfgo -fonts fonts/ -in invoice.html -out invoice.pdf
-go run ./cmd/gopdfgo-sign -in invoice.pdf -out signed.pdf -p12 signer.p12 -password-file p12-password.txt \
-	-field Signature1 -level B-T -tsa https://tsa.example/rfc3161
-```
-
-`-field` names a field created from `data-pdf-signature`; without it the signature goes to a new invisible
-field. B-T and B-LT need `-tsa`, the only way the command connects to the network (B-LT also fetches OCSP
-responses and CRLs from the addresses in the certificates). PKCS#12 files from OpenSSL 3 (PBES2, AES-256,
-SHA-256 MAC) and older files with 3DES and a SHA-1 MAC are read; RC2-encrypted certificates (OpenSSL 1.x
-defaults, `-legacy`) give an error with the `openssl` command that converts the file.
-
-Requirements: Go 1.26 or newer, no cgo. Dependencies are pure Go under BSD-3-Clause, MIT or Unlicense
-licences (list in `docs/overview.md`).
-
-## Not supported
-
-- JavaScript, `video`, `audio`; `canvas` stays empty without scripts.
-- Vertical writing and right-to-left/bidirectional text.
-- Structure inside SVG images and alternative text for generated content in tagged PDF.
-- Digital signatures beyond PAdES B-LT: no document timestamp (B-LTA), no signature appearance drawn by
-  the signer (the visible part of a signature field is the HTML content of its element), no certification
-  signature (`/DocMDP`), no signing of encrypted files.
-- CSS `zoom`, `mask` and `mask-image` on HTML elements, animations (CSS and SVG SMIL), CSS Linked
-  Parameters in SVG.
-- Validation of invoice content: when rendering, gopdfgo checks only that the Factur-X invoice XML is a CII
-  document and reads its profile identifier; it does not validate the XML against the XSD or Schematron of
-  the profile, so an invalid invoice is embedded as given. Validate the XML before rendering (for example
-  with Mustang, which we use in tests to check gopdfgo's own output).
-- `subgrid`, `grid-lanes`, `column-height`.
-- Filters that need rasterization: SVG `feImage`, `feTile`, `feMorphology`, `feTurbulence`, convolution,
-  lighting and displacement (such a filter is skipped and the element drawn without it), `url()` filters on
-  HTML elements, `backdrop-filter`. Blur and drop shadows (SVG and CSS `filter`) are vector approximations.
-- Perspective: `perspective()` and the `perspective` property are accepted with a warning and drawn as
-  an orthographic projection; `preserve-3d` has no depth sorting. 3D transforms without perspective are
-  drawn exactly.
-
-The full list with its status is in `docs/overview.md` and `docs/progress.md`.
 
 ## Documentation
 
-| File | Contents |
-|---|---|
-| `docs/overview.md` | comparison with Chromium, unsupported features, requirements |
-| `docs/comparison.md` | gopdfgo, folio and Chromium side by side: size, dependencies, speed, output, features |
-| `docs/progress.md` | progress in numbers, what is left and how important it is (Polish) |
-| `docs/vision.md` | goals and trade-offs (Polish) |
-| `docs/architecture.md` | pipeline and interfaces (Polish) |
-| `docs/feature-audit.md` | feature status, measurements, work log by batch (Polish) |
-| `docs/chromium-comparison.md` | measurements on KSeF invoices and e-SF statements in xml.pro (version `4eca5e5`) (Polish) |
-| `docs/adr/` | architecture decision records (Polish) |
-| `testdata/README.md` | test corpus: own documents, WeasyPrint samples, W3C print tests (Polish) |
-| `THIRD_PARTY.md` | origin of the code in `internal/` and every change made to it (Polish) |
+- [`docs/usage.md`](docs/usage.md): how to use the library and the commands.
+- [`docs/overview.md`](docs/overview.md): measurements against Chromium, unsupported features, requirements.
+- [`docs/comparison.md`](docs/comparison.md): gopdfgo, folio and Chromium side by side, with sources for every
+  number.
+- In Polish: [`docs/provenance.md`](docs/provenance.md) (origin of the inherited code and every change made to
+  it), [`docs/adr/`](docs/adr/) (decisions), [`docs/progress.md`](docs/progress.md) (progress in numbers),
+  [`testdata/README.md`](testdata/README.md) (test corpus), [`docs/vision.md`](docs/vision.md) (goals).
 
-## Licence
+## How the comparison was measured
 
-Apache License 2.0 (`LICENSE`), Copyright 2026 Michał Głębowski (`NOTICE`). gopdfgo includes code and data
-by other authors under BSD-3-Clause, MIT, Unlicense and FSF all-permissive licences. The layout engine
-is derived from Benoit Kugler's Go port of WeasyPrint (webrender, go-weasyprint). Full licence texts are in
-`THIRD_PARTY_NOTICES`. Include them, together with `LICENSE` and `NOTICE`, when you distribute software
-built with gopdfgo.
+All three engines printed the same HTML files with the same fonts, on one machine; folio was run only as a
+program, from its own repository. Times are for the whole process unless stated, so they include starting the
+program and, for Chromium, the browser. The book is the illustrated *Pride and Prejudice* from Project Gutenberg
+(27 MB of images). Fidelity is measured on words: for each word of Chromium's PDF, the page and position of the
+same word in the other PDF. W3C test counts are reftests from the Web Platform Tests, compared as described in
+ADR 0003: exact, or equal except for anti-aliased edges. The full method is in
+[`docs/benchmark.md`](docs/benchmark.md) (in Polish).
+
+## License
+
+Apache License 2.0, see `LICENSE` and `NOTICE`. The layout engine is derived from Benoit Kugler's Go port of
+WeasyPrint (BSD-3-Clause); this and the other third-party code and data are listed, with their licence texts, in
+[`docs/third-party-notices.txt`](docs/third-party-notices.txt). Include it, together with `LICENSE` and `NOTICE`,
+when you distribute software built with gopdfgo.

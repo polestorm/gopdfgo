@@ -1416,7 +1416,7 @@ func TestCapitalize(t *testing.T) {
 		{"abc def ghi", "Abc Def Ghi"},
 		{"AbC def ghi", "AbC Def Ghi"},
 		{"I’m SO cool", "I’m SO Cool"},
-		// gopdfgo: granice słów jak w Chromium (isWordSeparator, 2026-11-19, wpis w THIRD_PARTY.md):
+		// gopdfgo: granice słów jak w Chromium (isWordSeparator, 2026-11-19, wpis w docs/provenance.md):
 		// interpunkcja i łącznik U+2011 kończą słowo; źródło: "Wow.wow!wow", "Non‑breaking", "One/two/three",
 		// "Supernatural,super"
 		{"Wow.wow!wow", "Wow.Wow!Wow"},

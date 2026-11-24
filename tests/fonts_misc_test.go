@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"strings"
 	"testing"
@@ -18,20 +18,20 @@ func TestFontsMisc(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		if strings.HasSuffix(url, "Ahem.ttf") {
-			return gopdfgo.Resource{Data: ahem, MediaType: "font/ttf"}, nil
+			return htmlpdf.Resource{Data: ahem, MediaType: "font/ttf"}, nil
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0; font: 20px/1 serif }
 		.g { background: green } .a { position: absolute }</style>`
 	dir := t.TempDir()
 	page := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body),
-			gopdfgo.Options{Fonts: fonts, Resolver: resolver, BaseURL: "https://example.test/doc.html"})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body),
+			htmlpdf.Options{Fonts: fonts, Resolver: resolver, BaseURL: "https://example.test/doc.html"})
 		if err != nil {
 			t.Fatal(err)
 		}

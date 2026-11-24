@@ -35,5 +35,5 @@ literami („abc-|def”, „1-|a”) oba silniki łamały już wcześniej tak s
 ## Skutki
 
 - We wszystkich 14 przypadkach podział jest taki sam jak w Chrome 157 (test `TestHyphenBeforeDigitsBreaks`).
-- Sondaż W3C i reftesty druku bez zmian w zaliczonych (pomiar w `THIRD_PARTY.md`).
+- Sondaż W3C i reftesty druku bez zmian w zaliczonych (pomiar w `docs/provenance.md`).
 - Szerokość minimalna (min-content) tekstu z takim dywizem maleje: „03-228” zajmuje w kolumnie tyle, co „228”.

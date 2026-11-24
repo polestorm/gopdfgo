@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Poprawki SVG z korpusu testdata/svg (2026-11-20), sprawdzane pikselami wobec wzorców w HTML:
@@ -27,18 +27,18 @@ func TestSVGCorpusFixes(t *testing.T) {
 		"gradient.svg": `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0">` +
 			`<stop offset="0" stop-color="green"/><stop offset="1" stop-color="green"/></linearGradient></defs><rect x="40" y="20" width="140" height="40" fill="url(#g)"/></svg>`,
 	}
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		for name, data := range files {
 			if strings.HasSuffix(url, "/"+name) {
-				return gopdfgo.Resource{Data: []byte(data), MediaType: "image/svg+xml"}, nil
+				return htmlpdf.Resource{Data: []byte(data), MediaType: "image/svg+xml"}, nil
 			}
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 	page := `<style>@page { size: 220px 120px; margin: 0 } body { margin: 0 } img { display: block }</style>`
 	render := func(html string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(page+html), gopdfgo.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
+		result, err := htmlpdf.Render(context.Background(), []byte(page+html), htmlpdf.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
 		if err != nil {
 			t.Fatal(err)
 		}

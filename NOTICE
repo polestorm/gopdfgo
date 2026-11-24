@@ -1,6 +1,7 @@
 gopdfgo
-Copyright 2026 Michał Głębowski
+Copyright 2026 Michał Głębowski (https://github.com/polestorm)
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 It includes software and data from third parties, distributed under their own
-licenses; the copyright notices and license texts are in THIRD_PARTY_NOTICES.
+licenses; the copyright notices and license texts are in
+docs/third-party-notices.txt.

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // PDF z tagami, runda 2 (ADR 0033): PDF/UA-1 (ISO 14289-1). Elementy listy jako Lbl i LBody, komórki
@@ -19,11 +19,11 @@ import (
 // jako Div z Caption, opis adnotacji odnośników, identyfikator pdfuaid w XMP, ostrzeżenia o wadach
 // dokumentu.
 
-func renderUA(t *testing.T, html string, adjust func(*gopdfgo.Options)) gopdfgo.Result {
+func renderUA(t *testing.T, html string, adjust func(*htmlpdf.Options)) htmlpdf.Result {
 	t.Helper()
-	return renderTagged(t, html, func(o *gopdfgo.Options) {
+	return renderTagged(t, html, func(o *htmlpdf.Options) {
 		o.Tagged = false // tagi włącza sama norma
-		o.Accessibility = gopdfgo.PDFUA1
+		o.Accessibility = htmlpdf.PDFUA1
 		if adjust != nil {
 			adjust(o)
 		}
@@ -168,7 +168,7 @@ func TestPDFUALinkContents(t *testing.T) {
 	// bez tagów adnotacje bez /Contents (plik bez zmian)
 	opts := streamOptions(t)
 	opts.Uncompressed = true
-	plain, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+	plain, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,23 +214,23 @@ func TestPDFUAMetadata(t *testing.T) {
 	verapdf, _ := exec.LookPath("verapdf")
 	for _, c := range []struct {
 		name        string
-		conformance gopdfgo.Conformance
+		conformance htmlpdf.Conformance
 		profiles    []string
-	}{{"ua1", gopdfgo.ConformanceNone, []string{"ua1"}}, {"2a-ua1", gopdfgo.PDFA2a, []string{"ua1", "2a"}},
-		{"3a-ua1", gopdfgo.PDFA3a, []string{"ua1", "3a"}}} {
-		readable := renderUA(t, html, func(o *gopdfgo.Options) { o.Conformance = c.conformance })
+	}{{"ua1", htmlpdf.ConformanceNone, []string{"ua1"}}, {"2a-ua1", htmlpdf.PDFA2a, []string{"ua1", "2a"}},
+		{"3a-ua1", htmlpdf.PDFA3a, []string{"ua1", "3a"}}} {
+		readable := renderUA(t, html, func(o *htmlpdf.Options) { o.Conformance = c.conformance })
 		xmp := string(readable.PDF)
 		if !pdfuaidRe.MatchString(xmp) || !strings.Contains(xmp, "<dc:title>") || !bytes.Contains(readable.PDF, []byte("/StructTreeRoot")) {
 			t.Errorf("%s: brak pdfuaid, dc:title albo drzewa struktury", c.name)
 		}
-		withA := c.conformance != gopdfgo.ConformanceNone
+		withA := c.conformance != htmlpdf.ConformanceNone
 		if strings.Contains(xmp, "<pdfaid:part>") != withA || strings.Contains(xmp, "pdfaExtension:schemas") != withA {
 			t.Errorf("%s: pdfaid i schemat rozszerzeń mają być tylko przy PDF/A", c.name)
 		}
 		if verapdf == "" {
 			continue
 		}
-		result := renderUA(t, html, func(o *gopdfgo.Options) { o.Conformance, o.Uncompressed = c.conformance, false })
+		result := renderUA(t, html, func(o *htmlpdf.Options) { o.Conformance, o.Uncompressed = c.conformance, false })
 		file := filepath.Join(t.TempDir(), c.name+".pdf")
 		if err := os.WriteFile(file, result.PDF, 0o644); err != nil {
 			t.Fatal(err)
@@ -262,8 +262,8 @@ func TestPDFUACorpus(t *testing.T) {
 	dir := t.TempDir()
 	var outputs []string
 	for _, file := range files {
-		result, err := renderFileOptions(file, "../testdata", "", func(o *gopdfgo.Options) {
-			o.Conformance, o.Accessibility = gopdfgo.PDFA2a, gopdfgo.PDFUA1
+		result, err := renderFileOptions(file, "../testdata", "", func(o *htmlpdf.Options) {
+			o.Conformance, o.Accessibility = htmlpdf.PDFA2a, htmlpdf.PDFUA1
 		})
 		if err != nil {
 			t.Fatal(err)

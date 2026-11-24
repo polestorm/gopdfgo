@@ -1,7 +1,7 @@
 # Postęp: co naprawiono, co zostało, co jest ważne
 
 Stan na 2026-11-22 (tabela „Stan w liczbach”; dalsze sekcje opisują stan z dat podanych przy nich). Dokument aktualizujemy po każdej paczce poprawek.
-Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `THIRD_PARTY.md`.
+Szczegóły każdej rundy są w `docs/feature-audit.md`, lista zmian w przejętym kodzie w `docs/provenance.md`.
 
 Sposób pomiaru: sondaż ekranowy to reftesty W3C (WPT) z siedmiu obszarów (od 16.11 osobno liczone trzy
 dalsze: tekst, tła, fonty), renderowane bez pomniejszania treści i bez podziału na strony
@@ -42,7 +42,7 @@ Pełny przebieg dziesięciu obszarów trwa 6 min 50 s zamiast ok. 17 min; wynik 
 | Czas i pamięć: książka 256 stron | 1,17–1,22 s, 0,42–0,44 GB (Chromium 2,10–2,56 s, 1,67–1,73 GB) | 1021 stron: 4,57–4,69 s (Chromium 4,54–4,69 s); ADR 0037 |
 | Rozmiar binarki | 19,1 MB (linux/amd64, `-s -w`) | 22.11: −13,7% po usunięciu `text/template` (ADR 0039) |
 | Commity | 554 | 13–22.11 |
-| Zmiany w przejętym kodzie | 278 wpisów w `THIRD_PARTY.md` | każda z odwołaniem do normy |
+| Zmiany w przejętym kodzie | 278 wpisów w `docs/provenance.md` | każda z odwołaniem do normy |
 | Decyzje (ADR) | 40 | otwarte pytanie 28 (dywiz na początku słowa, `widows` w krótkich blokach) |
 
 ## Sondaż ekranowy w czasie
@@ -126,7 +126,7 @@ Reftesty druku (z 340):
 
 ## Poprawki według obszarów
 
-Liczba wpisów w `THIRD_PARTY.md` (zmiany w przejętym kodzie od 13.11). Przydział do obszaru jest
+Liczba wpisów w `docs/provenance.md` (zmiany w przejętym kodzie od 13.11). Przydział do obszaru jest
 przybliżony: wpis dotykający dwóch obszarów liczony jest raz.
 
 ```

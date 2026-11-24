@@ -1,6 +1,6 @@
 //go:build systemfonts
 
-package gopdfgo
+package htmlpdf
 
 // Wariant ze znacznikiem systemfonts (ADR 0039): fonty systemowe jako fonty zastępcze.
 

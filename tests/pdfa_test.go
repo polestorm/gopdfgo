@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"image"
 	"image/color"
 	"image/png"
@@ -47,12 +47,12 @@ func translucentPNG(t *testing.T) string {
 
 func TestPDFA2b(t *testing.T) {
 	pdfaDocument := strings.Replace(pdfaDocument, "PNGDATA", translucentPNG(t), 1)
-	options := gopdfgo.Options{Fonts: testFonts(t), Conformance: gopdfgo.PDFA2b}
-	first, err := gopdfgo.Render(context.Background(), []byte(pdfaDocument), options)
+	options := htmlpdf.Options{Fonts: testFonts(t), Conformance: htmlpdf.PDFA2b}
+	first, err := htmlpdf.Render(context.Background(), []byte(pdfaDocument), options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := gopdfgo.Render(context.Background(), []byte(pdfaDocument), options)
+	second, err := htmlpdf.Render(context.Background(), []byte(pdfaDocument), options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestPDFA2b(t *testing.T) {
 
 	// tryb PDF/A nie zmienia wyglądu stron (obraz w naturalnym rozmiarze: przy powiększaniu PDF/A zabrania
 	// wygładzania, więc powiększony obraz może być rysowany ostrzej)
-	plain, err := gopdfgo.Render(context.Background(), []byte(pdfaDocument), gopdfgo.Options{Fonts: testFonts(t)})
+	plain, err := htmlpdf.Render(context.Background(), []byte(pdfaDocument), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestPDFA2b(t *testing.T) {
 		}
 	}
 
-	if _, err := gopdfgo.Render(context.Background(), []byte("<p>x</p>"), gopdfgo.Options{Fonts: testFonts(t), Conformance: "PDF/A-9z"}); err == nil {
+	if _, err := htmlpdf.Render(context.Background(), []byte("<p>x</p>"), htmlpdf.Options{Fonts: testFonts(t), Conformance: "PDF/A-9z"}); err == nil {
 		t.Error("nieznana zgodność nie dała błędu")
 	}
 

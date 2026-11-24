@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 var signingTime = time.Date(2026, 11, 23, 10, 30, 0, 0, time.FixedZone("CET", 3600))
@@ -88,7 +88,7 @@ func identity(t testing.TB, kind string) testIdentity {
 
 var renderMu sync.Mutex
 
-func render(t testing.TB, html string, opts gopdfgo.Options) []byte {
+func render(t testing.TB, html string, opts htmlpdf.Options) []byte {
 	t.Helper()
 	renderMu.Lock()
 	defer renderMu.Unlock()
@@ -96,8 +96,8 @@ func render(t testing.TB, html string, opts gopdfgo.Options) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opts.Fonts = []gopdfgo.Font{{Name: "NotoSans-Regular.ttf", Data: font}}
-	result, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+	opts.Fonts = []htmlpdf.Font{{Name: "NotoSans-Regular.ttf", Data: font}}
+	result, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,11 +121,11 @@ func sourceDocuments(t *testing.T) map[string][]byte {
 		t.Fatal(err)
 	}
 	return map[string][]byte{
-		"plain":   render(t, documentHTML, gopdfgo.Options{}),
-		"pdfua":   render(t, documentHTML, gopdfgo.Options{Conformance: gopdfgo.PDFA2a, Accessibility: gopdfgo.PDFUA1}),
-		"pdfa2b":  render(t, documentHTML, gopdfgo.Options{Conformance: gopdfgo.PDFA2b}),
-		"pdfa3b":  render(t, documentHTML, gopdfgo.Options{Conformance: gopdfgo.PDFA3b}),
-		"facturx": render(t, documentHTML, gopdfgo.Options{FacturX: &gopdfgo.FacturX{XML: invoice, ModTime: signingTime}}),
+		"plain":   render(t, documentHTML, htmlpdf.Options{}),
+		"pdfua":   render(t, documentHTML, htmlpdf.Options{Conformance: htmlpdf.PDFA2a, Accessibility: htmlpdf.PDFUA1}),
+		"pdfa2b":  render(t, documentHTML, htmlpdf.Options{Conformance: htmlpdf.PDFA2b}),
+		"pdfa3b":  render(t, documentHTML, htmlpdf.Options{Conformance: htmlpdf.PDFA3b}),
+		"facturx": render(t, documentHTML, htmlpdf.Options{FacturX: &htmlpdf.FacturX{XML: invoice, ModTime: signingTime}}),
 	}
 }
 

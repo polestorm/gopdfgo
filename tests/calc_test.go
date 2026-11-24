@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"strings"
 	"testing"
 )
@@ -90,11 +90,11 @@ func TestCalcMatchesPlainValue(t *testing.T) {
 	fonts := testFonts(t)
 	for _, c := range calcCases {
 		t.Run(c.name, func(t *testing.T) {
-			withCalc, err := gopdfgo.Render(context.Background(), calcDocument(c.withCalc), gopdfgo.Options{Fonts: fonts})
+			withCalc, err := htmlpdf.Render(context.Background(), calcDocument(c.withCalc), htmlpdf.Options{Fonts: fonts})
 			if err != nil {
 				t.Fatal(err)
 			}
-			plain, err := gopdfgo.Render(context.Background(), calcDocument(c.plain), gopdfgo.Options{Fonts: fonts})
+			plain, err := htmlpdf.Render(context.Background(), calcDocument(c.plain), htmlpdf.Options{Fonts: fonts})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,7 +122,7 @@ func TestCalcRejectsInvalid(t *testing.T) {
 		"width: calc()",                   // puste
 		"letter-spacing: calc(10% + 1px)", // procent tam, gdzie właściwość go nie przyjmuje
 	} {
-		result, err := gopdfgo.Render(context.Background(), calcDocument(declaration), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), calcDocument(declaration), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

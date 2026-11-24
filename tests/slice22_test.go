@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/goweasyprint/pdf"
 )
 
@@ -42,7 +42,7 @@ func pageTexts(t *testing.T, data []byte) []string {
 
 // renderSliced renderuje dokument z rysowaniem w trakcie układu i bez niego (wynik musi być ten sam)
 // oraz bez pomijania tekstu; zwraca wynik i sprawdza, że rastry obu wersji są identyczne.
-func renderSliced(t *testing.T, html string, adjust func(*gopdfgo.Options)) []byte {
+func renderSliced(t *testing.T, html string, adjust func(*htmlpdf.Options)) []byte {
 	t.Helper()
 	opts := streamOptions(t)
 	if adjust != nil {
@@ -53,7 +53,7 @@ func renderSliced(t *testing.T, html string, adjust func(*gopdfgo.Options)) []by
 		t.Errorf("wynik różni się od rysowania po ułożeniu całego dokumentu")
 	}
 	pdf.TextCullingDisabled = true
-	whole, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+	whole, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 	pdf.TextCullingDisabled = false
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func TestSlicedSVGLinkOnce(t *testing.T) {
 		<a href="https://example.com/top"><rect x="200" y="10" width="20" height="20" fill="green"/></a>
 		<text x="300" y="100">one</text><text x="300" y="400">two</text>
 		</svg>`
-	data := renderSliced(t, html, func(o *gopdfgo.Options) { o.Accessibility, o.Uncompressed = gopdfgo.PDFUA1, true })
+	data := renderSliced(t, html, func(o *htmlpdf.Options) { o.Accessibility, o.Uncompressed = htmlpdf.PDFUA1, true })
 	links := pdfLinks(t, data)
 	// pdfLinks liczy y od góry strony o wysokości 300px: część 250–300 na stronie 1, 0–50 na stronie 2
 	checkLinks(t, links, []pdfLink{

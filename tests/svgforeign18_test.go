@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // TestSVGForeignObject sprawdza <foreignObject> (SVG 2 § 23.2): treść HTML ułożona w prostokącie
@@ -23,17 +23,17 @@ func TestSVGForeignObject(t *testing.T) {
 			<div xmlns="http://www.w3.org/1999/xhtml" style="width:50px;height:40px;background:green"></div></foreignObject>
 			<rect x="100" y="10" width="50" height="40" fill="red"/></switch></svg>`,
 	}
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		for name, data := range files {
 			if strings.HasSuffix(url, "/"+name) {
-				return gopdfgo.Resource{Data: []byte(data), MediaType: "image/svg+xml"}, nil
+				return htmlpdf.Resource{Data: []byte(data), MediaType: "image/svg+xml"}, nil
 			}
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 	render := func(name, body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
 		if err != nil {
 			t.Fatal(err)
 		}

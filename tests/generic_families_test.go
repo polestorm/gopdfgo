@@ -2,7 +2,7 @@ package tests
 
 import (
 	"bytes"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,17 +11,17 @@ import (
 // Options.GenericFamilies (ADR 0005): rodzina wskazana dla rodziny generycznej zastępuje wybór silnika,
 // także dla fontu domyślnego dokumentu; rodziny nazwane wprost i wpisy o nieznanych rodzinach nic nie zmieniają.
 func TestGenericFamilies(t *testing.T) {
-	var fonts []gopdfgo.Font
+	var fonts []htmlpdf.Font
 	for _, name := range []string{"NotoSans-Regular.ttf", "NotoSerif-Regular.ttf", "tinos/Tinos-Regular.ttf"} {
 		data, err := os.ReadFile(filepath.Join("../testdata/fonts", name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		fonts = append(fonts, gopdfgo.Font{Name: filepath.Base(name), Data: data})
+		fonts = append(fonts, htmlpdf.Font{Name: filepath.Base(name), Data: data})
 	}
 	render := func(html string, generic map[string][]string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(t.Context(), []byte(html), gopdfgo.Options{Fonts: fonts, GenericFamilies: generic})
+		result, err := htmlpdf.Render(t.Context(), []byte(html), htmlpdf.Options{Fonts: fonts, GenericFamilies: generic})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/document"
 	"github.com/polestorm/gopdfgo/internal/webrender/html/layout"
 )
@@ -25,7 +25,7 @@ import (
 //
 // Odkładanie stron (ADR 0036, dopisek trzeci) jest tu wyłączone: dokument wymagający ponownej paginacji idzie
 // od razu drogą dwuprzebiegową (zob. deferRender).
-func twoPassRender(t *testing.T, html []byte, opts gopdfgo.Options, minPages int) (result gopdfgo.Result, fallback, mode string) {
+func twoPassRender(t *testing.T, html []byte, opts htmlpdf.Options, minPages int) (result htmlpdf.Result, fallback, mode string) {
 	t.Helper()
 	saved := layout.TwoPassMinPages
 	layout.TwoPassMinPages, layout.DeferDisabled = minPages, true
@@ -35,7 +35,7 @@ func twoPassRender(t *testing.T, html []byte, opts gopdfgo.Options, minPages int
 	defer func() {
 		document.OnStream, document.OnTwoPass, layout.TwoPassMinPages, layout.DeferDisabled = nil, nil, saved, false
 	}()
-	result, err := gopdfgo.Render(context.Background(), html, opts)
+	result, err := htmlpdf.Render(context.Background(), html, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,25 +46,25 @@ func twoPassRender(t *testing.T, html []byte, opts gopdfgo.Options, minPages int
 // zmienić (ADR 0036, dopisek trzeci). Zwraca wynik, opis przeszkody (OnStream), liczbę stron odłożonych
 // (0: odkładanie nieużyte) i opis przeszkody, przez którą pierwszy przebieg skończył się potrzebą ponownej
 // paginacji ("" gdy jej nie było).
-func deferRender(t *testing.T, html []byte, opts gopdfgo.Options) (result gopdfgo.Result, fallback string, deferred int, repaginate string) {
+func deferRender(t *testing.T, html []byte, opts htmlpdf.Options) (result htmlpdf.Result, fallback string, deferred int, repaginate string) {
 	t.Helper()
 	fallback = "not reported"
 	document.OnStream = func(reason string) { fallback = reason }
 	document.OnDeferred = func(pages int) { deferred = pages }
 	layout.OnRepaginate = func(reason string) { repaginate = reason }
 	defer func() { document.OnStream, document.OnDeferred, layout.OnRepaginate = nil, nil, nil }()
-	result, err := gopdfgo.Render(context.Background(), html, opts)
+	result, err := htmlpdf.Render(context.Background(), html, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return result, fallback, deferred, repaginate
 }
 
-func classicRender(t *testing.T, html []byte, opts gopdfgo.Options) gopdfgo.Result {
+func classicRender(t *testing.T, html []byte, opts htmlpdf.Options) htmlpdf.Result {
 	t.Helper()
 	document.StreamingDisabled = true
 	defer func() { document.StreamingDisabled = false }()
-	result, err := gopdfgo.Render(context.Background(), html, opts)
+	result, err := htmlpdf.Render(context.Background(), html, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestTwoPassByteIdentity(t *testing.T) {
 // checkDeferred: dokument z odkładaniem stron (ADR 0036, dopisek trzeci) daje te same bajty i tyle samo
 // ostrzeżeń co układ całego dokumentu przed rysowaniem; want = "": strony zostały odłożone bez dwóch
 // przebiegów, inaczej podciąg przeszkody, przez którą odkładanie się nie udało.
-func checkDeferred(t *testing.T, html []byte, opts gopdfgo.Options, classic gopdfgo.Result, want string) {
+func checkDeferred(t *testing.T, html []byte, opts htmlpdf.Options, classic htmlpdf.Result, want string) {
 	t.Helper()
 	result, fallback, deferred, repaginate := deferRender(t, html, opts)
 	if !bytes.Equal(result.PDF, classic.PDF) {
@@ -250,7 +250,7 @@ func TestTargetCounterPages(t *testing.T) {
 		`<h2 id="c">C</h2><p><a href="#a">do A</a></p>`
 	for _, streaming := range []bool{true, false} {
 		document.StreamingDisabled = !streaming
-		result, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+		result, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 		document.StreamingDisabled = false
 		if err != nil {
 			t.Fatal(err)

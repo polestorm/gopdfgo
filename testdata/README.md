@@ -1,7 +1,7 @@
 # Korpus testowy
 
 Stan na 2026-11-12. Trzy warstwy: dokumenty całościowe (własne i obce) oraz testy zgodności z web-platform-tests.
-Pochodzenie i licencje obcych plików: `THIRD_PARTY.md`.
+Pochodzenie i licencje obcych plików: `docs/provenance.md`.
 
 | Katalog | Zawartość | Liczba | Wzorzec |
 |---|---|---|---|

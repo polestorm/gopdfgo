@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // Puste pola podpisu wskazane atrybutem data-pdf-signature (ADR 0051): pole /FT /Sig bez /V z widżetem
@@ -87,11 +87,11 @@ func near(a, b float64) bool { return math.Abs(a-b) < 0.05 }
 func TestSignatureFieldPlacement(t *testing.T) {
 	for _, c := range []struct {
 		name   string
-		adjust func(*gopdfgo.Options)
+		adjust func(*htmlpdf.Options)
 	}{
 		{"plain", nil},
-		{"pdfa2b", func(o *gopdfgo.Options) { o.Conformance = gopdfgo.PDFA2b }},
-		{"pdfua", func(o *gopdfgo.Options) { o.Conformance, o.Accessibility = gopdfgo.PDFA2a, gopdfgo.PDFUA1 }},
+		{"pdfa2b", func(o *htmlpdf.Options) { o.Conformance = htmlpdf.PDFA2b }},
+		{"pdfua", func(o *htmlpdf.Options) { o.Conformance, o.Accessibility = htmlpdf.PDFA2a, htmlpdf.PDFUA1 }},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			opts := streamOptions(t)
@@ -99,7 +99,7 @@ func TestSignatureFieldPlacement(t *testing.T) {
 			if c.adjust != nil {
 				c.adjust(&opts)
 			}
-			result, err := gopdfgo.Render(context.Background(), []byte(signatureFieldPage), opts)
+			result, err := htmlpdf.Render(context.Background(), []byte(signatureFieldPage), opts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -122,7 +122,7 @@ func TestSignatureFieldPlacement(t *testing.T) {
 			if !bytes.Contains(result.PDF, []byte("/AcroForm")) || bytes.Contains(result.PDF, []byte("/SigFlags")) {
 				t.Error("oczekiwany /AcroForm bez /SigFlags")
 			}
-			tagged := opts.Accessibility == gopdfgo.PDFUA1
+			tagged := opts.Accessibility == htmlpdf.PDFUA1
 			if f.tagged != tagged {
 				t.Errorf("/StructParent widżetu: %v, oczekiwane %v", f.tagged, tagged)
 			}
@@ -146,7 +146,7 @@ body { margin: 0 }</style></head><body>
 <span data-pdf-signature="Duzy">c</span></p></body></html>`
 	opts := streamOptions(t)
 	opts.Uncompressed = true
-	result, err := gopdfgo.Render(context.Background(), []byte(html), opts)
+	result, err := htmlpdf.Render(context.Background(), []byte(html), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,11 +174,11 @@ body { margin: 0 }</style></head><body>
 func TestSignatureFieldStreamingAndAbsence(t *testing.T) {
 	for _, c := range []struct {
 		name   string
-		adjust func(*gopdfgo.Options)
+		adjust func(*htmlpdf.Options)
 	}{
 		{"plain", nil},
-		{"pdfa2b", func(o *gopdfgo.Options) { o.Conformance = gopdfgo.PDFA2b }},
-		{"pdfua", func(o *gopdfgo.Options) { o.Conformance, o.Accessibility = gopdfgo.PDFA2a, gopdfgo.PDFUA1 }},
+		{"pdfa2b", func(o *htmlpdf.Options) { o.Conformance = htmlpdf.PDFA2b }},
+		{"pdfua", func(o *htmlpdf.Options) { o.Conformance, o.Accessibility = htmlpdf.PDFA2a, htmlpdf.PDFUA1 }},
 	} {
 		opts := streamOptions(t)
 		if c.adjust != nil {
@@ -192,7 +192,7 @@ func TestSignatureFieldStreamingAndAbsence(t *testing.T) {
 			t.Errorf("%s: drogi rysowania dają różne bajty (%d B i %d B)", c.name, len(streamed), len(classic))
 		}
 		plain := strings.Replace(signatureFieldPage, ` data-pdf-signature="Podpis1"`, "", 1)
-		result, err := gopdfgo.Render(context.Background(), []byte(plain), opts)
+		result, err := htmlpdf.Render(context.Background(), []byte(plain), opts)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,16 +207,16 @@ func TestSignatureFieldStreamingAndAbsence(t *testing.T) {
 func TestSignatureFieldVeraPDF(t *testing.T) {
 	for _, c := range []struct {
 		flavour string
-		adjust  func(*gopdfgo.Options)
+		adjust  func(*htmlpdf.Options)
 	}{
-		{"2b", func(o *gopdfgo.Options) { o.Conformance = gopdfgo.PDFA2b }},
-		{"2a", func(o *gopdfgo.Options) { o.Conformance, o.Accessibility = gopdfgo.PDFA2a, gopdfgo.PDFUA1 }},
-		{"ua1", func(o *gopdfgo.Options) { o.Conformance, o.Accessibility = gopdfgo.PDFA2a, gopdfgo.PDFUA1 }},
+		{"2b", func(o *htmlpdf.Options) { o.Conformance = htmlpdf.PDFA2b }},
+		{"2a", func(o *htmlpdf.Options) { o.Conformance, o.Accessibility = htmlpdf.PDFA2a, htmlpdf.PDFUA1 }},
+		{"ua1", func(o *htmlpdf.Options) { o.Conformance, o.Accessibility = htmlpdf.PDFA2a, htmlpdf.PDFUA1 }},
 	} {
 		t.Run(c.flavour, func(t *testing.T) {
 			opts := streamOptions(t)
 			c.adjust(&opts)
-			result, err := gopdfgo.Render(context.Background(), []byte(signatureFieldPage), opts)
+			result, err := htmlpdf.Render(context.Background(), []byte(signatureFieldPage), opts)
 			if err != nil {
 				t.Fatal(err)
 			}

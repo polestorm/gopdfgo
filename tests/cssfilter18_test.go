@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 )
 
 // filterPNG zwraca obraz PNG 4×4 w jednym kolorze jako adres data:.
@@ -53,13 +53,13 @@ func TestCSSFilter(t *testing.T) {
 	if err != nil {
 		t.Skip("brak fontu Ahem")
 	}
-	fonts := append([]gopdfgo.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
+	fonts := append([]htmlpdf.Font{{Name: "Ahem.ttf", Data: ahem}}, testFonts(t)...)
 	head := `<style>@page { size: 300px 200px; margin: 0 } body { margin: 0 } .t { font: 20px/20px Ahem; color: green }
 		.b { width: 100px; height: 60px; margin: 20px; background: red }</style>`
 	dir := t.TempDir()
 	render := func(body string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(head+body), gopdfgo.Options{Fonts: fonts})
+		result, err := htmlpdf.Render(context.Background(), []byte(head+body), htmlpdf.Options{Fonts: fonts})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -5,7 +5,7 @@ import (
 	"compress/zlib"
 	"context"
 	"encoding/binary"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"io"
 	"os/exec"
 	"regexp"
@@ -16,7 +16,7 @@ import (
 // Options.Uncompressed: strumienie treści i fontów bez filtra, tekst strony czytelny wprost w pliku.
 func TestUncompressedStreams(t *testing.T) {
 	html := []byte(`<p>Faktura VAT</p>`)
-	plain, err := gopdfgo.Render(context.Background(), html, gopdfgo.Options{Fonts: testFonts(t), Uncompressed: true})
+	plain, err := htmlpdf.Render(context.Background(), html, htmlpdf.Options{Fonts: testFonts(t), Uncompressed: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestUncompressedStreams(t *testing.T) {
 	if !bytes.Contains(plain.PDF, []byte(" Tf")) {
 		t.Error("Uncompressed: brak czytelnego operatora Tf w treści strony")
 	}
-	packed, err := gopdfgo.Render(context.Background(), html, gopdfgo.Options{Fonts: testFonts(t)})
+	packed, err := htmlpdf.Render(context.Background(), html, htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ var (
 // Podzbiór fontu: znacznik z sześciu wielkich liter (ISO 32000-1 § 9.6.4), krótki format loca, tabela name
 // z rekordami 0-6, wyzerowane metryki glifów spoza podzbioru.
 func TestFontSubsetTables(t *testing.T) {
-	result, err := gopdfgo.Render(context.Background(), []byte(`<p>Faktura VAT nr 1/2026</p>`), gopdfgo.Options{Fonts: testFonts(t), Uncompressed: true})
+	result, err := htmlpdf.Render(context.Background(), []byte(`<p>Faktura VAT nr 1/2026</p>`), htmlpdf.Options{Fonts: testFonts(t), Uncompressed: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestFontSubsetTables(t *testing.T) {
 
 // Domyślna kompresja daje strumienie, które zlib rozpakowuje (sprawdzenie stopnia nie psuje formatu).
 func TestCompressedStreamsDecode(t *testing.T) {
-	result, err := gopdfgo.Render(context.Background(), []byte(`<p>Faktura VAT</p>`), gopdfgo.Options{Fonts: testFonts(t)})
+	result, err := htmlpdf.Render(context.Background(), []byte(`<p>Faktura VAT</p>`), htmlpdf.Options{Fonts: testFonts(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestHyphenBeforeDigitsBreaks(t *testing.T) {
 	}
 	for in, want := range cases {
 		html := `<style>@page{margin:0}body{margin:0;font-size:20px}div{width:0}</style><div>` + in + `</div>`
-		result, err := gopdfgo.Render(context.Background(), []byte(html), gopdfgo.Options{Fonts: testFonts(t)})
+		result, err := htmlpdf.Render(context.Background(), []byte(html), htmlpdf.Options{Fonts: testFonts(t)})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	"github.com/polestorm/gopdfgo"
+	"github.com/polestorm/gopdfgo/htmlpdf"
 	"strings"
 	"testing"
 )
@@ -14,15 +14,15 @@ func TestEmbeddedDocuments(t *testing.T) {
 	dir := t.TempDir()
 	page := `<style>@page { size: 200px 120px; margin: 0 } body { margin: 0 } iframe, object, embed { display: block; border: 0 }</style>`
 	inner := `<style>body { margin: 0 }</style><div style="width:60px;height:300px;background:green"></div>`
-	resolver := func(url string) (gopdfgo.Resource, error) {
+	resolver := func(url string) (htmlpdf.Resource, error) {
 		if strings.HasSuffix(url, "inner.html") {
-			return gopdfgo.Resource{Data: []byte(inner), MediaType: "text/html"}, nil
+			return htmlpdf.Resource{Data: []byte(inner), MediaType: "text/html"}, nil
 		}
-		return gopdfgo.DenyAll(url)
+		return htmlpdf.DenyAll(url)
 	}
 	render := func(html string) []byte {
 		t.Helper()
-		result, err := gopdfgo.Render(context.Background(), []byte(page+html), gopdfgo.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
+		result, err := htmlpdf.Render(context.Background(), []byte(page+html), htmlpdf.Options{Fonts: testFonts(t), Resolver: resolver, BaseURL: "file:///doc/"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -46,10 +46,10 @@ func TestEmbeddedDocuments(t *testing.T) {
 		}
 	}
 	// ramka wskazująca na własny dokument nie zapętla silnika
-	self := func(url string) (gopdfgo.Resource, error) {
-		return gopdfgo.Resource{Data: []byte(`<iframe src="self.html"></iframe>`), MediaType: "text/html"}, nil
+	self := func(url string) (htmlpdf.Resource, error) {
+		return htmlpdf.Resource{Data: []byte(`<iframe src="self.html"></iframe>`), MediaType: "text/html"}, nil
 	}
-	if _, err := gopdfgo.Render(context.Background(), []byte(`<iframe src="self.html"></iframe>`), gopdfgo.Options{Fonts: testFonts(t), Resolver: self, BaseURL: "file:///doc/"}); err != nil {
+	if _, err := htmlpdf.Render(context.Background(), []byte(`<iframe src="self.html"></iframe>`), htmlpdf.Options{Fonts: testFonts(t), Resolver: self, BaseURL: "file:///doc/"}); err != nil {
 		t.Fatal(err)
 	}
 }
