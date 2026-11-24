@@ -3,9 +3,5 @@ Copyright 2026 Michał Głębowski (https://github.com/polestorm)
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
-Its layout engine is derived from webrender and go-weasyprint, Go ports of
-WeasyPrint (copyright Kozea and contributors) by Benoit Kugler (copyright 2019 Benoit Kugler),
-distributed under the BSD 3-Clause License. It also includes the go-text
-typesetting library, benoitkugler/pdf, golang.org/x modules and hyphenation
-patterns from hyph-utf8, each under its own license. The copyright notices and
-license texts are in docs/third-party-notices.txt.
+It includes software and data from third parties under their own licenses;
+their copyright notices and license texts are in docs/third-party-notices.txt.
