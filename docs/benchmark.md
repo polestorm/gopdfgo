@@ -167,7 +167,7 @@ same pola marginesowe.
 Sposób pomiaru: `go test -run '^$' -bench 'BenchmarkCorpus|BenchmarkLargeTable' -benchtime 10x .`
 (`benchmark_test.go`), macOS arm64, 10 rdzeni, go1.26.6. Czas to jedno wywołanie `Render` razem
 z czytaniem i parsowaniem fontów dokumentu, bez startu procesu; pamięć to suma przydziałów, nie szczyt.
-Kolumna „przed” to ten sam pomiar (5 powtórzeń) na stanie `ef7c91b`, przed dwiema poprawkami opisanymi niżej.
+Kolumna „przed” to ten sam pomiar (5 powtórzeń) na stanie `03eb642`, przed dwiema poprawkami opisanymi niżej.
 
 | Dokument | Strony | Czas przed [ms] | Czas [ms] | Pamięć przydzielona [MB] |
 |---|---|---|---|---|
@@ -201,7 +201,7 @@ i 1391 MB; 15.11 było 1,06 s i 1239 MB, więc ok. 0,05 s i 60 MB przybyło od t
 Wnioski:
 
 - **Kolumny nie spowolniły silnika.** Dokumenty `19`, `21` i pozostałe mają ten sam czas co na stanie sprzed
-  paczek kolumn (`99006b1`); próby z kolumnami do 53 stron (1500 akapitów w trzech kolumnach) trwają tyle
+  paczek kolumn (`7c12410`); próby z kolumnami do 53 stron (1500 akapitów w trzech kolumnach) trwają tyle
   samo co przed zmianami (0,40 s wobec 0,38 s całego procesu). Równoważenie krokami po 1 px nie jest
   widoczne w czasie.
 - **Stały koszt ok. 30 ms na dokument** nie zależy od treści. Profil dokumentu `17-tables` (32 ms): ok. 40%
@@ -240,13 +240,13 @@ na jedno wywołanie.
 
 | Stan | Tabela 4000 wierszy [ms / MB] | `19-flex-grid-pagination` [ms / MB] | `22-multicol-pagination` [ms / MB] |
 |---|---|---|---|
-| `5ef9e30` (przed piątą paczką) | 1189 / 1330 | 92 / 158 | 104 / 165 |
-| `a9fb4a6` (po piątej) | 1198 / 1339 | 92 / 159 | 105 / 166 |
-| `47b6ec0` (po szóstej) | 1250 / 1369 | 92 / 159 | 107 / 168 |
-| `f04fa4f` (po siódmej) | 1286 / 1377 | 97 / 166 | 113 / 175 |
-| `1930d0c` (po ósmej) | 1344 / 1406 | 104 / 167 | 116 / 175 |
+| `311109f` (przed piątą paczką) | 1189 / 1330 | 92 / 158 | 104 / 165 |
+| `0d24c96` (po piątej) | 1198 / 1339 | 92 / 159 | 105 / 166 |
+| `a08845e` (po szóstej) | 1250 / 1369 | 92 / 159 | 107 / 168 |
+| `da5ece2` (po siódmej) | 1286 / 1377 | 97 / 166 | 113 / 175 |
+| `df112bf` (po ósmej) | 1344 / 1406 | 104 / 167 | 116 / 175 |
 
-Cały korpus (10 powtórzeń, `1930d0c`): 35–117 ms na dokument, czyli o 5–20% więcej niż w § 9.
+Cały korpus (10 powtórzeń, `df112bf`): 35–117 ms na dokument, czyli o 5–20% więcej niż w § 9.
 
 Binarka (`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`): **23,30 MB** (16.11: 23,35 MB).
 
@@ -255,7 +255,7 @@ Wnioski:
 - Przez cztery paczki (ok. 450 nowych zaliczeń W3C) czas dużej tabeli wzrósł o 13%, a przydzielona pamięć
   o 6%; przyrost jest rozłożony, najwięcej dała ósma paczka (+58 ms).
 - W profilu procesora nie widać żadnej z nowych funkcji (`text-autospace`, kapitaliki, dopasowanie nazw
-  rodzin, `-webkit-line-clamp`); ok. 24% czasu to odśmiecanie. W profilu przydziałów wobec `f04fa4f` rośnie
+  rodzin, `-webkit-line-clamp`); ok. 24% czasu to odśmiecanie. W profilu przydziałów wobec `da5ece2` rośnie
   kształtowanie tekstu (`HarfbuzzShaper.shape` +54 MB, kopie glifów w `WrapWordBreak` +40 MB na 5 przebiegów),
   co odpowiada kształtowaniu w całości tekstów do 128 znaków przy łamaniu wierszy (ósma paczka). Kandydat do
   przyspieszenia, gdy czas zacznie mieć znaczenie; dziś 130 stron w 1,34 s.
@@ -346,10 +346,10 @@ Podsumowanie:
 ### Skąd przewaga folio
 
 Profil procesora i przydziałów obu silników na `20-invoice` (pprof, 60 i 200 renderowań, `bench/folio/prof/`),
-gopdfgo w stanie `cf2de18`; udziały w czasie procesora wątku renderowania (ok. 39 ms z 58 ms ściennych; reszta
+gopdfgo w stanie `942ae1f`; udziały w czasie procesora wątku renderowania (ok. 39 ms z 58 ms ściennych; reszta
 to odśmiecanie w tle, ok. 15% próbek):
 
-| Etap | gopdfgo `cf2de18` | uwagi |
+| Etap | gopdfgo `942ae1f` | uwagi |
 |---|---|---|
 | parsowanie fontów `Options.Fonts` (`fontscan.AddFont`, 14 plików) | 21% | go-text parsuje cały font: glify, nazwy glifów, BASE, GSUB/GPOS |
 | wczytanie fontów z `@font-face` (6 plików, te same co w `Options.Fonts`) | 14% | drugie parsowanie tych samych plików |
@@ -372,7 +372,7 @@ każdy element z atrybutem `style` z textutil) 31% czasu gopdfgo zabierało pars
 ### Co przeniesione do gopdfgo
 
 Wszystko bez zmiany wyniku: porównanie bajtowe W3C (11 689 dokumentów, 46 756 renderowań poleceniem z 67
-fontami `testdata/fonts`) 0 różnic wobec `cf2de18`, 76 dokumentów `bench/realdocs` i książka 0 różnic.
+fontami `testdata/fonts`) 0 różnic wobec `942ae1f`, 76 dokumentów `bench/realdocs` i książka 0 różnic.
 
 1. **Pamięć podręczna fontów** (ADR 0045): `Options.FontCache` przechowuje sparsowane fonty między
    wywołaniami; bez niej renderowanie parsuje plik podany w `Options.Fonts` i w `@font-face` raz, nie dwa razy.
@@ -384,7 +384,7 @@ fontami `testdata/fonts`) 0 różnic wobec `cf2de18`, 76 dokumentów `bench/real
 
 Przed i po (w procesie, mediana; cały proces; RSS):
 
-| Dokument | `cf2de18` [ms] | po zmianach [ms] | z `FontCache` [ms] | cały proces przed / po [ms] | RSS przed / po [MB] |
+| Dokument | `942ae1f` [ms] | po zmianach [ms] | z `FontCache` [ms] | cały proces przed / po [ms] | RSS przed / po [MB] |
 |---|---|---|---|---|---|
 | `20-invoice` | 57,8 | 51,4 | 37,9 | 72 / 66 | 106 / 95 |
 | `17-tables` | 31,2 | 25,8 | 12,5 | 46 / 39 | 88 / 76 |
@@ -478,9 +478,9 @@ Wdrożone w tej rundzie (wszystko bez zmiany wyniku, opis zmian w `docs/provenan
    na wszystkie właściwości.
 
 Przed i po (w procesie, mediana; `-cache` to `Options.FontCache`; cały proces: mediana z 5, RSS: szczyt;
-binarki i harness z `65c52c3` i z tej gałęzi, mierzone na zmianę w tej samej chwili):
+binarki i harness z `1bbb755` i z tej gałęzi, mierzone na zmianę w tej samej chwili):
 
-| Dokument | `65c52c3` [ms] | po [ms] | z `FontCache` przed / po [ms] | cały proces przed / po [ms] | RSS przed / po [MB] |
+| Dokument | `1bbb755` [ms] | po [ms] | z `FontCache` przed / po [ms] | cały proces przed / po [ms] | RSS przed / po [MB] |
 |---|---|---|---|---|---|
 | `20-invoice` | 52,4 | 50,0 | 38,5 / 35,8 | 66 / 63 | 95 / 96 |
 | `17-tables` | 26,1 | 25,7 | 12,6 / 12,0 | 39 / 39 | 75 / 74 |
@@ -521,7 +521,7 @@ Pozycje 1–5 nie dotykają plików przebiegu drugiego. Przebieg drugi powtarza 
 
 ### Pamięć wyniku podziału wiersza i kopie pudełek: plan pkt 2 i 5 (2026-11-23)
 
-Profil wyjściowy (`c2d6fb1`, pprof, `-cache`, ciepłe renderowania): `splitFirstLine` 35% czasu procesora
+Profil wyjściowy (`97a4c08`, pprof, `-cache`, ciepłe renderowania): `splitFirstLine` 35% czasu procesora
 faktury, `rand-01` i książki, w tym `WrapWordBreak` 32%, prawie w całości chybienia (segmentacja, kształtowanie
 HarfBuzz, `LineWrap`); trafienia w pamięć z ADR 0032 ok. 2%. `CopyWithChildren` to 5–8% przydzielanych bajtów
 (pudełko ma ok. 1 kB: `BoxFields` 1024 B, `LineBox` 1096 B), bez widocznego udziału w czasie procesora; z tego
@@ -536,7 +536,7 @@ min-/max-content (`minimum`, szerokość 0 albo bez szerokości) i tekstów do 1
 wywołaniami był w książce i `esf-4` o 0,6–1% wolniejszy, bez progu długości książka o 1,4% (klucz z całej
 reszty akapitu). Styl serializowany raz na podział zamiast przy każdym wewnętrznym łamaniu.
 
-Przed i po (`c2d6fb1` i ta gałąź, harness z `bench/folio/gharness` w dwóch kopiach, mierzone na zmianę: 5 par
+Przed i po (`97a4c08` i ta gałąź, harness z `bench/folio/gharness` w dwóch kopiach, mierzone na zmianę: 5 par
 w procesie, mediana z 10–20 ciepłych renderowań, 3 przy książce, 1 przy ×4 ze spisem; cały proces: mediana z
 5 uruchomień, RSS: szczyt z `os.wait4`; 2026-11-23 12:45–13:10, obciążenie 3–20, więc ważniejszy jest stosunek):
 
@@ -573,7 +573,7 @@ Sprawdzenie: porównanie bajtowe W3C (11 689 dokumentów, 46 756 renderowań) 0 
 fail=0, `bench/realdocs` i książka 77 z 77 zgodnych, cztery warianty książki identyczne, `go test ./tests/`
 bez błędów, testy przejętego kodu tylko ze znanymi niepowodzeniami.
 
-### Ponowny pomiar 2026-11-24 (main `5961ab8`)
+### Ponowny pomiar 2026-11-24 (main `728e0ab`)
 
 Ten sam sposób pomiaru co wyżej (`bench/folio/run.py`, wyniki `bench/folio/out/2026-11-24/`), maszyna wolna
 (średnie obciążenie ok. 3), po dwóch rundach przyspieszeń (indeks selektorów i wspólna kaskada, pamięć
@@ -636,7 +636,7 @@ odrzucone (zmiana wyniku dla fontu z uszkodzonym glifem), zamiast tego pamięć 
 procesie, bez `FontCache`, faktura i `05-hyphenation`, wszystkie i same fonty Noto): `parseFontFile` 17% czasu
 procesora, z tego `tables.ParseGlyf` 15%; `isSupportedFont` 3%.
 
-Przed i po (`271c17e` i ta gałąź, 2026-11-23 15:05; obciążenie maszyny 10–25 po wcześniejszych 110, więc
+Przed i po (`38fef9d` i ta gałąź, 2026-11-23 15:05; obciążenie maszyny 10–25 po wcześniejszych 110, więc
 czasy bezwzględne są zawyżone, a rozrzut duży; „wszystkie” to `-fonts testdata/fonts`, 67 plików, „Noto” to
 katalog z sześcioma plikami `testdata/fonts/Noto*.ttf`; dokumenty `bench/realdocs` z `-root bench/realdocs`).
 Cały proces: polecenie `gopdfgo`, czas i szczyt RSS z `os.wait4`, 12 uruchomień każdej binarki na przemian,
@@ -672,7 +672,7 @@ W procesie (harness jak `bench/inproc`, kopia z `replace` na każdą wersję poz
   przydziałów na renderowanie), której wpływu na czas (szacunek z planu ok. 1 ms) nie da się zobaczyć w
   rozrzucie tego pomiaru.
 
-Sprawdzenie (binarki z `271c17e` i z tej gałęzi): porównanie bajtowe W3C (11 689 dokumentów, 46 756
+Sprawdzenie (binarki z `38fef9d` i z tej gałęzi): porównanie bajtowe W3C (11 689 dokumentów, 46 756
 renderowań) 0 różnic, `bench/verify/corpus.sh` fail=0, `bench/folio/realbytes.sh` 77 z 77 zgodnych,
 `go test -tags systemfonts ./tests/ -run SystemFonts` bez błędów, `go test ./tests/` bez błędów (w tym
 `tests/lazyfonts23_test.go`: parsowanie przy użyciu i przy rejestracji dają te same bajty na całym korpusie
@@ -694,10 +694,10 @@ z ADR 0046 (reszta to głównie ostatnie słowa tekstów, kształtowane osobno i
 
 Sprawdzenie różnicowe: wersja z sondą liczyła też krok 1 i porównywała warunek; korpus W3C, `bench/realdocs`,
 `testdata/documents`, książka (11 788 dokumentów, tryb stronicowany i sondażu): 0 niezgodności. Bajty na stanie
-scalonym z `eb09fa9` wobec `eb09fa9`: W3C 11 689 dokumentów (46 756 renderowań) 0 różnic, `corpus.sh` fail=0,
+scalonym z `78b3fd8` wobec `78b3fd8`: W3C 11 689 dokumentów (46 756 renderowań) 0 różnic, `corpus.sh` fail=0,
 `realbytes.sh` 77 z 77; test `tests/mincontent23_test.go` (obie drogi, bajty PDF).
 
-Przed i po (`eb09fa9` i ta gałąź po scaleniu, harness `bench/folio/gharness` w dwóch kopiach, na zmianę 5 par,
+Przed i po (`78b3fd8` i ta gałąź po scaleniu, harness `bench/folio/gharness` w dwóch kopiach, na zmianę 5 par,
 mediana z 10–20 ciepłych renderowań, 3 przy książce; 2026-11-23 15:20–15:30, obciążenie 3–35):
 
 | Dokument | z `FontCache` przed / po [ms] | stosunek | bez `FontCache` przed / po [ms] | stosunek |
@@ -712,7 +712,7 @@ mediana z 10–20 ciepłych renderowań, 3 przy książce; 2026-11-23 15:20–15
 | `rand-12` | 148,4 / 136,5 | 0,915 | 135,8 / 124,9 | 0,918 |
 | książka (254 strony) | 1122 / 1099 | 0,990 | 1122 / 1133 | 0,997 |
 
-Pomiar wcześniejszy (przed scaleniem, wobec `505fabd`, obciążenie 30–120) dał te same kierunki: faktura 0,81,
+Pomiar wcześniejszy (przed scaleniem, wobec `d576d0a`, obciążenie 30–120) dał te same kierunki: faktura 0,81,
 `office-terminology` 0,80, `rand-01` 0,93. `esf-4` w powtórzeniu z 10 parami 1,006 / 1,008 (w tym dokumencie
 droga skrócona dotyczy 42 wywołań, więc różnica to najpewniej rozrzut, jak przy ADR 0046). Szacunek z planu
 (faktura −5–8 ms, `rand-01` −10–20%) sprawdził się dla faktury (−6–7 ms), `rand-01` zyskuje 7–8%;
@@ -732,8 +732,8 @@ różnicy wobec folio dają funkcje, których folio nie ma (kształtowanie HarfB
 pełne SVG, PDF/A i PDF/UA z tagami, przypisy, liczniki stron) — bez rezygnacji z nich rozmiaru folio nie osiągniemy.
 Odłożone: kompresja słowników (−0,7 MB), usunięcie kodowań CJK (−0,8 MB, wbrew WHATWG Encoding).
 
-**Szybkość**: `bench/folio/run.py`, wyniki `bench/folio/out/2026-11-24b/`, main `f9b2ff5`, obciążenie ok. 2–4.
-Mediana stosunku czasów gopdfgo/folio w procesie: **2,0** (było 2,8 w pomiarze `5961ab8`), zakres 0,67–5,1;
+**Szybkość**: `bench/folio/run.py`, wyniki `bench/folio/out/2026-11-24b/`, main `c0a9f7d`, obciążenie ok. 2–4.
+Mediana stosunku czasów gopdfgo/folio w procesie: **2,0** (było 2,8 w pomiarze `728e0ab`), zakres 0,67–5,1;
 z `FontCache` 1,5; cały proces 2,0. gopdfgo jest szybsze od folio na `03-report-svg-chart` (0,67), `15-page-breaks`
 (0,88) i `02-register-table` (0,93); najdalej `office-db-model` (5,1), `rand-01` (3,9), `19-flex-grid-pagination`
 i `mmd-p6` (3,4). Faktura `20-invoice`: folio 15,8 ms w procesie i 22 ms cały proces, gopdfgo 31,4 / 44 ms (z

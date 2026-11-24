@@ -149,7 +149,7 @@ Decyzje szczegółowe:
    i `ValidationData` są pomijane i nie ma żadnego połączenia. Wynik B-B jest bajt w bajt taki sam jak
    w rundzie 1: test `TestLevelBBUnchangedSinceRoundOne` porównuje SHA-256 wyniku dla stałego klucza
    testowego (RSA 2048, w pliku testu, opisany jako wyłącznie testowy), stałego czasu i ręcznie zapisanego
-   PDF ze skrótem policzonym kodem rundy 1 (commit f073a28).
+   PDF ze skrótem policzonym kodem rundy 1 (commit 7ce2c7d).
 2. **Klienci sieci jako interfejsy przesyłu**: `TimestampAuthority` i `RevocationFetcher` przenoszą tylko
    bajty; sprawdzanie odpowiedzi zostaje w pakiecie, więc własna implementacja (uwierzytelnianie TSA,
    pośrednik, pamięć podręczna, inny protokół) nie może pominąć sprawdzeń. `TSAClient` i `RevocationClient`

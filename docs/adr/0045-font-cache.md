@@ -37,7 +37,7 @@ wskaźniku `*font.Font`.
    `@font-face` jest parsowany raz, nie dwa razy.
 5. Wynik nie zależy od pamięci podręcznej. Sprawdzenie 2026-11-23: porównanie bajtowe korpusu W3C (11 689
    dokumentów, 46 756 renderowań, polecenie z wszystkimi 67 fontami `testdata/fonts`), 76 prawdziwych
-   dokumentów `bench/realdocs` i książka: 0 różnic wobec `cf2de18`; testy `tests/font_cache_test.go`
+   dokumentów `bench/realdocs` i książka: 0 różnic wobec `942ae1f`; testy `tests/font_cache_test.go`
    porównują wyniki z ciepłą pamięcią i bez niej (także ten sam plik w dwóch regułach, jedna z
    `unicode-range`, i usuwanie po przekroczeniu limitu).
 

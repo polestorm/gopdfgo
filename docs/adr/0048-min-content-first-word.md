@@ -52,7 +52,7 @@ ADR 0032).
 
 Sprawdzenie różnicowe: wersja z sondą liczyła przy każdym użyciu drogi skróconej także krok 1 i
 porównywała warunek; na korpusie W3C (11 689 dokumentów), `bench/realdocs`, `testdata/documents` i
-książce, w trybie stronicowanym i sondażu, 0 niezgodności. Bajty bez zmian wobec `505fabd` i, po scaleniu, wobec `eb09fa9`
+książce, w trybie stronicowanym i sondażu, 0 niezgodności. Bajty bez zmian wobec `d576d0a` i, po scaleniu, wobec `78b3fd8`
 (W3C 46 756 renderowań, `corpus.sh`, `realbytes.sh` 77 z 77). Udział drogi skróconej
 w wywołaniach przy szerokości 0, które nie trafiły w pamięć z ADR 0046: faktura 423 z 557, `rand-01`
 1589 z 2302, `office-db-model` 524 z 1098, `esf-4` 42 z 59; pozostałe to głównie ostatnie słowa tekstów

@@ -140,5 +140,5 @@ ma się obejść bez jego kodu. Użytkownik zdecydował: CLI czyta klucz z pliku
   PDF/UA-1, potem drugi podpis w drugim polu; pole, lista pól i strony bez zmian; `pdfsig`: oba podpisy
   ważne, ostatni „Total document signed”; `openssl cms -verify`: poprawne; veraPDF po podpisaniu obu pól:
   `-f 2b`, `-f 2a`, `-f ua1` zgodne.
-- Bez atrybutu wynik bez zmian: `bench/verify/w3cbytes.py` (binarka sprzed zmiany, commit 967fc42, wobec
+- Bez atrybutu wynik bez zmian: `bench/verify/w3cbytes.py` (binarka sprzed zmiany, commit ded0dd5, wobec
   nowej) — 11 689 dokumentów, 46 756 renderowań, 0 różnic bajtowych; `bench/verify/corpus.sh` — `fail=0`.

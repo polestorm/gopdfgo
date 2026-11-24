@@ -1211,7 +1211,7 @@ Wspólne dla obu katalogów:
     (pusta reszta strony; Chromium zaczyna tabelę pod elementem pływającym);
 - szybkość po porównaniu z folio, 2026-11-23 (ADR 0045; `docs/benchmark.md` § 11; testy
   `tests/font_cache_test.go`, `css/parser/number_match_test.go`); wynik bajt w bajt ten sam (korpus W3C,
-  `bench/realdocs` i książka: 0 różnic wobec `cf2de18`):
+  `bench/realdocs` i książka: 0 różnic wobec `942ae1f`):
   - `text/font_cache.go` (nowy, własny): pamięć podręczna sparsowanych fontów według treści pliku;
     `text/engine_gotext.go` nowe pole `FontConfigurationGotext.Cache`, `loadOneFont` parsuje przez nią
     (kopia `*font.Font` na regułę, bo `unicode-range` podmienia `Cmap`), treść fontu czytana do bufora
@@ -1226,7 +1226,7 @@ Wspólne dla obu katalogów:
     renderowanie (walidacja i ostrzeżenia dalej przy każdym elemencie);
 - szybkość kaskady i odczytu stylów, druga runda po porównaniu z folio, 2026-11-23 (`docs/benchmark.md`
   § 11, „Druga runda”; test `html/tree/index_test.go`); wynik bajt w bajt ten sam (korpus W3C, korpus
-  `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `65c52c3`):
+  `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `1bbb755`):
   - `css/selector/index.go` (nowy, własny) i `html/tree/tree.go` (`matcherIndex`, `CSS.match`): indeks
     selektorów arkusza według klucza najbardziej prawego selektora złożonego (identyfikator, klasa, nazwa
     elementu); kaskada sprawdza tylko selektory z kubełków elementu i selektory bez klucza, w kolejności
@@ -1245,7 +1245,7 @@ Wspólne dla obu katalogów:
     tabeli) przechodzi zbiór w tej kolejności zamiast losowej kolejności mapy;
 - pamięć wyniku podziału pierwszego wiersza, 2026-11-23 (ADR 0046; `docs/benchmark.md` § 11, dopisek „Pamięć
   wyniku podziału wiersza i kopie pudełek”); wynik bajt w bajt ten sam (korpus W3C, korpus `testdata/documents` i
-  `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `c2d6fb1`):
+  `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `97a4c08`):
   - `text/engine_gotext.go` `splitFirstLine`: wynik pomiarów szerokości wewnętrznych (`minimum`, szerokość 0
     albo `nil`) dla tekstów do 128 znaków (`splitCacheMaxText`) zapamiętany w `textLayoutCache` (ADR 0032) pod kluczem `textKey` z nowym polem `split` (flagi
     `splitEntry`, `splitMinimum`, `splitLineStart`, `splitNoMaxWidth`); wołający dostaje kopię układu
@@ -1259,7 +1259,7 @@ Wspólne dla obu katalogów:
     więc rodziny `["ab", "c"]` i `["a", "bc"]` miały ten sam klucz pamięci łamania i proporcji fontu;
 - fonty parsowane w całości przy pierwszym użyciu, 2026-11-23 (ADR 0047; `docs/benchmark.md` § 11, dopisek
   „Leniwe wczytywanie fontów”; test `tests/lazyfonts23_test.go`); wynik bajt w bajt ten sam (korpus W3C, korpus
-  `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `271c17e`):
+  `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic wobec `38fef9d`):
   - `text/font_cache.go`: pozycja pamięci fontów ma streszczenie (`Summary`: `cmap`, opis, oś `wght`; te same
     tablice wymagane co `font.NewFont`) i pełne parsowanie na żądanie (`Parse`); nowe `Supported` (pamięć
     wyniku sprawdzenia konturów przy zapisie PDF);
@@ -1275,7 +1275,7 @@ Wspólne dla obu katalogów:
 - min-content słowo po słowie bez kształtowania reszty tekstu, 2026-11-23 (ADR 0048; `docs/benchmark.md` § 11,
   dopisek „min-content bez kształtowania reszty tekstu”; test `tests/mincontent23_test.go`); wynik bajt w bajt
   ten sam (korpus W3C, korpus `testdata/documents` i `testdata/svg`, `bench/realdocs` i książka: 0 różnic
-  wobec `eb09fa9`):
+  wobec `78b3fd8`):
   - `text/engine_gotext.go` `splitFirstLineRaw`: przy szerokości 0 i tekście do 128 znaków nowe
     `zeroWidthFirstWord` kształtuje samo pierwsze słowo i przechodzi do kroku 4 (`goto hyphenation`) z tym,
     co dałby krok 3; w źródle krok 1 kształtował cały pozostały tekst, z którego krok 3 brał tylko znak

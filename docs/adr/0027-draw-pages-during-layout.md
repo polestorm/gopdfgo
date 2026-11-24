@@ -8,7 +8,7 @@ Silnik odziedziczył po WeasyPrint kolejność: najpierw układ wszystkich stron
 rysowanie (`document.Write`). Drzewa pudełek wszystkich stron żyją więc naraz, a pamięć rośnie z liczbą
 stron. Pomiar z 2026-11-20 (żywa sterta po wymuszonym odśmiecaniu, książka z ilustracjami ×4, 1021 stron):
 HTML i arkusze 85 MB, drzewo pudełek 191 MB, wszystkie strony ułożone 527 MB, wszystkie narysowane 859 MB.
-Zwalnianie strony zaraz po narysowaniu (`ReleaseDrawnPages`, commit `edbcd9f`) obniżyło szczyt RSS do
+Zwalnianie strony zaraz po narysowaniu (`ReleaseDrawnPages`, commit `d65fb24`) obniżyło szczyt RSS do
 1,34–1,36 GB, ale szczyt nadal przypadał na koniec układu, gdy wszystkie strony są jeszcze w pamięci.
 
 Strona ułożona w pierwszym obiegu paginacji jest zwykle od razu ostateczna. Po paginacji silnik robi
@@ -74,7 +74,7 @@ Warunek: wynik ma być bajt w bajt taki sam jak dotąd.
 ## Wyniki
 
 Pomiar 2026-11-20 na tym samym komputerze, wiersz poleceń, książka `1342-bench.htm` (256 stron) i jej
-czterokrotność `x4.htm` (1021 stron, 656 ilustracji). Porównanie z commitem `edbcd9f`, po dwa przebiegi:
+czterokrotność `x4.htm` (1021 stron, 656 ilustracji). Porównanie z commitem `d65fb24`, po dwa przebiegi:
 
 | | książka, przed | książka, po | ×4, przed | ×4, po |
 |---|---|---|---|---|
@@ -90,7 +90,7 @@ czterokrotność `x4.htm` (1021 stron, 656 ilustracji). Porównanie z commitem `
   w chwili szczytu jest też 69–80 MB złożonych wierszy (`text.newLineStore`). Ich ilość nie rośnie z liczbą
   stron (książka 80 MB, ×4 69 MB), więc nie są to drzewa stron narysowanych. Skąd się biorą, nie jest
   ustalone.
-- Wynik jest bajt w bajt taki sam jak z `edbcd9f` na 22 dokumentach i 23 plikach SVG korpusu, na książce,
+- Wynik jest bajt w bajt taki sam jak z `d65fb24` na 22 dokumentach i 23 plikach SVG korpusu, na książce,
   na ×4 i na 19 dokumentach z cechami z punktu 6 (`tests/streamdraw18_test.go`, `TestStreamDrawing*`).
   Wszystkie dokumenty korpusu oprócz `18-toc-running-elements.html` (spis treści z `target-counter`) są
   rysowane w trakcie układu.

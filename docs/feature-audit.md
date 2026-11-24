@@ -359,12 +359,12 @@ Miary: czas i pamięć przydzielona (suma wszystkich przydziałów) z `go test -
 
 | stan | czas | pamięć przydzielona | szczyt żywej sterty |
 |---|---|---|---|
-| przejęty kod (commit `4320f84`) | 1,46 s | 2239 MB | nie mierzony |
-| wspólna kaskada, lżejsze style anonimowe (`82e8b6b`) | 1,32 s | 1676 MB | 718 MB |
+| przejęty kod (commit `b42f840`) | 1,46 s | 2239 MB | nie mierzony |
+| wspólna kaskada, lżejsze style anonimowe (`c1cbfe7`) | 1,32 s | 1676 MB | 718 MB |
 | style pseudoelementów na żądanie | nie mierzony | nie mierzona | 483 MB |
 | wspólne tablice wartości obliczonych | 1,06 s | 1239 MB | 323 MB |
 
-Co zajmowało pamięć (profil żywej sterty w szczycie, stan `82e8b6b`): ponad połowę style obliczone. Reguły
+Co zajmowało pamięć (profil żywej sterty w szczycie, stan `c1cbfe7`): ponad połowę style obliczone. Reguły
 arkusza domyślnego `::marker`, `::footnote-call` i `::footnote-marker` nie mają selektora elementu, więc
 pasują do wszystkiego, a przejęty kod obliczał od razu styl każdego pseudoelementu z kaskadą: cztery pełne
 style na element, każdy z tablicą na 186 właściwości (ok. 3 kB). Teraz styl pseudoelementu powstaje przy
@@ -509,8 +509,8 @@ nie odpowiada typowemu dokumentowi wielołamowemu (tekst w kilku łamach z nagł
 
 ## Korpus po zmianach z 2026-11-14 oraz rozmiar kodu
 
-**Korpus.** 21 dokumentów z `testdata/documents` wyrenderowano binarką ze stanu `4320f84` (początek prac
-tego dnia nad pamięcią i testami W3C) i ze stanu `1cd9e2c`, po czym porównano strona po stronie w 96 dpi
+**Korpus.** 21 dokumentów z `testdata/documents` wyrenderowano binarką ze stanu `b42f840` (początek prac
+tego dnia nad pamięcią i testami W3C) i ze stanu `c4b2974`, po czym porównano strona po stronie w 96 dpi
 (próg 40 na kanał) oraz ze słowami z wydruków Chromium (`pdftotext -bbox`). Liczba stron nie zmieniła się
 w żadnym dokumencie, liczba słów na innej stronie niż w Chromium i liczba słów przesuniętych o ponad 3 pt
 jest identyczna dla obu stanów we wszystkich 21 dokumentach. W 17 dokumentach obraz jest identyczny co do
@@ -518,7 +518,7 @@ piksela. W czterech (`09`, `13`, `16`, `21`) zmieniło się od 56 do 1557 piksel
 wszystkich jest to ta sama, zamierzona zmiana: spacja po znaku złożonym fontem zastępczym (znacznik listy,
 „▾” w `summary`, „→ ≤ ≥”) ma szerokość z fontu podstawowego, tak jak w Chromium.
 
-**Rozmiar źródeł** (pliki `.go` w repozytorium, `wc -l`, 2026-11-14, stan `1cd9e2c`):
+**Rozmiar źródeł** (pliki `.go` w repozytorium, `wc -l`, 2026-11-14, stan `c4b2974`):
 
 | część | wiersze | pliki | zmiana 2026-11-14 |
 |---|---|---|---|
@@ -545,7 +545,7 @@ zatem ok. 4 780 wierszy (4 250 w pakietach przejętych i 528 własnych), czyli o
 bez testów. W testach przejętych zmieniono lub dodano ok. 414 wierszy.
 
 **Rozmiar binarki** `cmd/gopdfgo` (macOS arm64, go1.26.6, `CGO_ENABLED=0 -trimpath -ldflags='-s -w'`):
-21,60 MB; ze stanu `4320f84` 21,52 MB (+0,08 MB). Bez usuwania symboli: 28,16 MB.
+21,60 MB; ze stanu `b42f840` 21,52 MB (+0,08 MB). Bez usuwania symboli: 28,16 MB.
 
 ## Położenie znaków w zapisanym tekście (2026-11-15)
 
@@ -715,7 +715,7 @@ z `break-inside: avoid` grupy wyższej niż strona, 2 testy wysokości procentow
 
 Uzupełnienie z tego samego dnia: `caption` jest domyślnie wyśrodkowany (HTML, Rendering § 15.3.9; dotąd
 do lewej), co zaliczyło `table-page-break-inside-avoid-8`; reftesty druku **205 z 340**. Sondaż ekranowy bez
-zmian na ćwiartce 2/4 (2302 testy). Poprawka do rundy: commit `36b81fc` pogorszył dwa testy odziedziczone
+zmian na ćwiartce 2/4 (2302 testy). Poprawka do rundy: commit `0eb7b0b` pogorszył dwa testy odziedziczone
 (`TestTables_9`, `TestTables_22`: obramowania zwinięte przy powtarzanym nagłówku), bo przed zapisem
 uruchomione były tylko testy pakietu układu, a nie rysowania; następny commit przywraca tam zachowanie źródła.
 W tematyce podziału tabel zostaje 19 niezaliczonych.
@@ -1807,7 +1807,7 @@ Razem 213 zysków i 7 strat, wszystkie wyjaśnione:
   ligaturę mimo `letter-spacing`), `css-text/text-autospace-preformatted-001` (wzorzec używa jednostki `ic`,
   dotąd nieważnej; `text-autospace` niezaimplementowany).
 
-Korpus (22 dokumenty, binarka z 5ef9e30 wobec scalonej): bez zmian w żadnym dokumencie.
+Korpus (22 dokumenty, binarka z 311109f wobec scalonej): bez zmian w żadnym dokumencie.
 
 - **Flex:** `visibility: collapse` (krok 10, w źródle TODO), linie bazowe w rozmiarze linii (`align-items`,
   `last baseline`), tabele jako elementy, kontenery zawijające z jedną linią, `safe`, `aspect-ratio`
@@ -1853,7 +1853,7 @@ Czterech pomocników przerwał limit API; wznowieni od miejsca przerwania.
 | reftesty druku (340) | 244 | 245 |
 | zyski według obszaru | | CSS 2: 27, tekst 26, listy 20, kolumny 16, flex 13, content 11, tła 7, siatka 4, tabele 3 |
 
-Razem 127 zysków i 0 strat. Korpus (binarka z 5ef9e30 wobec scalonej): zmienia się tylko `11-edge-cases`:
+Razem 127 zysków i 0 strat. Korpus (binarka z 311109f wobec scalonej): zmienia się tylko `11-edge-cases`:
 nagłówek „9. Blok niepodzielny…” stoi na dole strony 1 jak u Chromium, po usunięciu z arkusza domyślnego reguł
 `break-after: avoid` dla `h1`–`h6` i `break-before: avoid` dla `ol, ul`, których nie ma w HTML ani
 w przeglądarkach (dodał je WeasyPrint).
@@ -1892,7 +1892,7 @@ straty na stronach wyższych niż 600 px.
 zainstalowane w systemie, widzą je jak każdy font z katalogu `-fonts`. `css-fonts`: 254 → 266 z 327
 (zysk 15: `font-family-name-*` 12, `font-weight-bolder/lighter/normal-001`; strata 3 przypadkowych zaliczeń,
 opisanych w ADR 0018). Korpus identyczny co do piksela; pozostałe obszary (4789 testów) bez zmian.
-Liczby z `chk.sh` na binarce z 47b6ec0, wpisane do stanu bazowego bez pełnego sondażu.
+Liczby z `chk.sh` na binarce z a08845e, wpisane do stanu bazowego bez pełnego sondażu.
 
 ## Siódma paczka równoległa: reszta pięciu obszarów (2026-11-18)
 
@@ -1950,7 +1950,7 @@ w siódmej paczce): tekst (`inline.go`, `text/`) oraz CSS 2 i kolumny (`block.go
 | reftesty druku (340) | 245 | 245 |
 | zyski według obszaru | | CSS 2: 8, tekst 6, fonty 5, kolumny 5 |
 
-24 zyski, 0 strat; korpus bez zmian (poza znanymi `11-edge-cases` i `17-tables` wobec binarki z 5ef9e30).
+24 zyski, 0 strat; korpus bez zmian (poza znanymi `11-edge-cases` i `17-tables` wobec binarki z 311109f).
 
 - **Tekst:** `text-autospace` (CSS Text 4 § 6.4), synteza kapitalików z ß → SS, ligatury obejmujące spację
   przy łamaniu wierszy, U+2011 w foncie sąsiedniego tekstu, reszta 1/64 px w `letter-spacing`.
@@ -2397,7 +2397,7 @@ Porównanie: Chrome 157, `pdftotext -bbox`, `driftalign.py`; gopdfgo z limitem 1
 
 ### Tabela przed i po (inna strona / słowa dalej niż 3 pt w pionie; liczba stron gopdfgo/Chrome)
 
-Baza: `origin/main` e6d391e, po: ta gałąź po scaleniu. Faktury (4), e-SF (5), `md-*` (12) i `mmd-*` (10): wszystkie
+Baza: `origin/main` 2f335c6, po: ta gałąź po scaleniu. Faktury (4), e-SF (5), `md-*` (12) i `mmd-*` (10): wszystkie
 liczby bez zmian (porównanie wierszy wyniku `runx.sh`).
 
 | Dokument | Przed | Po |
@@ -2457,14 +2457,14 @@ z przesunięciem rośnie, bo przesunięcie narasta stopniowo zamiast skokiem.
   kolumn (Chrome zostawia w kolumnie 1 wiersz przy domyślnym `widows: 2`, pytanie 28) albo dzielenie tabel
   z `rowspan` między strony. Do dalszego rozbioru od pierwszego rozbieżnego słowa.
 
-### Sprawdzenia (2026-11-22, binarka z tej gałęzi po scaleniu e6d391e)
+### Sprawdzenia (2026-11-22, binarka z tej gałęzi po scaleniu 2f335c6)
 
 - `go test ./tests/`: zaliczone (reftesty druku bez zmian); testy przejętego kodu: tylko znane
   niepowodzenia (TestRoundedRect, TestTextSubsetComposite, TestSelectors, TestMatchers, TestFloats2,
   TestLayoutTableAuto20; pdflib TestOpenAction, TestRC4Basic); `TestVerticalAlign6` zaktualizowany do ADR 0042.
 - Sondaż CSS: 9499 z 10962, jak w bazie; strata `white-space-pre-wrap-trailing-spaces-021` (edge → fail)
   nie pochodzi z tej gałęzi (PDF tego testu bajt w bajt ten sam co z binarki `origin/main`), trzy
-  `hanging-punctuation-last*` jak w ADR 0038, zysk `background-size-cover-svg-view` z e6d391e.
+  `hanging-punctuation-last*` jak w ADR 0038, zysk `background-size-cover-svg-view` z 2f335c6.
 - Sondaż SVG: 194 z 235, bez strat.
 - Korpus: różnice w `12-floats-positioning` i `13-forms-html-elements`, oba z wierszem z `<sub>`/`<sup>`
   (ADR 0042); pozostałe 66 renderowań bez zmian.
@@ -2488,7 +2488,7 @@ rozbieżnego słowa i minimalnego przypadku, porównanie z Chrome 157. Testy w `
 
 ### Tabela przed i po (inna strona / słowa dalej niż 3 pt w pionie; strony gopdfgo/Chrome)
 
-Baza: `origin/main` b16fea8, po: ta gałąź. Faktury (4), e-SF (5), `md-*` (12), `mmd-*` (10) i `office-*` (15):
+Baza: `origin/main` e245fd2, po: ta gałąź. Faktury (4), e-SF (5), `md-*` (12), `mmd-*` (10) i `office-*` (15):
 wszystkie liczby bez zmian (porównanie wierszy wyniku `runx.sh`). Strony zgodne z Chromium: 28 z 30 dokumentów
 losowych (wcześniej 26).
 

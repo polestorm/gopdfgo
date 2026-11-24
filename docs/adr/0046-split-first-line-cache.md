@@ -59,7 +59,7 @@ każdym łamaniu jest zerowany), a mapy nie są przeglądane.
 
 ## Skutki
 
-Bajty bez zmian wobec `c2d6fb1`: korpus W3C (11 689 dokumentów, 46 756 renderowań), `bench/verify/corpus.sh`
+Bajty bez zmian wobec `97a4c08`: korpus W3C (11 689 dokumentów, 46 756 renderowań), `bench/verify/corpus.sh`
 fail=0, `bench/realdocs` i książka (77 z 77), cztery warianty książki. Czas (w procesie, stosunek po/przed z
 renderowań na zmianę, `docs/benchmark.md` § 11, dopisek „Pamięć wyniku podziału wiersza i kopie pudełek”):
 `rand-01` 0,965, `office-terminology` 0,958, faktura 0,989, `office-db-model` 0,989, ×4 ze spisem 0,984,

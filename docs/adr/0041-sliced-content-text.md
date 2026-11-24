@@ -12,7 +12,7 @@ o część pokazaną wcześniej i przyciętą do pasa widocznego na tej stronie.
 
 Rozbiór rozbieżności z Chromium (`docs/feature-audit.md`, 2026-11-22) zapisał, że w diagramach mermaid
 (`bench/realdocs`: `mmd-er-real`, `mmd-p6`, `mmd-p16`) nasz tekst ma więcej słów niż Chromium, bo tekst spoza
-przycięcia trafia do warstwy tekstu każdej strony. Pomiar 2026-11-22 (`pdftotext` na PDF gopdfgo z `b2d3aab`
+przycięcia trafia do warstwy tekstu każdej strony. Pomiar 2026-11-22 (`pdftotext` na PDF gopdfgo z `30b6545`
 i Chrome 157 z `bench/realdocs/out/chrome`) pokazał dwie przyczyny:
 
 1. **Błąd: dalsza część `<svg>` w wierszu ginęła.** We wszystkich trzech dokumentach diagram to `<svg>`

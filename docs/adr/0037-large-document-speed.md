@@ -4,7 +4,7 @@ Status: przyjęta 2026-11-21.
 
 ## Kontekst
 
-Pomiar z 2026-11-21 (`docs/overview.md`, commit `a655fcd`): książka 256 stron 1,62 s, czterokrotność
+Pomiar z 2026-11-21 (`docs/overview.md`, commit `50ad4e4`): książka 256 stron 1,62 s, czterokrotność
 (1021 stron) 6,53 s, czterokrotność ze spisem treści (dwa przebiegi układu, ADR 0036) 10,9 s; Chromium
 4,54–4,69 s na 1021 stronach. Profil CPU i alokacji (`runtime/pprof` w tymczasowej kopii wiersza poleceń,
 poza repozytorium) dla czterokrotności, 9,1 s próbek CPU, 11,2 GB alokacji:
@@ -62,7 +62,7 @@ Warunek: wynik bajt w bajt taki sam, pamięć szczytowa bez wzrostu (ADR 0027, 0
 ## Wyniki
 
 Pomiar 2026-11-21, Apple M4, `/usr/bin/time -l`, po trzy przebiegi całego procesu, porównanie z commitem
-`4da5240` (po `a655fcd` tylko dokumentacja). Na maszynie działały w tym czasie inne zadania (obciążenie 4–5),
+`105ed59` (po `50ad4e4` tylko dokumentacja). Na maszynie działały w tym czasie inne zadania (obciążenie 4–5),
 więc liczby są przybliżone; porównania bazowej i nowej binarki szły na przemian.
 
 | dokument | stron | czas, przed | czas, po | szczyt RSS, przed | szczyt RSS, po |

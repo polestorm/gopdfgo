@@ -102,7 +102,7 @@ func handWrittenPDF() []byte {
 	return b.Bytes()
 }
 
-// roundOneDigest to SHA-256 wyniku SignPDF z rundy 1 (commit f073a28) dla stałego klucza, stałego
+// roundOneDigest to SHA-256 wyniku SignPDF z rundy 1 (commit 7ce2c7d) dla stałego klucza, stałego
 // czasu i handWrittenPDF; poziom domyślny (B-B) ma dawać te same bajty.
 const roundOneDigest = "3081df6bdead6a7360eee4af21a7262f62fa3849487c2b63b4fa8ac576cb400c"
 

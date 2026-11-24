@@ -72,7 +72,7 @@ Warunek: wynik bajt w bajt taki sam jak dotąd.
 ## Wyniki
 
 Pomiar 2026-11-21, Apple M4, wiersz poleceń, `/usr/bin/time -l`, po trzy przebiegi całego procesu;
-porównanie z commitem `44f785b`. Warianty ze spisem treści robi skrypt (poza repozytorium) z
+porównanie z commitem `eaf2ee1`. Warianty ze spisem treści robi skrypt (poza repozytorium) z
 `1342-bench.htm` i `x4.htm`: na początku lista 61 odnośników do rozdziałów z
 `a::after { content: " — strona " target-counter(attr(href), page) }` i `break-after: page`, a przy
 każdym nagłówku rozdziału `h2::after { content: "Strona " counter(page) " z " counter(pages) }`.
@@ -131,7 +131,7 @@ w drugim strony z `counter(pages)` są układane z treścią przeliczoną po pie
 i dopiero po ułożeniu dostają liczbę stron (`ParseAgain` w `makePage`). Sam spis treści bez
 `counter(pages)`: 2 obiegi przed i po.
 
-Pomiar jak wyżej (Apple M4, `/usr/bin/time -l`, trzy przebiegi), porównanie z `f397bf0`:
+Pomiar jak wyżej (Apple M4, `/usr/bin/time -l`, trzy przebiegi), porównanie z `7da4d26`:
 
 | dokument | stron | obiegi, przed → po | szczyt RSS, przed | szczyt RSS, po | czas, przed | czas, po |
 |---|---|---|---|---|---|---|
@@ -146,11 +146,11 @@ Pomiar jak wyżej (Apple M4, `/usr/bin/time -l`, trzy przebiegi), porównanie z 
   nie ma, przypadki są w `tests/twopass21_test.go` (`TestTargetCounterPages`, odwołania w przód i wstecz,
   w obu drogach).
 
-## Dopisek 2026-11-23: regresja po 438a2ef i dalsze ciągi pudełek poza przepływem
+## Dopisek 2026-11-23: regresja po 7524c4c i dalsze ciągi pudełek poza przepływem
 
-Od `438a2ef` (przerwany układ zamyka kontekst formatowania pudełka, które go otworzyło) książka ze spisem
+Od `7524c4c` (przerwany układ zamyka kontekst formatowania pudełka, które go otworzyło) książka ze spisem
 treści wracała do starej drogi: przebieg drugi zgłaszał `anchor "page_216" moved to page 129`. Sama zmiana
-z `438a2ef` jest poprawna; przesunęła tylko elementy pływające tak, że na stronach z `counter(pages)`
+z `7524c4c` jest poprawna; przesunęła tylko elementy pływające tak, że na stronach z `counter(pages)`
 (układanych od nowa w obiegu drugim i trzecim) inicjał rozdziału przechodził na następną stronę (`pushFloat`).
 To odsłoniło trzy usterki starszych obiegów paginacji, wspólne dla obu dróg:
 
@@ -179,7 +179,7 @@ niego idzie drogą dwuprzebiegową bez przeszkody i daje te same bajty co układ
 poprawką kończył się przeszkodą `anchor "r1" moved to page 6`.
 
 Pomiar 2026-11-23, Apple M4, wiersz poleceń, `os.wait4` w Pythonie (szczyt RSS), trzy przebiegi, porównanie
-z `de62591` (dla porządku: według pomiaru koordynatora `b16fea8` miał 2,66 s i 0,44 GB dla książki ze spisem):
+z `dca3479` (dla porządku: według pomiaru koordynatora `e245fd2` miał 2,66 s i 0,44 GB dla książki ze spisem):
 
 | dokument | stron | szczyt RSS, przed | szczyt RSS, po | czas, przed | czas, po |
 |---|---|---|---|---|---|
@@ -188,7 +188,7 @@ z `de62591` (dla porządku: według pomiaru koordynatora `b16fea8` miał 2,66 s 
 | książka ×4 bez spisu | 1013 | 789–805 MB | 795–809 MB | 4,81–5,07 s | 5,01–6,13 s |
 | książka ×4 ze spisem i „Strona X z Y” | 1023 | 1434–1521 MB | 825–833 MB | 11,35–13,04 s | 8,96–9,08 s |
 
-- Książka ze spisem treści znów idzie drogą dwuprzebiegową; pamięć wraca do poziomu sprzed `438a2ef`.
+- Książka ze spisem treści znów idzie drogą dwuprzebiegową; pamięć wraca do poziomu sprzed `7524c4c`.
 - Bajty bez zmian: książka bez spisu i jej czterokrotność, korpus `testdata/documents` i `testdata/svg`
   (`bench/verify/corpus.sh`, fail=0), korpus W3C (11 689 dokumentów, 46 756 renderowań, 0 różnic).
 
@@ -221,7 +221,7 @@ dokument kończył się paniką. Porównania w `remakePage` test nie wymusza (zm
 miejscu wznowienia następnej strony w nim nie występuje; bez porównania test przechodzi, bez odtwarzania nie);
 to zabezpieczenie na wzór `sameBrokenOutOfFlow`.
 
-Sprawdzenia 2026-11-23, wobec `18fa545`: korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic (w nim
+Sprawdzenia 2026-11-23, wobec `0296261`: korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic (w nim
 nie ma dokumentów, w których przypisy przechodzą na następną stronę); `bench/verify/corpus.sh` fail=0
 (w `testdata/documents` przypisów nie ma); reftesty 310 z 340 (ściśle 308, z dokładnością do krawędzi 2), bez
 zmian.
@@ -320,7 +320,7 @@ od nowa 0,45 s, obieg 1 przebiegu pierwszego 3,1 s, obiegi 2 i 3 0,7 s, przebieg
 
 ### Wyniki
 
-Bajty bez zmian wobec `e0a2934`: cztery warianty książki, korpus W3C (11 689 dokumentów, 46 756 renderowań,
+Bajty bez zmian wobec `efcc955`: cztery warianty książki, korpus W3C (11 689 dokumentów, 46 756 renderowań,
 0 różnic; w nim także krótkie dokumenty z ponowną paginacją idą teraz odkładaniem), `bench/verify/corpus.sh`
 fail=0, `tests/twopass21_test.go` (każdy przypadek odkładaniem i dwoma przebiegami, z liczbą ostrzeżeń),
 `tests/twopassfloats23_test.go`, `tests/footnotes23_test.go`, `tests/streamdraw18_test.go`. Reftesty 310 z 340
@@ -371,7 +371,7 @@ kotwicy dawał obieg wtedy, gdy zmieniła się liczba stron, a wtedy `UpdateTarg
 (liczba stron w licznikach kotwicy jest po każdym obiegu liczbą stron dokumentu). Strona kotwicy nie jest już
 układana od nowa; jej stan wejścia się nie zmienia, więc układ byłby ten sam.
 
-Wyniki: bajty bez zmian wobec `505fabd` (korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic);
+Wyniki: bajty bez zmian wobec `d576d0a` (korpus W3C 11 689 dokumentów, 46 756 renderowań, 0 różnic);
 przypadek `target-counter-pages-backward` i nowy `target-counter-pages-backward-middle` (odwołanie wstecz w
 środku dokumentu, z dalszymi stronami narysowanymi przed nim) idą odkładaniem (`deferWant = ""`; przed zmianą
 oba kończyły się przeszkodą „content of page 1 changed after it was drawn”).

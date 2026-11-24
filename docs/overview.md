@@ -6,7 +6,7 @@ It is built for ordinary business documents (invoices, reports, financial statem
 not for printing arbitrary web pages.
 
 All numbers below were measured on 2026-11-20:
-- gopdfgo: commit `e3f59aa` (code as of this page's first version), engine `gopdfgo/webrender 0.1.0-dev`;
+- gopdfgo: commit `a37ba07` (code as of this page's first version), engine `gopdfgo/webrender 0.1.0-dev`;
 - Chromium: Google Chrome 157.0.8103.79 on macOS;
 - browser size on a server: Chrome 158.0.8127.36 on Ubuntu.
 
@@ -32,7 +32,7 @@ count in both engines.
 
 Machine: Apple M4, 10 cores, 32 GB. Times are the shortest of five runs of the whole process, including
 program start. Chromium was measured on 2026-11-20 (system load average 6.7–7.9); gopdfgo again on
-2026-11-23 at commit `de62591` (load average about 2), after the speed-ups of ADR 0037 and ADR 0045, with the
+2026-11-23 at commit `dca3479` (load average about 2), after the speed-ups of ADR 0037 and ADR 0045, with the
 same five Noto files xml.pro passes and the e-SF statements in the variant xml.pro gives gopdfgo
 (`bench/realdocs`, without scripts). The gopdfgo
 times of 2026-11-20 are in brackets.
@@ -75,7 +75,7 @@ sums, so the measurement can be repeated on the same input. For the measurement 
 `testdata/books/bench.css`: the same font (Tinos, with Times metrics, from `testdata/fonts`) and A4 pages
 with 20 mm margins.
 
-Measured 2026-11-20 on the same machine; gopdfgo at commit `0eb174f`, Chrome 157.0.8103.79. Three runs each,
+Measured 2026-11-20 on the same machine; gopdfgo at commit `9682aff`, Chrome 157.0.8103.79. Three runs each,
 whole process including program or browser start.
 
 | | Chromium, `--headless --print-to-pdf` | gopdfgo, command line |
@@ -168,7 +168,7 @@ pagination passes over the deferred pages only, and draws them at the end into t
 PDF. Output is byte-identical (W3C corpus, document corpus, the books); the order of drawing matters only for
 the characters a glyph gets in ToUnicode, which is checked. Measured on a loaded machine (12 runs each,
 alternating): the book ×4 with a table of contents takes a median 1.17 times the time of the book ×4 without
-one, against 1.9 times before. Measured again at commit `5b5fbe8` (three runs, load average about 5): book ×4
+one, against 1.9 times before. Measured again at commit `c01f108` (three runs, load average about 5): book ×4
 with a table of contents 5.18–5.38 s instead of 8.6–8.8 s, book with a table of contents 1.38–1.47 s instead of
 2.23–2.31 s; peak memory is unchanged. Documents with `string-set` or
 `bookmark-label` that use page counts or `target-counter()`, `position: fixed` boxes, content wider than the
@@ -190,7 +190,7 @@ out (often 0, "3/0"); such documents now take the two-pass path too. Measured 20
 ### Current state compared with Chromium (2026-11-21)
 
 Measured 2026-11-21 on the same machine, Chrome 157 and gopdfgo after the speed-ups of ADR 0037 (the
-earlier gopdfgo times, commit `a655fcd`, are in that ADR); three runs each, whole process including
+earlier gopdfgo times, commit `50ad4e4`, are in that ADR); three runs each, whole process including
 program or browser start; memory is the peak resident size, for Chromium summed over all
 its processes. The table-of-contents variants (61 chapter links with `target-counter()` at the front,
 "page X of Y" with `counter(pages)` under every chapter heading) are made by a script from the book.
@@ -202,7 +202,7 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 | book ×4 | 1009 / 1021 | 4.54–4.69 s | 4.57–4.69 s | 2.20–2.26 GB | 0.73–0.77 GB |
 | book ×4 with table of contents | 1015 / 1027 | 4.55–4.68 s | 5.18–5.38 s ¹ | 2.11–2.14 GB | 0.77–0.82 GB |
 
-¹ After deferred pages, commit `5b5fbe8` (2026-11-23, see above); before them 2.23–2.31 s and 8.6–8.8 s.
+¹ After deferred pages, commit `c01f108` (2026-11-23, see above); before them 2.23–2.31 s and 8.6–8.8 s.
 
 - Chromium does not support `target-counter()` or `counter(pages)` outside margin boxes: its table of
   contents has no page numbers and "page X of Y" reads "Strona 0 z 0". gopdfgo writes "Chapter I —
@@ -221,7 +221,7 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 engine. Both engines rendered the same 36 documents (the 22 of `testdata/documents`, 13 real documents:
 invoices, e-SF statements, Markdown pages, Word documents, random documents, and the 254-page book) with
 the same Noto fonts through `@font-face`; Apple M4, in-process median of repeated renders; measured again on
-2026-11-24 at commit `5961ab8` on an idle machine. Details and
+2026-11-24 at commit `728e0ab` on an idle machine. Details and
 the full table: `docs/benchmark.md` § 11 (Polish).
 
 | | folio | gopdfgo | gopdfgo with `FontCache` |

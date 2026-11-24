@@ -1,7 +1,7 @@
 # gopdfgo a Chromium w aplikacji [xml.pro](https://xml.pro): rozmiar, szybkość, jakość i pliki PDF
 
-Pomiar z 2026-11-20. Wersja gopdfgo: commit `4eca5e5` z 2026-11-20
-(`github.com/polestorm/gopdfgo v0.0.0-20261120100328-4eca5e52974e`, silnik `gopdfgo/webrender 0.1.0-dev`).
+Pomiar z 2026-11-20. Wersja gopdfgo: commit `3e9224a` z 2026-11-20
+(`github.com/polestorm/gopdfgo v0.0.0-20261120100328-3e9224a9cc7c`, silnik `gopdfgo/webrender 0.1.0-dev`).
 Chromium:
 - na komputerze pomiarowym Google Chrome 157.0.8103.79, sterowany przez chromedp (`Page.printToPDF`);
 - na serwerze Google Chrome 158.0.8127.36.
