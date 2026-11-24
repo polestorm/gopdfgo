@@ -84,6 +84,7 @@ Features).
 | Right-to-left and bidirectional text | ✓ | ✓ | ✗ |
 | Vertical writing | ✓ | ✗ (not documented) | ✗ |
 | Hyphenation | ✓ (system dictionaries) | ◐ English | ✓ 24 languages built in |
+| Line breaking by the Unicode rules (UAX #14) | ✓ | ◐ at spaces and between CJK characters | ✓ |
 | System fonts | ✓ | ◐ fallback lookup | ◐ only in a separate build (`-tags systemfonts`) |
 | PDF/A | ✗ | ✓ | ✓ 2b, 2a, 3b, 3a |
 | Tagged PDF / PDF/UA | ◐ tagged by default, PDF/UA not claimed | ◐ tagged | ✓ PDF/UA-1 (veraPDF on all corpus documents) |

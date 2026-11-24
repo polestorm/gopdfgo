@@ -70,6 +70,8 @@ with its own layout engine and an HTML converter.
 | "Page X of Y" in the text | yes 🥇 | margin boxes only | no |
 | Footnotes (`float: footnote`) | yes 🥇 | no | no |
 | Hyphenation | 24 languages built in 🥇 | system dictionaries | English |
+| Line breaking by the Unicode rules (UAX #14) | yes 🥇 | yes 🥇 | at spaces and between CJK characters |
+| W3C reftests passed (CSS, print, SVG) | 9484 of 10962, 310 of 340, 194 of 235 🥇 | reference | not published |
 | SVG | yes | yes 🥇 | basic shapes |
 | Right-to-left and vertical text | no | yes 🥇 | right-to-left |
 | PDF/A | 2b, 2a, 3b, 3a 🥇 | no | yes |
@@ -79,6 +81,24 @@ with its own layout engine and an HTML converter.
 | Forms, barcodes, editing PDF files | no | no | yes 🥇 |
 | License | Apache 2.0 | BSD-3-Clause | Apache 2.0 |
 | GitHub popularity[^pop] | new | Chromium itself | 884 stars, 61 forks |
+
+### Slower than folio: what the time buys
+
+folio is about twice as fast because it does less: it breaks lines only at spaces, hyphenates only English, has
+no page counters in the text, no footnotes and no table of contents with page numbers, and skips much of CSS.
+Chromium compatibility is not what costs gopdfgo time: switching off its pixel rounding and shrink-to-fit leaves
+the time unchanged. The time goes into what the specifications require: line breaking by the Unicode rules,
+hyphenation, the CSS table algorithm, retrying page breaks until `orphans`, `widows` and `break-*` hold, and
+further passes for page numbers. What it buys:
+
+- **The page you designed**: the same page count as Chromium on 33 of 35 documents (folio: 17), words a median
+  0.2 pt from Chromium's position (folio: 55 pt).
+- **Typography by the rules**: lines break after hyphens, slashes and punctuation where Unicode allows, words
+  are hyphenated in 24 languages, paragraphs keep their `orphans` and `widows`.
+- **Print features**: tables of contents with page numbers, "page X of Y" in the text, footnotes, all 16 margin
+  boxes.
+- **Still fast enough for a server**: a 3-page invoice in 44 ms as a separate process (27 ms inside a running
+  program with `FontCache`), ten times faster than Chromium.
 
 [^deps]: Go modules the program needs (`go version -m`). gopdfgo: go-text (shaping), benoitkugler/pdf and
     pstokenizer (PDF writing), hhrutter/lzw and three `golang.org/x` modules; all pure Go.
