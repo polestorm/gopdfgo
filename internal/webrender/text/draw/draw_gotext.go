@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sync"
 	"unicode"
 
 	"github.com/go-text/typesetting/font"
@@ -30,28 +29,12 @@ type gotextFont struct {
 // z rozmiarem osadzał osobny podzbiór tego samego kroju dla każdego rozmiaru użytego w dokumencie
 // (faktura z ośmioma rozmiarami pisma: osiem kopii Noto Sans, 199 kB zamiast ok. 60 kB). Wszystko, co
 // trafia do opisu fontu w PDF (szerokości, obrysy, wydłużenia), jest w tysięcznych firetu, czyli od
-// rozmiaru nie zależy.
-type fontKey struct {
-	face *font.Face
-}
-
-var (
-	fontCacheLock sync.Mutex
-	fontCache     = map[fontKey]*gotextFont{}
-)
-
-func sharedFont(face *font.Face, id font.FontID, size int) *gotextFont {
-	fontCacheLock.Lock()
-	defer fontCacheLock.Unlock()
-	key := fontKey{face}
-	if f, ok := fontCache[key]; ok {
-		return f
-	}
-	// rozmiar zerowy: obiekt jest wspólny dla wszystkich rozmiarów i dla kolejnych dokumentów w procesie,
-	// więc nazwa podzbioru w PDF nie może zależeć od tego, który rozmiar trafił się pierwszy
-	f := &gotextFont{face, id, 0}
-	fontCache[key] = f
-	return f
+// rozmiaru nie zależy. Obiekty trzyma konfiguracja fontów dokumentu (BackendFont), nie mapa globalna:
+// ta nigdy nie zwalniała twarzy, a każde renderowanie tworzy nowe.
+func sharedFont(fts *text.FontConfigurationGotext, face *font.Face, id font.FontID) *gotextFont {
+	// rozmiar zerowy: obiekt jest wspólny dla wszystkich rozmiarów, więc nazwa podzbioru w PDF nie może
+	// zależeć od tego, który rozmiar trafił się pierwszy
+	return fts.BackendFont(face, func() any { return &gotextFont{face, id, 0} }).(*gotextFont)
 }
 
 func (f *gotextFont) Origin() text.FontOrigin { return text.FontOrigin(f.id) }
@@ -195,7 +178,7 @@ func (ctx Context) createFirstLineGotext(layout *text.TextLayoutGotext,
 			lastScale = sizeScale
 			location := fts.FontLocation(face.Font)
 			content := fts.FontContent(location)
-			backendFont := sharedFont(face, location, run.Size.Round())
+			backendFont := sharedFont(fts, face, location)
 			outFont = ctx.Output.AddFont(backendFont, content)
 
 			lastFont = face.Font

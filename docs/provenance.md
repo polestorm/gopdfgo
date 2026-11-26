@@ -654,6 +654,14 @@ Wspólne dla obu katalogów:
   jednostki fontu przez rozmiar pisma (Ascent rzędu 50 000 zamiast 1069) i odwracało oś y obrysu.
   Skutek: korpus 21 dokumentów 3316 kB → 2020 kB (pomiar `du`, 2026-11-15), obraz bez zmian, a ramki
   słów z `pdftotext -bbox` zgadzają się z wydrukiem Chromium do 0,3 pt (wcześniej 2 pt w pionie);
+- `text/draw/draw_gotext.go`, `text/engine_gotext.go`, nowy `text/backend_fonts.go`, 2026-11-26: obiekty
+  `gotextFont` trzyma konfiguracja fontów dokumentu (`FontConfigurationGotext.BackendFont`) zamiast mapy
+  globalnej `fontCache` w pakiecie `draw` (nasza z 2026-11-13, wpis wyżej). Mapy nic nie czyściło, a twarze
+  są nowe w każdym renderowaniu, więc każdy dokument zostawiał w procesie swoje sparsowane fonty
+  (ok. 5 MB na dokument korpusu; znalezione zrzutem sterty `runtime/debug.WriteHeapDump`). Pakiet `tests`
+  dochodził do 7,3 GB pamięci i na maszynach CI z 7 GB przekraczał limity czasu w przypadkowych testach
+  (CI czerwone od 2026-11-24); po poprawce 1,6 GB. Bajty PDF bez zmian (40 dokumentów `testdata/documents`
+  i `testdata/comparison`, po dwa renderowania w procesie); test `TestRenderReleasesMemory`;
 - `html/layout/preferred.go` (`columnWrapContentWidth`), 2026-11-15, CSS Flexbox 1 § 9.9.1: szerokość
   wewnętrzna kontenera flex w kolumnie z zawijaniem i o podanej wysokości (albo `max-height`) to suma
   szerokości jego linii z odstępami; źródło brało szerokość najszerszego elementu. Działa, gdy każdy

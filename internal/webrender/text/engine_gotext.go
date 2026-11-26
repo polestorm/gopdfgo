@@ -69,6 +69,9 @@ type FontConfigurationGotext struct {
 
 	textLayoutCache layoutCache // gopdfgo: ograniczony rozmiar, zob. layout_cache.go
 
+	// backendFonts (gopdfgo): obiekty fontów backendu według twarzy, zob. BackendFont
+	backendFonts *backendFontSet
+
 	// GenericFamilies (gopdfgo) przypisuje rodzinom generycznym CSS ("serif", "sans-serif", "monospace", ...)
 	// rodziny fontów próbowane w podanej kolejności, zanim zadziała tablica podstawień biblioteki go-text.
 	// Klucze małymi literami. Ustawiane przed pierwszym użyciem konfiguracji.
@@ -92,6 +95,7 @@ func NewFontConfigurationGotext(fm *fontscan.FontMap) *FontConfigurationGotext {
 		fontsContent:    make(map[string][]byte),
 		fontsFeatures:   make(map[*font.Font][]Feature), // as loaded by loadOneFont
 		textLayoutCache: newLayoutCache(),
+		backendFonts:    &backendFontSet{fonts: map[*font.Face]any{}},
 	}
 	out.shaper.SetFontCacheSize(64)
 	return &out
