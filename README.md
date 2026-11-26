@@ -17,13 +17,13 @@ result, err := htmlpdf.Render(ctx, html, htmlpdf.Options{Fonts: fonts})
 Compared with headless Chromium and with [folio](https://github.com/carlos7ags/folio), another HTML to PDF
 engine in Go (details in [Comparison](#comparison)):
 
-- **Prints like a browser**: the same page count as Chromium on 33 of 35 test documents.
+- **Prints like a browser**: the same page count as Chromium on 38 of 40 test documents.
 - **Does what browsers don't do for print**: tables of contents with page numbers (`target-counter()`), "page X
   of Y" in the text, footnotes, all 16 margin boxes, running headers, **hyphenation** for 24 languages built in.
 - **Archival and accessible output**: PDF/A-2 and PDF/A-3 (levels b and a), PDF/UA-1 and Factur-X e-invoices,
   checked with veraPDF and Mustang; PAdES signatures in an optional package.
-- **One small program**: a single Go binary of 20.5 MB instead of a 460 MB browser, 3–14 times faster than
-  Chromium on business documents, with 49–113 MB of memory per document. Fonts and files come only from the caller;
+- **One small program**: a single Go binary of 20.5 MB instead of a 460 MB browser, 4–21 times faster than
+  Chromium on business documents, with 44–104 MB of memory per document. Fonts and files come only from the caller;
   nothing is read from the disk or the network unless you allow it.
 - **Standards first**: the layout follows the W3C specifications and is tested on their test suites: 9484 of
   10962 CSS reftests, 310 of 340 print reftests, 194 of 235 SVG reftests[^wpt].
@@ -41,22 +41,22 @@ engine in Go (details in [Comparison](#comparison)):
 Compared with headless Chromium, the usual way to print HTML from a server, and with folio, a younger Go library
 with its own layout engine and an HTML converter.
 
-| | gopdfgo | Chromium 157 | folio |
+| | gopdfgo | Chromium 158 | folio |
 |---|:---:|:---:|:---:|
 | Approach | WeasyPrint's layout model ported to Go, extended | a web browser printing a page | own layout engine in Go |
 | Dependencies[^deps] | 7 Go modules | a browser process and system libraries | 3 Go modules 🥇 |
 | Program size[^size] | 20.5 MB | about 460 MB on Linux | 11.7 MB 🥇 |
-| Invoice, 3 pages[^bench] | 44 ms | 430 ms | 22 ms 🥇 |
-| Book, 255 pages | 1.1 s | 2.1–2.6 s | 0.50 s 🥇 |
-| Book with a table of contents | 1.4 s 🥇 | no page numbers | not supported |
-| Memory, business documents | 49–113 MB | about 950 MB, two browser instances[^mem] | 25–56 MB 🥇 |
-| Memory, book | 0.43 GB | 1.7 GB | 0.27 GB 🥇 |
-| PDF size, invoice[^pdf] | 25–51 kB | 27–53 kB | 26–56 kB |
-| PDF size, book | 26.3 MB 🥇 | 27.6 MB | 26.7 MB |
-| Same page count as Chromium[^fidelity] | 33 of 35 🥇 | reference | 17 of 35 |
-| Words on the same page as in Chromium | 92% 🥇 | reference | 35% |
-| Median offset of words from Chromium | 0.2 pt 🥇 | reference | 55 pt |
-| Deterministic output | yes, tested on 46 756 renders 🥇 | no (dates, identifiers) | yes, by design |
+| Invoice, 3 pages[^bench] | 42 ms | 563 ms | 24 ms 🥇 |
+| Book, 255 pages | 1.1 s | 2.2 s | 0.49 s 🥇 |
+| Book with a table of contents | 1.4 s 🥇 | 2.2 s, no page numbers | not supported |
+| Memory, business documents | 44–104 MB | 718–822 MB[^mem] | 25–49 MB 🥇 |
+| Memory, book | 0.40 GB | 1.45 GB | 0.28 GB 🥇 |
+| PDF size, invoice[^pdf] | 21–46 kB | 21–45 kB | 21–49 kB |
+| PDF size, book | 26.3 MB 🥇 | 26.6 MB | 26.7 MB |
+| Same page count as Chromium[^fidelity] | 38 of 40 🥇 | reference | 24 of 40 |
+| Words on the same page as in Chromium | 92% 🥇 | reference | 50% |
+| Median offset of words from Chromium | 0.2 pt 🥇 | reference | 54 pt |
+| Deterministic output[^det] | yes 🥇 | no (dates, identifiers) | yes, by design |
 | Unsupported CSS | reported as warnings 🥇 | developer console | ignored silently |
 | JavaScript | no | yes 🥇 | no |
 | Flexbox, grid, multi-column | yes (no `subgrid`) | yes 🥇 | partly |
@@ -82,32 +82,32 @@ with its own layout engine and an HTML converter.
 
 [^deps]: Go modules the program needs (`go version -m`). gopdfgo: go-text (shaping), benoitkugler/pdf and
     pstokenizer (PDF writing), hhrutter/lzw and three `golang.org/x` modules; all pure Go.
-[^size]: The command-line program as built by `go build` on macOS arm64 on 2026-11-24 (folio at commit
-    `29bca95`). Chromium: the headless shell with its libraries on Linux; the macOS application
-    is 2.2 GB.
-[^bench]: Whole process, measured 2026-11-24 on one Apple M4 laptop with the same input and fonts for every
-    engine; Chromium measured 2026-11-20 and 2026-11-21. Business documents: Polish e-invoices and financial
-    statements of 1–16 pages. Over 36 documents rendered inside a running program, folio is a median 2.0 times
-    faster than gopdfgo (from 0.7 to 5.1 times; 1.5 times when gopdfgo keeps its fonts parsed between calls with
-    `FontCache`); gopdfgo is faster on the SVG report, the page-break document and the long register table. Chromium's
-    time includes starting the browser; inside a running program through DevTools it still needs 0.42–0.46 s per
-    document, so gopdfgo's whole process is 2.4–14 times faster than that. "3–14 times" compares whole processes on
-    nine invoices and financial statements (Chromium 2026-11-20, gopdfgo 2026-11-23, [`docs/overview.md`](docs/overview.md));
-    it was measured on the original documents, which cannot be published; their public stand-ins are in
-    [`testdata/comparison`](testdata/comparison) and will replace them in the next measurement (ADR 0055). Per-document numbers in [`docs/comparison.md`](docs/comparison.md).
-[^pdf]: Untagged PDF, fonts embedded as subsets; Chromium through DevTools with the same font files
-    (`docs/overview.md`). No medal: the files differ by less than 8%, and on 2026-11-20, with the fonts passed as
-    `data:` URLs, Chromium's invoices were 17–26% smaller (`docs/chromium-comparison.md`, cause not
-    checked). The engines will be measured again with one setting (ADR 0055).
-[^mem]: Peak resident memory summed over all browser processes, with two browser instances running at once
-    (one for invoices, one for financial statements); one instance alone was not measured.
+[^size]: The command-line program as built by `go build` on macOS arm64 on 2026-11-26 (15.1 and 8.1 MB without
+    the symbol table; `tools/bench/sizes.sh`, folio at commit `29bca95`). Chromium: the browser directory on a
+    Linux server (`du -sh /opt/google/chrome`, 2026-11-20; not repeatable from this repository); the macOS
+    application is 2.2 GB.
+[^bench]: Whole process, median of 5 runs, measured 2026-11-26 at commit `c228df4` on one Apple M4 laptop, with
+    the same input, fonts and stylesheets for every engine; Chromium's time includes starting the browser for
+    each document. Invoice: `invoice-b-60rows`; business documents: the 4 invoices and 5 financial statements of
+    [`testdata/comparison`](testdata/comparison) (1–16 pages, fictional content), on which gopdfgo is 4.0–21
+    times faster than Chromium (median 8.6). Inside a running program folio is a median 2.0 times faster than
+    gopdfgo over 42 documents (from 0.67 to 5.0 times; 1.6 times when gopdfgo keeps its fonts parsed between
+    calls with `FontCache`). Method, commands and raw results: [`docs/benchmarks.md`](docs/benchmarks.md).
+[^pdf]: Untagged PDF with font subsets; Chromium with `--disable-pdf-tagging` (its default tagged PDF is
+    37–377 kB). No medal: the three are within 10% of each other.
+[^mem]: Peak of the resident memory summed over the browser's processes (8–10 per document); pages shared between
+    them count in each, so this is an upper bound.
+[^det]: In the measured run gopdfgo wrote the same bytes in separate processes for all 44 documents, Chromium
+    for none of 40 (it writes dates and identifiers into the file); earlier, `tools/verify/w3cbytes.py` found no
+    difference over 46 756 renders of W3C tests (2026-11-24).
 [^wpt]: Web Platform Tests at the commit in `testdata/wpt/UPSTREAM`, compared as in ADR 0003: exactly equal,
     or equal except for one-pixel anti-aliased edges. CSS 9020 exact + 464 edge (2026-11-24), print 308 + 2,
     SVG 191 + 3. Tools and recorded results: [`tools/verify`](tools/verify).
-[^fidelity]: 35 documents printed by all three: the test corpus, financial statements, office documents
-    converted to HTML, Markdown and diagram pages, generated random documents; positions of words compared with Chromium's PDF. Chromium is the reference because
-    documents are usually designed in a browser; where it departs from the specification, gopdfgo follows the
-    specification.
+[^fidelity]: 40 documents printed by all three: the test corpus ([`testdata/documents`](testdata/documents), 22) and
+    [`testdata/comparison`](testdata/comparison) (18: invoices, financial statements, office documents, Markdown
+    and diagram pages, random documents); positions of words compared with Chromium's PDF. Chromium is the
+    reference because documents are usually designed in a browser; where it departs from the specification,
+    gopdfgo follows the specification.
 [^pop]: Stars and forks on 2026-11-24.
 
 ## Examples
@@ -140,22 +140,24 @@ is not: [`docs/usage.md`](docs/usage.md#what-is-supported); remaining difference
 
 - [`docs/usage.md`](docs/usage.md): how to use the library and the commands.
 - [`docs/overview.md`](docs/overview.md): measurements against Chromium, unsupported features, requirements.
-- [`docs/comparison.md`](docs/comparison.md): gopdfgo, folio and Chromium side by side, with sources for every
-  number.
+- [`docs/comparison.md`](docs/comparison.md): gopdfgo, folio and Chromium side by side.
+- [`docs/benchmarks.md`](docs/benchmarks.md): how the comparison is measured, with the raw results; tools in
+  [`tools/bench`](tools/bench) and [`tools/verify`](tools/verify).
 - In Polish: [`docs/provenance.md`](docs/provenance.md) (origin of the inherited code and every change made to
   it), [`docs/adr/`](docs/adr/) (decisions), [`docs/progress.md`](docs/progress.md) (progress in numbers),
   [`testdata/README.md`](testdata/README.md) (test corpus), [`docs/vision.md`](docs/vision.md) (goals).
 
 ## How the comparison was measured
 
-All three engines printed the same HTML files with the same fonts, on one machine; folio was run only as a
-program, from its own repository. Times are for the whole process unless stated, so they include starting the
-program and, for Chromium, the browser. The book is the illustrated *Pride and Prejudice* from Project Gutenberg
-(27 MB of images). Fidelity is measured on words: for each word of Chromium's PDF, the page and position of the
-same word in the other PDF. W3C test counts are reftests from the Web Platform Tests, compared as described in
-ADR 0003: exact, or equal except for anti-aliased edges. The full method is in
-[`docs/benchmark.md`](docs/benchmark.md) (in Polish). The measuring tools are in [`tools/bench`](tools/bench)
-(gopdfgo, folio and Chromium) and [`tools/verify`](tools/verify) (W3C reftests, byte reproducibility).
+All three engines printed the same HTML files with the same fonts on one machine, in one run on one commit:
+gopdfgo and folio through small programs in [`tools/bench`](tools/bench) (folio pinned to a commit in their
+`go.mod`), Chromium from the command line, one browser per document. Times are for the whole process unless
+stated, so they include starting the program and, for Chromium, the browser. The book is the illustrated *Pride
+and Prejudice* from Project Gutenberg (27 MB of images), downloaded and checked by `testdata/books/fetch.sh`.
+Fidelity is measured on words: for each word of Chromium's PDF, the page and position of the same word in the
+other PDF. W3C test counts are reftests from the Web Platform Tests, compared as described in ADR 0003: exact,
+or equal except for anti-aliased edges ([`tools/verify`](tools/verify)). Method, versions, commands, the
+meaning of every number and the raw results: [`docs/benchmarks.md`](docs/benchmarks.md).
 
 ## License
 

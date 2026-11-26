@@ -762,3 +762,10 @@ Co dalej (szacunki):
 
 Reszta różnicy to kształtowanie HarfBuzz i pełne łamanie wierszy, które dają wierność (strony zgodne z Chromium
 w 33 z 35 dokumentów wobec 17 w folio); tego nie przenosimy.
+
+### Pomiar powtarzalny (2026-11-26, ADR 0055)
+
+Od tego dnia porównanie z Chromium i folio mierzy `tools/bench/compare.py` na dokumentach publicznych
+(`testdata/documents`, `testdata/comparison`, książka z `testdata/books`); metoda i wyniki: `docs/benchmarks.md`,
+surowe dane: `docs/benchmarks/`. Wyniki z tego dziennika nie są z nimi wprost porównywalne (inne dokumenty, książka
+bez wspólnego arkusza w programach pomiarowych, Chromium 157).

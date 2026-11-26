@@ -53,8 +53,11 @@ wordalign = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(wordalign)
 
 
-def rel(path):
-    return os.path.relpath(path, REPO) if path and path.startswith(REPO) else path
+def rel(arg):
+    """Ścieżki w zapisanych poleceniach względem katalogu repozytorium, także wewnątrz argumentów."""
+    if arg and arg.startswith(REPO + os.sep):
+        return os.path.relpath(arg, REPO)
+    return arg.replace(REPO, '.') if arg else arg
 
 
 def sh(cmd, **kw):

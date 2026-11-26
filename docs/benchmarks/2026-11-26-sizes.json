@@ -1,0 +1,10 @@
+{
+ "date": "2026-11-26T12:01:28Z",
+ "gopdfgo_commit": "c228df4b096926741447ab0f42af90d787b1eab0",
+ "go": "go version go1.26.6 darwin/arm64",
+ "folio_version": "v0.11.1-0.20261118090612-29bca955eaed",
+ "gopdfgo": 20515426,
+ "gopdfgo_stripped": 15110610,
+ "folio": 11688882,
+ "folio_stripped": 8113010
+}

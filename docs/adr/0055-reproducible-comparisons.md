@@ -64,6 +64,14 @@ ustawieniach, wiersze tabeli z różnych dat i commitów.
   i mermaid (1) pochodzą z publicznych repozytoriów; `rand-01`, `rand-12` z `tools/bench/genrand.py` (bajt
   w bajt jak wcześniej). Zestaw wierności ma teraz 40 dokumentów (22 korpusu i 18 nowych) zamiast 35; próbny
   przebieg: strony zgodne z Chromium gopdfgo 17 z 18, folio 12 z 18. Liczby README zmieni dopiero krok 3.
+- Krok 3 wykonany 2026-11-26: `docs/benchmarks.md` (metoda po angielsku), Chromium w `compare.py` (jeden proces
+  przeglądarki na dokument, pamięć jako suma RSS drzewa procesów, rozmiar PDF tagowany i nietagowany),
+  warianty książki z `testdata/books/variants.py` (bajt w bajt jak dawne pliki), ten sam arkusz książki dla
+  wszystkich silników (`-css`; wcześniej programy pomiarowe go nie widziały), `tools/bench/sizes.sh`. Jeden
+  przebieg na commicie `c228df4` (Chrome 158, 11 minut); surowe wyniki w `docs/benchmarks/2026-11-26-*`, README
+  i `docs/comparison.md` odświeżone z nich: 38 z 40 stron jak Chromium (folio 24), 4,0–21 razy szybciej od
+  Chromium na dokumentach biznesowych, pamięć Chromium 718–822 MB na jedną przeglądarkę. Sondaż CSS
+  i `w3cbytes.py` (godziny) zostają z 2026-11-24 i będą powtórzone nocą.
 - Krok 4 wykonany 2026-11-26: README podaje 20,5 MB, 3–14 razy szybciej od Chromium (całe procesy, 9 dokumentów
   spoza repozytorium, oznaczone w przypisie jako niepowtarzalne z zewnątrz do kroku 2), pamięć Chromium z dopiskiem
   o dwóch instancjach, bez medalu za rozmiar PDF faktur (sprzeczne pomiary 2026-11-20 i później), zaliczenia

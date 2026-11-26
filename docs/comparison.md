@@ -1,12 +1,10 @@
 # gopdfgo, folio and Chromium compared
 
 A side-by-side view of three ways to turn HTML into PDF from a Go program, written to show where gopdfgo is
-strong and where it is not. Numbers are approximate and dated; each comes from a measurement described in
-`docs/overview.md` (Chromium), `docs/benchmark.md` § 11 (folio) and the ADRs it cites; the tools are in
-`tools/bench` and `tools/verify` (ADR 0055). Measurements were
-made on one machine (Apple M4, macOS) with the same input and the same fonts for every engine. folio was run
-at commit `29bca95` (2026-11-18), Chromium 157 through `--headless --print-to-pdf`, gopdfgo at the commit
-named in each source.
+strong and where it is not. The measured numbers come from one run on 2026-11-26 (gopdfgo `c228df4`, folio at
+commit `29bca95` of 2026-11-18, Chrome 158 through `--headless --print-to-pdf`, one Apple M4 laptop, the same
+input, fonts and stylesheets for every engine); method, commands and raw results are in
+[`benchmarks.md`](benchmarks.md) (ADR 0055).
 
 ## The projects
 
@@ -31,42 +29,43 @@ named in each source.
 
 | Document | Chromium | folio | gopdfgo |
 |---|---|---|---|
-| invoice, 3 pages, whole process | about 0.43 s (browser started per document) | 22 ms | 44 ms |
-| invoice, 3 pages, inside a running program | 0.42–0.46 s per document through DevTools | 16 ms | 31 ms; 27 ms with a font cache shared between calls |
-| illustrated book, about 255 pages | 2.1–2.6 s | 0.50 s | 1.14 s |
-| the same book four times, about 1020 pages | 4.5–4.7 s | not measured | 4.6–4.7 s |
-| peak memory, business documents | about 950 MB (all browser processes, two instances at once) | 25–56 MB | 49–113 MB |
-| peak memory, book | 1.7 GB | 0.27 GB | 0.43 GB |
+| invoice, 3 pages (`invoice-b-60rows`), whole process | 563 ms (browser started per document) | 24 ms | 42 ms |
+| the same invoice inside a running program | not measured | 17 ms | 31 ms; 26 ms with a font cache shared between calls |
+| illustrated book, about 255 pages | 2.2 s | 0.49 s | 1.13 s |
+| the same book four times, about 1020 pages | 4.7 s | 1.9 s | 4.4 s |
+| peak memory, business documents (9) | 718–822 MB (sum over 8–10 browser processes, an upper bound) | 25–49 MB | 44–104 MB |
+| peak memory, book | 1.45 GB | 0.28 GB | 0.40 GB |
 
 The folio and gopdfgo rows compare the same work: the book and the business documents have no table of
 contents, so gopdfgo lays them out in a single pass. folio does not support `target-counter()` (its issue #222)
 or `counter(pages)` in the page content, so documents that need a second layout pass were not compared with
 it.
 
-folio is the fastest and the lightest: about 2 times faster than gopdfgo on typical documents (median of 36
-documents rendered inside a running program, measured 2026-11-24; 1.5 times when gopdfgo keeps its fonts parsed
-with `FontCache`) and up to 5 times on documents with thousands of inline styles or many small tables; gopdfgo is
-faster on the SVG report, the page-break document and the long register table. Chromium pays for starting a browser on small documents and is
-as fast as gopdfgo at a thousand pages. With a table of contents of page numbers and "page X of Y" in the text,
-gopdfgo needs further pagination passes over the pages that change (the 1020-page book takes 5.2–5.4 s
-instead of 4.6–4.8 s, 8.6–8.8 s before 2026-11-23, ADR 0036); neither of the others fills these in at all (see
+folio is the fastest and the lightest: a median 2.0 times faster than gopdfgo over 42 documents rendered
+inside a running program (1.6 times when gopdfgo keeps its fonts parsed with `FontCache`) and up to 5 times on
+documents with thousands of inline styles or many small tables; gopdfgo is faster on the SVG report, the
+page-break document and the long register table. folio prints the four-times book on 1121 pages and in a
+107 MB file, because it writes each repeated image again. Chromium pays for starting a browser: 4.0–21 times
+gopdfgo's time on the nine business documents, about the same at a thousand pages. With a table of contents of
+page numbers and "page X of Y" in the text, gopdfgo needs further pagination passes over the pages that change
+(the 1020-page book takes 5.0 s instead of 4.4 s; ADR 0036); neither of the others fills these in at all (see
 Features).
 
 ## Output
 
 | | Chromium | folio | gopdfgo |
 |---|---|---|---|
-| Page count equal to Chromium (35 test documents) | reference | 17 of 35 | 33 of 35 |
-| Words on the same page as in Chromium | reference | 35% | 92% |
-| Median vertical offset of words | reference | 55 pt | 0.2 pt |
-| PDF size, invoice (untagged) | 27–53 kB (through DevTools) | 26–56 kB | 25–51 kB |
-| PDF size, invoice, as written by the command line | 43–383 kB (tagged) | — | 25–51 kB (untagged by default) |
-| PDF size, illustrated book | 27.6 MB | 26.7 MB | 26.3 MB |
-| Same input gives the same bytes | no (dates, identifiers) | yes, by design | yes, checked on 46 756 renders |
+| Page count equal to Chromium (40 test documents) | reference | 24 of 40 | 38 of 40 |
+| Words on the same page as in Chromium | reference | 50% | 92% |
+| Median vertical offset of words | reference | 54 pt | 0.2 pt |
+| PDF size, invoices (untagged) | 21–45 kB (`--disable-pdf-tagging`) | 21–49 kB | 21–46 kB |
+| PDF size, invoices, default settings | 37–377 kB (tagged) | 21–49 kB | 21–46 kB (untagged by default) |
+| PDF size, illustrated book | 26.6 MB (untagged) | 26.7 MB | 26.3 MB |
+| Same input gives the same bytes | no: 0 of 40 files equal to its own earlier output | yes, by design | yes: 44 of 44 in separate processes; 46 756 W3C renders on 2026-11-24 |
 | Unsupported CSS | developer tools console | ignored silently | reported as warnings |
 
-The invoice sizes are close, and an earlier measurement with fonts passed as `data:` URLs found Chromium's
-invoices 17–26% smaller (`docs/overview.md`, PDF file size), so no engine is called smaller here.
+The invoice sizes are within 10% of each other, so no engine is called smaller here. An earlier measurement with
+fonts passed as `data:` URLs found Chromium's invoices 17–26% smaller (`docs/chromium-comparison.md`, 2026-11-20).
 
 ## Features
 

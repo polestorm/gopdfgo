@@ -23,6 +23,9 @@ They need to be measured again after engine changes. The tools are in `tools/ben
 
 ## Speed and memory
 
+The current comparison of all three engines, measured in one run on public documents, is in
+[`benchmarks.md`](benchmarks.md) (2026-11-26). The measurements below are earlier and dated.
+
 Documents:
 - four variants of a Polish KSeF e-invoice as printed by an e-invoice viewer: 1, 3, 1 and 7 pages;
 - five e-SF financial statements from the public Polish court register (KRS), labelled A–E: 6, 11, 12, 16
