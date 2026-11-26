@@ -1,0 +1,759 @@
+<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>overview.md</title><style>@font-face{font-family:"Noto Sans";src:url("../fonts/NotoSans-Regular.ttf")}
+@font-face{font-family:"Noto Sans";font-weight:bold;src:url("../fonts/NotoSans-Bold.ttf")}
+@font-face{font-family:"Noto Sans";font-style:italic;src:url("../fonts/NotoSans-Italic.ttf")}
+@font-face{font-family:"Noto Sans";font-weight:bold;font-style:italic;src:url("../fonts/NotoSans-BoldItalic.ttf")}
+@font-face{font-family:"Noto Sans Mono";src:url("../fonts/NotoSansMono-Regular.ttf")}
+@page{size:A4;margin:18mm 16mm 20mm;@bottom-right{content:counter(page) " / " counter(pages);font:9px "Noto Sans";color:#666}}
+html{font:10.5pt/1.45 "Noto Sans"}
+body{margin:0;color:#1f2328}
+h1,h2,h3,h4{line-height:1.25;margin:1.2em 0 .5em;break-after:avoid}
+h1{font-size:1.9em;border-bottom:1px solid #d0d7de;padding-bottom:.3em}
+h2{font-size:1.45em;border-bottom:1px solid #d0d7de;padding-bottom:.25em}
+h3{font-size:1.2em}
+p,ul,ol,table,pre,blockquote{margin:0 0 .8em}
+ul,ol{padding-left:2em}
+code{font:.88em "Noto Sans Mono";background:#f6f8fa;padding:.1em .3em;border-radius:4px}
+pre{font:.85em/1.4 "Noto Sans Mono";background:#f6f8fa;padding:.8em 1em;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+pre code{background:none;padding:0;font-size:1em}
+table{border-collapse:collapse;width:auto;max-width:100%}
+th,td{border:1px solid #d0d7de;padding:.3em .6em;vertical-align:top}
+th{background:#f6f8fa;font-weight:bold}
+tr:nth-child(2n) td{background:#fafbfc}
+blockquote{border-left:.25em solid #d0d7de;color:#59636e;padding:0 1em;margin-left:0}
+a{color:#0969da;text-decoration:none}
+hr{border:0;border-top:1px solid #d0d7de}</style></head><body><h1>gopdfgo at a glance: comparison with Chromium, unsupported features, requirements</h1>
+<p>gopdfgo turns HTML, CSS and SVG into PDF in pure Go. It needs no browser and runs no JavaScript. It
+supports CSS Paged Media: pages, margins, margin boxes with headers and footers, page counters and breaks.
+It is built for ordinary business documents (invoices, reports, financial statements, multi-page tables),
+not for printing arbitrary web pages.</p>
+<p>All numbers below were measured on 2026-11-20:</p>
+<ul>
+<li>gopdfgo: commit <code>e3f59aa</code> (code as of this page's first version), engine <code>gopdfgo/webrender 0.1.0-dev</code>;</li>
+<li>Chromium: Google Chrome 157.0.8103.79 on macOS;</li>
+<li>browser size on a server: Chrome 158.0.8127.36 on Ubuntu.</li>
+</ul>
+<p>They need to be measured again after engine changes.</p>
+<h2>Size</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Chromium</th>
+<th>gopdfgo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>software</td>
+<td>browser: 460 MB on a Linux server (<code>du -sh /opt/google/chrome</code>) plus system libraries from packages; 2.2 GB on macOS</td>
+<td>21.2 MB command-line binary, linux/amd64, <code>CGO_ENABLED=0 -trimpath -ldflags &quot;-s -w&quot;</code></td>
+</tr>
+<tr>
+<td>fonts</td>
+<td>system fonts</td>
+<td>supplied by the caller (in xml.pro: 2.1 MB, five Noto files)</td>
+</tr>
+<tr>
+<td>installation and updates</td>
+<td>browser package, security updates, a writable home directory for the browser process</td>
+<td>one static binary, nothing to install on the system</td>
+</tr>
+</tbody>
+</table>
+<h2>Speed and memory</h2>
+<p>Documents:</p>
+<ul>
+<li>four variants of a Polish KSeF e-invoice as printed by an e-invoice viewer: 1, 3, 1 and 7 pages;</li>
+<li>five e-SF financial statements from the public Polish court register (KRS), labelled A–E: 6, 11, 12, 16
+and 4 pages.</li>
+</ul>
+<p>Both engines got the same font files (Noto Sans, Noto Sans Mono). All nine documents have the same page
+count in both engines.</p>
+<p>Machine: Apple M4, 10 cores, 32 GB, system load average 6.7–7.9 during the run. Times are the shortest
+of five runs of the whole process, including program start.</p>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Pages</th>
+<th>Chromium, <code>--headless --print-to-pdf</code> (browser starts for each document)</th>
+<th>gopdfgo, command line</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>invoice, 2 items</td>
+<td>1</td>
+<td>409 ms</td>
+<td>49 ms</td>
+</tr>
+<tr>
+<td>invoice, 60 items</td>
+<td>3</td>
+<td>426 ms</td>
+<td>73 ms</td>
+</tr>
+<tr>
+<td>invoice, VAT rates and bank transfer</td>
+<td>1</td>
+<td>407 ms</td>
+<td>53 ms</td>
+</tr>
+<tr>
+<td>invoice, 140 items</td>
+<td>7</td>
+<td>469 ms</td>
+<td>109 ms</td>
+</tr>
+<tr>
+<td>e-SF A</td>
+<td>6</td>
+<td>476 ms</td>
+<td>128 ms</td>
+</tr>
+<tr>
+<td>e-SF B</td>
+<td>11</td>
+<td>534 ms</td>
+<td>202 ms</td>
+</tr>
+<tr>
+<td>e-SF C</td>
+<td>12</td>
+<td>512 ms</td>
+<td>197 ms</td>
+</tr>
+<tr>
+<td>e-SF D</td>
+<td>16</td>
+<td>547 ms</td>
+<td>244 ms</td>
+</tr>
+<tr>
+<td>e-SF E</td>
+<td>4</td>
+<td>462 ms</td>
+<td>93 ms</td>
+</tr>
+</tbody>
+</table>
+<p>Chromium kept running and driven through DevTools (<code>Page.printToPDF</code> via chromedp, no wait before
+printing) needed 0.42–0.46 s per document. That run used the same day and the same documents; see
+<code>docs/chromium-comparison.md</code> (Polish). gopdfgo is 2 to 9 times faster than that.</p>
+<p>Memory:</p>
+<ul>
+<li>gopdfgo, peak RSS of the process (<code>/usr/bin/time -l</code>): invoice 48 MB, 6-page e-SF 95 MB, 16-page e-SF
+156 MB;</li>
+<li>Chromium: peak RSS summed over the browser processes, 943–961 MB, with two browser instances running at
+once, as in xml.pro.</li>
+</ul>
+<p>gopdfgo renders one document at a time per process; further calls wait in a queue. Chromium can print
+several tabs in parallel.</p>
+<h3>A large document: an illustrated book (256 pages)</h3>
+<p>The illustrated HTML edition of <em>Pride and Prejudice</em> from Project Gutenberg (book 1342, 164 illustrations
+by Hugh Thomson, 0.8 MB of HTML and 27 MB of JPEG/PNG images; public domain). The files are not in the
+repository; <code>testdata/books/fetch.sh</code> downloads them from the Gutenberg mirror and checks their SHA-256
+sums, so the measurement can be repeated on the same input. For the measurement both engines get
+<code>testdata/books/bench.css</code>: the same font (Tinos, with Times metrics, from <code>testdata/fonts</code>) and A4 pages
+with 20 mm margins.</p>
+<p>Measured 2026-11-20 on the same machine; gopdfgo at commit <code>0eb174f</code>, Chrome 157.0.8103.79. Three runs each,
+whole process including program or browser start.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Chromium, <code>--headless --print-to-pdf</code></th>
+<th>gopdfgo, command line</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pages</td>
+<td>253</td>
+<td>256</td>
+</tr>
+<tr>
+<td>time</td>
+<td>2.13–2.47 s</td>
+<td>1.60 s (1.54–1.58 s before the memory optimisations below)</td>
+</tr>
+<tr>
+<td>peak memory</td>
+<td>1672–1701 MB (all browser processes)</td>
+<td>423–456 MB (after the optimisations below)</td>
+</tr>
+<tr>
+<td>PDF size</td>
+<td>27.58 MB (tagged PDF)</td>
+<td>26.25 MB</td>
+</tr>
+<tr>
+<td>of which images</td>
+<td>25.21 MB (171 image objects)</td>
+<td>24.76 MB (164 image objects)</td>
+</tr>
+<tr>
+<td>of which text, pages, fonts and structure</td>
+<td>2.37 MB</td>
+<td>1.49 MB</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Both engines embed the illustrations almost unchanged, so most of the file is images. Without them,
+gopdfgo's file is 37% smaller; part of that is the structure tree Chrome's command line adds for screen
+readers (tagged PDF). Chrome without tags (through DevTools) was not measured for this book.</li>
+<li>The split was measured by summing the stream lengths of image objects, font files and everything else in
+the PDF.</li>
+</ul>
+<p><strong>Page count.</strong> The first measurement gave 265 pages. The cause was a bug: an <code>@font-face</code> rule without a
+<code>font-weight</code> descriptor got weight 0 instead of the font's own weight (<code>auto</code>, CSS Fonts 4 § 4.5), so
+normal text matched the bold face of the same family and the whole book was set in bold. After the fix the
+text of every page matches Chrome's up to page 30, where the first such paragraph occurs. The remaining 3 pages come from widows and orphans: Chrome splits a
+three-line paragraph 2 + 1 at a page end, although the initial <code>widows: 2</code> forbids a single line at the top
+of the next page (CSS Fragmentation 3 § 3.3); with four or more lines Chrome follows the rule. gopdfgo
+follows the specification and moves such a paragraph whole. With <code>widows: 1; orphans: 1</code> gopdfgo gives
+253 pages, the same as Chrome.</p>
+<p><strong>Memory.</strong> The illustrations are not the cause: they are embedded without decoding, and the raw files take
+27 MB of the heap. All pages are laid out before any is drawn (the design inherited from WeasyPrint), so
+memory grows with the number of pages. Live heap after a forced collection, measured at each stage:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>book, 256 pages</th>
+<th>book ×4, 1021 pages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTML parsed, stylesheets</td>
+<td>40 MB</td>
+<td>47 MB</td>
+</tr>
+<tr>
+<td>computed styles</td>
+<td>57 MB</td>
+<td>85 MB</td>
+</tr>
+<tr>
+<td>box tree (the whole input)</td>
+<td>103 MB</td>
+<td>191 MB</td>
+</tr>
+<tr>
+<td>all pages laid out</td>
+<td>289 MB</td>
+<td>527 MB</td>
+</tr>
+<tr>
+<td>all pages drawn</td>
+<td>390 MB</td>
+<td>859 MB</td>
+</tr>
+</tbody>
+</table>
+<p>The Go garbage collector lets the heap grow to about twice the live size before collecting (<code>GOGC=100</code>),
+which gives the peak of about 1 GB for the book. With <code>GOGC=50</code> the peak was 740 MB and with <code>GOGC=25</code>
+660 MB; wall time stays about the same, CPU time grows by 25% and 70%.</p>
+<p>The table was measured before five optimisations, which give byte-identical output:</p>
+<ul>
+<li>laid-out lines keep their glyphs in a compact form (44 B per glyph instead of the 80 B record of the
+go-text shaper);</li>
+<li>justification stores only the changed glyphs instead of copying each justified line (190 MB of copies
+for the 1021-page book);</li>
+<li>each page's boxes are released right after the page is drawn;</li>
+<li>each page is drawn as soon as its layout is final; margin boxes are added to its content after all
+pages are laid out, so &quot;page X of Y&quot; needs no second pass (ADR 0027);</li>
+<li>the cache of broken lines has a size limit (two generations of about 16 MB each) instead of growing
+for the whole document. Its key is the remaining text of the paragraph, so it took about 400 MB for
+1021 pages.</li>
+</ul>
+<p>Peak memory after the first four: book 0.92–1.07 → 0.56–0.63 GB, book ×4 (1021 pages, 4.8 s, Chromium
+2.44 GB) 2.25–2.31 → 0.90–0.96 GB. After the fifth (measured 2026-11-21, three runs): book 0.51–0.58 →
+0.42–0.46 GB, same time; book ×4 0.83–0.85 → 0.73–0.79 GB, but 4.8 → 6.4 s, because the ×4 file repeats the
+same text four times and the unlimited cache reused whole paragraphs from earlier copies. On a 1021-page
+variant with different text in each copy (one vowel replaced per copy) time is the same, 6.5 s, and memory
+drops from 1.30–1.54 to 0.73 GB.</p>
+<p>Memory is now bounded mainly by the input (styles, box tree, images) rather than by the laid-out
+document; the peak is reached during layout.</p>
+<p>Documents that need a second pagination pass, such as a table of contents with <code>target-counter()</code> or
+&quot;page X of Y&quot; with <code>counter(pages)</code> in the page content (not in margin boxes), are laid out twice
+(ADR 0036): the first pass settles page numbers and the page count and releases each page right after
+laying it out; the second lays out every page again with those values and draws it at once. Output is
+byte-identical. Documents of up to 32 pages are laid out whole, as before, because the second pass costs
+time and would save little memory there. Measured 2026-11-21 (three runs) on a variant of the book with a
+table of contents of 61 chapter links at the front and &quot;page X of Y&quot; under every chapter heading:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>book, no TOC</th>
+<th>book with TOC, before</th>
+<th>book with TOC, after</th>
+<th>book ×4 with TOC, before</th>
+<th>book ×4 with TOC, after</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pages</td>
+<td>256</td>
+<td>259</td>
+<td>259</td>
+<td>1027</td>
+<td>1027</td>
+</tr>
+<tr>
+<td>peak memory</td>
+<td>440–483 MB</td>
+<td>598–613 MB</td>
+<td>472–479 MB</td>
+<td>1450–1531 MB</td>
+<td>802–839 MB</td>
+</tr>
+<tr>
+<td>time</td>
+<td>1.60 s</td>
+<td>2.24 s</td>
+<td>3.00–3.02 s</td>
+<td>8.93–8.94 s</td>
+<td>12.27–12.34 s</td>
+</tr>
+</tbody>
+</table>
+<p>The extra layout pass costs 35–38% of time. A few cases still lay out the whole document before
+drawing: a positioned box continued on an earlier page, a <code>position: fixed</code> box that first appears on a
+later page, and a margin box with a negative <code>z-index</code>.</p>
+<p>The inherited pagination loop marked a page with a reference to an anchor for another layout pass every
+time the anchor was laid out, even when its page number had not changed; the book with a table of
+contents ran 8 pagination passes (the limit) instead of 3. Pages are now marked only when the value
+changes (output is byte-identical). <code>target-counter(…, pages)</code> now gives the page count of the document,
+as CSS Generated Content 3 requires, instead of the page count of the pass in which the anchor was laid
+out (often 0, &quot;3/0&quot;); such documents now take the two-pass path too. Measured 2026-11-21 (three runs):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>passes</th>
+<th>peak memory, before</th>
+<th>peak memory, after</th>
+<th>time, before</th>
+<th>time, after</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>book, no TOC</td>
+<td>—</td>
+<td>431–452 MB</td>
+<td>439–469 MB</td>
+<td>1.61–1.63 s</td>
+<td>1.62–1.63 s</td>
+</tr>
+<tr>
+<td>book with TOC (259 pages)</td>
+<td>8 → 3</td>
+<td>467–478 MB</td>
+<td>461–493 MB</td>
+<td>3.04–3.06 s</td>
+<td>2.72–2.76 s</td>
+</tr>
+<tr>
+<td>book ×4 with TOC (1027 pages)</td>
+<td>8 → 3</td>
+<td>804–889 MB</td>
+<td>834–931 MB</td>
+<td>12.40–12.44 s</td>
+<td>10.88–10.92 s</td>
+</tr>
+</tbody>
+</table>
+<h3>Current state compared with Chromium (2026-11-21)</h3>
+<p>Measured 2026-11-21 on the same machine, Chrome 157 and gopdfgo after the speed-ups of ADR 0037 (the
+earlier gopdfgo times, commit <code>a655fcd</code>, are in that ADR); three runs each, whole process including
+program or browser start; memory is the peak resident size, for Chromium summed over all
+its processes. The table-of-contents variants (61 chapter links with <code>target-counter()</code> at the front,
+&quot;page X of Y&quot; with <code>counter(pages)</code> under every chapter heading) are made by a script from the book.</p>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Pages, Chromium / gopdfgo</th>
+<th>Chromium: time</th>
+<th>gopdfgo: time</th>
+<th>Chromium: memory</th>
+<th>gopdfgo: memory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>book</td>
+<td>253 / 256</td>
+<td>2.10–2.56 s</td>
+<td>1.17–1.22 s</td>
+<td>1.67–1.73 GB</td>
+<td>0.42–0.44 GB</td>
+</tr>
+<tr>
+<td>book with table of contents</td>
+<td>256 / 259</td>
+<td>2.09–2.12 s</td>
+<td>2.23–2.31 s</td>
+<td>1.42–1.45 GB</td>
+<td>0.44–0.46 GB</td>
+</tr>
+<tr>
+<td>book ×4</td>
+<td>1009 / 1021</td>
+<td>4.54–4.69 s</td>
+<td>4.57–4.69 s</td>
+<td>2.20–2.26 GB</td>
+<td>0.73–0.77 GB</td>
+</tr>
+<tr>
+<td>book ×4 with table of contents</td>
+<td>1015 / 1027</td>
+<td>4.55–4.68 s</td>
+<td>8.6–8.8 s</td>
+<td>2.11–2.14 GB</td>
+<td>0.78–0.80 GB</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Chromium does not support <code>target-counter()</code> or <code>counter(pages)</code> outside margin boxes: its table of
+contents has no page numbers and &quot;page X of Y&quot; reads &quot;Strona 0 z 0&quot;. gopdfgo writes &quot;Chapter I —
+strona 20&quot; and &quot;Strona 11 z 259&quot;, which costs the second layout pass (ADR 0036). The times of the
+table-of-contents rows therefore do not compare the same work.</li>
+<li>On the plain book gopdfgo takes about half of Chromium's time, partly because Chromium starts a
+browser for each document; at 1021 pages the two take the same time. gopdfgo's time grows linearly
+with the number of pages (1.2 s × 4 ≈ 4.6 s), Chromium's more slowly, so on still longer documents
+Chromium would lead. gopdfgo uses 2.7–3.8 times less memory in every case.</li>
+<li>The extra pages come from <code>widows</code> (see &quot;Page count&quot; above): gopdfgo moves a three-line paragraph whole
+where Chromium splits it 2 + 1.</li>
+</ul>
+<h2>PDF file size</h2>
+<table>
+<thead>
+<tr>
+<th>Document</th>
+<th>Chromium via DevTools (untagged PDF)</th>
+<th>Chromium <code>--print-to-pdf</code> (tagged PDF)</th>
+<th>gopdfgo (untagged PDF)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>invoice, 2 items</td>
+<td>26.8 kB</td>
+<td>42.7 kB</td>
+<td>24.9 kB</td>
+</tr>
+<tr>
+<td>invoice, 60 items</td>
+<td>37.5 kB</td>
+<td>182.9 kB</td>
+<td>35.9 kB</td>
+</tr>
+<tr>
+<td>invoice, VAT rates and bank transfer</td>
+<td>28.2 kB</td>
+<td>63.3 kB</td>
+<td>26.6 kB</td>
+</tr>
+<tr>
+<td>invoice, 140 items</td>
+<td>52.9 kB</td>
+<td>383.0 kB</td>
+<td>51.0 kB</td>
+</tr>
+<tr>
+<td>e-SF A</td>
+<td>—</td>
+<td>315.4 kB</td>
+<td>60.3 kB</td>
+</tr>
+<tr>
+<td>e-SF B</td>
+<td>—</td>
+<td>621.9 kB</td>
+<td>97.4 kB</td>
+</tr>
+<tr>
+<td>e-SF C</td>
+<td>—</td>
+<td>541.9 kB</td>
+<td>94.0 kB</td>
+</tr>
+<tr>
+<td>e-SF D</td>
+<td>—</td>
+<td>734.5 kB</td>
+<td>116.3 kB</td>
+</tr>
+<tr>
+<td>e-SF E</td>
+<td>—</td>
+<td>181.9 kB</td>
+<td>40.4 kB</td>
+</tr>
+</tbody>
+</table>
+<p>Chrome's command line writes a tagged PDF: it adds a structure tree for screen readers, and <code>pdfinfo</code>
+shows „Tagged: yes”. Through DevTools, with default settings, Chrome writes an untagged PDF, like
+gopdfgo. Those two are comparable, and gopdfgo's files are 4–7% smaller. The e-SF statements were not
+measured through DevTools with the same fonts.</p>
+<p>gopdfgo writes a tagged PDF with <code>Options.Tagged</code> (ADR 0033); its objects then go into compressed object
+streams. Measured 2026-11-21 (median of 5 runs, whole process, macOS arm64): corpus invoice
+(<code>20-invoice</code>) 28.5 → 34.7 kB, register table (<code>02-register-table</code>, 1466 structure elements) 81.1 →
+106.0 kB, mixed report (<code>21-mixed-report</code>) 37.7 → 35.1 kB; rendering 1–4% longer.</p>
+<p>gopdfgo's file size comes from:</p>
+<ul>
+<li>zlib compression at level 6 (ADR 0023);</li>
+<li>font subsets that keep only the glyphs used and short tables.</li>
+</ul>
+<p><code>Options.Uncompressed</code> writes an uncompressed file for reading in a text editor.</p>
+<h2>Output compared with Chromium</h2>
+<p>Real documents, measured 2026-11-21 with <code>pdftotext -bbox</code>, words matched by sequence alignment; both
+engines get the same Noto fonts through <code>@font-face</code>; Chrome 157.</p>
+<ul>
+<li>KSeF invoices (4): same pages; every word lies within 0.81 pt of its position in Chromium, median 0.14–0.23 pt.</li>
+<li>e-SF statements from xml.pro (5, variant without scripts): same pages and page breaks; every word lies
+within 0.43 pt of Chromium (3 words in one statement are matched to a neighbouring row because Chrome
+writes that row in a different order). Before 2026-11-21 two of them had 1342–1491 words more than 3 pt
+away: Chromium computes layout in 1/64 px units (LayoutUnit), and gopdfgo now does the same by default
+(ADR 0013).</li>
+<li>The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
+draws; gopdfgo keeps the exact baseline.</li>
+<li>W3C screen reftests across 11 CSS areas: 9502 of 10962 pass.</li>
+<li>W3C print reftests: 310 of 340 pass, 308 exactly and 2 within anti-aliasing edges (ADR 0003).</li>
+<li>Own corpus of 22 documents: page counts as in Chromium; PDF/A-2b and, with tags, PDF/A-2a valid in
+veraPDF for 22 of 22; PDF/UA-1 valid for 22 of 22 (five documents had a skipped heading level or SVG
+images without alternative text; fixed in the source on 2026-11-21 without changing their pages).</li>
+</ul>
+<p>Where the specifications leave a choice, gopdfgo follows Chromium; each such case is recorded in
+<code>docs/adr/</code>. <code>Options.ExactLengths</code> turns off the pixel and 1/64 px rounding that imitates Chromium (ADR 0013).</p>
+<h2>Not supported in this version</h2>
+<p>Out of scope by design:</p>
+<ul>
+<li>JavaScript and everything that depends on it; <code>video</code>, <code>audio</code>; <code>canvas</code> stays empty. Documents embedded
+with <code>iframe</code>, <code>object</code> and <code>embed</code> are printed at the size of the element, clipped, as Chromium prints them;</li>
+<li>system fonts: only the fonts supplied by the caller are used, so the output is reproducible;</li>
+<li>vertical writing (<code>writing-mode</code>) and bidirectional or right-to-left text (ADR 0010);</li>
+<li>state pseudo-classes (<code>:hover</code> and similar), <code>@container</code>, <code>@property</code>, <code>::selection</code>;</li>
+<li>structure inside SVG images, notes and references (<code>Note</code>, <code>Reference</code>) and alternative text for
+generated content in tagged PDF. Tagged PDF works since 2026-11-21, off by default (<code>Options.Tagged</code>,
+ADR 0033): a structure tree from the HTML elements in document order (<code>Document</code>, <code>Div</code>/<code>Sect</code>/<code>Art</code>, <code>P</code>,
+<code>H1</code>–<code>H6</code>, <code>L</code>/<code>LI</code> with <code>Lbl</code> for the <code>::marker</code> and <code>LBody</code>, <code>Table</code>/<code>THead</code>/<code>TBody</code>/<code>TFoot</code>/<code>TR</code>/<code>TH</code>/
+<code>TD</code> with <code>Scope</code>, <code>RowSpan</code> and <code>ColSpan</code> and the same grid as in HTML, <code>Link</code> with a reference to its
+annotation and the link text as the annotation's <code>/Contents</code>, <code>Figure</code> with <code>Alt</code> from <code>alt</code>,
+<code>aria-label</code>, the SVG <code>&lt;title&gt;</code> or the <code>figcaption</code> of a <code>figure</code> holding one image, <code>figure</code> as <code>Div</code>
+with <code>Caption</code>, <code>Span</code> for inline elements), marked page content, backgrounds, borders and shadows as
+artifacts, margin boxes and repeated table headers as pagination artifacts, <code>/Lang</code> from <code>lang</code>, the
+document title shown by the viewer. PDF/A-2a and PDF/A-3a turn it on; veraPDF accepts all 22 corpus
+documents as PDF/A-2a. PDF/UA-1 (<code>Options.Accessibility</code>, <code>-pdfua 1</code>, also together with PDF/A-2a) adds
+<code>pdfuaid</code> to the XMP metadata; veraPDF accepts 22 of 22 corpus documents. Defects gopdfgo does not repair (no title, no language, an image without
+alternative text, a skipped heading level, table rows with different numbers of columns) give warnings.
+PDF/A-2b, PDF/A-3b and file attachments are supported (ADR 0016, 0026), and so are Factur-X 1.0 /
+ZUGFeRD 2.x hybrid invoices (<code>Options.FacturX</code>, ADR 0034: the invoice XML, the <code>fx</code> XMP properties with
+their extension schema, PDF/A-3b or 3a). When rendering, gopdfgo does not validate the invoice XML against
+the profile's XSD or Schematron; the caller should do that. The output was checked with the Mustang
+validator 2.26.0 on our own MINIMUM-profile invoice (ADR 0034);</li>
+<li>PNG or SVG output: the output is PDF only;</li>
+<li>digital signatures (PAdES) and PDF forms.</li>
+</ul>
+<p>Experimental features that browsers do not generally support yet: <code>grid-lanes</code> (masonry),
+<code>column-height</code>, <code>flex-wrap: balance</code>.</p>
+<p>Not done yet (status and priority in <code>docs/progress.md</code>, Polish):</p>
+<ul>
+<li><code>subgrid</code>;</li>
+<li>baseline alignment in grid and flex (<code>last baseline</code>, column axis);</li>
+<li>some cases of positioned grid items and nested multi-column layout;</li>
+<li>CSS <code>filter</code>: the colour functions are exact on colours and on raster image pixels; <code>drop-shadow()</code> and
+<code>blur()</code> are vector approximations (soft-mask copies); <code>url()</code> filters on HTML elements, <code>backdrop-filter</code>
+and the <code>filter()</code> image function are not supported;</li>
+<li>perspective projection: <code>perspective()</code>, the <code>perspective</code> property and the perspective components of
+<code>matrix3d()</code> are accepted with a warning and ignored, so the element is drawn as an orthographic
+projection; <code>preserve-3d</code> has no depth sorting or plane intersection. 3D transforms without perspective
+(<code>rotateX()</code>, <code>rotate3d()</code>, <code>translate3d()</code>, <code>matrix3d()</code> …) and <code>backface-visibility</code> are exact;</li>
+<li><code>&lt;angle&gt;</code> values inside <code>calc()</code> in transform functions;</li>
+<li>colours outside the sRGB gamut (<code>color(display-p3 …)</code>, <code>oklch()</code> …) are clipped per channel, as Chromium
+prints them, not gamut-mapped as CSS Color 4 § 13 describes;</li>
+<li>the colour of <code>-webkit-text-stroke</code>;</li>
+<li>CSS <code>zoom</code>; <code>mask</code> and <code>mask-image</code> on HTML elements (masks inside SVG work); animations and transitions
+are not evaluated, so print shows the static style;</li>
+<li>a box with <code>overflow: hidden</code> and a fixed height, or with <code>contain: size</code>, taller than a page is clipped
+at the page edge;</li>
+<li>the frozen-item rule for column flex containers works only without wrapping;</li>
+<li>hyphenation dictionaries (<code>hyphens: auto</code>) are built in for 24 languages: af, be, bg, da, de, el, en, es,
+et, fr, gl, it, lt, mn, nb, nl, nn, pl, pt, sk, sl, sq, te, uk. Other languages need a dictionary passed in
+<code>Options.Hyphenation</code> (ADR 0024).</li>
+</ul>
+<h2>SVG</h2>
+<p>Checked 2026-11-20 and 2026-11-21 in the code (<code>internal/webrender/svg</code>), on the W3C <code>svg/</code> reftests, and on a corpus of
+23 real-world SVG files (<code>testdata/svg</code>: icons, flags and coats of arms from Wikimedia Commons, charts,
+a draw.io-style diagram) compared with Chrome 157.</p>
+<p>Supported:</p>
+<ul>
+<li>shapes: <code>rect</code>, <code>circle</code>, <code>ellipse</code>, <code>line</code>, <code>polyline</code>, <code>polygon</code>, <code>path</code>;</li>
+<li>structure:
+<ul>
+<li><code>g</code>, nested <code>svg</code>, <code>defs</code>, <code>a</code>;</li>
+<li><code>use</code> and <code>symbol</code>, also from another file (<code>&lt;use href=&quot;icons.svg#id&quot;&gt;</code>); the copied content inherits
+from the <code>&lt;use&gt;</code> element, as in a shadow tree;</li>
+<li><code>switch</code> with conditional attributes;</li>
+</ul>
+</li>
+<li><code>image</code> (raster and SVG), <code>foreignObject</code> (HTML content laid out in the given box);</li>
+<li>coordinates: <code>viewBox</code> (a zero width or height disables rendering), <code>preserveAspectRatio</code>, <code>transform</code>,
+also on the outermost <code>&lt;svg&gt;</code>; <code>overflow</code> other than <code>visible</code> (including <code>auto</code>) clips;</li>
+<li>painting:
+<ul>
+<li>fill and stroke with opacity, dash arrays, line caps and joins, <code>vector-effect: non-scaling-stroke</code>;</li>
+<li>paint servers: <code>linearGradient</code>, <code>radialGradient</code>, <code>pattern</code>, also taking stops or content from another
+one through <code>href</code>, as files from Inkscape and Illustrator do;</li>
+<li><code>clipPath</code>, <code>mask</code> (also with <code>objectBoundingBox</code> content units), <code>marker</code> with <code>orient=&quot;auto&quot;</code>,
+<code>context-fill</code>/<code>context-stroke</code>;</li>
+</ul>
+</li>
+<li>text: <code>text</code>, <code>tspan</code>, <code>textPath</code> (on a path or a <code>path</code> attribute, with <code>startOffset</code>), shaped like HTML
+text (kerning, ligatures, OpenType features), <code>text-anchor</code> per text chunk, <code>textLength</code>/<code>lengthAdjust</code>,
+<code>dominant-baseline</code>, <code>letter-spacing</code>, <code>text-shadow</code>; text is written as runs, so it can be selected and searched in the PDF;</li>
+<li>styling: presentation attributes, <code>style</code> attributes, <code>&lt;style&gt;</code> inside the SVG and, for inline <code>&lt;svg&gt;</code> in
+HTML, the page's whole cascade (<code>&lt;style&gt;</code> in <code>&lt;head&gt;</code>, <code>&lt;link rel=stylesheet&gt;</code>, the user stylesheet,
+<code>@media</code>, <code>var()</code>), with inheritance from the HTML ancestors; <code>var()</code> also works in presentation
+attributes (<code>r=&quot;var(--r)&quot;</code>); on the outermost <code>&lt;svg&gt;</code>, <code>mask</code> is applied by the SVG renderer and
+<code>opacity</code>, <code>filter</code>, <code>clip-path</code> and <code>mix-blend-mode</code> by the CSS box;</li>
+<li>inline <code>&lt;svg&gt;</code> in HTML, and SVG files used with <code>img</code>, <code>object</code>, <code>embed</code> and CSS <code>background-image</code>:
+<ul>
+<li>SVG files are parsed as XML;</li>
+<li>an SVG file used as an image (<code>img</code>, CSS images, <code>&lt;image&gt;</code>) is static and loads no external resources,
+only <code>data:</code> URLs (ADR 0031); in <code>object</code>/<code>embed</code> it loads them. Its <code>@font-face</code> rules and the root
+element's <code>background-image</code> work, scoped to that file;</li>
+<li>a file with <code>width</code> and <code>height</code> but no <code>viewBox</code> stretches to the image box in <code>img</code> and backgrounds,
+and stays unscaled in <code>object</code>/<code>embed</code>, as in Chrome;</li>
+<li>URL fragments select part of an image (ADR 0030): <code>#xywh=x,y,w,h</code> (also <code>pixel:</code> and <code>percent:</code>,
+Media Fragments URI 1.0) crops raster and SVG images, and <code>#svgView(viewBox(…);preserveAspectRatio(…); transform(…))</code> or the name of a <code>&lt;view&gt;</code> element picks the view of an SVG file; the file is loaded once
+for all its fragments;</li>
+<li>an SVG file used many times (a logo in every page header, icons in table rows, a background) is
+written once as a PDF form XObject and referenced from each use, like a raster image (ADR 0028):
+a 100 kB coat of arms on 41 pages gives a 68 kB PDF instead of 1.5 MB (measured 2026-11-21);</li>
+</ul>
+</li>
+<li>links: <code>&lt;a href&gt;</code> (or <code>xlink:href</code>) becomes a PDF link annotation covering the bounding box of its drawn
+content after all transforms (ADR 0029). In inline <code>&lt;svg&gt;</code>, <code>#id</code> links go to anchors in the HTML document
+and other links are external; in <code>object</code>/<code>embed</code> only external links are kept; SVG in <code>img</code> and CSS
+images is static, so it has no links. Rotated content gets its bounding rectangle, not <code>QuadPoints</code>.</li>
+</ul>
+<p>Not supported or incomplete:</p>
+<ul>
+<li>filters: drop shadow and blur (<code>feGaussianBlur</code>, <code>feOffset</code>, <code>feFlood</code>, <code>feComposite</code>, <code>feMerge</code>,
+<code>feDropShadow</code>, <code>feBlend</code>, <code>feColorMatrix</code>/<code>feComponentTransfer</code> on shadows) are drawn without
+rasterization. A blur is many soft-mask copies, so it is an approximation, within a few brightness levels
+of Chrome, and adds about 2 kB per filtered element. Colour matrices on the element itself and <code>feImage</code>,
+<code>feTile</code>, <code>feMorphology</code>, <code>feTurbulence</code>, <code>feConvolveMatrix</code>, lighting and <code>feDisplacementMap</code> skip the
+filter as a whole;</li>
+<li><code>currentColor</code> passed through a context paint, and <code>objectBoundingBox</code> paint servers on a context;</li>
+<li>CSS <code>zoom</code>;</li>
+<li>structure inside SVG in tagged PDF: an SVG image is one <code>Figure</code> with alternative text;</li>
+<li>animation (SMIL), scripting and CSS Linked Parameters (a proposal) are out of scope.</li>
+</ul>
+<p>W3C reftests in <code>svg/</code> (687 in total): 235 can run here. The rest need scripts (44) or missing files (46),
+or have no reference. Of those 235, 194 pass (2026-11-21); on the morning of 2026-11-20 it was 83.</p>
+<p>Each stand-alone <code>.svg</code> test was measured as a document drawn through <code>&lt;img&gt;</code>.</p>
+<p>Remaining failures (41), the largest groups: CSS Linked Parameters (23, a proposal), CSS <code>zoom</code> (6),
+the animated state in print and <code>use</code> in print (6), and single cases (<code>mask</code> on HTML elements, path bearing commands from an
+SVG 2 draft, <code>:visited</code>). Two <code>text-shadow</code> tests differ from their references within the tolerance the
+tests declare (<code>fuzzy</code>), which the survey does not apply.</p>
+<p>Real-world corpus: every file is within 2.3% of Chrome's pixels; the remaining differences are font
+substitution, the missing blur shadow, and anti-aliasing.</p>
+<h2>Requirements</h2>
+<ul>
+<li>Go 1.26 or newer (<code>go.mod</code>: <code>go 1.26.0</code>); built and tested with go1.26.6.</li>
+<li>No cgo: builds with <code>CGO_ENABLED=0</code> for any platform Go supports (checked: darwin/arm64, linux/amd64).</li>
+<li>TrueType or OpenType fonts from the caller (<code>Options.Fonts</code>). The fonts for generic families
+(<code>sans-serif</code>, <code>serif</code>, <code>monospace</code>) are set in <code>Options.GenericFamilies</code> (ADR 0005).</li>
+<li>External resources (stylesheets, images, <code>@font-face</code> fonts) come from the caller through
+<code>Options.Resolver</code>. By default the engine reads nothing from the network or the disk.</li>
+<li>Module dependencies, all pure Go:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Licence</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github.com/go-text/typesetting</code></td>
+<td>BSD-3-Clause or Unlicense</td>
+<td>text shaping, fonts, segmentation</td>
+</tr>
+<tr>
+<td><code>github.com/benoitkugler/pdf</code></td>
+<td>MIT</td>
+<td>PDF data structures</td>
+</tr>
+<tr>
+<td><code>github.com/benoitkugler/pstokenizer</code></td>
+<td>MIT</td>
+<td>PostScript tokenizer (through <code>pdf</code>)</td>
+</tr>
+<tr>
+<td><code>github.com/hhrutter/lzw</code></td>
+<td>BSD-3-Clause</td>
+<td>LZW filter (through <code>pdf</code>)</td>
+</tr>
+<tr>
+<td><code>golang.org/x/image</code></td>
+<td>BSD-3-Clause</td>
+<td>image decoding</td>
+</tr>
+<tr>
+<td><code>golang.org/x/net</code></td>
+<td>BSD-3-Clause</td>
+<td>HTML5 parser</td>
+</tr>
+<tr>
+<td><code>golang.org/x/text</code></td>
+<td>BSD-3-Clause</td>
+<td>character encodings</td>
+</tr>
+<tr>
+<td><code>github.com/benoitkugler/textlayout</code></td>
+<td>MIT</td>
+<td>tests only</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Tools needed only for tests:
+<ul>
+<li><code>pdftotext</code> and <code>pdftoppm</code> (Poppler);</li>
+<li>Ghostscript, for the pixel tests of <code>internal/goweasyprint/pdf</code>;</li>
+<li>veraPDF, optional, for PDF/A validation.</li>
+</ul>
+</li>
+</ul>
+<h2>Licence</h2>
+<p>Apache License 2.0, Copyright 2026 Michał Głębowski (<code>LICENSE</code>, <code>NOTICE</code>). Code and data by other authors,
+with their licences, are listed in <code>THIRD_PARTY_NOTICES</code>. Include that file when you distribute software
+built with gopdfgo (ADR 0025).</p>
+<h2>How it was measured</h2>
+<ul>
+<li>Time: shortest of five runs of the whole process.
+<ul>
+<li>Chromium: <code>&quot;Google Chrome&quot; --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=…</code>, a new
+process for each document.</li>
+<li>gopdfgo: <code>gopdfgo -fonts … -in … -out …</code>.</li>
+</ul>
+</li>
+<li>Memory: <code>/usr/bin/time -l</code>, „maximum resident set size”.</li>
+<li>File size: <code>stat</code>. Tagging: <code>pdfinfo</code>.</li>
+<li>Program size: <code>ls</code> of the binary built with the command in the table above. Browser size: <code>du -sh</code>.</li>
+<li>The source documents and the outputs are kept outside the repository.</li>
+</ul>
+</body></html>

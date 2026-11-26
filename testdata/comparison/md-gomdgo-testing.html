@@ -1,0 +1,334 @@
+<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>testing.md</title><style>@font-face{font-family:"Noto Sans";src:url("../fonts/NotoSans-Regular.ttf")}
+@font-face{font-family:"Noto Sans";font-weight:bold;src:url("../fonts/NotoSans-Bold.ttf")}
+@font-face{font-family:"Noto Sans";font-style:italic;src:url("../fonts/NotoSans-Italic.ttf")}
+@font-face{font-family:"Noto Sans";font-weight:bold;font-style:italic;src:url("../fonts/NotoSans-BoldItalic.ttf")}
+@font-face{font-family:"Noto Sans Mono";src:url("../fonts/NotoSansMono-Regular.ttf")}
+@page{size:A4;margin:18mm 16mm 20mm;@bottom-right{content:counter(page) " / " counter(pages);font:9px "Noto Sans";color:#666}}
+html{font:10.5pt/1.45 "Noto Sans"}
+body{margin:0;color:#1f2328}
+h1,h2,h3,h4{line-height:1.25;margin:1.2em 0 .5em;break-after:avoid}
+h1{font-size:1.9em;border-bottom:1px solid #d0d7de;padding-bottom:.3em}
+h2{font-size:1.45em;border-bottom:1px solid #d0d7de;padding-bottom:.25em}
+h3{font-size:1.2em}
+p,ul,ol,table,pre,blockquote{margin:0 0 .8em}
+ul,ol{padding-left:2em}
+code{font:.88em "Noto Sans Mono";background:#f6f8fa;padding:.1em .3em;border-radius:4px}
+pre{font:.85em/1.4 "Noto Sans Mono";background:#f6f8fa;padding:.8em 1em;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+pre code{background:none;padding:0;font-size:1em}
+table{border-collapse:collapse;width:auto;max-width:100%}
+th,td{border:1px solid #d0d7de;padding:.3em .6em;vertical-align:top}
+th{background:#f6f8fa;font-weight:bold}
+tr:nth-child(2n) td{background:#fafbfc}
+blockquote{border-left:.25em solid #d0d7de;color:#59636e;padding:0 1em;margin-left:0}
+a{color:#0969da;text-decoration:none}
+hr{border:0;border-top:1px solid #d0d7de}</style></head><body><h1>Testy i porównania</h1>
+<h2>Warstwy</h2>
+<table>
+<thead>
+<tr>
+<th>Warstwa</th>
+<th>Gdzie</th>
+<th>Co sprawdza</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>przykłady specyfikacji</td>
+<td><code>testdata/spec/*.txt</code>, <code>TestSpecCommonMark</code>, <code>TestSpecGFM</code></td>
+<td>CommonMark 0.31.2 (652 przykłady) i rozdziały rozszerzeń GFM 0.29-gfm (24 przykłady): wynik HTML <strong>co do bajta</strong></td>
+</tr>
+<tr>
+<td>wymagania</td>
+<td><code>requirements/*.md</code>, <code>TestRequirementsCovered</code></td>
+<td>każde wymaganie ma test albo plik korpusu; każde odwołanie <code>REQ:</code> wskazuje istniejące wymaganie</td>
+</tr>
+<tr>
+<td>korpus własny</td>
+<td><code>testdata/corpus/*.md</code> + <code>*.html</code>, <code>TestCorpus</code></td>
+<td>dokumenty z polskimi znakami, rozszerzenia, punkty rozszerzeń; zmiana wzorca przez <code>go test -update</code> i przegląd różnicy; wymagania wskazuje pierwszy wiersz <code>[//]: # (REQ: …)</code>, który jest definicją odsyłacza i nie daje wyniku</td>
+</tr>
+<tr>
+<td>różnicowe</td>
+<td><code>tools/compare</code> (osobny moduł)</td>
+<td>ten sam korpus przez <code>gomdgo</code> i <code>goldmark</code>; raport różnic po normalizacji HTML; każda różnica w <code>differences.md</code></td>
+</tr>
+<tr>
+<td>bezpieczeństwo</td>
+<td><code>TestSafeByDefault</code>, <code>TestRawHTMLPolicy</code>, <code>TestSchemes</code></td>
+<td>przy ustawieniach domyślnych w wyniku są wyłącznie znaczniki i atrybuty z zamkniętej listy i adresy z dozwolonym schematem; sprawdzian <code>checkSafe</code> jest niezależny od renderera i działa na przykładach specyfikacji, korpusie, liście ataków oraz w <code>FuzzRender</code></td>
+</tr>
+<tr>
+<td>API</td>
+<td><code>TestConverterAPI</code>, <code>TestHeadingIDs</code></td>
+<td>dwa kroki <code>Parse</code> i <code>HTML</code>, powtarzalność i równoległość, identyfikatory nagłówków</td>
+</tr>
+<tr>
+<td>punkty rozszerzeń</td>
+<td><code>TestCodeBlockRendererInput</code>, <code>TestCodeBlockRendererOutput</code>, <code>TestReferences</code>, <code>TestExtensionErrors</code></td>
+<td>co dostaje funkcja wywołującego, gdzie trafia jej wynik, bezpieczeństwo odnośników z odwołań, przerwanie na pierwszym błędzie ze stałym kodem i pozycją</td>
+</tr>
+<tr>
+<td>rozszerzenia spoza GFM</td>
+<td><code>TestAlerts</code>, <code>TestFootnotes</code>, <code>testdata/corpus-extras/</code></td>
+<td>bloki uwag i przypisy według <code>EXT-005</code> i <code>EXT-006</code>; ten katalog korpusu ma własny konwerter i nie wchodzi do porównania z odniesieniem</td>
+</tr>
+<tr>
+<td>publiczne drzewo</td>
+<td><code>TestWalk</code></td>
+<td>każdy rodzaj węzła z pozycją i cechami widziany przez <code>Document.Walk</code>; pary wejście–wyjście; równoległość z renderowaniem</td>
+</tr>
+<tr>
+<td>powtarzalność</td>
+<td><code>TestDeterministic</code></td>
+<td>kilka renderowań daje ten sam wynik</td>
+</tr>
+<tr>
+<td>odporność</td>
+<td><code>FuzzRender</code></td>
+<td>dowolne wejście: bez paniki, poprawny fragment HTML (<code>checkFragment</code>), wynik powtarzalny; ziarna: wszystkie przykłady obu specyfikacji</td>
+</tr>
+<tr>
+<td>patologiczne</td>
+<td><code>TestPathological</code></td>
+<td>głębokie zagnieżdżenia, długie serie ograniczników i nawiasów, wiele odsyłaczy: czas rośnie liniowo (porównanie dwóch rozmiarów różniących się 16 razy)</td>
+</tr>
+<tr>
+<td>drzewo i pozycje</td>
+<td><code>TestBlockPositions</code>, <code>TestInlinePositions</code>, <code>TestReferenceDefinitions</code></td>
+<td>rodzaje węzłów z wierszem i kolumną (ADR 0003); zapisane definicje odsyłaczy</td>
+</tr>
+<tr>
+<td>wydajność</td>
+<td><code>BenchmarkCorpus</code> w <code>tools/compare</code></td>
+<td>porównanie z <code>goldmark</code> (kryterium K7) na przykładach specyfikacji, korpusie własnym i dużym dokumencie</td>
+</tr>
+<tr>
+<td>pakiet dowodów</td>
+<td><code>tools/evidence</code></td>
+<td>wymagania → testy → wynik ostatniego przebiegu (kryterium K9)</td>
+</tr>
+</tbody>
+</table>
+<p>Stan po etapie 5 i pierwszej części etapu 6: istnieją wszystkie warstwy. <code>TestPathological</code>
+obejmuje strukturę bloków (15 przypadków), treść w wierszu (42, lista <code>pathologicalInlines</code>) i rozszerzenia
+GFM, odwołania w wierszu, bloki uwag i przypisy (35, lista <code>pathologicalGFM</code>); wszystkie są mierzone
+z włączonymi wszystkimi rozszerzeniami.</p>
+<p><code>TestPathological</code> mierzy czas, więc zależy od maszyny: odśmiecanie pamięci jest na czas pomiaru wyłączone,
+liczy się najlepszy z trzech przebiegów, a przekroczenie progu jest sprawdzane drugi raz. Pomiar kontrolny
+z 2026-11-21 (160 tys. zagnieżdżonych cytatów w jednym wierszu): parsowanie 41–62 ns na poziom, renderowanie
+147–205 ns na poziom przy rozmiarach od 10 tys. do 640 tys., czyli wzrost liniowy; różnica między małym a dużym
+rozmiarem to koszt pamięci podręcznej procesora, nie algorytmu. <code>go test -short</code> pomija ten test.</p>
+<h2>Przykłady specyfikacji i próg</h2>
+<p>Teksty specyfikacji leżą w <code>testdata/spec/</code> (pochodzenie i sumy: <code>testdata/spec/README.md</code>, decyzja: ADR 0002).
+Przykłady wyciąga <code>internal/spectest</code>; jego test pilnuje liczby 652 dla CommonMark i 24 w pięciu rozdziałach
+rozszerzeń GFM.</p>
+<p><code>testdata/spec/passing-commonmark.txt</code> i <code>passing-gfm.txt</code> to listy numerów zaliczonych przykładów:</p>
+<ul>
+<li>przykład spoza listy, który nie przechodzi, nie psuje testu (parser dopiero powstaje);</li>
+<li>przykład z listy, który przestał przechodzić, psuje test — liczba zaliczonych nie spada niezauważenie;</li>
+<li>przykład, który zaczął przechodzić, a nie ma go na liście, też psuje test, żeby lista nie zostawała w tyle.</li>
+</ul>
+<pre><code class="language-sh">go test -update .          # przepisuje obie listy; różnicę ogląda się w git diff
+go test -v -run TestSpec . # liczby zaliczonych na rozdział
+</code></pre>
+<p>Usunięcie numeru z listy wymaga wpisu w opisie commita, dlaczego.</p>
+<h2>Fuzzing</h2>
+<pre><code class="language-sh">go test -run xxx -fuzz FuzzRender -fuzztime 10m .
+</code></pre>
+<p>Czas fuzzingu sumujemy w tabeli pomiarów (kryterium K5: 24 h łącznie). Wejścia, które wywołały błąd, Go zapisuje
+w <code>testdata/fuzz/FuzzRender/</code>; trafiają do repozytorium jako testy regresji.</p>
+<h2>Porównanie z parserem odniesienia</h2>
+<p><code>tools/compare</code> to osobny moduł (<code>tools/compare/go.mod</code>, jedyne miejsce z zależnością od <code>goldmark</code>). Renderuje
+każde wejście przez <code>gomdgo</code> i <code>goldmark</code>, normalizuje oba wyniki (<code>internal/htmlnorm</code>) i liczy zgodne.
+Dla przykładów specyfikacji podaje też zgodność każdego z parserów ze specyfikacją.</p>
+<pre><code class="language-sh">cd tools/compare
+go run . -spec ../../testdata/spec/commonmark-0.31.2.txt -spec ../../testdata/spec/gfm-0.29.txt \
+    -out ../../out/compare ../../testdata/corpus/*.md
+</code></pre>
+<p>Normalizacja uznaje za nieistotne: białe znaki przy znacznikach blokowych i serie białych znaków poza <code>&lt;pre&gt;</code>,
+kolejność i zapis atrybutów, <code>&lt;br /&gt;</code> wobec <code>&lt;br&gt;</code>, znak zapisany wprost albo odwołaniem znakowym. Jej poprawność
+potwierdza pomiar: <code>goldmark</code> po normalizacji zalicza 652 z 652 przykładów CommonMark.</p>
+<p>Dwa tryby porównania:</p>
+<ul>
+<li>zwykły: <code>goldmark</code> z <code>html.WithUnsafe()</code>, <code>gomdgo</code> z <code>Config{RawHTML: RawHTMLPass, AnyScheme: true}</code>, bo tego
+oczekują przykłady specyfikacji; dla przykładów CommonMark oba parsery są bez rozszerzeń (<code>Disable: GFM</code>),
+dla rozdziałów rozszerzeń GFM i dla korpusu własnego oba je mają. Odniesienie zapisuje wtedy wyrównanie kolumn w atrybucie <code>align</code>
+(<code>-refalign=attribute</code>, domyślnie); z <code>-refalign=style</code> odniesienie ma ustawienia domyślne, a <code>gomdgo</code>
+opcje zgodności <code>SingleTilde</code> i <code>TableAlignStyle</code> (ADR 0008);</li>
+<li><code>-safe</code>: <code>goldmark</code> z ustawieniami domyślnymi, <code>gomdgo</code> z <code>Config{RawHTML: RawHTMLOmit}</code>; komentarz, który
+<code>goldmark</code> wstawia w miejscu pominiętego HTML, jest usuwany przed normalizacją. Zgodności ze specyfikacją
+w tym trybie się nie liczy.</li>
+</ul>
+<p>Polityki domyślnej <code>gomdgo</code> (<code>RawHTMLEscape</code>) nie da się porównać z <code>goldmark</code>, bo ten jej nie ma.</p>
+<h2>Pomiary</h2>
+<p>Wyniki zapisujemy tutaj z datą, wersją i sposobem pomiaru. CommonMark i GFM: <code>go test -v -run TestSpec .</code>,
+porównanie co do bajta. Zgodność z <code>goldmark</code>: <code>tools/compare</code> na przykładach obu specyfikacji (676 wejść),
+po normalizacji.</p>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Commit</th>
+<th>CommonMark</th>
+<th>GFM</th>
+<th>Zgodność z <code>goldmark</code></th>
+<th>Uwagi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-11-21</td>
+<td><code>cc7051d</code> (etap 0)</td>
+<td>80 / 652</td>
+<td>1 / 24</td>
+<td>88 / 676 (13,0%), <code>goldmark</code> v1.8.7</td>
+<td>zaślepka <code>Render</code> bez parsera: wynik przypadkowy, poziom zerowy miary; fuzzing 20 s (2,9 mln wywołań) bez błędu</td>
+</tr>
+<tr>
+<td>2026-11-21</td>
+<td><code>41b1f76</code> (etap 1)</td>
+<td>343 / 652</td>
+<td>2 / 24</td>
+<td>345 / 676 (51,0%) na przykładach specyfikacji; korpus własny 4 / 4; <code>goldmark</code> v1.8.7</td>
+<td>struktura bloków bez treści w wierszu; rozdziały Tabs, Precedence, Indented code blocks, Blank lines, Block quotes, List items i Lists zaliczone w całości (124 / 124), w pozostałych rozdziałach blokowych brakuje tylko przykładów wymagających treści w wierszu; fuzzing łącznie 125 s bez błędu</td>
+</tr>
+<tr>
+<td>2026-11-21</td>
+<td><code>a38663e</code> (etap 2)</td>
+<td><strong>652 / 652</strong></td>
+<td>2 / 24</td>
+<td>654 / 676 (96,7%) na przykładach specyfikacji, w tym CommonMark 652 / 652; korpus własny 6 / 6; <code>goldmark</code> v1.8.7</td>
+<td>treść w wierszu; K1 spełnione przy porównaniu co do bajta; brakujące 22 przykłady to rozszerzenia GFM (etap 4); fuzzing łącznie 215 s (ok. 5 mln wywołań w ostatnim przebiegu) bez błędu</td>
+</tr>
+<tr>
+<td>2026-11-21</td>
+<td><code>29b7f7d</code> (etap 3)</td>
+<td>652 / 652</td>
+<td>2 / 24</td>
+<td>tryb zwykły: 654 / 676 (96,7%), CommonMark 652 / 652, korpus 6 / 6; tryb <code>-safe</code>: CommonMark 648 / 652 (99,4%), korpus 6 / 6; <code>goldmark</code> v1.8.7</td>
+<td>API z ADR 0005, polityka surowego HTML, lista schematów, identyfikatory nagłówków, niepoprawny UTF-8 (ADR 0004); 4 różnice trybu bezpiecznego to wpis 1 w <code>differences.md</code>; fuzzing łącznie 315 s, od tego etapu ze sprawdzianem bezpieczeństwa (7 mln wywołań w ostatnim przebiegu), bez błędu</td>
+</tr>
+<tr>
+<td>2026-11-21</td>
+<td><code>6189ebb</code> (etap 4)</td>
+<td>652 / 652</td>
+<td><strong>24 / 24</strong></td>
+<td>tryb zwykły, 683 wejścia (676 przykładów + 7 plików korpusu): 681 (99,7%) z <code>-refalign=attribute</code>; 681 (99,7%) z <code>-refalign=style</code>, czyli odniesienie domyślne wobec <code>gomdgo</code> z opcjami zgodności (bez nich 680); tryb <code>-safe</code>: 677 (99,1%); <code>goldmark</code> v1.8.7</td>
+<td>lista schematów z <code>tel</code>; rozszerzenia GFM (domyślnie włączone, <code>Config.Disable</code> je wyłącza), opcje zgodności i limit dopełniania tabel (ADR 0007, 0008); CommonMark mierzony z <code>Disable: GFM</code>; K2 spełnione przy porównaniu co do bajta; wszystkie różnice opisane w <code>differences.md</code> (wiersze 1–8); <code>TestPathological</code> ma 80 przypadków; fuzzing łącznie 465 s, bez błędu</td>
+</tr>
+<tr>
+<td>2026-11-21</td>
+<td><code>6ebd995</code> (etap 5)</td>
+<td>652 / 652</td>
+<td>24 / 24</td>
+<td>bez zmian: 681 / 683 (99,7%); tryb <code>-safe</code> 677 / 683</td>
+<td>punkty rozszerzeń (ADR 0009), publiczne drzewo <code>Document.Walk</code> (ADR 0010), bloki uwag i przypisy (ADR 0011); żadne z nich nie zmienia wyniku przy ustawieniach domyślnych; <code>TestPathological</code> ma 92 przypadki; fuzzing łącznie 615 s, także z punktami rozszerzeń, blokami uwag i przypisami, bez błędu</td>
+</tr>
+<tr>
+<td>2026-11-21</td>
+<td>etap 6, część 1, przed commitem</td>
+<td>652 / 652</td>
+<td>24 / 24</td>
+<td>przykłady specyfikacji i korpus własny: 681 / 683 (99,7%), tryb <code>-safe</code> 677 / 683; dokumenty rzeczywiste: 122 / 123 (99,2%), tryb <code>-safe</code> 123 / 123</td>
+<td>K7 zmierzone: stosunek czasu 0,42–0,72 wobec <code>goldmark</code> (sekcja „Wydajność”); K9: generator pakietu dowodów; komórki dopełnione bez wyrównania (ADR 0007); fuzzing: przebiegi 30 min (125,9 mln wywołań) i 60 min (127,1 mln wywołań, 2026-11-22) na 4 rdzeniach, bez błędu; łącznie 6015 s (1 h 40 min) z wymaganych 24 h</td>
+</tr>
+</tbody>
+</table>
+<p>Pomiar samego odniesienia, 2026-11-21, <code>goldmark</code> v1.8.7, po normalizacji: CommonMark 652 / 652; rozszerzenia GFM
+22 / 24. Dwa odstępstwa od specyfikacji GFM są zapisane w <code>differences.md</code> jako zapowiedziane różnice.</p>
+<h2>Dokumenty rzeczywiste</h2>
+<p>Korpus własny jest pisany pod wymagania, więc nie zastąpi dokumentów pisanych przez ludzi w innym celu. Dopóki
+nie ma dokumentów odbiorców, rolę tę pełnią pliki Markdown z projektów rodziny: <code>../gopdfgo</code>, <code>../gomermaidgo</code>
+i samo <code>gomdgo</code> (dokumentacja, decyzje, wymagania, przeglądy), bez katalogów <code>testdata</code>, <code>tests</code>, <code>out</code> i kopii
+roboczych, po odrzuceniu plików o identycznej treści. Pliki nie są kopiowane do repozytorium; listę podaje się
+do <code>tools/compare</code> jako argumenty.</p>
+<p>Pomiar z 2026-11-21, <code>goldmark</code> v1.8.7, 123 dokumenty, 948 kB:</p>
+<table>
+<thead>
+<tr>
+<th>Tryb</th>
+<th>Identyczne</th>
+<th>Różnice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>zwykły (<code>-refalign=attribute</code>)</td>
+<td>122 (99,2%)</td>
+<td><code>0033-tagged-pdf.md</code>: <code>&lt;title&gt;</code> w zdaniu, filtr znaczników (wiersz 3 w <code>differences.md</code>)</td>
+</tr>
+<tr>
+<td>zwykły, odniesienie domyślne i opcje zgodności (<code>-refalign=style</code>)</td>
+<td>122 (99,2%)</td>
+<td>ta sama</td>
+</tr>
+<tr>
+<td>bezpieczny (<code>-safe</code>)</td>
+<td>123 (100%)</td>
+<td>brak</td>
+</tr>
+</tbody>
+</table>
+<p>Przed tym pomiarem identycznych było 121: drugą różnicą było wyrównanie w dopełnionych komórkach tabeli
+(README jednego z projektów). Specyfikacja tego nie rozstrzyga, więc przyjęliśmy zachowanie odniesienia
+(wiersz 4 w <code>differences.md</code>, ADR 0007). Pomiar nie wykrył błędu w <code>gomdgo</code>.</p>
+<h2>Wydajność (K7)</h2>
+<pre><code class="language-sh">cd tools/compare
+go test -run xxx -bench BenchmarkCorpus -benchtime 2s -count 5 .
+GOMDGO_BENCH_FILES=&quot;$(cat lista-plików.txt)&quot; go test -run xxx -bench BenchmarkCorpus .   # zestaw extra
+</code></pre>
+<p>Oba parsery mają ustawienia z porównania różnicowego. Pomiar z 2026-11-21, Apple M-series (10 rdzeni),
+Go 1.26.6, <code>goldmark</code> v1.8.7, <code>-benchtime 1s -count 3</code>, mediana; w tle działał fuzzing na 4 rdzeniach, więc
+czasy bezwzględne są zawyżone, a miarodajny jest stosunek:</p>
+<table>
+<thead>
+<tr>
+<th>Zestaw</th>
+<th align="right"><code>gomdgo</code></th>
+<th align="right"><code>goldmark</code></th>
+<th align="right">Stosunek czasu</th>
+<th align="right">Pamięć <code>gomdgo</code> / <code>goldmark</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>spec: 652 przykłady CommonMark, osobno</td>
+<td align="right">1,20 ms</td>
+<td align="right">2,85 ms</td>
+<td align="right">0,42</td>
+<td align="right">1,5 MB / 4,4 MB</td>
+</tr>
+<tr>
+<td>corpus: 7 plików korpusu własnego, osobno</td>
+<td align="right">0,23 ms</td>
+<td align="right">0,39 ms</td>
+<td align="right">0,58</td>
+<td align="right">0,29 MB / 0,26 MB</td>
+</tr>
+<tr>
+<td>large: jeden dokument 258 kB</td>
+<td align="right">13,8 ms</td>
+<td align="right">19,3 ms</td>
+<td align="right">0,72</td>
+<td align="right">13,5 MB / 10,5 MB</td>
+</tr>
+<tr>
+<td>extra: 123 dokumenty rzeczywiste, 948 kB</td>
+<td align="right">20,1 ms</td>
+<td align="right">30,9 ms</td>
+<td align="right">0,65</td>
+<td align="right">20,6 MB / 17,8 MB</td>
+</tr>
+</tbody>
+</table>
+<p>K7 wymaga stosunku najwyżej 2; we wszystkich zestawach jest poniżej 1. <code>gomdgo</code> zużywa na dużych dokumentach
+o 16–29% więcej pamięci, przy mniejszej liczbie alokacji; kryterium tego nie obejmuje.</p>
+<h2>Pakiet dowodów (K9)</h2>
+<pre><code class="language-sh">go run ./tools/evidence -o out/evidence.md
+</code></pre>
+<p>Narzędzie czyta <code>requirements/</code>, odwołania <code>REQ:</code> w testach i plikach korpusu, uruchamia <code>go test -count=1 -json ./...</code> i zapisuje dla każdego wymagania jego treść, testy i wynik, z datą, commitem i wersją Go. Kończy się
+kodem błędu, gdy któreś wymaganie nie ma testu albo test nie przeszedł. Wynik jest poza repozytorium (<code>out/</code>),
+bo opisuje konkretny przebieg; generuje się go dla commita, który ma być przekazany odbiorcy.</p>
+<p>Przebieg z 2026-11-21: 54 wymagania, wszystkie z dowodem; 44 testy, wszystkie przeszły; K1 652 z 652,
+K2 24 z 24.</p>
+</body></html>

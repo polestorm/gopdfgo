@@ -1,0 +1,25 @@
+{
+ "chrome": "Google Chrome 158.0.8127.88 ",
+ "command": "--headless --disable-gpu --no-pdf-header-footer --print-to-pdf=<out>.pdf file://<html>",
+ "date": "2026-11-26T11:33:37Z",
+ "files": {
+  "esf-1": "c0cbd9a97bfea8fec18d34a6ddead738de4d38544665e751a953448475a6d147",
+  "esf-2": "0fe1e80dea00cfcd27527f57f997cea7d4278cae952d555b8d44742eb011442d",
+  "esf-3": "1725b19567513a2328a5e2183ba6cb8e896451ed91ec0cbddddeb1caee0443cc",
+  "esf-4": "c9a3cca789a2f02fd1d9089d2e56e05ee9788713e32ad5d53679b4cf43bdad8c",
+  "esf-5": "ed41756ac3c2b509651d4bcad7ada7891225e6bf5e3898b2633911a4c2563674",
+  "invoice-a-basic": "dc63f1a8458acf41e069d86c75e556357bdd26b71c2a699449248575306cbc5e",
+  "invoice-b-60rows": "5c640cd8b731d1f98cac8b9e94634325fbdaf0aee77ee635e419b1f1ba27cb1a",
+  "invoice-c-rates-transfer": "93683c688e96869e10680eb7e93284dc2912bb6833af5ab133a807e85be230c6",
+  "invoice-d-140rows": "f3b4523450d481e0c7337d9351c314b412e63eb1b54f5561621c14232b09ad87",
+  "md-gomdgo-testing": "7466f8bc3da86e615a556003299959c0ddaff4512242554ee28b91024fad5c66",
+  "md-gopdfgo-overview": "09de5fec2e190d16581e915dafcf5c8936e9a2b68a9b12cff92f071df7ca1b6a",
+  "mmd-p6": "fec69afd243c258343da219f26ad988aac6bde71ff915cb974595bad1e3b34d4",
+  "office-agreement": "e03ddbd9bbda8498fac9d89b0ed1368e7a55f93ebaf87400ee5b063d8c485ca5",
+  "office-db-model": "570ca316e796ca973a1a1c1559a792dba3ebab8324afd57277954bd4010b9be2",
+  "office-terminology": "131f84d6324ad8a19ec2f669fb925518748934129bb540bf6f88760bea77caa9",
+  "office-usb-protocol": "69a29faba7d92967d8294a7049f6cdf397c99ce943936bc0bf124459572a8699",
+  "rand-01": "7649e986ba5200ba34f62c6a787f8832f8856dfced023e1da4244bcb9992bb3f",
+  "rand-12": "9d7dc41060aca03e40feb4a888007016d3165e9e0aacb42f9360f9d15ca938c7"
+ }
+}

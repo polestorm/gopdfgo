@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pl"><head><meta charset="utf-8"><title>Sprawozdanie finansowe Modelowa Logistyka sp. z o.o.</title><style>
+@page { size: A4; margin: 18mm 12mm 16mm 12mm;
+  @top-left { content: string(company); font-size: 7.5pt; color: #555; }
+  @top-right { content: "Sprawozdanie finansowe za rok 2025"; font-size: 7.5pt; color: #555; }
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 7.5pt; color: #555; } }
+html { font-family: "Noto Sans"; font-size: 9pt; line-height: 1.35; color: #1f2937; }
+body { margin: 0; }
+h1 { font-size: 15pt; margin: 0 0 2mm; string-set: company content(); }
+h2 { font-size: 11.5pt; margin: 6mm 0 2mm; padding-bottom: 1mm; border-bottom: 0.6pt solid #9ca3af; break-after: avoid; }
+h3 { font-size: 9.5pt; margin: 4mm 0 1.5mm; break-after: avoid; }
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 1mm 5mm; margin: 3mm 0; }
+.meta dt { color: #6b7280; }
+.meta dd { margin: 0; }
+.status { display: flex; flex-wrap: wrap; gap: 2mm; margin: 3mm 0; }
+.badge { display: inline-flex; align-items: center; gap: 1mm; border: 0.5pt solid #d1d5db; border-radius: 3mm; padding: 0.6mm 2.5mm; font-size: 8pt; }
+.badge svg { width: 3.2mm; height: 3.2mm; flex-shrink: 0; }
+table.fs { width: 100%; border-collapse: collapse; margin: 1mm 0 3mm; }
+table.fs th { font-size: 7.5pt; text-align: right; color: #4b5563; border-bottom: 0.6pt solid #374151; padding: 1mm 1.5mm; vertical-align: bottom; }
+table.fs th:first-child, table.fs th:nth-child(2) { text-align: left; }
+table.fs td { padding: 0.8mm 1.5mm; border-bottom: 0.3pt solid #e5e7eb; vertical-align: top; }
+table.fs td.n { text-align: right; white-space: nowrap; font-family: "Noto Sans Mono"; font-size: 8pt; }
+table.fs td.m { white-space: nowrap; color: #4b5563; }
+table.fs tr.l0 td { font-weight: bold; background: #f3f4f6; }
+table.fs tr.l1 td.t { padding-left: 4mm; }
+table.fs tr.l2 td.t { padding-left: 8mm; }
+table.fs tr.l3 td.t { padding-left: 12mm; font-style: italic; }
+table.fs tr { break-inside: avoid; }
+table.fs thead { display: table-header-group; }
+details { margin: 2mm 0; border: 0.4pt solid #e5e7eb; border-radius: 1.5mm; padding: 1mm 3mm; }
+summary { font-weight: bold; }
+.note p { margin: 1mm 0; text-align: justify; hyphens: auto; }
+.sign { display: flex; justify-content: space-between; margin-top: 12mm; break-inside: avoid; }
+.sign div { width: 45%; border-top: 0.4pt solid #6b7280; padding-top: 1mm; font-size: 8pt; text-align: center; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+</style></head><body>
+<h1>Modelowa Logistyka sp. z o.o.</h1>
+<div>Sprawozdanie finansowe za okres od 2025-01-01 do 2025-12-31 (dane zmyślone)</div>
+<div class="status"><span class="badge"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 10.4L3.6 8l1.1-1.1L7 9.2l4.3-4.3 1.1 1.1z" fill="#16a34a"/></svg>Zgodne ze schematem</span><span class="badge"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 10.4L3.6 8l1.1-1.1L7 9.2l4.3-4.3 1.1 1.1z" fill="#16a34a"/></svg>Sumy kontrolne poprawne</span><span class="badge"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.8 11H7.2V7h1.6zm0-6.4H7.2V4h1.6z" fill="#0284c7"/></svg>Wariant porównawczy rachunku zysków i strat</span></div>
+<h2>Wprowadzenie do sprawozdania finansowego</h2><dl class="meta"><dt>Nazwa</dt><dd>Modelowa Logistyka sp. z o.o.</dd><dt>Siedziba</dt><dd>Warszawa, mazowieckie</dd><dt>Adres</dt><dd>ul. Przykładowa 15, 00-001 Warszawa</dd><dt>KRS</dt><dd>0000955669</dd><dt>NIP</dt><dd>5680062611</dd><dt>Rodzaj działalności (PKD)</dt><dd>46.66.Z Sprzedaż hurtowa pozostałych maszyn i urządzeń biurowych</dd><dt>Okres</dt><dd>2025-01-01 – 2025-12-31</dd><dt>Dzień bilansowy</dt><dd>2025-12-31</dd><dt>Kontynuacja działalności</dt><dd>tak</dd><dt>Jednostka</dt><dd>złote polskie</dd></dl>
+<p class="note">Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących.</p>
+<h2>Bilans – aktywa</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Stan na 2025-12-31</th><th>Stan na 2024-12-31</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Aktywa trwałe</td><td class="n">71 223 590,64</td><td class="n">45 382 770,77</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Wartości niematerialne i prawne</td><td class="n">2 702 218,19</td><td class="n">2 014 592,37</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Koszty zakończonych prac rozwojowych</td><td class="n">3 143 355,36</td><td class="n">2 621 154,56</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wartość firmy</td><td class="n">3 631 785,22</td><td class="n">2 772 802,08</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Inne wartości niematerialne i prawne</td><td class="n">728 594,11</td><td class="n">3 212 080,49</td></tr>
+<tr class="l2"><td class="m">4.</td><td class="t">Zaliczki na wartości niematerialne i prawne</td><td class="n">3 494 001,80</td><td class="n">5 312 178,97</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Rzeczowe aktywa trwałe</td><td class="n">0,00</td><td class="n">6 306 647,89</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Środki trwałe</td><td class="n">4 834 656,63</td><td class="n">5 368 769,83</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">grunty (w tym prawo użytkowania wieczystego gruntu)</td><td class="n">557 175,97</td><td class="n">703 974,44</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">budynki, lokale, prawa do lokali i obiekty inżynierii lądowej i wodnej</td><td class="n">308 967,62</td><td class="n">715 405,84</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">urządzenia techniczne i maszyny</td><td class="n">0,00</td><td class="n">852 716,15</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">środki transportu</td><td class="n">0,00</td><td class="n">949 958,75</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">inne środki trwałe</td><td class="n">695 408,04</td><td class="n">182 944,94</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Środki trwałe w budowie</td><td class="n">1 684 811,97</td><td class="n">1 164 350,78</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Zaliczki na środki trwałe w budowie</td><td class="n">2 726 704,59</td><td class="n">2 287 904,98</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Należności długoterminowe</td><td class="n">6 989 707,98</td><td class="n">14 505 663,33</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Inwestycje długoterminowe</td><td class="n">16 390 963,32</td><td class="n">15 377 232,57</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Nieruchomości</td><td class="n">5 853 806,75</td><td class="n">2 648 617,95</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wartości niematerialne i prawne</td><td class="n">695 867,72</td><td class="n">2 740 889,98</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Długoterminowe aktywa finansowe</td><td class="n">1 070 442,69</td><td class="n">427 863,47</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Długoterminowe rozliczenia międzyokresowe</td><td class="n">9 973 790,21</td><td class="n">16 268 323,41</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Aktywa z tytułu odroczonego podatku dochodowego</td><td class="n">759 527,66</td><td class="n">2 549 370,92</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Inne rozliczenia międzyokresowe</td><td class="n">216 788,13</td><td class="n">1 782 697,81</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Aktywa obrotowe</td><td class="n">32 952 972,19</td><td class="n">86 450 460,11</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Zapasy</td><td class="n">18 281 616,63</td><td class="n">10 281 778,54</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Materiały</td><td class="n">667 634,78</td><td class="n">1 409 211,15</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Półprodukty i produkty w toku</td><td class="n">5 197 070,03</td><td class="n">1 637 827,20</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Produkty gotowe</td><td class="n">4 564 695,33</td><td class="n">3 289 076,33</td></tr>
+<tr class="l2"><td class="m">4.</td><td class="t">Towary</td><td class="n">17 524,93</td><td class="n">3 178 237,98</td></tr>
+<tr class="l2"><td class="m">5.</td><td class="t">Zaliczki na dostawy i usługi</td><td class="n">1 820 184,25</td><td class="n">91 798,71</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Należności krótkoterminowe</td><td class="n">0,00</td><td class="n">14 239 770,37</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Należności od jednostek powiązanych</td><td class="n">1 466 912,03</td><td class="n">3 083 780,33</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Należności od pozostałych jednostek, w których jednostka posiada zaangażowanie w kapitale</td><td class="n">2 124 948,54</td><td class="n">5 060 725,44</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Należności od pozostałych jednostek</td><td class="n">2 092 300,44</td><td class="n">5 698 954,79</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">z tytułu dostaw i usług, o okresie spłaty do 12 miesięcy</td><td class="n">0,00</td><td class="n">519 797,29</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu podatków, dotacji, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">273 953,74</td><td class="n">397 988,67</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Inwestycje krótkoterminowe</td><td class="n">5 527 434,63</td><td class="n">4 961 602,16</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Krótkoterminowe aktywa finansowe</td><td class="n">5 133 553,30</td><td class="n">4 230 677,74</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">środki pieniężne w kasie i na rachunkach</td><td class="n">0,00</td><td class="n">399 815,25</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Krótkoterminowe rozliczenia międzyokresowe</td><td class="n">0,00</td><td class="n">14 624 034,52</td></tr>
+<tr class="l0"><td class="m">C.</td><td class="t">Należne wpłaty na kapitał (fundusz) podstawowy</td><td class="n">79 161 989,75</td><td class="n">77 533 143,05</td></tr>
+<tr class="l0"><td class="m">D.</td><td class="t">Udziały (akcje) własne</td><td class="n">0,00</td><td class="n">16 226 365,52</td></tr>
+</tbody></table>
+<h2>Bilans – pasywa</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Stan na 2025-12-31</th><th>Stan na 2024-12-31</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Kapitał (fundusz) własny</td><td class="n">72 085 064,98</td><td class="n">3 069 070,99</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Kapitał (fundusz) podstawowy</td><td class="n">13 111 608,97</td><td class="n">19 276 049,40</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Kapitał (fundusz) zapasowy, w tym:</td><td class="n">3 632 128,27</td><td class="n">18 150 545,44</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">nadwyżka wartości sprzedaży (wartości emisyjnej) nad wartością nominalną udziałów (akcji)</td><td class="n">4 062 150,39</td><td class="n">4 801 270,78</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Kapitał (fundusz) z aktualizacji wyceny</td><td class="n">7 420 477,39</td><td class="n">19 758 983,64</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Pozostałe kapitały (fundusze) rezerwowe</td><td class="n">11 613 197,56</td><td class="n">4 795 392,45</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Zysk (strata) z lat ubiegłych</td><td class="n">18 506 097,29</td><td class="n">366 030,07</td></tr>
+<tr class="l1"><td class="m">VI.</td><td class="t">Zysk (strata) netto</td><td class="n">0,00</td><td class="n">18 037 095,72</td></tr>
+<tr class="l1"><td class="m">VII.</td><td class="t">Odpisy z zysku netto w ciągu roku obrotowego (wielkość ujemna)</td><td class="n">2 630 048,73</td><td class="n">16 179 389,76</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Zobowiązania i rezerwy na zobowiązania</td><td class="n">38 322 364,15</td><td class="n">37 012 225,97</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Rezerwy na zobowiązania</td><td class="n">2 398 891,25</td><td class="n">7 396 147,21</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Rezerwa z tytułu odroczonego podatku dochodowego</td><td class="n">1 314 496,66</td><td class="n">5 626 954,28</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">1 311 669,26</td><td class="n">2 151 254,15</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Pozostałe rezerwy</td><td class="n">2 077 569,58</td><td class="n">4 139 078,72</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zobowiązania długoterminowe</td><td class="n">19 434 965,06</td><td class="n">2 215 978,15</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">4 581 785,62</td><td class="n">2 623 017,73</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wobec pozostałych jednostek</td><td class="n">4 283 707,65</td><td class="n">4 599 146,50</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">173 541,15</td><td class="n">916 909,54</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu emisji dłużnych papierów wartościowych</td><td class="n">32 180,10</td><td class="n">668 411,62</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Zobowiązania krótkoterminowe</td><td class="n">1 979 956,59</td><td class="n">19 154 975,54</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Zobowiązania wobec jednostek powiązanych</td><td class="n">4 839 358,73</td><td class="n">1 591 605,97</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">3 629 693,70</td><td class="n">2 010 504,47</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">207 886,89</td><td class="n">534 270,96</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">206 227,54</td><td class="n">647 415,30</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">zaliczki otrzymane na dostawy i usługi</td><td class="n">729 626,68</td><td class="n">398 616,02</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">z tytułu podatków, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">186 830,01</td><td class="n">120 152,07</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">z tytułu wynagrodzeń</td><td class="n">91 401,07</td><td class="n">883 769,12</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Fundusze specjalne</td><td class="n">4 325 225,46</td><td class="n">4 336 421,75</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Rozliczenia międzyokresowe</td><td class="n">6 044 629,90</td><td class="n">16 364 127,80</td></tr>
+</tbody></table>
+<h2>Rachunek zysków i strat (wariant porównawczy)</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>2025</th><th>2024</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Przychody netto ze sprzedaży i zrównane z nimi, w tym:</td><td class="n">73 328 248,01</td><td class="n">72 711 183,11</td></tr>
+<tr class="l1"><td class="m">–</td><td class="t">od jednostek powiązanych</td><td class="n">5 537 822,56</td><td class="n">804 956,16</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Przychody netto ze sprzedaży produktów</td><td class="n">3 399 854,61</td><td class="n">7 864 608,38</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zmiana stanu produktów (zwiększenie – wartość dodatnia, zmniejszenie – wartość ujemna)</td><td class="n">8 346 530,67</td><td class="n">16 987 278,39</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Koszt wytworzenia produktów na własne potrzeby jednostki</td><td class="n">8 616 262,11</td><td class="n">11 188 433,78</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Przychody netto ze sprzedaży towarów i materiałów</td><td class="n">18 969 777,15</td><td class="n">7 119 610,15</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Koszty działalności operacyjnej</td><td class="n">42 591 478,84</td><td class="n">68 532 770,95</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Amortyzacja</td><td class="n">7 668 668,45</td><td class="n">12 148 300,11</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zużycie materiałów i energii</td><td class="n">5 782 407,90</td><td class="n">11 056 222,62</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Usługi obce</td><td class="n">846 858,69</td><td class="n">14 672 629,89</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Podatki i opłaty, w tym:</td><td class="n">11 922 172,99</td><td class="n">8 879 847,24</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">podatek akcyzowy</td><td class="n">876 418,97</td><td class="n">4 761 992,11</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Wynagrodzenia</td><td class="n">6 064 238,36</td><td class="n">1 309 418,74</td></tr>
+<tr class="l1"><td class="m">VI.</td><td class="t">Ubezpieczenia społeczne i inne świadczenia, w tym:</td><td class="n">9 498 429,20</td><td class="n">8 584 446,00</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">emerytalne</td><td class="n">5 586 881,37</td><td class="n">5 562 851,15</td></tr>
+<tr class="l1"><td class="m">VII.</td><td class="t">Pozostałe koszty rodzajowe</td><td class="n">16 999 329,45</td><td class="n">11 183 886,03</td></tr>
+<tr class="l1"><td class="m">VIII.</td><td class="t">Wartość sprzedanych towarów i materiałów</td><td class="n">17 620 273,42</td><td class="n">1 322 805,81</td></tr>
+<tr class="l0"><td class="m">C.</td><td class="t">Zysk (strata) ze sprzedaży (A – B)</td><td class="n">58 343 057,14</td><td class="n">66 014 272,91</td></tr>
+<tr class="l0"><td class="m">D.</td><td class="t">Pozostałe przychody operacyjne</td><td class="n">0,00</td><td class="n">18 028 783,93</td></tr>
+<tr class="l0"><td class="m">E.</td><td class="t">Pozostałe koszty operacyjne</td><td class="n">38 797 254,70</td><td class="n">43 485 104,47</td></tr>
+<tr class="l0"><td class="m">F.</td><td class="t">Zysk (strata) z działalności operacyjnej (C + D – E)</td><td class="n">42 333 891,70</td><td class="n">47 957 002,05</td></tr>
+<tr class="l0"><td class="m">G.</td><td class="t">Przychody finansowe</td><td class="n">6 835 215,57</td><td class="n">25 831 137,89</td></tr>
+<tr class="l0"><td class="m">H.</td><td class="t">Koszty finansowe</td><td class="n">65 315 512,30</td><td class="n">86 113 082,36</td></tr>
+<tr class="l0"><td class="m">I.</td><td class="t">Zysk (strata) brutto (F + G – H)</td><td class="n">37 863 555,71</td><td class="n">80 970 658,25</td></tr>
+<tr class="l0"><td class="m">J.</td><td class="t">Podatek dochodowy</td><td class="n">69 099 529,30</td><td class="n">64 622 097,35</td></tr>
+<tr class="l0"><td class="m">K.</td><td class="t">Pozostałe obowiązkowe zmniejszenia zysku (zwiększenia straty)</td><td class="n">68 648 256,55</td><td class="n">85 853 976,20</td></tr>
+<tr class="l0"><td class="m">L.</td><td class="t">Zysk (strata) netto (I – J – K)</td><td class="n">21 491 450,07</td><td class="n">71 135 866,69</td></tr>
+</tbody></table>
+<h2>Rachunek przepływów pieniężnych (metoda pośrednia)</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>2025</th><th>2024</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Przepływy środków pieniężnych z działalności operacyjnej</td><td class="n">1 590 205,01</td><td class="n">51 132 413,85</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Zysk (strata) netto</td><td class="n">0,00</td><td class="n">9 983 031,28</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Korekty razem</td><td class="n">10 705 287,20</td><td class="n">10 282 549,26</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Amortyzacja</td><td class="n">454 122,40</td><td class="n">842 641,87</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zyski (straty) z tytułu różnic kursowych</td><td class="n">2 852 989,13</td><td class="n">3 662 810,69</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Odsetki i udziały w zyskach (dywidendy)</td><td class="n">2 222 364,21</td><td class="n">2 587 809,93</td></tr>
+<tr class="l2"><td class="m">4.</td><td class="t">Zmiana stanu rezerw</td><td class="n">3 293 494,85</td><td class="n">2 499 565,97</td></tr>
+<tr class="l2"><td class="m">5.</td><td class="t">Zmiana stanu zapasów</td><td class="n">3 629 735,43</td><td class="n">3 960 625,81</td></tr>
+<tr class="l2"><td class="m">6.</td><td class="t">Zmiana stanu należności</td><td class="n">3 147 659,62</td><td class="n">3 295 555,34</td></tr>
+<tr class="l2"><td class="m">7.</td><td class="t">Zmiana stanu zobowiązań krótkoterminowych, z wyjątkiem pożyczek i kredytów</td><td class="n">327 378,89</td><td class="n">4 065 300,90</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Przepływy pieniężne netto z działalności operacyjnej (I ± II)</td><td class="n">16 280 374,03</td><td class="n">7 005 372,81</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Przepływy środków pieniężnych z działalności inwestycyjnej</td><td class="n">31 657 782,25</td><td class="n">25 509 928,79</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Wpływy</td><td class="n">3 760 952,64</td><td class="n">11 090 239,48</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Wydatki</td><td class="n">18 372 811,60</td><td class="n">15 807 907,39</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Przepływy pieniężne netto z działalności inwestycyjnej (I – II)</td><td class="n">13 560 474,56</td><td class="n">19 891 258,23</td></tr>
+<tr class="l0"><td class="m">C.</td><td class="t">Przepływy środków pieniężnych z działalności finansowej</td><td class="n">18 734 691,25</td><td class="n">7 644 189,92</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Wpływy</td><td class="n">0,00</td><td class="n">18 171 067,64</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Wydatki</td><td class="n">28 342,32</td><td class="n">7 316 351,28</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Przepływy pieniężne netto z działalności finansowej (I – II)</td><td class="n">11 269 833,94</td><td class="n">3 116 704,22</td></tr>
+<tr class="l0"><td class="m">D.</td><td class="t">Przepływy pieniężne netto, razem (A.III ± B.III ± C.III)</td><td class="n">17 990 524,11</td><td class="n">27 860 926,89</td></tr>
+<tr class="l0"><td class="m">E.</td><td class="t">Bilansowa zmiana stanu środków pieniężnych, w tym:</td><td class="n">29 481 307,16</td><td class="n">51 737 713,13</td></tr>
+<tr class="l0"><td class="m">F.</td><td class="t">Środki pieniężne na początek okresu</td><td class="n">53 218 105,22</td><td class="n">44 862 837,32</td></tr>
+<tr class="l0"><td class="m">G.</td><td class="t">Środki pieniężne na koniec okresu (F ± D)</td><td class="n">0,00</td><td class="n">30 635 869,68</td></tr>
+</tbody></table>
+<h2>Informacja dodatkowa</h2>
+<details open class="note"><summary>Nota 1. Zasady (polityka) rachunkowości</summary>
+<p>Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. </p>
+</details>
+<details open class="note"><summary>Nota 2. Zmiany wartości niematerialnych i prawnych</summary>
+<p>Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. </p>
+</details>
+<div class="sign"><div>Osoba, której powierzono prowadzenie ksiąg rachunkowych<br>Anna Przykładowa</div><div>Zarząd<br>Jan Testowy, Prezes Zarządu</div></div>
+</body></html>

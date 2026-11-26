@@ -14,8 +14,9 @@ module tools/bench/folio-harness, folio pinned in its go.mod), then for every do
 - PDF size and page count (pdfinfo), warnings;
 - word positions against Chromium's PDF of the same document (wordalign.py).
 
-Documents: testdata/documents/*.html with references in testdata/documents/reference/chromium, and the book
-from testdata/books (fetch.sh) when it is there. -extra DIR adds DIR/html/*.html with references
+Documents: testdata/documents/*.html (the test corpus) and testdata/comparison/*.html (business documents with
+fictional content), each with Chromium's PDF in reference/chromium next to it, and the book from testdata/books
+(fetch.sh) when it is there. -extra DIR adds DIR/html/*.html with references
 DIR/chrome/*.pdf; such results are marked "public": false and are not used for the published comparison.
 
 Output: DIR/results.json (environment, commands, checksums of the harness binaries, raw results) and the PDFs;
@@ -99,6 +100,10 @@ def documents(extra):
         n = os.path.basename(f)[:-5]
         out.append(dict(name=n, html=f, root=os.path.join(TESTDATA, 'documents'), n=20, serif=False, public=True,
                         ref=os.path.join(TESTDATA, 'documents', 'reference', 'chromium', n + '.pdf')))
+    for f in sorted(glob.glob(os.path.join(TESTDATA, 'comparison', '*.html'))):
+        n = os.path.basename(f)[:-5]
+        out.append(dict(name=n, html=f, root=os.path.join(TESTDATA, 'comparison'), n=10, serif=False, public=True,
+                        ref=os.path.join(TESTDATA, 'comparison', 'reference', 'chromium', n + '.pdf')))
     book = os.path.join(TESTDATA, 'books', 'pride-and-prejudice', '1342-bench.htm')
     if os.path.exists(book):
         out.append(dict(name='book-1342', html=book, root=os.path.dirname(book), ref=None, n=3, serif=True, public=True))

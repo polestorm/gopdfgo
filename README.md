@@ -93,8 +93,8 @@ with its own layout engine and an HTML converter.
     time includes starting the browser; inside a running program through DevTools it still needs 0.42–0.46 s per
     document, so gopdfgo's whole process is 2.4–14 times faster than that. "3–14 times" compares whole processes on
     nine invoices and financial statements (Chromium 2026-11-20, gopdfgo 2026-11-23, [`docs/overview.md`](docs/overview.md));
-    these documents are not in the repository yet, so this ratio cannot be repeated from outside until they are
-    replaced by public ones (ADR 0055). Per-document numbers in [`docs/comparison.md`](docs/comparison.md).
+    it was measured on the original documents, which cannot be published; their public stand-ins are in
+    [`testdata/comparison`](testdata/comparison) and will replace them in the next measurement (ADR 0055). Per-document numbers in [`docs/comparison.md`](docs/comparison.md).
 [^pdf]: Untagged PDF, fonts embedded as subsets; Chromium through DevTools with the same font files
     (`docs/overview.md`). No medal: the files differ by less than 8%, and on 2026-11-20, with the fonts passed as
     `data:` URLs, Chromium's invoices were 17–26% smaller (`docs/chromium-comparison.md`, cause not

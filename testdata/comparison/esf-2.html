@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pl"><head><meta charset="utf-8"><title>Sprawozdanie finansowe Testowa Produkcja sp. z o.o.</title><style>
+@page { size: A4; margin: 18mm 12mm 16mm 12mm;
+  @top-left { content: string(company); font-size: 7.5pt; color: #555; }
+  @top-right { content: "Sprawozdanie finansowe za rok 2025"; font-size: 7.5pt; color: #555; }
+  @bottom-right { content: "Strona " counter(page) " z " counter(pages); font-size: 7.5pt; color: #555; } }
+html { font-family: "Noto Sans"; font-size: 9pt; line-height: 1.35; color: #1f2937; }
+body { margin: 0; }
+h1 { font-size: 15pt; margin: 0 0 2mm; string-set: company content(); }
+h2 { font-size: 11.5pt; margin: 6mm 0 2mm; padding-bottom: 1mm; border-bottom: 0.6pt solid #9ca3af; break-after: avoid; }
+h3 { font-size: 9.5pt; margin: 4mm 0 1.5mm; break-after: avoid; }
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 1mm 5mm; margin: 3mm 0; }
+.meta dt { color: #6b7280; }
+.meta dd { margin: 0; }
+.status { display: flex; flex-wrap: wrap; gap: 2mm; margin: 3mm 0; }
+.badge { display: inline-flex; align-items: center; gap: 1mm; border: 0.5pt solid #d1d5db; border-radius: 3mm; padding: 0.6mm 2.5mm; font-size: 8pt; }
+.badge svg { width: 3.2mm; height: 3.2mm; flex-shrink: 0; }
+table.fs { width: 100%; border-collapse: collapse; margin: 1mm 0 3mm; }
+table.fs th { font-size: 7.5pt; text-align: right; color: #4b5563; border-bottom: 0.6pt solid #374151; padding: 1mm 1.5mm; vertical-align: bottom; }
+table.fs th:first-child, table.fs th:nth-child(2) { text-align: left; }
+table.fs td { padding: 0.8mm 1.5mm; border-bottom: 0.3pt solid #e5e7eb; vertical-align: top; }
+table.fs td.n { text-align: right; white-space: nowrap; font-family: "Noto Sans Mono"; font-size: 8pt; }
+table.fs td.m { white-space: nowrap; color: #4b5563; }
+table.fs tr.l0 td { font-weight: bold; background: #f3f4f6; }
+table.fs tr.l1 td.t { padding-left: 4mm; }
+table.fs tr.l2 td.t { padding-left: 8mm; }
+table.fs tr.l3 td.t { padding-left: 12mm; font-style: italic; }
+table.fs tr { break-inside: avoid; }
+table.fs thead { display: table-header-group; }
+details { margin: 2mm 0; border: 0.4pt solid #e5e7eb; border-radius: 1.5mm; padding: 1mm 3mm; }
+summary { font-weight: bold; }
+.note p { margin: 1mm 0; text-align: justify; hyphens: auto; }
+.sign { display: flex; justify-content: space-between; margin-top: 12mm; break-inside: avoid; }
+.sign div { width: 45%; border-top: 0.4pt solid #6b7280; padding-top: 1mm; font-size: 8pt; text-align: center; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Regular.ttf") format("truetype"); font-weight: 400; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Bold.ttf") format("truetype"); font-weight: 700; }
+@font-face { font-family: "Noto Sans"; src: url("../fonts/NotoSans-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Noto Sans Mono"; src: url("../fonts/NotoSansMono-Regular.ttf") format("truetype"); }
+</style></head><body>
+<h1>Testowa Produkcja sp. z o.o.</h1>
+<div>Sprawozdanie finansowe za okres od 2025-01-01 do 2025-12-31 (dane zmyślone)</div>
+<div class="status"><span class="badge"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 10.4L3.6 8l1.1-1.1L7 9.2l4.3-4.3 1.1 1.1z" fill="#16a34a"/></svg>Zgodne ze schematem</span><span class="badge"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 10.4L3.6 8l1.1-1.1L7 9.2l4.3-4.3 1.1 1.1z" fill="#16a34a"/></svg>Sumy kontrolne poprawne</span><span class="badge"><svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.8 11H7.2V7h1.6zm0-6.4H7.2V4h1.6z" fill="#0284c7"/></svg>Wariant porównawczy rachunku zysków i strat</span></div>
+<h2>Wprowadzenie do sprawozdania finansowego</h2><dl class="meta"><dt>Nazwa</dt><dd>Testowa Produkcja sp. z o.o.</dd><dt>Siedziba</dt><dd>Warszawa, mazowieckie</dd><dt>Adres</dt><dd>ul. Przykładowa 15, 00-001 Warszawa</dd><dt>KRS</dt><dd>0000977226</dd><dt>NIP</dt><dd>7320636070</dd><dt>Rodzaj działalności (PKD)</dt><dd>46.66.Z Sprzedaż hurtowa pozostałych maszyn i urządzeń biurowych</dd><dt>Okres</dt><dd>2025-01-01 – 2025-12-31</dd><dt>Dzień bilansowy</dt><dd>2025-12-31</dd><dt>Kontynuacja działalności</dt><dd>tak</dd><dt>Jednostka</dt><dd>złote polskie</dd></dl>
+<p class="note">Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących.</p>
+<h2>Bilans – aktywa</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Stan na 2025-12-31</th><th>Stan na 2024-12-31</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Aktywa trwałe</td><td class="n">17 953 581,47</td><td class="n">14 049 464,03</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Wartości niematerialne i prawne</td><td class="n">12 285 004,69</td><td class="n">2 932 360,92</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Koszty zakończonych prac rozwojowych</td><td class="n">3 771 569,58</td><td class="n">2 541 499,61</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wartość firmy</td><td class="n">2 159 318,95</td><td class="n">5 265 774,01</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Inne wartości niematerialne i prawne</td><td class="n">420 298,00</td><td class="n">4 986 571,43</td></tr>
+<tr class="l2"><td class="m">4.</td><td class="t">Zaliczki na wartości niematerialne i prawne</td><td class="n">1 435 769,01</td><td class="n">5 105 939,74</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Rzeczowe aktywa trwałe</td><td class="n">8 716 318,92</td><td class="n">2 265 619,41</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Środki trwałe</td><td class="n">1 657 888,31</td><td class="n">3 788 536,90</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">grunty (w tym prawo użytkowania wieczystego gruntu)</td><td class="n">770 825,55</td><td class="n">649 016,11</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">budynki, lokale, prawa do lokali i obiekty inżynierii lądowej i wodnej</td><td class="n">687 240,44</td><td class="n">701 467,49</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">urządzenia techniczne i maszyny</td><td class="n">324 417,35</td><td class="n">220 337,72</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">środki transportu</td><td class="n">379 599,94</td><td class="n">207 426,40</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">inne środki trwałe</td><td class="n">0,00</td><td class="n">130 063,89</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Środki trwałe w budowie</td><td class="n">0,00</td><td class="n">4 217 018,48</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Zaliczki na środki trwałe w budowie</td><td class="n">0,00</td><td class="n">11 240,07</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Należności długoterminowe</td><td class="n">10 094 031,24</td><td class="n">12 917 772,35</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Inwestycje długoterminowe</td><td class="n">10 565 006,17</td><td class="n">11 329 293,22</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Nieruchomości</td><td class="n">3 068 380,72</td><td class="n">3 668 358,90</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wartości niematerialne i prawne</td><td class="n">5 536 518,40</td><td class="n">1 048 227,32</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Długoterminowe aktywa finansowe</td><td class="n">5 439 628,80</td><td class="n">410 723,81</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Długoterminowe rozliczenia międzyokresowe</td><td class="n">0,00</td><td class="n">12 370 998,94</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Aktywa z tytułu odroczonego podatku dochodowego</td><td class="n">1 364 927,29</td><td class="n">5 402 356,33</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Inne rozliczenia międzyokresowe</td><td class="n">3 766 147,25</td><td class="n">5 226 310,62</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Aktywa obrotowe</td><td class="n">0,00</td><td class="n">56 031 643,49</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Zapasy</td><td class="n">17 959 044,00</td><td class="n">10 050 184,80</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Materiały</td><td class="n">3 864 552,28</td><td class="n">2 556 769,49</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Półprodukty i produkty w toku</td><td class="n">315 323,05</td><td class="n">394 447,78</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Produkty gotowe</td><td class="n">717 663,21</td><td class="n">1 629 041,12</td></tr>
+<tr class="l2"><td class="m">4.</td><td class="t">Towary</td><td class="n">5 045 659,07</td><td class="n">2 753 032,88</td></tr>
+<tr class="l2"><td class="m">5.</td><td class="t">Zaliczki na dostawy i usługi</td><td class="n">1 068 577,22</td><td class="n">3 852 405,13</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Należności krótkoterminowe</td><td class="n">0,00</td><td class="n">5 975 885,78</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Należności od jednostek powiązanych</td><td class="n">467 223,18</td><td class="n">1 003 509,94</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Należności od pozostałych jednostek, w których jednostka posiada zaangażowanie w kapitale</td><td class="n">1 354 358,40</td><td class="n">3 866 376,41</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Należności od pozostałych jednostek</td><td class="n">2 084 972,83</td><td class="n">4 469 800,57</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">z tytułu dostaw i usług, o okresie spłaty do 12 miesięcy</td><td class="n">419 077,92</td><td class="n">371 860,23</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu podatków, dotacji, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">745 037,57</td><td class="n">413 694,06</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Inwestycje krótkoterminowe</td><td class="n">2 065 106,36</td><td class="n">19 923 014,44</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Krótkoterminowe aktywa finansowe</td><td class="n">5 029 568,34</td><td class="n">4 580 361,46</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">środki pieniężne w kasie i na rachunkach</td><td class="n">261 858,50</td><td class="n">80 186,46</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Krótkoterminowe rozliczenia międzyokresowe</td><td class="n">16 319 842,61</td><td class="n">7 867 901,05</td></tr>
+<tr class="l0"><td class="m">C.</td><td class="t">Należne wpłaty na kapitał (fundusz) podstawowy</td><td class="n">76 531 915,47</td><td class="n">53 122 055,66</td></tr>
+<tr class="l0"><td class="m">D.</td><td class="t">Udziały (akcje) własne</td><td class="n">0,00</td><td class="n">65 641 128,96</td></tr>
+</tbody></table>
+<h2>Bilans – pasywa</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Stan na 2025-12-31</th><th>Stan na 2024-12-31</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Kapitał (fundusz) własny</td><td class="n">53 511 543,05</td><td class="n">46 031 730,07</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Kapitał (fundusz) podstawowy</td><td class="n">17 433 716,72</td><td class="n">4 766 859,39</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Kapitał (fundusz) zapasowy, w tym:</td><td class="n">11 421 117,91</td><td class="n">6 993 460,18</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">nadwyżka wartości sprzedaży (wartości emisyjnej) nad wartością nominalną udziałów (akcji)</td><td class="n">0,00</td><td class="n">5 182 337,24</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Kapitał (fundusz) z aktualizacji wyceny</td><td class="n">9 201 214,09</td><td class="n">13 726 808,61</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Pozostałe kapitały (fundusze) rezerwowe</td><td class="n">4 061 629,05</td><td class="n">4 725 401,42</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Zysk (strata) z lat ubiegłych</td><td class="n">5 715 987,16</td><td class="n">1 216 604,60</td></tr>
+<tr class="l1"><td class="m">VI.</td><td class="t">Zysk (strata) netto</td><td class="n">19 558 718,89</td><td class="n">10 122 371,23</td></tr>
+<tr class="l1"><td class="m">VII.</td><td class="t">Odpisy z zysku netto w ciągu roku obrotowego (wielkość ujemna)</td><td class="n">14 360 641,24</td><td class="n">19 758 547,64</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Zobowiązania i rezerwy na zobowiązania</td><td class="n">0,00</td><td class="n">27 335 559,08</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Rezerwy na zobowiązania</td><td class="n">19 750 288,87</td><td class="n">3 573 135,60</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Rezerwa z tytułu odroczonego podatku dochodowego</td><td class="n">5 480 712,68</td><td class="n">3 452 971,84</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">125 766,79</td><td class="n">2 289 009,90</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Pozostałe rezerwy</td><td class="n">2 054 438,69</td><td class="n">5 512 100,50</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zobowiązania długoterminowe</td><td class="n">5 556 931,46</td><td class="n">3 497 542,19</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">4 910 227,41</td><td class="n">5 355 039,23</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wobec pozostałych jednostek</td><td class="n">1 791 158,71</td><td class="n">4 564 363,35</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">421 809,86</td><td class="n">666 574,68</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu emisji dłużnych papierów wartościowych</td><td class="n">53 118,68</td><td class="n">352 779,63</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Zobowiązania krótkoterminowe</td><td class="n">1 634 056,53</td><td class="n">4 830 200,89</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Zobowiązania wobec jednostek powiązanych</td><td class="n">1 144 095,89</td><td class="n">2 697 571,62</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">980 810,97</td><td class="n">3 303 889,05</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">242 035,43</td><td class="n">328 333,83</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">206 858,09</td><td class="n">405 890,56</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">zaliczki otrzymane na dostawy i usługi</td><td class="n">851 356,56</td><td class="n">419 368,22</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">z tytułu podatków, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">183 161,08</td><td class="n">783 998,41</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">z tytułu wynagrodzeń</td><td class="n">666 713,49</td><td class="n">246 539,88</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Fundusze specjalne</td><td class="n">449 625,78</td><td class="n">4 052 110,98</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Rozliczenia międzyokresowe</td><td class="n">0,00</td><td class="n">14 630 690,93</td></tr>
+</tbody></table>
+<h2>Rachunek zysków i strat (wariant porównawczy)</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>2025</th><th>2024</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Przychody netto ze sprzedaży i zrównane z nimi, w tym:</td><td class="n">83 653 750,16</td><td class="n">2 021 475,51</td></tr>
+<tr class="l1"><td class="m">–</td><td class="t">od jednostek powiązanych</td><td class="n">9 669 243,12</td><td class="n">5 656 570,13</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Przychody netto ze sprzedaży produktów</td><td class="n">14 916 108,26</td><td class="n">12 544 120,14</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zmiana stanu produktów (zwiększenie – wartość dodatnia, zmniejszenie – wartość ujemna)</td><td class="n">5 352 445,15</td><td class="n">2 105 642,27</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Koszt wytworzenia produktów na własne potrzeby jednostki</td><td class="n">19 045 399,05</td><td class="n">18 664 039,40</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Przychody netto ze sprzedaży towarów i materiałów</td><td class="n">0,00</td><td class="n">15 326 155,33</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Koszty działalności operacyjnej</td><td class="n">82 888 704,39</td><td class="n">9 968 329,58</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Amortyzacja</td><td class="n">14 820 211,98</td><td class="n">5 783 146,92</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zużycie materiałów i energii</td><td class="n">13 050 292,61</td><td class="n">4 002 134,26</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Usługi obce</td><td class="n">19 398 761,18</td><td class="n">12 519 141,83</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Podatki i opłaty, w tym:</td><td class="n">12 350 016,75</td><td class="n">11 065 527,28</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">podatek akcyzowy</td><td class="n">2 731 356,91</td><td class="n">5 756 891,43</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Wynagrodzenia</td><td class="n">0,00</td><td class="n">13 626 557,71</td></tr>
+<tr class="l1"><td class="m">VI.</td><td class="t">Ubezpieczenia społeczne i inne świadczenia, w tym:</td><td class="n">3 004 692,99</td><td class="n">14 196 759,82</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">emerytalne</td><td class="n">5 579 773,13</td><td class="n">1 115 099,26</td></tr>
+<tr class="l1"><td class="m">VII.</td><td class="t">Pozostałe koszty rodzajowe</td><td class="n">15 122 387,36</td><td class="n">13 122 364,18</td></tr>
+<tr class="l1"><td class="m">VIII.</td><td class="t">Wartość sprzedanych towarów i materiałów</td><td class="n">4 709 360,10</td><td class="n">4 047 858,25</td></tr>
+<tr class="l0"><td class="m">C.</td><td class="t">Zysk (strata) ze sprzedaży (A – B)</td><td class="n">13 483 349,55</td><td class="n">67 563 238,44</td></tr>
+<tr class="l0"><td class="m">D.</td><td class="t">Pozostałe przychody operacyjne</td><td class="n">0,00</td><td class="n">5 391 586,41</td></tr>
+<tr class="l0"><td class="m">E.</td><td class="t">Pozostałe koszty operacyjne</td><td class="n">38 982 710,14</td><td class="n">4 829 181,88</td></tr>
+<tr class="l0"><td class="m">F.</td><td class="t">Zysk (strata) z działalności operacyjnej (C + D – E)</td><td class="n">72 237 586,85</td><td class="n">24 770 312,53</td></tr>
+<tr class="l0"><td class="m">G.</td><td class="t">Przychody finansowe</td><td class="n">49 179 812,34</td><td class="n">44 133 216,51</td></tr>
+<tr class="l0"><td class="m">H.</td><td class="t">Koszty finansowe</td><td class="n">75 727 130,48</td><td class="n">17 314 000,91</td></tr>
+<tr class="l0"><td class="m">I.</td><td class="t">Zysk (strata) brutto (F + G – H)</td><td class="n">76 891 882,89</td><td class="n">796 174,80</td></tr>
+<tr class="l0"><td class="m">J.</td><td class="t">Podatek dochodowy</td><td class="n">67 482 352,91</td><td class="n">45 338 500,36</td></tr>
+<tr class="l0"><td class="m">K.</td><td class="t">Pozostałe obowiązkowe zmniejszenia zysku (zwiększenia straty)</td><td class="n">79 952 723,84</td><td class="n">38 282 209,18</td></tr>
+<tr class="l0"><td class="m">L.</td><td class="t">Zysk (strata) netto (I – J – K)</td><td class="n">20 942 716,49</td><td class="n">59 645 034,32</td></tr>
+</tbody></table>
+<h2>Rachunek przepływów pieniężnych (metoda pośrednia)</h2>
+<table class="fs"><colgroup><col style="width:9mm"><col><col style="width:30mm"><col style="width:30mm"></colgroup><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>2025</th><th>2024</th></tr></thead><tbody>
+<tr class="l0"><td class="m">A.</td><td class="t">Przepływy środków pieniężnych z działalności operacyjnej</td><td class="n">28 572 226,93</td><td class="n">15 184 249,48</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Zysk (strata) netto</td><td class="n">15 474 569,46</td><td class="n">15 182 027,89</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Korekty razem</td><td class="n">16 585 219,49</td><td class="n">3 219 084,59</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Amortyzacja</td><td class="n">3 839 465,59</td><td class="n">243 128,21</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zyski (straty) z tytułu różnic kursowych</td><td class="n">0,00</td><td class="n">4 517 563,05</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Odsetki i udziały w zyskach (dywidendy)</td><td class="n">1 604 562,16</td><td class="n">4 163 086,22</td></tr>
+<tr class="l2"><td class="m">4.</td><td class="t">Zmiana stanu rezerw</td><td class="n">2 308 771,70</td><td class="n">3 659 736,32</td></tr>
+<tr class="l2"><td class="m">5.</td><td class="t">Zmiana stanu zapasów</td><td class="n">0,00</td><td class="n">2 789 103,00</td></tr>
+<tr class="l2"><td class="m">6.</td><td class="t">Zmiana stanu należności</td><td class="n">3 435 526,15</td><td class="n">4 382 745,65</td></tr>
+<tr class="l2"><td class="m">7.</td><td class="t">Zmiana stanu zobowiązań krótkoterminowych, z wyjątkiem pożyczek i kredytów</td><td class="n">1 990 614,74</td><td class="n">4 519 583,74</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Przepływy pieniężne netto z działalności operacyjnej (I ± II)</td><td class="n">16 907 296,94</td><td class="n">5 525 326,06</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Przepływy środków pieniężnych z działalności inwestycyjnej</td><td class="n">54 007 511,57</td><td class="n">77 795 840,61</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Wpływy</td><td class="n">669 401,30</td><td class="n">18 130 612,65</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Wydatki</td><td class="n">15 484 476,33</td><td class="n">18 309 760,03</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Przepływy pieniężne netto z działalności inwestycyjnej (I – II)</td><td class="n">2 109 081,62</td><td class="n">9 428 242,01</td></tr>
+<tr class="l0"><td class="m">C.</td><td class="t">Przepływy środków pieniężnych z działalności finansowej</td><td class="n">37 133 750,08</td><td class="n">8 869 384,21</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Wpływy</td><td class="n">11 197 419,70</td><td class="n">16 181 526,66</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Wydatki</td><td class="n">7 794 720,30</td><td class="n">9 541 371,24</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Przepływy pieniężne netto z działalności finansowej (I – II)</td><td class="n">0,00</td><td class="n">8 572 847,61</td></tr>
+<tr class="l0"><td class="m">D.</td><td class="t">Przepływy pieniężne netto, razem (A.III ± B.III ± C.III)</td><td class="n">5 831 565,06</td><td class="n">49 626 235,41</td></tr>
+<tr class="l0"><td class="m">E.</td><td class="t">Bilansowa zmiana stanu środków pieniężnych, w tym:</td><td class="n">72 226 528,56</td><td class="n">63 928 497,67</td></tr>
+<tr class="l0"><td class="m">F.</td><td class="t">Środki pieniężne na początek okresu</td><td class="n">49 979 063,45</td><td class="n">11 307 699,81</td></tr>
+<tr class="l0"><td class="m">G.</td><td class="t">Środki pieniężne na koniec okresu (F ± D)</td><td class="n">6 024 211,16</td><td class="n">46 331 244,96</td></tr>
+</tbody></table>
+<h2>Informacja dodatkowa</h2>
+<details open class="note"><summary>Nota 1. Zasady (polityka) rachunkowości</summary>
+<p>Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l1"><td class="m">IV.</td><td class="t">Pozostałe kapitały (fundusze) rezerwowe</td><td class="n">1 576 671,56</td><td class="n">4 779 150,04</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Zysk (strata) z lat ubiegłych</td><td class="n">3 807 973,80</td><td class="n">3 415 547,35</td></tr>
+<tr class="l1"><td class="m">VI.</td><td class="t">Zysk (strata) netto</td><td class="n">455 316,78</td><td class="n">3 408 167,41</td></tr>
+<tr class="l1"><td class="m">VII.</td><td class="t">Odpisy z zysku netto w ciągu roku obrotowego (wielkość ujemna)</td><td class="n">4 060 074,31</td><td class="n">2 975 787,62</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 2. Zmiany wartości niematerialnych i prawnych</summary>
+<p>Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. </p>
+<p>Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l1"><td class="m">I.</td><td class="t">Kapitał (fundusz) podstawowy</td><td class="n">321 208,90</td><td class="n">3 960 185,42</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Kapitał (fundusz) zapasowy, w tym:</td><td class="n">2 781 806,44</td><td class="n">1 400 919,98</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">nadwyżka wartości sprzedaży (wartości emisyjnej) nad wartością nominalną udziałów (akcji)</td><td class="n">4 945 107,73</td><td class="n">3 518 979,37</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Kapitał (fundusz) z aktualizacji wyceny</td><td class="n">4 918 776,19</td><td class="n">3 910 398,34</td></tr>
+<tr class="l1"><td class="m">IV.</td><td class="t">Pozostałe kapitały (fundusze) rezerwowe</td><td class="n">4 910 652,56</td><td class="n">4 470 026,13</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Zysk (strata) z lat ubiegłych</td><td class="n">3 604 049,98</td><td class="n">2 531 332,98</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 3. Zmiany środków trwałych</summary>
+<p>Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. </p>
+</details>
+<details open class="note"><summary>Nota 4. Struktura należności według okresów spłaty</summary>
+<p>W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. </p>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">1 510 879,37</td><td class="n">3 601 207,37</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Pozostałe rezerwy</td><td class="n">1 072 074,04</td><td class="n">1 977 536,12</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zobowiązania długoterminowe</td><td class="n">2 592 498,33</td><td class="n">2 475 524,83</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">4 558 458,04</td><td class="n">2 767 098,14</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wobec pozostałych jednostek</td><td class="n">4 195 720,41</td><td class="n">165 020,04</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 5. Odpisy aktualizujące wartość należności</summary>
+<p>Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. </p>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">1 894 190,77</td><td class="n">3 494 293,98</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Pozostałe rezerwy</td><td class="n">3 441 402,98</td><td class="n">2 657 135,89</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zobowiązania długoterminowe</td><td class="n">4 698 118,05</td><td class="n">3 643 719,83</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">2 447 284,37</td><td class="n">455 647,62</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wobec pozostałych jednostek</td><td class="n">345 702,74</td><td class="n">1 047 569,50</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">2 285 953,64</td><td class="n">3 393 848,78</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu emisji dłużnych papierów wartościowych</td><td class="n">646 699,17</td><td class="n">4 839 857,20</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Zobowiązania krótkoterminowe</td><td class="n">1 213 878,22</td><td class="n">357 413,61</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 6. Struktura kapitału podstawowego</summary>
+<p>Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+<p>Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<p>Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. </p>
+</details>
+<details open class="note"><summary>Nota 7. Propozycja podziału zysku za rok obrotowy</summary>
+<p>Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l1"><td class="m">IV.</td><td class="t">Pozostałe kapitały (fundusze) rezerwowe</td><td class="n">704 072,65</td><td class="n">1 019 719,49</td></tr>
+<tr class="l1"><td class="m">V.</td><td class="t">Zysk (strata) z lat ubiegłych</td><td class="n">971 892,67</td><td class="n">4 323 154,12</td></tr>
+<tr class="l1"><td class="m">VI.</td><td class="t">Zysk (strata) netto</td><td class="n">3 941 866,20</td><td class="n">1 412 887,73</td></tr>
+<tr class="l1"><td class="m">VII.</td><td class="t">Odpisy z zysku netto w ciągu roku obrotowego (wielkość ujemna)</td><td class="n">4 141 900,81</td><td class="n">1 086 268,70</td></tr>
+<tr class="l0"><td class="m">B.</td><td class="t">Zobowiązania i rezerwy na zobowiązania</td><td class="n">4 982 194,75</td><td class="n">4 306 161,51</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Rezerwy na zobowiązania</td><td class="n">844 884,02</td><td class="n">74 969,42</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Rezerwa z tytułu odroczonego podatku dochodowego</td><td class="n">919 902,17</td><td class="n">4 973 826,07</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">1 987 528,54</td><td class="n">4 800 780,07</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 8. Rezerwy według celów utworzenia</summary>
+<p>W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+<p>Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. </p>
+</details>
+<details open class="note"><summary>Nota 9. Zobowiązania długoterminowe według okresu spłaty</summary>
+<p>Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. </p>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. </p>
+<p>Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l1"><td class="m">I.</td><td class="t">Kapitał (fundusz) podstawowy</td><td class="n">3 494 329,70</td><td class="n">4 942 659,34</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Kapitał (fundusz) zapasowy, w tym:</td><td class="n">77 387,34</td><td class="n">3 386 260,39</td></tr>
+<tr class="l2"><td class="m">–</td><td class="t">nadwyżka wartości sprzedaży (wartości emisyjnej) nad wartością nominalną udziałów (akcji)</td><td class="n">281 478,91</td><td class="n">4 813 652,91</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Kapitał (fundusz) z aktualizacji wyceny</td><td class="n">1 289 115,97</td><td class="n">3 682 554,00</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 10. Rozliczenia międzyokresowe</summary>
+<p>Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+</details>
+<details open class="note"><summary>Nota 11. Struktura przychodów według rodzajów działalności</summary>
+<p>Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">1.</td><td class="t">Zobowiązania wobec jednostek powiązanych</td><td class="n">4 184 008,08</td><td class="n">3 969 998,73</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">1 114 890,26</td><td class="n">3 600 063,60</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">4 667 536,39</td><td class="n">839 906,06</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">1 042 498,47</td><td class="n">500 285,06</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 12. Struktura przychodów według rynków geograficznych</summary>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">1 546 644,35</td><td class="n">114 416,44</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">2 433 776,99</td><td class="n">3 049 792,49</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">960 396,60</td><td class="n">3 531 299,75</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">zaliczki otrzymane na dostawy i usługi</td><td class="n">4 966 622,10</td><td class="n">3 857 341,74</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">z tytułu podatków, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">903 602,73</td><td class="n">3 668 033,88</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 13. Koszty według rodzajów</summary>
+<p>Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. </p>
+</details>
+<details open class="note"><summary>Nota 14. Podatek dochodowy: różnice między podstawą opodatkowania a wynikiem brutto</summary>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. </p>
+<p>Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l1"><td class="m">III.</td><td class="t">Zobowiązania krótkoterminowe</td><td class="n">2 602 755,52</td><td class="n">507 091,64</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Zobowiązania wobec jednostek powiązanych</td><td class="n">1 623 786,80</td><td class="n">397 321,32</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">3 960 139,84</td><td class="n">3 336 097,28</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">3 101 342,73</td><td class="n">4 094 020,75</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">1 195 490,46</td><td class="n">2 120 326,76</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">zaliczki otrzymane na dostawy i usługi</td><td class="n">2 709 950,61</td><td class="n">3 133 519,45</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">z tytułu podatków, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">3 696 341,60</td><td class="n">4 353 058,69</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">z tytułu wynagrodzeń</td><td class="n">1 749 720,72</td><td class="n">1 709 620,93</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 15. Przeciętne zatrudnienie</summary>
+<p>Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. </p>
+<p>Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l0"><td class="m">B.</td><td class="t">Zobowiązania i rezerwy na zobowiązania</td><td class="n">3 043 273,31</td><td class="n">875 201,97</td></tr>
+<tr class="l1"><td class="m">I.</td><td class="t">Rezerwy na zobowiązania</td><td class="n">322 180,03</td><td class="n">1 736 252,98</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Rezerwa z tytułu odroczonego podatku dochodowego</td><td class="n">2 629 636,11</td><td class="n">494 837,23</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">2 465 956,11</td><td class="n">4 103 391,87</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Pozostałe rezerwy</td><td class="n">1 287 903,64</td><td class="n">3 827 022,92</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zobowiązania długoterminowe</td><td class="n">3 117 086,99</td><td class="n">4 672 621,21</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">3 216 730,80</td><td class="n">3 053 458,52</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 16. Wynagrodzenie biegłego rewidenta</summary>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">4 047 434,29</td><td class="n">2 773 989,64</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wobec pozostałych jednostek</td><td class="n">3 576 352,96</td><td class="n">2 115 534,77</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">1 404 909,09</td><td class="n">4 576 215,13</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu emisji dłużnych papierów wartościowych</td><td class="n">2 244 459,24</td><td class="n">451 251,13</td></tr>
+<tr class="l1"><td class="m">III.</td><td class="t">Zobowiązania krótkoterminowe</td><td class="n">3 005 214,01</td><td class="n">4 200 931,89</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Zobowiązania wobec jednostek powiązanych</td><td class="n">1 532 462,33</td><td class="n">4 533 501,99</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">3 869 590,47</td><td class="n">1 390 677,56</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">1 601 028,31</td><td class="n">4 937 805,44</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 17. Zdarzenia po dniu bilansowym</summary>
+<p>W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. </p>
+<p>Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">1 506 186,13</td><td class="n">2 785 278,76</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">3 591 244,32</td><td class="n">1 478 196,33</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">1 920 627,96</td><td class="n">1 965 222,38</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">zaliczki otrzymane na dostawy i usługi</td><td class="n">624 385,51</td><td class="n">2 276 631,66</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">z tytułu podatków, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">2 189 492,72</td><td class="n">650 977,23</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">z tytułu wynagrodzeń</td><td class="n">1 558 182,62</td><td class="n">1 274 547,43</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 18. Transakcje z jednostkami powiązanymi</summary>
+<p>Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. </p>
+<p>Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. </p>
+</details>
+<details open class="note"><summary>Nota 19. Zasady (polityka) rachunkowości</summary>
+<p>W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. </p>
+</details>
+<details open class="note"><summary>Nota 20. Zmiany wartości niematerialnych i prawnych</summary>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. </p>
+<p>Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. </p>
+</details>
+<details open class="note"><summary>Nota 21. Zmiany środków trwałych</summary>
+<p>Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<p>Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. Rezerwy tworzy się na pewne lub o dużym stopniu prawdopodobieństwa przyszłe zobowiązania, których kwotę można w sposób wiarygodny oszacować. </p>
+<p>Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. </p>
+</details>
+<details open class="note"><summary>Nota 22. Struktura należności według okresów spłaty</summary>
+<p>Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<p>Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. Zapasy wycenia się według cen nabycia nie wyższych od cen sprzedaży netto; rozchód wycenia się metodą „pierwsze weszło, pierwsze wyszło”. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. Należności wycenia się w kwocie wymaganej zapłaty, z zachowaniem zasady ostrożności, z uwzględnieniem odpisów aktualizujących. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. </p>
+</details>
+<details open class="note"><summary>Nota 23. Odpisy aktualizujące wartość należności</summary>
+<p>Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. W roku obrotowym nie wystąpiły zdarzenia, które wymagałyby ujęcia w sprawozdaniu jako zdarzenia nadzwyczajne. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. Zarząd nie stwierdził okoliczności wskazujących na zagrożenie kontynuowania działalności przez jednostkę. </p>
+<p>Spółka sporządza sprawozdanie finansowe przy założeniu kontynuowania działalności w dającej się przewidzieć przyszłości. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">1.</td><td class="t">Zobowiązania wobec jednostek powiązanych</td><td class="n">4 548 443,28</td><td class="n">4 800 729,51</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Zobowiązania wobec pozostałych jednostek</td><td class="n">1 380 919,90</td><td class="n">3 527 719,46</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">3 004 792,47</td><td class="n">3 425 903,73</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu dostaw i usług, o okresie wymagalności do 12 miesięcy</td><td class="n">2 760 183,22</td><td class="n">983 929,01</td></tr>
+<tr class="l3"><td class="m">c)</td><td class="t">zaliczki otrzymane na dostawy i usługi</td><td class="n">1 116 474,69</td><td class="n">722 268,57</td></tr>
+<tr class="l3"><td class="m">d)</td><td class="t">z tytułu podatków, ceł, ubezpieczeń społecznych i zdrowotnych oraz innych tytułów publicznoprawnych</td><td class="n">1 379 974,32</td><td class="n">4 795 937,94</td></tr>
+<tr class="l3"><td class="m">e)</td><td class="t">z tytułu wynagrodzeń</td><td class="n">3 691 423,24</td><td class="n">1 811 469,37</td></tr>
+</tbody></table>
+</details>
+<details open class="note"><summary>Nota 24. Struktura kapitału podstawowego</summary>
+<p>Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Kursy walut obcych przyjęte do wyceny pozycji bilansu odpowiadają średnim kursom ogłoszonym przez bank centralny na dzień bilansowy. </p>
+<p>Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Przychody ze sprzedaży ujmuje się w momencie przeniesienia na nabywcę znaczących ryzyk i korzyści wynikających z prawa własności. Środki trwałe wycenia się według cen nabycia lub kosztów wytworzenia, pomniejszonych o odpisy amortyzacyjne oraz odpisy z tytułu trwałej utraty wartości. Dane porównawcze za poprzedni rok obrotowy zostały przekształcone tak, aby zapewnić ich porównywalność z danymi roku bieżącego. </p>
+<table class="fs"><thead><tr><th>Poz.</th><th>Wyszczególnienie</th><th>Bilans otwarcia</th><th>Bilans zamknięcia</th></tr></thead><tbody>
+<tr class="l2"><td class="m">1.</td><td class="t">Rezerwa z tytułu odroczonego podatku dochodowego</td><td class="n">2 979 415,98</td><td class="n">1 191 398,70</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Rezerwa na świadczenia emerytalne i podobne</td><td class="n">2 718 170,36</td><td class="n">3 922 745,61</td></tr>
+<tr class="l2"><td class="m">3.</td><td class="t">Pozostałe rezerwy</td><td class="n">812 841,37</td><td class="n">2 443 276,46</td></tr>
+<tr class="l1"><td class="m">II.</td><td class="t">Zobowiązania długoterminowe</td><td class="n">1 198 823,29</td><td class="n">2 043 788,83</td></tr>
+<tr class="l2"><td class="m">1.</td><td class="t">Wobec jednostek powiązanych</td><td class="n">646 453,85</td><td class="n">843 412,46</td></tr>
+<tr class="l2"><td class="m">2.</td><td class="t">Wobec pozostałych jednostek</td><td class="n">2 219 984,00</td><td class="n">2 773 340,76</td></tr>
+<tr class="l3"><td class="m">a)</td><td class="t">kredyty i pożyczki</td><td class="n">3 080 121,44</td><td class="n">4 136 153,97</td></tr>
+<tr class="l3"><td class="m">b)</td><td class="t">z tytułu emisji dłużnych papierów wartościowych</td><td class="n">4 481 287,07</td><td class="n">2 105 147,81</td></tr>
+</tbody></table>
+</details>
+<div class="sign"><div>Osoba, której powierzono prowadzenie ksiąg rachunkowych<br>Anna Przykładowa</div><div>Zarząd<br>Jan Testowy, Prezes Zarządu</div></div>
+</body></html>

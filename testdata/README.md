@@ -6,6 +6,7 @@ Pochodzenie i licencje obcych plików: `docs/provenance.md`.
 | Katalog | Zawartość | Liczba | Wzorzec |
 |---|---|---|---|
 | `documents/` | dokumenty syntetyczne pisane pod pozycje „musi” ze `docs/scope.md` | 22 (19 „musi”, 3 „powinien”) | opis w `*.expect.json`, PDF z Chromium w `reference/chromium/` |
+| `comparison/` | dokumenty biznesowe do porównania z folio i Chromium: faktury i sprawozdania z generatora (dane zmyślone), dokumenty biurowe z losowo podmienionym tekstem, strony Markdown i mermaid, dokumenty losowe (ADR 0055) | 18 | PDF z Chromium w `reference/chromium/`; opis w `comparison/README.md` |
 | `samples/weasyprint/` | próbki WeasyPrint: faktura, raport, list, bilet | 4 | PDF z WeasyPrint dołączony przez autorów |
 | `wpt/` | testy druku z web-platform-tests, bez JavaScriptu | 340 reftestów + 115 ręcznych | plik wzorcowy HTML (reftest) albo opis w treści testu |
 | `wpt/manifest.tsv`, warstwa `layout` | reftesty ekranowe CSS 2.1, tabele, listy, flex, fragmentacja w kolumnach | 8242, tylko lista | pliki w klonie WPT o commicie z `wpt/UPSTREAM` |

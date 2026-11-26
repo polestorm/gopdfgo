@@ -57,6 +57,13 @@ ustawieniach, wiersze tabeli z różnych dat i commitów.
      (starsze pomiary oznaczone datą jako historyczne), rozdzielenie zaliczeń ścisłych i krawędziowych
      w README (ADR 0003: 9020 + 464 z 10962, SVG 191 + 3 z 235).
 - Do czasu kroku 3 liczby README pochodzą z pomiarów z 2026-11-20–24 opisanych w `docs/benchmark.md`.
+- Krok 2 wykonany 2026-11-26: `testdata/comparison` (18 dokumentów z wzorcami Chromium 158). Faktury (4)
+  i sprawozdania e-SF (5) pisze od nowa `tools/bench/gendocs`, bo HTML oryginałów pochodzi z prywatnego kodu
+  (moduł faktur, arkusz e-SF z wewnętrznymi nazwami) i zawiera prawdziwe dane; dokumenty biurowe (4) mają
+  zachowane znaczniki i style, a tekst podmieniony losowo (`tools/bench/scramble.py`); strony Markdown (2)
+  i mermaid (1) pochodzą z publicznych repozytoriów; `rand-01`, `rand-12` z `tools/bench/genrand.py` (bajt
+  w bajt jak wcześniej). Zestaw wierności ma teraz 40 dokumentów (22 korpusu i 18 nowych) zamiast 35; próbny
+  przebieg: strony zgodne z Chromium gopdfgo 17 z 18, folio 12 z 18. Liczby README zmieni dopiero krok 3.
 - Krok 4 wykonany 2026-11-26: README podaje 20,5 MB, 3–14 razy szybciej od Chromium (całe procesy, 9 dokumentów
   spoza repozytorium, oznaczone w przypisie jako niepowtarzalne z zewnątrz do kroku 2), pamięć Chromium z dopiskiem
   o dwóch instancjach, bez medalu za rozmiar PDF faktur (sprzeczne pomiary 2026-11-20 i później), zaliczenia
