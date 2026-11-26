@@ -17,6 +17,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/pprof"
 	"sort"
@@ -45,7 +47,22 @@ const tinosCSS = `<style>
 html { font-family: "Tinos"; }
 </style>`
 
-func prepare(html string, serif bool) string {
+func prepare(html string, serif bool, css string) string {
+	// -css: arkusz wklejony zamiast odnośnika <link> do pliku o tej samej nazwie (albo na początek <head>),
+	// bo zasoby spoza -root nie są dostępne; jego url(../fonts/...) mapujemy jak w dokumencie.
+	if css != "" {
+		data, err := os.ReadFile(css)
+		if err != nil {
+			panic(err)
+		}
+		style := "<style>\n" + string(data) + "\n</style>"
+		link := regexp.MustCompile(`<link[^>]*href="[^"]*` + regexp.QuoteMeta(filepath.Base(css)) + `"[^>]*>`)
+		if link.MatchString(html) {
+			html = link.ReplaceAllLiteralString(html, style)
+		} else if i := strings.Index(strings.ToLower(html), "<head>"); i >= 0 {
+			html = html[:i+6] + style + html[i+6:]
+		}
+	}
 	for _, q := range []string{`"`, `'`, ``} {
 		html = strings.ReplaceAll(html, "url("+q+"../fonts/", "url("+q+"fonts/")
 	}
@@ -84,6 +101,7 @@ func main() {
 	out := flag.String("out", "", "output PDF")
 	n := flag.Int("n", 0, "number of warm renders to time (0 = one render)")
 	serif := flag.Bool("serif-tinos", false, "add @font-face Tinos and use it for the whole document")
+	css := flag.String("css", "", "stylesheet file put into the document (replacing a <link> to a file of the same name)")
 	cpu := flag.String("cpuprofile", "", "write a CPU profile of the warm renders")
 	mem := flag.String("memprofile", "", "write an allocation profile")
 	flag.Parse()
@@ -91,7 +109,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	html := prepare(string(data), *serif)
+	html := prepare(string(data), *serif, *css)
 	fsys := mapFS{os.DirFS(*root), os.DirFS(*fonts)}
 	var warns atomic.Int64
 	var msgs []string

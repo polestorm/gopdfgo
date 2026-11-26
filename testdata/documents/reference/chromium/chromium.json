@@ -1,0 +1,29 @@
+{
+ "chrome": "Google Chrome 158.0.8127.88 ",
+ "command": "--headless --disable-gpu --no-pdf-header-footer --print-to-pdf=<out>.pdf file://<html>",
+ "date": "2026-11-26T11:49:37Z",
+ "files": {
+  "01-record-copy": "8c610ca85214397a205e594a27532e7038589d9f9bc0cace4c1a1bdea039500a",
+  "02-register-table": "42f6403a89b3d30608b7a3859b628f46b8be26fa1b1898c8422e0adbc3e04af7",
+  "03-report-svg-chart": "84a98700fbfaef96fa49f4605ff7339a3b5e885fb309d23bf4b03eddb9baf5bf",
+  "04-qms-procedure": "aca8dc7c9e6c89d4eaf0e1ef564cd006a4316fbf9339de354c59cd2fe5e4261a",
+  "05-hyphenation": "0d453e1934468f0b4c9a26c8b3eef6c04c39218e1128e03f786144754a7158c9",
+  "06-margin-boxes": "7a070f024e5999ad804f3e0589062b0e2a7363e66ab79d0940f25bb27ebb97fa",
+  "07-images": "308f85e54b61a1f2c08209bac00d14e42d5fc46fd113a09b596611bdcb5a972e",
+  "08-flex": "825d3060d19b44830255bf527180d64b48c1b0147ee5e34654f5a76eccec0bd3",
+  "09-lists-counters": "ffa8b9ae12c434a4ec9fe18fa5c5fefa84ed079c98a62b24fa3ab3d4fd7359d9",
+  "10-preformatted": "63e6c5313a411cfdf92d2153d6a5f0510f9366bc69a50ac0f32bfa46fcb7c946",
+  "11-edge-cases": "2af07109b2174ff4cea526267701bd2d1faace9ac4bf6ea5bdde51e5ecb4004a",
+  "12-floats-positioning": "c7e6e2f0eb060f5b91e812a3b33c174bb1e9dcd9c215d37bfd12f6b48e998d3d",
+  "13-forms-html-elements": "17f204180edeb6c51e971e8b4f69aa2c3d173c42b74af91457095067287f79a1",
+  "14-cascade-selectors": "2f2ca8e692690e83592970e2314b4716066595947d3aad7585e2fe0e951daaa8",
+  "15-page-breaks": "9f56e1f43b92d8bed0fa6e4ec79ba2b45fb1ee58b99fa4e4db3ff9a7bd19ef49",
+  "16-typography-fonts": "4a188c4e6251be67160c064f120ef86e0441fc6fc46e6418016f726cd91816f6",
+  "17-tables": "ce7d6fb648f2bb86eea663fea44154e62b3b5d7ae69ec03c69e2da839b4c2b29",
+  "18-toc-running-elements": "8e88c28852b2dff1ea0d95c05df31a0f7932760adc53e82df73b394bb494f73f",
+  "19-flex-grid-pagination": "49eff2aa034bd160a3695154aec10e36853cb37b54f63fb212f500ee8faafcfd",
+  "20-invoice": "0be691ac336193fa8cb8e789006712d951c044a714c846eca61efae1663df2c6",
+  "21-mixed-report": "f5e72bcdd4a6b98f191d9a81564310a83c24f1c1ed6110f4f429439028e07988",
+  "22-multicol-pagination": "aaa419314820e92f6a6e6c3c3bda383c308b05c49fa817d6dcbcb66f5cb53a6e"
+ }
+}

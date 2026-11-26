@@ -32,6 +32,10 @@ fonty z `../fonts/` przez `@font-face`. Pliki HTML są źródłem prawdy i możn
 - `chromium`: pomiar z Chrome 157.0.8103.51 (macOS arm64, `--headless --print-to-pdf --no-pdf-header-footer`):
   liczba stron, pierwszy wiersz treści każdej strony, znane odchylenia Chromium od specyfikacji.
 
+PDF-y w `documents/reference/chromium/` (i w `comparison/reference/chromium/`) zrobił 2026-11-26 Chrome 158.0.8127.88
+przez `tools/bench/chromium.sh` (wersja, polecenie i sumy SHA-256 w `chromium.json`); liczby stron są takie same
+jak w Chrome 157.
+
 Chromium nie jest wzorcem tam, gdzie nie obsługuje funkcji: `string-set`, `running()`, `target-counter()`,
 `bookmark-*`, `break-before: right` z pustą stroną. Te przypadki są wypisane w `chromium.deviations`.
 

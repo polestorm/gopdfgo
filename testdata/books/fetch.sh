@@ -18,4 +18,5 @@ cut -c67- "$D/pride-and-prejudice.sha256" | while read -r f; do
 done
 (cd "$OUT" && shasum -a 256 -c --quiet "$D/pride-and-prejudice.sha256")
 sed 's#</head>#<link rel="stylesheet" href="../bench.css"></head>#' "$OUT/1342-h.htm" > "$OUT/1342-bench.htm"
+python3 -I "$D/variants.py"
 echo "ok: $OUT/1342-bench.htm"
