@@ -2,7 +2,8 @@
 
 A side-by-side view of three ways to turn HTML into PDF from a Go program, written to show where gopdfgo is
 strong and where it is not. Numbers are approximate and dated; each comes from a measurement described in
-`docs/overview.md` (Chromium), `docs/benchmark.md` § 11 (folio) and the ADRs it cites. Measurements were
+`docs/overview.md` (Chromium), `docs/benchmark.md` § 11 (folio) and the ADRs it cites; the tools are in
+`tools/bench` and `tools/verify` (ADR 0055). Measurements were
 made on one machine (Apple M4, macOS) with the same input and the same fonts for every engine. folio was run
 at commit `29bca95` (2026-11-18), Chromium 157 through `--headless --print-to-pdf`, gopdfgo at the commit
 named in each source.
@@ -34,7 +35,7 @@ named in each source.
 | invoice, 3 pages, inside a running program | 0.42–0.46 s per document through DevTools | 16 ms | 31 ms; 27 ms with a font cache shared between calls |
 | illustrated book, about 255 pages | 2.1–2.6 s | 0.50 s | 1.14 s |
 | the same book four times, about 1020 pages | 4.5–4.7 s | not measured | 4.6–4.7 s |
-| peak memory, business documents | about 950 MB (browser processes) | 25–56 MB | 49–113 MB |
+| peak memory, business documents | about 950 MB (all browser processes, two instances at once) | 25–56 MB | 49–113 MB |
 | peak memory, book | 1.7 GB | 0.27 GB | 0.43 GB |
 
 The folio and gopdfgo rows compare the same work: the book and the business documents have no table of
@@ -64,6 +65,9 @@ Features).
 | Same input gives the same bytes | no (dates, identifiers) | yes, by design | yes, checked on 46 756 renders |
 | Unsupported CSS | developer tools console | ignored silently | reported as warnings |
 
+The invoice sizes are close, and an earlier measurement with fonts passed as `data:` URLs found Chromium's
+invoices 17–26% smaller (`docs/overview.md`, PDF file size), so no engine is called smaller here.
+
 ## Features
 
 ✓ supported, ◐ partly, ✗ not supported. Entries marked “not documented” were not found in the project’s documentation and were not tested.
@@ -72,7 +76,7 @@ Features).
 |---|---|---|---|
 | JavaScript | ✓ | ✗ | ✗ |
 | CSS layout: flexbox, grid, multi-column | ✓ | ◐ | ✓ (no `subgrid`) |
-| W3C CSS reftests passed (11 areas) | reference | not published | 9484 of 10962 |
+| W3C CSS reftests passed (11 areas) | reference | not published | 9484 of 10962 (9020 exact, 464 within anti-aliasing edges) |
 | `@page` margin boxes | ✓ | ◐ 6 of 16 | ✓ 16 of 16 |
 | Named pages, `:first`/`:left`/`:right`/`:blank` | ◐ (no `:blank`) | ◐ (`:first`/`:left`/`:right` only) | ✓ |
 | Running headers (`string-set`, `position: running()`) | ✗ | ◐ `string-set` | ✓ |
@@ -80,7 +84,7 @@ Features).
 | "Page X of Y" in the page content (`counter(pages)`) | ✗ (margin boxes only) | ✗ | ✓ |
 | Footnotes (`float: footnote`) | ✗ | ✗ (not documented) | ✓ |
 | `widows` / `orphans` as the specification defines them | ◐ | ✓ | ✓ |
-| SVG | ✓ | ◐ (basic shapes; text, clipping and filters limited) | ✓ (194 of 235 runnable W3C SVG reftests) |
+| SVG | ✓ | ◐ (basic shapes; text, clipping and filters limited) | ✓ (194 of 235 runnable W3C SVG reftests, 191 exact) |
 | Right-to-left and bidirectional text | ✓ | ✓ | ✗ |
 | Vertical writing | ✓ | ✗ (not documented) | ✗ |
 | Hyphenation | ✓ (system dictionaries) | ◐ English | ✓ 24 languages built in |

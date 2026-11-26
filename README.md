@@ -22,11 +22,11 @@ engine in Go (details in [Comparison](#comparison)):
   of Y" in the text, footnotes, all 16 margin boxes, running headers, **hyphenation** for 24 languages built in.
 - **Archival and accessible output**: PDF/A-2 and PDF/A-3 (levels b and a), PDF/UA-1 and Factur-X e-invoices,
   checked with veraPDF and Mustang; PAdES signatures in an optional package.
-- **One small program**: a single Go binary of 21 MB instead of a 460 MB browser, 2–9 times faster than
-  Chromium on business documents and with a tenth of its memory. Fonts and files come only from the caller;
+- **One small program**: a single Go binary of 20.5 MB instead of a 460 MB browser, 3–14 times faster than
+  Chromium on business documents, with 49–113 MB of memory per document. Fonts and files come only from the caller;
   nothing is read from the disk or the network unless you allow it.
 - **Standards first**: the layout follows the W3C specifications and is tested on their test suites: 9484 of
-  10962 CSS reftests, 310 of 340 print reftests, 194 of 235 SVG reftests.
+  10962 CSS reftests, 310 of 340 print reftests, 194 of 235 SVG reftests[^wpt].
 
 ## Contents
 
@@ -49,9 +49,9 @@ with its own layout engine and an HTML converter.
 | Invoice, 3 pages[^bench] | 44 ms | 430 ms | 22 ms 🥇 |
 | Book, 255 pages | 1.1 s | 2.1–2.6 s | 0.50 s 🥇 |
 | Book with a table of contents | 1.4 s 🥇 | no page numbers | not supported |
-| Memory, business documents | 49–113 MB | about 950 MB | 25–56 MB 🥇 |
+| Memory, business documents | 49–113 MB | about 950 MB, two browser instances[^mem] | 25–56 MB 🥇 |
 | Memory, book | 0.43 GB | 1.7 GB | 0.27 GB 🥇 |
-| PDF size, invoice[^pdf] | 25–51 kB 🥇 | 27–53 kB | 26–56 kB |
+| PDF size, invoice[^pdf] | 25–51 kB | 27–53 kB | 26–56 kB |
 | PDF size, book | 26.3 MB 🥇 | 27.6 MB | 26.7 MB |
 | Same page count as Chromium[^fidelity] | 33 of 35 🥇 | reference | 17 of 35 |
 | Words on the same page as in Chromium | 92% 🥇 | reference | 35% |
@@ -67,7 +67,7 @@ with its own layout engine and an HTML converter.
 | Footnotes (`float: footnote`) | yes 🥇 | no | no |
 | Hyphenation | 24 languages built in 🥇 | system dictionaries | English |
 | Line breaking by the Unicode rules (UAX #14) | yes 🥇 | yes 🥇 | at spaces and between CJK characters |
-| W3C reftests passed (CSS, print, SVG) | 9484 of 10962, 310 of 340, 194 of 235 🥇 | reference | not published |
+| W3C reftests passed (CSS, print, SVG)[^wpt] | 9484 of 10962, 310 of 340, 194 of 235 🥇 | reference | not published |
 | SVG | yes | yes 🥇 | basic shapes |
 | Right-to-left and vertical text | no | yes 🥇 | right-to-left |
 | PDF/A | 2b, 2a, 3b, 3a 🥇 | no | yes |
@@ -91,8 +91,19 @@ with its own layout engine and an HTML converter.
     faster than gopdfgo (from 0.7 to 5.1 times; 1.5 times when gopdfgo keeps its fonts parsed between calls with
     `FontCache`); gopdfgo is faster on the SVG report, the page-break document and the long register table. Chromium's
     time includes starting the browser; inside a running program through DevTools it still needs 0.42–0.46 s per
-    document. Per-document numbers in [`docs/comparison.md`](docs/comparison.md).
-[^pdf]: Untagged PDF, fonts embedded as subsets.
+    document, so gopdfgo's whole process is 2.4–14 times faster than that. "3–14 times" compares whole processes on
+    nine invoices and financial statements (Chromium 2026-11-20, gopdfgo 2026-11-23, [`docs/overview.md`](docs/overview.md));
+    these documents are not in the repository yet, so this ratio cannot be repeated from outside until they are
+    replaced by public ones (ADR 0055). Per-document numbers in [`docs/comparison.md`](docs/comparison.md).
+[^pdf]: Untagged PDF, fonts embedded as subsets; Chromium through DevTools with the same font files
+    (`docs/overview.md`). No medal: the files differ by less than 8%, and on 2026-11-20, with the fonts passed as
+    `data:` URLs, Chromium's invoices were 17–26% smaller (`docs/chromium-comparison.md`, cause not
+    checked). The engines will be measured again with one setting (ADR 0055).
+[^mem]: Peak resident memory summed over all browser processes, with two browser instances running at once
+    (one for invoices, one for financial statements); one instance alone was not measured.
+[^wpt]: Web Platform Tests at the commit in `testdata/wpt/UPSTREAM`, compared as in ADR 0003: exactly equal,
+    or equal except for one-pixel anti-aliased edges. CSS 9020 exact + 464 edge (2026-11-24), print 308 + 2,
+    SVG 191 + 3. Tools and recorded results: [`tools/verify`](tools/verify).
 [^fidelity]: 35 documents printed by all three: the test corpus, financial statements, office documents
     converted to HTML, Markdown and diagram pages, generated random documents; positions of words compared with Chromium's PDF. Chromium is the reference because
     documents are usually designed in a browser; where it departs from the specification, gopdfgo follows the

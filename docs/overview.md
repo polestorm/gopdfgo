@@ -5,18 +5,19 @@ supports CSS Paged Media: pages, margins, margin boxes with headers and footers,
 It is built for ordinary business documents (invoices, reports, financial statements, multi-page tables),
 not for printing arbitrary web pages.
 
-All numbers below were measured on 2026-11-20:
+Numbers below were measured on 2026-11-20 unless a section gives another date:
 - gopdfgo: commit `a37ba07` (code as of this page's first version), engine `gopdfgo/webrender 0.1.0-dev`;
 - Chromium: Google Chrome 157.0.8103.79 on macOS;
 - browser size on a server: Chrome 158.0.8127.36 on Ubuntu.
 
-They need to be measured again after engine changes.
+They need to be measured again after engine changes. The tools are in `tools/bench` and `tools/verify`
+(ADR 0055); the documents marked as outside the repository will be replaced by public ones.
 
 ## Size
 
 | | Chromium | gopdfgo |
 |---|---|---|
-| software | browser: 460 MB on a Linux server (`du -sh /opt/google/chrome`) plus system libraries from packages; 2.2 GB on macOS | 19.1 MB command-line binary, linux/amd64, `CGO_ENABLED=0 -trimpath -ldflags "-s -w"` (2026-11-22; 22.2 MB before ADR 0039 removed `text/template`) |
+| software | browser: 460 MB on a Linux server (`du -sh /opt/google/chrome`) plus system libraries from packages; 2.2 GB on macOS | 20.5 MB command-line binary (`go build`, macOS arm64, 2026-11-24, after ADR 0053 removed the inherited HTTP client); 15.1 MB with `-ldflags "-s -w"`. Earlier: 25.2 MB on 2026-11-24 before ADR 0053; 19.1 MB linux/amd64 with `-trimpath -ldflags "-s -w"` on 2026-11-22 |
 | fonts | system fonts | supplied by the caller (in [xml.pro](https://xml.pro): 2.1 MB, five Noto files); system fonts only in a separate build (`-tags systemfonts`, ADR 0039) |
 | installation and updates | browser package, security updates, a writable home directory for the browser process | one static binary, nothing to install on the system |
 
@@ -55,13 +56,14 @@ many documents can keep parsed fonts between calls with `Options.FontCache` (ADR
 
 Chromium kept running and driven through DevTools (`Page.printToPDF` via chromedp, no wait before
 printing) needed 0.42–0.46 s per document. That run used the same day and the same documents; see
-`docs/chromium-comparison.md` (Polish). gopdfgo is now 2 to 15 times faster than that (2026-11-23).
+`docs/chromium-comparison.md` (Polish). gopdfgo's whole process (table above, 2026-11-23) is 2.4 to 14 times
+faster than that; as whole processes on both sides, 2.9 to 13.6 times (the README rounds this to 3–14).
 
 Memory:
 - gopdfgo, peak RSS of the process (`/usr/bin/time -l`): invoice 48 MB, 6-page e-SF 95 MB, 16-page e-SF
   156 MB;
 - Chromium: peak RSS summed over the browser processes, 943–961 MB, with two browser instances running at
-  once, as in xml.pro.
+  once, as in xml.pro (one for invoices, one for e-SF); one instance alone was not measured.
 
 gopdfgo renders one document at a time per process; further calls wait in a queue. Chromium can print
 several tabs in parallel.
@@ -215,21 +217,22 @@ its processes. The table-of-contents variants (61 chapter links with `target-cou
 - The extra pages come from `widows` (see "Page count" above): gopdfgo moves a three-line paragraph whole
   where Chromium splits it 2 + 1.
 
-### Compared with folio (2026-11-23)
+### Compared with folio (2026-11-24)
 
 [folio](https://github.com/carlos7ags/folio) (Apache-2.0, commit `29bca95`) is the other pure-Go HTML-to-PDF
 engine. Both engines rendered the same 36 documents (the 22 of `testdata/documents`, 13 real documents:
 invoices, e-SF statements, Markdown pages, Word documents, random documents, and the 254-page book) with
-the same Noto fonts through `@font-face`; Apple M4, in-process median of repeated renders; measured again on
-2026-11-24 at commit `728e0ab` on an idle machine. Details and
+the same Noto fonts through `@font-face`; Apple M4, in-process median of repeated renders; last measured on
+2026-11-24 at commit `c0a9f7d` (after ADR 0047, 0048 and 0053; on `728e0ab` the same day the median ratio was 2.8×). Details and
 the full table: `docs/benchmark.md` § 11 (Polish).
 
 | | folio | gopdfgo | gopdfgo with `FontCache` |
 |---|---|---|---|
-| in-process time, median ratio to folio | 1 | 2.8× (1.0–5.4×) | about 1.9× (2026-11-23) |
-| invoice `20-invoice` (3 pages), in process | 15.6 ms | 48.7 ms | about 36 ms |
-| book (254 pages), in process | 0.46 s | 1.10 s | |
-| peak memory (whole process) | 22–281 MB | 73–469 MB (book: 0.28 against 0.47 GB) | |
+| in-process time, median ratio to folio | 1 | 2.0× (0.67–5.1×) | 1.5× |
+| invoice `20-invoice` (3 pages), in process | 15.8 ms | 31.4 ms | 27.5 ms |
+| invoice `20-invoice`, whole process | 22 ms | 44 ms | |
+| book (254 pages), in process | 0.46 s | 1.15 s | 1.09 s |
+| peak memory (whole process) | 22–265 MB | 49–432 MB (book: 0.27 against 0.43 GB) | |
 | page count as in Chromium | 17 of 35 | 33 of 35 | |
 | reference words on the same page as in Chromium | 35% | 92% | |
 | median vertical offset of words | 55 pt | 0.2 pt | |
@@ -260,7 +263,10 @@ Word export from 0.92 to 0.56 s.
 
 Chrome's command line writes a tagged PDF: it adds a structure tree for screen readers, and `pdfinfo`
 shows „Tagged: yes”. Through DevTools, with default settings, Chrome writes an untagged PDF, like
-gopdfgo. Those two are comparable, and gopdfgo's files are 4–7% smaller. The e-SF statements were not
+gopdfgo. Those two are comparable, and gopdfgo's files are 4–7% smaller. On 2026-11-20 (commit `3e9224a`), with
+the fonts passed as `data:` URLs in `@font-face` as an application does, Chromium's invoices were 17–26% smaller
+(`docs/chromium-comparison.md`); the cause was not checked, so neither engine is called smaller until both are
+measured again with one setting (ADR 0055). The e-SF statements were not
 measured through DevTools with the same fonts.
 
 gopdfgo writes a tagged PDF with `Options.Tagged` (ADR 0033); its objects then go into compressed object
@@ -318,7 +324,8 @@ engines get the same Noto fonts through `@font-face`; Chrome 157.
   document whose first page is laid out differently in the second layout pass (open).
 - The remaining median of about 0.2 pt comes from Chrome snapping text baselines to whole pixels when it
   draws; gopdfgo keeps the exact baseline.
-- W3C screen reftests across 11 CSS areas: 9484 of 10962 pass (2026-11-22; three `hanging-punctuation` tests
+- W3C screen reftests across 11 CSS areas: 9484 of 10962 pass, 9020 exactly and 464 within anti-aliasing edges
+  (2026-11-22, again 2026-11-24 in `tools/verify/baselines/css.tsv`; three `hanging-punctuation` tests
   passed only by accident before ADR 0038, see `docs/feature-audit.md`). Before ADR 0044 it was 9499: text
   widths are now exact and rounded up to 1/64 px per text piece as in Chromium, which shifts glyphs by a
   fraction of a pixel where a test and its reference split the same text into different boxes (open

@@ -1,5 +1,9 @@
 # gopdfgo a Chromium w aplikacji [xml.pro](https://xml.pro): rozmiar, szybkość, jakość i pliki PDF
 
+**Pomiar historyczny.** Liczby z tej strony opisują stan z 2026-11-20 i nie są aktualizowane; aktualne są w
+`docs/overview.md` i README (rozmiar programu dziś 20,5 MB, ADR 0053). Dokumenty tego pomiaru są poza
+repozytorium; powtarzalny pomiar na dokumentach publicznych opisuje ADR 0055.
+
 Pomiar z 2026-11-20. Wersja gopdfgo: commit `3e9224a` z 2026-11-20
 (`github.com/polestorm/gopdfgo v0.0.0-20261120100328-3e9224a9cc7c`, silnik `gopdfgo/webrender 0.1.0-dev`).
 Chromium:

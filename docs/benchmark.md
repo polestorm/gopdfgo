@@ -1,5 +1,9 @@
 # Benchmark forka webrender na korpusie
 
+**Dziennik pomiarów.** Każda sekcja opisuje stan z podanego dnia i commita; liczby się nie aktualizują, a późniejsze
+sekcje zastępują wcześniejsze. Aktualne liczby porównań są w README i `docs/comparison.md`. Do 2026-11-26 narzędzia
+leżały w `bench/` poza gitem (ścieżki `bench/...` poniżej); od ADR 0055 są w `tools/bench` i `tools/verify`.
+
 Stan na 2026-11-12: dokumenty własne, próbki WeasyPrint i reftesty druku WPT zmierzone dla forka webrender;
 folio i Chromium jeszcze nie.
 Silnik: fork `benoitkugler/webrender` `6e769b1` bez Pango + `go-weasyprint` `e4c9509` (ADR 0002), z jedną poprawką

@@ -57,3 +57,8 @@ ustawieniach, wiersze tabeli z różnych dat i commitów.
      (starsze pomiary oznaczone datą jako historyczne), rozdzielenie zaliczeń ścisłych i krawędziowych
      w README (ADR 0003: 9020 + 464 z 10962, SVG 191 + 3 z 235).
 - Do czasu kroku 3 liczby README pochodzą z pomiarów z 2026-11-20–24 opisanych w `docs/benchmark.md`.
+- Krok 4 wykonany 2026-11-26: README podaje 20,5 MB, 3–14 razy szybciej od Chromium (całe procesy, 9 dokumentów
+  spoza repozytorium, oznaczone w przypisie jako niepowtarzalne z zewnątrz do kroku 2), pamięć Chromium z dopiskiem
+  o dwóch instancjach, bez medalu za rozmiar PDF faktur (sprzeczne pomiary 2026-11-20 i później), zaliczenia
+  reftestów ścisłe i krawędziowe w przypisie; `docs/overview.md` z pomiarem folio z 2026-11-24 (`c0a9f7d`, 2,0×)
+  i aktualnym rozmiarem programu; `docs/chromium-comparison.md` i `docs/benchmark.md` oznaczone jako historyczne.
