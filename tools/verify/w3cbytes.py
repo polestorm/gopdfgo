@@ -5,13 +5,15 @@ Renders every W3C test of the CSS survey (baselines/css.tsv, files in the WPT ch
 testdata/wpt, each in paged mode and in survey mode (-max-shrink 1 -continuous), with both binaries:
 11 689 documents, 46 756 renders. Given the same binary twice it checks determinism (the same input gives
 the same bytes); given two versions it checks that a change meant to keep the output does keep it. Prints
-the number of documents, renders and differences. WPT as in css.sh. Run from the repository root.
+the number of documents, renders and differences, and progress every 250 documents on standard error. WPT as in
+css.sh. Run from the repository root.
 """
 import concurrent.futures as cf
 import os
 import subprocess
 import sys
 import threading
+import time
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 first, second = sys.argv[1:3]
@@ -55,9 +57,14 @@ def run(job):
 
 
 diff = []
+start = time.time()
 with cf.ThreadPoolExecutor(int(os.environ.get('WORKERS', '8'))) as ex:
-    for r in ex.map(run, jobs):
+    for i, r in enumerate(ex.map(run, jobs), 1):
         diff += r
+        if i % 250 == 0 or i == len(jobs):
+            elapsed = time.time() - start
+            print('progress %d/%d documents, %d differences, %.0f s elapsed, about %.0f s left' % (
+                i, len(jobs), len(diff), elapsed, elapsed / i * (len(jobs) - i)), file=sys.stderr, flush=True)
 print('documents: %d, renders: %d, differences: %d' % (len(jobs), len(jobs) * 4, len(diff)))
 for d in diff[:40]:
     print(d)

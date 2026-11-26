@@ -140,5 +140,12 @@ code committed as `c0a9f7d`. The engine changes after it (ADR 0053: no HTTP clie
 pretty`, off by default) do not touch these tests; the SVG run of 2026-11-26 above gave the same result as the
 baseline. Byte reproducibility, `tools/verify/w3cbytes.py` with the builds before and after a change meant to keep the
 output: 0 differences
-over 11 689 documents and 46 756 renders (2026-11-24; the log of that run was not kept). Both are long runs and
-are repeated at night, then recorded here.
+over 11 689 documents and 46 756 renders (2026-11-24; the log of that run was not kept). The CSS survey is a long
+run and is repeated at night, then recorded here.
+
+### W3C byte reproducibility, 2026-11-26
+
+`tools/verify/w3cbytes.py` with `cmd/gopdfgo` built (`-trimpath -ldflags "-s -w"`) at `c0b1a68`, before the fix
+of the font memory leak, and at `c109135`, after it: 0 differences over 11 689 documents and 46 756 renders,
+3 min 27 s with 8 workers on the machine of the run above. Log:
+[`benchmarks/2026-11-26-w3cbytes.txt`](benchmarks/2026-11-26-w3cbytes.txt).

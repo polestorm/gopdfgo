@@ -33,7 +33,7 @@ import (
 // the document. The version is raised with every change that alters the output bytes on the corpus.
 const (
 	EngineName    = "gopdfgo/webrender"
-	EngineVersion = "0.1.0"
+	EngineVersion = "0.1.1"
 )
 
 // Errors returned by Render; check them with errors.Is.
