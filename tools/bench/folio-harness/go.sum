@@ -1,0 +1,8 @@
+github.com/carlos7ags/folio v0.11.1-0.20261118090612-29bca955eaed h1:ZUQnJIkPyYWwORYQ9Jy5o6P1zm6kzNl9KiwZK5Cflj0=
+github.com/carlos7ags/folio v0.11.1-0.20261118090612-29bca955eaed/go.mod h1:wLMBE8yOpJSc2uT16gbyail+t7Irupxm2qRf2H3S6r8=
+golang.org/x/image v0.47.0 h1:za/8gVz++PPZqmZJBNSISICN5Rrj5zixP/8K++fgmqo=
+golang.org/x/image v0.47.0/go.mod h1:IkN5o4A7vq55vXN8FWjjnhg9Rs2GOtffqsSi9mWAKYE=
+golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
+golang.org/x/net v0.61.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
+golang.org/x/text v0.43.0 h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=
+golang.org/x/text v0.43.0/go.mod h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=

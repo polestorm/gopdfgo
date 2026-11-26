@@ -1,0 +1,25 @@
+# tools/bench: comparison with folio and Chromium
+
+The programs behind the comparison table in the README (ADR 0055). Run everything from the repository root.
+Requirements: Go, Python 3 (standard library only), Poppler (`pdfinfo`, `pdftotext`); Chromium only to remake
+the reference PDFs. Working output goes to `bench/out/` (ignored by git).
+
+| File | What it does |
+|---|---|
+| `compare.py` | builds both harnesses, renders every document with folio, gopdfgo and gopdfgo with `FontCache`, and writes `results.json`: environment (date, commit, Go, OS, CPU, memory, power source), exact commands, SHA-256 of the harness binaries, raw times, peak memory, PDF size, pages, word positions against Chromium |
+| `summary.py` | the numbers of the README table from a `results.json` (public documents only) |
+| `gopdfgo-harness/` | renders one file with `htmlpdf.Render`; `-n N` times N warm renders in one process |
+| `folio-harness/` | the same with folio; a separate Go module, folio pinned in its `go.mod` (commit `29bca95`, 2026-11-18) |
+| `wordalign.py` | words of two PDFs matched by sequence alignment: page and position offsets |
+| `chromium.sh` | Chromium's reference PDFs, with the browser version and checksums in `chromium.json` |
+
+```
+python3 -I tools/bench/compare.py -out bench/out/compare     
+python3 -I tools/bench/summary.py bench/out/compare/results.json
+sh tools/bench/chromium.sh bench/out/chromium                    # optional: remake the references
+```
+
+Documents: `testdata/documents/*.html` with Chromium's PDFs in `testdata/documents/reference/chromium`, and the
+illustrated book from `testdata/books/fetch.sh` (downloaded from Project Gutenberg, checked with SHA-256).
+Both engines get the same font files from `testdata/fonts` through the documents' `@font-face` rules. Close
+other programs and use mains power: times are wall-clock times on a shared machine.

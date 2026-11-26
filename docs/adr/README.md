@@ -45,6 +45,7 @@ oznaczony „zastąpiony przez”. Pytania bez decyzji: `open-questions.md`.
 | 0052 | Układ do publikacji: API w pakiecie `htmlpdf`, w katalogu głównym tylko pliki modułu, licencji i README; `docs/provenance.md`, `docs/third-party-notices.txt`; README na wzór gomermaidgo; CI | przyjęta |
 | 0053 | Rdzeń bez kodu sieciowego: `DefaultUrlFetcher` tylko `data:` i `file:`, `@import` w obrazie SVG przez `Resolver`; binarka 25,2 → 20,5 MB | przyjęta |
 | 0054 | `text-wrap: pretty` w językach pl, cs, sk: jednoliterowe spójniki i przyimki nie kończą wiersza; domyślnie łamanie jak UAX #14 i Chromium | przyjęta |
+| 0055 | Powtarzalne porównania: narzędzia w `tools/bench` i `tools/verify`, wsad publiczny, metoda w `docs/benchmarks.md`, surowe wyniki w `docs/benchmarks/` | przyjęta (krok 1 z 4) |
 | 0039 | Fonty systemowe jako fonty zastępcze tylko w binarce ze znacznikiem `systemfonts` (`Options.SystemFonts`, `-system-fonts`; w wariancie domyślnym `ErrSystemFontsNotBuilt`); fonty wywołującego i `GenericFamilies` mają pierwszeństwo, każdy użyty font systemowy daje ostrzeżenie, fonty z zakazem osadzania (OS/2 `fsType`) pomijane; bez `text/template` binarka domyślna nie zawiera skanowania go-text | przyjęta |
 | 0013 | Jeden przełącznik `Options.ExactLengths`: domyślnie zaokrąglenia długości jak w Chromium (obramowania, `border-spacing`), `true` daje długości dokładnie z arkusza; pomniejszania strony nie naśladujemy | przyjęta |
 | 0012 | Cechy rozmiaru w `@media` (`width`, `height`, `orientation`) oceniane względem obszaru strony z `@page` | zastąpiona przez ADR 0019 |

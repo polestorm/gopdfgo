@@ -143,7 +143,8 @@ program and, for Chromium, the browser. The book is the illustrated *Pride and P
 (27 MB of images). Fidelity is measured on words: for each word of Chromium's PDF, the page and position of the
 same word in the other PDF. W3C test counts are reftests from the Web Platform Tests, compared as described in
 ADR 0003: exact, or equal except for anti-aliased edges. The full method is in
-[`docs/benchmark.md`](docs/benchmark.md) (in Polish).
+[`docs/benchmark.md`](docs/benchmark.md) (in Polish). The measuring tools are in [`tools/bench`](tools/bench)
+(gopdfgo, folio and Chromium) and [`tools/verify`](tools/verify) (W3C reftests, byte reproducibility).
 
 ## License
 

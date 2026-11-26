@@ -28,6 +28,10 @@ Zasady:
   (z podkatalogami; fonty dla rodzin generycznych wskazuje `testdata/fonts/families.json`, ADR 0005);
 - zależności tylko na licencjach MIT, BSD, Apache-2.0, OFL (fonty); LGPL/GPL wykluczone, bo binarka jest statyczna;
   zasoby wyłącznie testowe (nie trafiają do binarki) mogą być też w domenie publicznej lub na CC0 (font Ahem);
+- porównania z innymi programami są powtarzalne (ADR 0055, reguła globalna z 2026-11-26): narzędzia w `tools/bench`
+  i `tools/verify`, wsad w repozytorium albo z manifestem, metoda w `docs/benchmarks.md`, surowy wynik przebiegu
+  w `docs/benchmarks/`; dokumenty prywatne (`compare.py -extra`) nie wchodzą do porównania; liczby w README
+  odświeżamy nowym przebiegiem tych narzędzi, nie ręcznie;
 - reftesty porównujemy według ADR 0003: zgodność ścisła albo z dokładnością do krawędzi (`pass-edge`), a każda
   podawana liczba zaliczeń rozróżnia obie miary;
 - komunikaty programów (`gopdfgo -h`, `gopdfgo-sign`), ostrzeżenia w `Result.Warnings` i błędy API po angielsku

@@ -13,7 +13,7 @@ named in each source.
 |---|---|---|---|
 | What it is | a web browser that can print a page to PDF | a PDF library for Go with its own layout engine and an HTML converter | an HTML + CSS + SVG to PDF engine in Go, built for paginated documents |
 | Started | 2008 (headless mode 2017) | March 2026 | November 2026; the layout core derives from WeasyPrint (2011) through a Go port |
-| Maintainers, popularity | Google and a large community; the most used rendering engine | 17 contributors, about 880 GitHub stars, release v0.11 (October 2026) | one maintainer; not public yet |
+| Maintainers, popularity | Google and a large community; the most used rendering engine | 17 contributors, about 880 GitHub stars, release v0.11 (October 2026) | one maintainer; public since November 2026 (v0.1.0) |
 | Licence | BSD-3-Clause (Chromium) | Apache-2.0 | Apache-2.0 |
 | Maturity | very high | young, fast-moving (`MIGRATING.md` lists breaking changes) | young; validated mainly on W3C tests and real business documents |
 
@@ -111,7 +111,7 @@ binary that gives the same bytes for the same input.
 
 **gopdfgo is weaker at** speed and memory compared with folio, at writing systems (no right-to-left or
 vertical text), at everything that is not printing HTML (fillable form fields other than signature fields, the B-LTA signature level, verifying signatures, barcodes, editing existing PDF
-files), and at running scripts, which only a browser does. It is young and not yet public, while Chromium is
+files), and at running scripts, which only a browser does. It is young (first public release v0.1.0, November 2026), while Chromium is
 the reference engine and folio already has users.
 
 **Choose Chromium** for arbitrary web pages, pages that need JavaScript, or right-to-left and vertical text,
