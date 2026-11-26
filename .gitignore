@@ -9,3 +9,4 @@ font_index_*.cache
 /.claude/*
 !/.claude/CLAUDE.md
 /testdata/books/pride-and-prejudice/
+__pycache__/
